@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { E2E_STATE_DIR } from "./helpers/cli.ts";
+import { E2E_STATE_DIR, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -53,6 +53,7 @@ beforeAll(async () => {
 }, 180_000);
 afterAll(async () => {
   await repo.dispose();
+  stopProcessesUnder(out);
   await rm(out, { recursive: true, force: true });
 });
 

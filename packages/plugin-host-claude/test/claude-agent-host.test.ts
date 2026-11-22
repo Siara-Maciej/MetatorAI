@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AgentQuestion, CHAT_APPROVAL_NEEDS_DRIVER } from "@metator/core";
+import { type AgentQuestion, CHAT_APPROVAL_NEEDS_DRIVER, err, MetatorError, ok } from "@metator/core";
 import { agentHostContract, collect } from "@metator/testing";
 import {
   agentDefinition,
@@ -13,6 +13,7 @@ import {
   hostUsage,
   LOCAL_METATOR,
   OUTSIDE_DEFINITION,
+  sandboxedSpawn,
   toEvents,
 } from "../src/claude-agent-host.ts";
 
@@ -64,6 +65,21 @@ describe("ClaudeAgentHost", () => {
     const inRepo = fakeQuery(async () => [init, success]);
     await collect(new ClaudeAgentHost(inRepo.query), { ...task, cwd: "/repo" });
     expect(inRepo.calls[0]?.options.projectConfigRoot).toBeUndefined();
+  });
+
+  test("a reader that stops early aborts the agent's process; one that reads to the end does not", async () => {
+    const { query, calls } = fakeQuery(async () => [init, said("Planning"), said("still"), success]);
+    const events = new ClaudeAgentHost(query)
+      .run(task, async () => ({ choices: [] }))
+      [Symbol.asyncIterator]();
+    await events.next();
+    await events.return?.(undefined);
+    expect((calls[0]?.options.abortController as AbortController | undefined)?.signal.aborted).toBe(true);
+    const whole = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(whole.query), task);
+    expect((whole.calls[0]?.options.abortController as AbortController | undefined)?.signal.aborted).toBe(
+      false,
+    );
   });
 
   test("a cd into a working directory before a declared command asks no one; elsewhere it asks", async () => {
@@ -348,6 +364,43 @@ describe("ClaudeAgentHost", () => {
     expect(await decision("Read", { file_path: "/folder/backend/.env.example" })).toBeUndefined();
   });
 
+  test("a merge goes to the person in-process, by shell and by MCP, whatever else needs no person (ADR-0094)", async () => {
+    const asked: string[] = [];
+    const given: unknown[] = [];
+    const { query, calls } = fakeQuery(async (can) => {
+      given.push(await can("Bash", { command: "gh pr merge 12 --squash" }));
+      given.push(await can("mcp__github__merge_pull_request", { pullNumber: 12 }));
+      return [init, success];
+    });
+    let reply = "Allow";
+    await collect(new ClaudeAgentHost(query), { ...task, cwd: "/folder" }, async (q) => {
+      asked.push(q.prompt);
+      const choice = reply;
+      reply = "Deny";
+      return { choices: [choice] };
+    });
+    expect(asked).toEqual([
+      "mt-planner wants to merge (gh pr merge): gh pr merge 12 --squash",
+      'mt-planner wants to merge (mcp__github__merge_pull_request): {"pullNumber":12}',
+    ]);
+    expect(given.map((g) => (g as { behavior: string }).behavior)).toEqual(["allow", "deny"]);
+    type Hook = (input: unknown) => Promise<{
+      hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason: string };
+    }>;
+    const hooks = calls[0]?.options.hooks as { PreToolUse: { hooks: Hook[] }[] };
+    const hook = hooks.PreToolUse[0]?.hooks[0] as Hook;
+    const answer = async (tool_name: string, tool_input: Record<string, unknown>) =>
+      (await hook({ hook_event_name: "PreToolUse", tool_name, tool_input })).hookSpecificOutput;
+    expect((await answer("Bash", { command: "gh pr merge 12 --squash" }))?.permissionDecision).toBe("ask");
+    expect((await answer("Bash", { command: "git push origin HEAD:main" }))?.permissionDecision).toBe("ask");
+    const mcp = await answer("mcp__github__merge_pull_request", { pullNumber: 12 });
+    expect([mcp?.permissionDecision, mcp?.permissionDecisionReason]).toEqual([
+      "ask",
+      "`mcp__github__merge_pull_request` merges: it needs the person's consent.",
+    ]);
+    expect(await answer("mcp__github__create_pull_request", {})).toBeUndefined();
+  });
+
   test("reading and searching where the session may read, through the shell too, needs no person", async () => {
     const asked: string[] = [];
     const { query } = fakeQuery(async (can) => {
@@ -369,6 +422,38 @@ describe("ClaudeAgentHost", () => {
       'mt-planner wants to use Read: {"file_path":"/etc/passwd"}',
       "mt-planner wants to use Bash: rm -rf src",
     ]);
+  });
+
+  test("with a launch, the SDK starts `claude` through it: in the sandbox when the repository has one (ADR-0104)", async () => {
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    const launch = (argv: readonly string[]) =>
+      ok({ argv: ["env", "METATOR_SANDBOX=1", ...argv], sandboxed: true });
+    await collect(new ClaudeAgentHost(query, launch), task);
+    const spawnIt = calls[0]?.options.spawnClaudeCodeProcess as ReturnType<typeof sandboxedSpawn>;
+    expect(typeof spawnIt).toBe("function");
+    const child = spawnIt({
+      command: "sh",
+      args: ["-c", "echo in=$METATOR_SANDBOX"],
+      cwd: "/",
+      env: { PATH: process.env.PATH },
+    });
+    let out = "";
+    for await (const chunk of child.stdout) out += String(chunk);
+    expect(out.trim()).toBe("in=1");
+    // Without a launch the SDK starts it itself; a launch that fails starts nothing.
+    const plain = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(plain.query), task);
+    expect(plain.calls[0]?.options.spawnClaudeCodeProcess).toBeUndefined();
+    const failing = sandboxedSpawn(() => err(new MetatorError("COMMAND_FAILED", "no srt")))({
+      command: "claude",
+      args: [],
+      env: { PATH: process.env.PATH },
+    });
+    let said = "";
+    for await (const chunk of failing.stderr ?? []) said += String(chunk);
+    const code =
+      failing.exitCode ?? (await new Promise<number | null>((resolve) => failing.once("exit", resolve)));
+    expect([said.trim(), code]).toEqual(["no srt", 127]);
   });
 
   test("workers run in the foreground, where their permission prompts reach a person", async () => {

@@ -9,8 +9,8 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
-import { browser, closeBrowser } from "./helpers/browser.ts";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { browser, closeBrowser, decisionOnHome } from "./helpers/browser.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -178,6 +178,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await closeBrowser();
   await stop();
+  // A drive or a pane the daemon started works in the repository or the folder: nothing outlives the test.
+  stopProcessesUnder(repo.root);
+  stopProcessesUnder(folder);
   site.stop(true);
   await repo.dispose();
   await rm(folder, { recursive: true, force: true });
@@ -197,8 +200,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await panel.getByLabel("daemon address").inputValue()).toBe(base());
     expect(await page.getByTestId("connection").textContent()).toBe("no daemon");
     // Nothing claims an empty inbox, and nothing can be started.
-    expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
-    expect(await page.getByRole("button", { name: "+ New session" }).isDisabled()).toBe(true);
+    expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
+    expect(await page.getByRole("button", { name: "+ New chat" }).isDisabled()).toBe(true);
     for (const screen of ["grid", "backlog", "mrs", "settings", "supervisor", "session/nope"]) {
       await page.goto(app(screen));
       await panel.waitFor({ timeout: 10_000 });
@@ -208,11 +211,80 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await panel.getByRole("button", { name: "Retry" }).click();
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     expect(await panel.count()).toBe(0);
-    expect(await page.locator("main.content").textContent()).toContain("Inbox zero");
+    expect(await page.locator("main.content").textContent()).toContain("Describe a task");
   }, 90_000);
 
-  test("with no AI host installed + New session says so and opens nothing; the form offers no host (D1)", async () => {
-    await page.getByRole("button", { name: "+ New session" }).click();
+  test("in the app's shell the daemon starts itself: for the remembered folder, or the one the person names (ADR-0101)", async () => {
+    await stop();
+    const fresh = await ScratchRepo.create();
+    await fresh.write(".gitignore", ".metator/\n");
+    await fresh.commit("init");
+    const started: number[] = [];
+    const b = await browser();
+    // The shell's one command, done by the real CLI: what `ensure_daemon` runs in the Tauri window.
+    const shell = await b.newPage({ viewport: { width: 1440, height: 900 } });
+    await shell.exposeFunction("ensureDaemonForTest", async (dir: string) => {
+      const r = await metator(["-C", dir, "serve", "--ensure", "--port", "0"], dir, {
+        METATOR_CONFIG_DIR: configDir,
+      });
+      if (r.code !== 0) throw new Error((r.json.error as { message: string }).message);
+      const data = r.json.data as { url: string; pid: number };
+      started.push(data.pid);
+      return data.url;
+    });
+    await shell.addInitScript(() => {
+      const w = window as unknown as {
+        __TAURI__: unknown;
+        ensureDaemonForTest(dir: string): Promise<string>;
+      };
+      w.__TAURI__ = {
+        core: { invoke: (_cmd: string, args: { folder: string }) => w.ensureDaemonForTest(args.folder) },
+      };
+    });
+    try {
+      // First start: no folder is remembered, so the panel asks for one and offers to start.
+      await shell.goto(app("inbox"));
+      const panel = shell.getByTestId("no-daemon");
+      await panel.waitFor({ timeout: 20_000 });
+      expect(await panel.textContent()).not.toContain("In a terminal");
+      await panel.getByLabel("folder to serve").fill("/nowhere/at/all");
+      await panel.getByRole("button", { name: "Start the daemon" }).click();
+      await panel.getByTestId("start-error").waitFor({ timeout: 30_000 });
+      await panel.getByLabel("folder to serve").fill(fresh.root);
+      await panel.getByRole("button", { name: "Start the daemon" }).click();
+      await shell.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 40_000 });
+      expect(await panel.count()).toBe(0);
+      expect(started).toHaveLength(1);
+
+      // The daemon goes away while the app is open: the app starts one again for the same folder,
+      // with nothing typed and nothing clicked.
+      process.kill(started[0] as number, "SIGTERM");
+      await until("a second daemon", async () => (new Set(started).size > 1 ? true : undefined), 60_000);
+      await shell.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 40_000 });
+
+      // The app is opened again (its address still names the old port): the remembered folder's
+      // daemon is found, not started a third time.
+      await shell.goto(app("inbox"));
+      await shell.reload();
+      await shell.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 40_000 });
+      expect(new Set(started).size).toBe(2);
+    } finally {
+      await shell.close();
+      for (const pid of started) {
+        try {
+          process.kill(pid, "SIGTERM");
+        } catch {
+          // already gone
+        }
+      }
+      await fresh.dispose();
+      // The next tests look at the daemon of the shared repository again.
+      await serve(repo.root, NOWHERE);
+    }
+  }, 180_000);
+
+  test("with no AI host installed + New chat says so and opens nothing; the form offers no host (D1)", async () => {
+    await page.getByRole("button", { name: "+ New chat" }).click();
     const notice = page.locator("main.content > .notice");
     await notice.waitFor({ timeout: 20_000 });
     const said = (await notice.textContent()) ?? "";
@@ -221,8 +293,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(said).toContain('the guide page "Copilot and Claude Code", site/guide/hosts.md');
     expect(page.url()).toContain("#/inbox");
     expect(((await api("/layout")).data.panes as unknown[]).length).toBe(0);
-    await page.getByRole("button", { name: "Advanced…" }).click();
-    const dialog = page.getByRole("dialog", { name: "new session" });
+    await page.getByRole("button", { name: "New run from the form" }).click();
+    const dialog = page.getByRole("dialog", { name: "new run" });
     await dialog.getByTestId("no-host").waitFor({ timeout: 20_000 });
     expect(await dialog.getByLabel("AI host").inputValue()).toBe("");
     expect(await dialog.getByLabel("AI host").locator("option:disabled").allTextContents()).toEqual([
@@ -242,13 +314,22 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await serve(repo.root, { ...NOWHERE, METATOR_CLAUDE_BIN: repo.path("bin/claude") });
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     await page.goto(app("inbox"));
-    await page.getByRole("button", { name: "+ New session" }).click();
+    await page.getByRole("button", { name: "+ New chat" }).click();
+    // A new chat is a person's act: the app asks for the name once.
+    const named = page.getByRole("dialog", { name: "your name" });
+    await named.waitFor({ timeout: 5000 });
+    await named.getByLabel("Your name").fill("maciej");
+    await named.getByRole("button", { name: "Save" }).click();
+    // The chat's page shows its pane; Retry and Close of a pane are in Terminals.
+    await until("the chat's page", async () => (page.url().includes("#/thread/") ? true : undefined));
+    await page.goto(app("grid"));
     // The first host of the order (copilot) is not installed: the session starts on the one that is.
     const ended = page.locator('[data-testid^="ended-"]');
     await ended.waitFor({ timeout: 20_000 });
     const panes = (await api("/layout")).data.panes as { id: string; process: { host: string } }[];
     expect(panes.map((p) => p.process.host)).toEqual(["claude"]);
-    expect(await ended.textContent()).toContain("The process ended with code 3.");
+    // The pane stays with what ended it, in the error tone, with Retry and Close.
+    expect(await ended.textContent()).toContain("Ended with code 3");
     await until("the last output", async () =>
       (await page.locator(".pane-frame").first().textContent())?.includes("claude: not logged in")
         ? true
@@ -306,6 +387,9 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     const runId = (created.json.data as { runId: string }).runId;
     await page.goto(app(`session/${runId}`));
     const term = page.getByTestId(`terminal-${runId}`);
+    await page.getByRole("button", { name: "Open a session" }).click();
+    // Starting a run's agent is a person's act: the name was given once, for the chat, and is kept.
+    expect(await page.getByRole("dialog", { name: "your name" }).count()).toBe(0);
     await term.waitFor({ timeout: 20_000 });
     await until("the session to greet", async () =>
       (await term.textContent())?.includes("hello from the session") ? true : undefined,
@@ -340,24 +424,47 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     const runId = await escalate("Check the totals");
     await page.goto(app("inbox"));
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
-    // It is listed among what needs the person, and in the sessions panel, not under "finished".
+    // It is among what needs the person on Home, and in the sidebar, not under "finished",
+    // where it reads blocked: one of the first level's four words.
     const row = page.getByTestId(`escalated-${runId}`);
+    await decisionOnHome(page, ["Check the totals", "Why it stopped"]);
     await row.waitFor({ timeout: 20_000 });
-    expect(await page.locator("aside.sessions .list").textContent()).toContain("Check the totals");
-    expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
-    await row.click();
+    const side = page.locator("aside.sessions .list .row", { hasText: "Check the totals" }).first();
+    expect(await side.locator(".word").textContent()).toBe("blocked");
+    expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
+    // One count everywhere: Home's queue and the sidebar's heading.
+    const needYou = Number(/(\d+) waiting/.exec((await page.getByTestId("queue").textContent()) ?? "")?.[1]);
+    expect(needYou).toBeGreaterThan(0);
+    expect(await page.getByTestId("needs-count").textContent()).toContain(`Needs you · ${needYou}`);
+    await page.goto(app("supervisor"));
+    await until("the escalated run on the daemon screen", async () =>
+      (await page.locator(".fleet").textContent())?.includes("Check the totals") ? true : undefined,
+    );
+    // Its session screen has no driver to show: why it stopped, Resume and Close, and no Attach;
+    // nothing "waits for you here", and coming here started no session.
+    await page.goto(app(`session/${runId}`));
+    const bar = page.getByTestId("driverbar");
+    await bar.waitFor({ timeout: 20_000 });
+    expect(await bar.textContent()).toContain("Escalated at check");
+    expect(await bar.textContent()).not.toContain("Working:");
+    expect(await bar.getByTestId("escalated-reason").textContent()).toContain("gate `test -f ");
+    expect(await bar.getByRole("button", { name: "Resume" }).count()).toBe(1);
+    expect(await bar.getByRole("button", { name: "Close run…" }).count()).toBe(1);
+    expect(await page.getByRole("button", { name: /^Attach/ }).count()).toBe(0);
+    expect(await page.getByRole("button", { name: "Open a session" }).count()).toBe(0);
+    expect(await page.locator(".session .side").textContent()).not.toContain("nothing waits for you here");
+    expect(
+      ((await api("/layout")).data.panes as { runId?: string }[]).filter((p) => p.runId === runId),
+    ).toEqual([]);
+    await page.goto(app("inbox"));
+    await decisionOnHome(page, ["Check the totals", "Why it stopped"]);
     const card = page.getByTestId("escalated-card");
     await card.waitFor({ timeout: 20_000 });
-    expect(await card.getByTestId("escalated-reason").textContent()).toContain(
-      "gate `test -f {runDir}/fixed`",
-    );
+    expect(await card.getByTestId("escalated-reason").textContent()).toContain("gate `test -f ");
     // The cause removed, then Resume: the app asks who, the daemon resumes the run and drives it.
     await Bun.write(repo.path(`.metator/runs/${runId}/fixed`), "");
     await card.getByRole("button", { name: "Resume" }).click();
-    const who = page.getByRole("dialog", { name: "your name" });
-    await who.waitFor({ timeout: 5000 });
-    await who.getByLabel("Your name").fill("maciej");
-    await who.getByRole("button", { name: "Save" }).click();
+    // The name was given when a session was opened earlier: the app does not ask again.
     await until("the resumed run to finish", async () =>
       (await statusOf(runId)) === "done" ? true : undefined,
     );
@@ -367,7 +474,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
 
     // Another one is closed from its card: a reason is required, and the run ends as aborted.
     const other = await escalate("Check the taxes");
-    await page.getByTestId(`escalated-${other}`).click();
+    await decisionOnHome(page, ["Check the taxes", "Why it stopped"]);
     await card.getByRole("button", { name: "Close run…" }).click();
     const close = card.getByRole("button", { name: "Close as aborted" });
     expect(await close.isDisabled()).toBe(true);
@@ -383,7 +490,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     // Back to an earlier stage with a note: the card offers the stages the run worked, the one it
     // stopped at first, and says what the resume will do.
     const late = await escalate("Check the rounding", "stuck-late");
-    await page.getByTestId(`escalated-${late}`).click();
+    await decisionOnHome(page, ["Check the rounding", "Why it stopped"]);
     const stage = card.getByLabel("stage to resume at");
     expect([await stage.inputValue(), await stage.locator("option").allTextContents()]).toEqual([
       "check",
@@ -403,8 +510,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await repo.read(`.metator/runs/${late}/log.md`)).toContain(
       "resumed at prepare (escalated at check) · by maciej · note: prepare the totals first",
     );
-    // The Plan screen keeps the resume and what the person said.
-    await page.goto(app(`plan/${late}`));
+    // The plan on the step's Overview keeps the resume and what the person said.
+    await page.goto(app(`run/${late}/overview`));
     const resumes = page.getByLabel("resumes");
     await resumes.waitFor({ timeout: 20_000 });
     expect(await resumes.textContent()).toContain(
@@ -420,11 +527,11 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     const runsNow = async () =>
       ((await api("/state")).data.runs as { runId: string; task: string; worktree?: { path: string } }[]) ??
       [];
+    const dialog = page.getByRole("dialog", { name: "new run" });
     try {
       await page.goto(app("inbox"));
       await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
-      await page.getByRole("button", { name: "Advanced…" }).click();
-      const dialog = page.getByRole("dialog", { name: "new session" });
+      await page.getByRole("button", { name: "New run from the form" }).click();
       await dialog.getByLabel("Workflow", { exact: true }).selectOption("demo");
       await dialog.getByLabel("Task").fill("Start from a dirty tree");
       await dialog.getByLabel("AI host").selectOption("scenario");
@@ -446,7 +553,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
       await metator(["issue", "add", "Tidy the totals", "--by", "maciej"], repo.root, scenario);
       await page.goto(app("backlog"));
       await page.getByTestId("issue-i001").click();
-      await page.getByRole("button", { name: "Start a run" }).click();
+      await page.getByRole("button", { name: "Implement", exact: true }).click();
       const refused = page.locator(".backlog .notice");
       await refused.waitFor({ timeout: 20_000 });
       expect(await refused.textContent()).toContain("the run would start without your changes");
@@ -463,6 +570,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
         );
     } finally {
       await repo.write("scenario.yml", SCENARIO);
+      // What this test opened is closed, whatever happened: the next test starts on a bare screen.
+      if (await dialog.count()) await dialog.getByRole("button", { name: "Cancel" }).click();
     }
     expect(errors).toEqual([]);
   }, 120_000);

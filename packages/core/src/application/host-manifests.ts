@@ -7,8 +7,8 @@ import {
   HostManifestSchema,
 } from "../domain/host-manifest.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseYamlDocument } from "../domain/versioned.ts";
 import type { ReadonlyFileSystem } from "../ports/index.ts";
+import { loadDocument } from "./document-io.ts";
 
 /** Where a repository overrides a host's manifest: `metator/hosts/<host>.yml`. */
 export const HOSTS_DIR = "metator/hosts";
@@ -31,11 +31,7 @@ export class HostManifestCatalog {
     const file = `${this.dir}/${host}.yml`;
     let manifest: HostManifest;
     if (await this.fs.exists(file)) {
-      const text = await this.fs.read(file);
-      if (text.isErr()) return err(text.error);
-      const parsed = parseYamlDocument(text.value, file).andThen((raw) =>
-        HostManifestDocument.parse(raw, file),
-      );
+      const parsed = await loadDocument(this.fs, file, HostManifestDocument, "yaml");
       if (parsed.isErr()) return err(parsed.error);
       if (parsed.value.host !== host)
         return err(

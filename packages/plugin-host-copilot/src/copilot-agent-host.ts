@@ -1,4 +1,13 @@
-import type { AgentEvent, AgentHost, AgentTask } from "@metator/core";
+import {
+  type AgentEvent,
+  type AgentHost,
+  type AgentTask,
+  DEFAULT_GUARD_COMMANDS,
+  denyToolsOf,
+  type GuardCommands,
+  type SandboxLaunch,
+  UNSANDBOXED,
+} from "@metator/core";
 
 /**
  * AgentHost on GitHub Copilot CLI (ADR-0051): `copilot -p … --agent <id> --output-format json`
@@ -8,7 +17,13 @@ import type { AgentEvent, AgentHost, AgentTask } from "@metator/core";
 export class CopilotAgentHost implements AgentHost {
   readonly id = "copilot";
 
-  constructor(private readonly bin: string = "copilot") {}
+  constructor(
+    private readonly bin: string = "copilot",
+    /** `guard.commands` of the repository: what the process itself denies (never; a push, as nobody can be asked). */
+    private readonly guard: GuardCommands = DEFAULT_GUARD_COMMANDS,
+    /** How the `copilot` program starts: in the sandbox when the repository has one (ADR-0104). */
+    private readonly launch: SandboxLaunch = UNSANDBOXED,
+  ) {}
 
   async *run(task: AgentTask): AsyncIterable<AgentEvent> {
     const session = task.resume ?? crypto.randomUUID();
@@ -27,12 +42,16 @@ export class CopilotAgentHost implements AgentHost {
       "json",
       ...(task.resume ? ["--resume", task.resume] : ["--session-id", session]),
       "--allow-all-tools",
-      "--deny-tool",
-      "shell(git push)",
+      ...denyToolsOf(this.guard, { headless: true }).flatMap((t) => ["--deny-tool", t]),
     ];
+    const launched = this.launch(argv, task.cwd);
+    if (launched.isErr()) {
+      yield { type: "result", ok: false, text: `cannot start ${this.bin}: ${launched.error.message}` };
+      return;
+    }
     let proc: ReturnType<typeof Bun.spawn>;
     try {
-      proc = Bun.spawn(argv, { cwd: task.cwd, stdout: "pipe", stderr: "pipe" });
+      proc = Bun.spawn([...launched.value.argv], { cwd: task.cwd, stdout: "pipe", stderr: "pipe" });
     } catch (e) {
       yield { type: "result", ok: false, text: `cannot start ${this.bin}: ${(e as Error).message}` };
       return;
@@ -40,22 +59,29 @@ export class CopilotAgentHost implements AgentHost {
     const texts: string[] = [];
     let buffer = "";
     const decoder = new TextDecoder();
-    for await (const chunk of proc.stdout as ReadableStream<Uint8Array>) {
-      buffer += decoder.decode(chunk, { stream: true });
-      let nl = buffer.indexOf("\n");
-      while (nl >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        for (const event of parseLine(line)) {
-          if (event.type === "text") texts.push(event.text);
-          yield event;
+    // A drive that stops reading (its run's directory is gone) ends the agent's process with it.
+    let finished = false;
+    try {
+      for await (const chunk of proc.stdout as ReadableStream<Uint8Array>) {
+        buffer += decoder.decode(chunk, { stream: true });
+        let nl = buffer.indexOf("\n");
+        while (nl >= 0) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          for (const event of parseLine(line)) {
+            if (event.type === "text") texts.push(event.text);
+            yield event;
+          }
+          nl = buffer.indexOf("\n");
         }
-        nl = buffer.indexOf("\n");
       }
-    }
-    for (const event of parseLine(buffer.trim())) {
-      if (event.type === "text") texts.push(event.text);
-      yield event;
+      for (const event of parseLine(buffer.trim())) {
+        if (event.type === "text") texts.push(event.text);
+        yield event;
+      }
+      finished = true;
+    } finally {
+      if (!finished) proc.kill();
     }
     const code = await proc.exited;
     const stderr = await new Response(proc.stderr as ReadableStream<Uint8Array>).text();

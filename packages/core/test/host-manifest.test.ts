@@ -6,6 +6,7 @@ import {
   HostManifestSchema,
   hostPromptText,
   paneStateOf,
+  terminalQuestionOf,
 } from "../src/domain/host-manifest.ts";
 
 const copilot = HostManifestSchema.parse(BUILTIN_MANIFESTS.find((m) => m.host === "copilot"));
@@ -81,5 +82,23 @@ describe("HostManifest", () => {
     expect(hostPromptText("copilot", "w1:p1", "Allow? (y/n)")).toBe(
       "copilot waits for your answer in pane w1:p1: Allow? (y/n)",
     );
+  });
+});
+
+describe("terminalQuestionOf: a terminal question or a host's permission prompt", () => {
+  test("a question with options is a question, in its own words; a tool's permission prompt is a permission", () => {
+    expect(terminalQuestionOf("│ ? Which currency? [PLN / EUR] ")).toEqual({
+      kind: "question",
+      prompt: "Which currency?",
+      options: ["PLN", "EUR"],
+    });
+    expect(terminalQuestionOf("Do you want to allow `git status`? (y/n)")).toEqual({
+      kind: "permission",
+      prompt: "Do you want to allow `git status`? (y/n)",
+      options: [],
+    });
+    expect(terminalQuestionOf("Allow copilot to run `bun test`? [Yes / No]").kind).toBe("permission");
+    // One option is no choice: the host's own prompt.
+    expect(terminalQuestionOf("Continue? [enter]").kind).toBe("permission");
   });
 });

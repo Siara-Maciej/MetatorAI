@@ -3,6 +3,7 @@ import {
   DEFAULT_PATHS,
   DriverLock,
   InitRun,
+  NUDGE_ENTER_MS,
   PtyBroker,
   type PtyEvent,
   RunJournal,
@@ -21,7 +22,9 @@ function world() {
   const repo = new RunRepository(fs, DEFAULT_PATHS);
   const journal = new RunJournal(fs, repo, clock);
   const timers: { ms: number; fn: () => void }[] = [];
+  const typed: [string, string, string][] = [];
   const broker = new PtyBroker({
+    typed: async (paneId, text, by) => typed.push([paneId, text, by]),
     repo,
     journal,
     clock,
@@ -42,7 +45,17 @@ function world() {
     broker
       .start({ paneId, ...(runId ? { runId } : {}), role, host: "fake", sessionId: "fake-1", pty })
       ._unsafeUnwrap();
-  return { fs, repo, journal, broker, timers, init, start, lock: new DriverLock(repo, journal, clock) };
+  return {
+    fs,
+    repo,
+    journal,
+    broker,
+    timers,
+    typed,
+    init,
+    start,
+    lock: new DriverLock(repo, journal, clock),
+  };
 }
 
 describe("PtyBroker", () => {
@@ -173,7 +186,12 @@ describe("PtyBroker", () => {
     const pty = new FakePty(1001);
     w.start("w1:p1", run.runId, pty);
     expect((await w.broker.nudge("w1:p1", "go on")).isOk()).toBe(true);
-    expect(pty.typed).toEqual(["go on\r"]);
+    // The words first; Enter on its own a moment later (a burst ending in Enter is a paste).
+    expect(pty.typed).toEqual(["go on"]);
+    const enter = w.timers.find((t) => t.ms === NUDGE_ENTER_MS);
+    expect(enter).toBeDefined();
+    enter?.fn();
+    expect(pty.typed).toEqual(["go on", "\r"]);
     await w.lock.attach({ runId: run.runId, by: "maciej" });
     expect((await w.broker.nudge("w1:p1", "go on"))._unsafeUnwrapErr().message).toContain(
       "no nudge over a person",
@@ -184,6 +202,41 @@ describe("PtyBroker", () => {
       undefined,
       { closed: false },
     ]);
+  });
+
+  test("an interrupt is Esc, then the words, then Enter, each its own write; never over a person; what MetatorAI typed is remembered", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pty = new FakePty(1001);
+    w.start("w1:p1", run.runId, pty);
+    expect((await w.broker.interrupt("w1:p1", "Stop: wrong file")).isOk()).toBe(true);
+    expect(pty.typed).toEqual(["\x1b"]);
+    // The words a moment after Esc (the host needs it to stop), Enter a moment after the words.
+    const next = () => {
+      const t = w.timers.filter((x) => x.ms === NUDGE_ENTER_MS).at(-1);
+      w.timers.splice(w.timers.indexOf(t as never), 1);
+      t?.fn();
+    };
+    next();
+    expect(pty.typed).toEqual(["\x1b", "Stop: wrong file"]);
+    next();
+    expect(pty.typed).toEqual(["\x1b", "Stop: wrong file", "\r"]);
+    // Every line the daemon types is told to the record, before it is typed: its own lines
+    // (a nudge, a relay, an interrupt) and a person's answer to a card typed for them.
+    await w.broker.nudge("w1:p1", "go on");
+    await w.broker.nudge("w1:p1", "half-even", "answer");
+    await w.broker.typedFor("w1:p1", "yes");
+    expect(w.typed).toEqual([
+      ["w1:p1", "Stop: wrong file", "metator"],
+      ["w1:p1", "go on", "metator"],
+      ["w1:p1", "half-even", "answer"],
+      ["w1:p1", "yes", "answer"],
+    ]);
+    await w.lock.attach({ runId: run.runId, by: "maciej" });
+    expect((await w.broker.interrupt("w1:p1", "x"))._unsafeUnwrapErr().message).toContain(
+      "no interrupt over a person",
+    );
+    expect((await w.broker.interrupt("w9:p9", "x"))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 
   test("a hook heartbeat stamps the pane, ends idleness and starts the idle timer over; only a live pane has one", async () => {

@@ -22,6 +22,9 @@ describe("envelope", () => {
   test("exit codes map from error codes", () => {
     expect(exitCodeFor(MetatorError.usage("x"))).toBe(EXIT.USAGE);
     expect(exitCodeFor(new MetatorError("STALE_INDEX", "x"))).toBe(EXIT.STALE_INDEX);
+    // A gate that waits (W13): "not yet" and "stopped for good" are exit codes a drive tells apart.
+    expect(exitCodeFor(new MetatorError("WAITING", "x"))).toBe(4);
+    expect(exitCodeFor(new MetatorError("BLOCKED", "x"))).toBe(3);
     expect(exitCodeFor(new MetatorError("COMMAND_FAILED", "x"))).toBe(EXIT.FAIL);
   });
 

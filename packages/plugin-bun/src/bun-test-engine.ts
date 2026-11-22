@@ -16,6 +16,8 @@ import {
 const REJECTS_CASE = /\btest\(\s*["'`]rejects\b/;
 /** Lines of `bun test` output that say what failed. */
 const FAILURE_LINE = /^(\(fail\)|error:|\s*[-+] |\s*(Expected|Received)\b)/;
+/** How long a test took (`[0.25ms]`): not part of what failed, and different on every run. */
+const DURATION = / \[\d+(\.\d+)?(ms|s)\]$/;
 
 /**
  * E1 rule engine on conformance tests (ADR-0034): a rule `test:<id>` holds while
@@ -55,7 +57,10 @@ export class BunTestEngine implements RuleEngine {
       if (r.exitCode === 0) continue;
       if (r.exitCode === 127) return err(new MetatorError("BIN_NOT_FOUND", "bun is not installed"));
       const output = `${r.stdout}\n${r.stderr}`;
-      const failures = output.split("\n").filter((l) => FAILURE_LINE.test(l));
+      const failures = output
+        .split("\n")
+        .filter((l) => FAILURE_LINE.test(l))
+        .map((l) => l.replace(DURATION, ""));
       diagnostics.push({
         source: this.engine,
         toolRuleId: rule.id,

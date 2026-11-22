@@ -50,11 +50,14 @@ describe("OptionStore", () => {
     expect(view.options.length).toBeGreaterThan(30);
     expect(view.options.every((o) => o.source === "default" || o.source === "repo")).toBe(true);
     expect(view.groups.map((g) => g.id)).toEqual([
+      "backlog",
       "editor",
       "issues",
       "keys",
       "notify",
+      "sandbox",
       "supervisor",
+      "system",
       "terminal",
       "ui",
     ]);
@@ -158,7 +161,7 @@ describe("OptionStore", () => {
     const created = parse((await fresh.fs.read("metator.config.yml"))._unsafeUnwrap());
     expect(created).toEqual({
       kind: "MetatorConfig",
-      schemaVersion: 12,
+      schemaVersion: 15,
       options: { "supervisor.wipLimit": 2 },
     });
     expect(MetatorConfigSchema.safeParse({ options: created.options }).success).toBe(true);

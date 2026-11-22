@@ -280,6 +280,11 @@ export class DiscoverSystem {
       readonly fs: FileSystem;
     };
     readonly write?: boolean;
+    /**
+     * In a folder, the repository (by name) that holds the map: it is the map's own checkout
+     * (`path`), and a sibling without a remote is named from there (`../<name>`).
+     */
+    readonly home?: string;
   }): Promise<Result<DiscoveredSystem, MetatorError>> {
     const folder = input.sources.length > 1;
     const apps: (AppCandidate & { readonly sourceIndex: number; readonly dir: string })[] = [];
@@ -303,9 +308,14 @@ export class DiscoverSystem {
           id,
           sourceIndex: i,
           dir: a.dir,
-          source: folder
-            ? { repo: remote ?? source.name, ...(a.dir === "." ? {} : { path: a.dir }) }
-            : { path: a.dir },
+          source: !folder
+            ? { path: a.dir }
+            : input.home === source.name
+              ? { path: a.dir }
+              : {
+                  repo: remote ?? (input.home ? `../${source.name}` : source.name),
+                  ...(a.dir === "." ? {} : { path: a.dir }),
+                },
           kind: kindFrom(a.name, a.deps, hasSpec, a.bin, a.devOnly),
           owners: owners.value[j] ?? [],
           ...(a.docker ? { deployUnit: id } : {}),

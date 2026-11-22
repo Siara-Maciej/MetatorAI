@@ -6,3 +6,7 @@ exceptions:
     reason: "node-pty is loaded with createRequire at run time (its native binding is picked per platform), so no static import names it."
     owner: core
     expires: 2027-06-30
+  - violation: "unused-dependency:@metator/plugin-node→@anthropic-ai/sandbox-runtime"
+    reason: "Its `srt` command line is located with createRequire(...).resolve and run as a process (ADR-0104), so no static import names it."
+    owner: core
+    expires: 2027-06-30

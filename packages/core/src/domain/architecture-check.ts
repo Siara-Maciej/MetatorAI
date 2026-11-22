@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { ArchitectureReport, Violation } from "./architecture.ts";
 import { moduleDirOf, proposeModuleGlobs } from "./architecture-modules.ts";
 import { type ArchitecturePolicy, VIOLATION_KINDS, VIOLATION_KINDS_V1 } from "./architecture-policy.ts";
+import type { ArchitectureReport, Violation } from "./architecture-report.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**

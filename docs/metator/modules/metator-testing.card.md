@@ -21,7 +21,7 @@ dir: packages/testing
 
 ## Responsibility
 
-Fakes of the ports that tests need in memory, contract suites for the ports that have one, shared fixtures (the Bun-workspaces monorepo) and a throwaway real Postgres (`startPostgres`, `postgresScript`) used by unit and e2e tests.
+Fakes of the ports that tests need in memory, contract suites for the ports that have one (file system and lock, process runner, version control, rule engine, worktrees, machine state, tree copier, data isolator, the hosts and their generators, code and review hosts (the reviewer side too: `reviewerHostContract`), contract differ, screen renderer), shared fixtures (the Bun-workspaces monorepo, Claude Code's screens) and a throwaway real Postgres (`startPostgres`, `postgresScript`) used by unit and e2e tests. `sandboxUnheldHere` says why this machine holds no sandbox (ADR-0104), so a test that needs a real one is skipped, saying why, rather than passing silently.
 
 ## Invariants
 
@@ -34,3 +34,4 @@ Fakes of the ports that tests need in memory, contract suites for the ports that
 ## Pitfalls
 
 - A fake that is more lenient than the real adapter hides bugs; when an adapter test finds a difference, fix the fake too.
+- `standInHost` writes a stand-in `claude` or `copilot` program (never a real host) that takes the host's command line, draws its prompt and approval menu, runs the repository's hooks and keeps a session per id; a fault (`StandInFault`) breaks one conformance claim on purpose. It shows what MetatorAI does with a host, never how the real host behaves.

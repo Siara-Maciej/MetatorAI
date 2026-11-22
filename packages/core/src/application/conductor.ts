@@ -7,13 +7,14 @@ import {
   workerName,
   workerPrompt,
 } from "../domain/conductor.ts";
+import { taskInFull } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { Pane } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem, Timer } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 import type { Panes, PaneView } from "./panes.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 
@@ -58,6 +59,8 @@ export class Conductor {
   async start(input: {
     readonly runId?: string;
     readonly host?: string;
+    /** The terminal's size, when a screen opens the session. */
+    readonly size?: { readonly cols: number; readonly rows: number };
   }): Promise<Result<PaneView, MetatorError>> {
     const id = await this.d.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
@@ -66,11 +69,14 @@ export class Conductor {
     const workflow = await this.d.catalog.get(record.value.workflow.id);
     if (workflow.isErr()) return err(workflow.error);
     const cwd = record.value.worktree ? `${this.d.root}/${record.value.worktree.path}` : this.d.root;
+    const briefFile = `${this.d.repo.runDir(id.value)}/task.md`;
+    const brief = (await this.d.fs.exists(briefFile)) ? await this.d.fs.read(briefFile) : undefined;
     const prompt = conductorPrompt({
       runId: id.value,
-      task: record.value.task,
+      task: taskInFull(record.value.task, brief?.isOk() ? brief.value : undefined),
       workflow: record.value.workflow.id,
       stages: workflow.value.spec.stages,
+      ...(workflow.value.spec.limits?.parallel ? { parallel: workflow.value.spec.limits.parallel } : {}),
       runDir: `${cwd}/${this.d.repo.runDir(id.value)}`,
     });
     return this.d.panes.openRun({
@@ -78,6 +84,7 @@ export class Conductor {
       ...(input.host ? { host: input.host } : {}),
       agent: DEFAULT_CONDUCTOR,
       prompt,
+      ...(input.size ? { size: input.size } : {}),
     });
   }
 
@@ -173,6 +180,7 @@ export class Conductor {
           agent: input.agent,
           card: input.card.trim(),
           runDir,
+          produces: stage.produces ?? [],
         }),
       },
     });
@@ -194,7 +202,8 @@ export class Conductor {
     if (view.isErr()) return err(view.error);
     const out: WorkerView[] = [];
     for (const p of view.value.panes) {
-      if (p.runId !== runId || p.role !== "worker" || !p.worker) continue;
+      // A collected worker is done with: its pane stays for a person, not for the conductor.
+      if (p.runId !== runId || p.role !== "worker" || !p.worker || p.ended?.reason === "collected") continue;
       const result = await this.result(runId, p.worker.name);
       if (result.isErr()) return err(result.error);
       out.push({
@@ -240,7 +249,9 @@ export class Conductor {
   async collect(input: {
     readonly runId?: string;
     readonly worker: string;
-  }): Promise<Result<WorkerResult & { readonly paneClosed: boolean }, MetatorError>> {
+  }): Promise<
+    Result<WorkerResult & { readonly paneClosed: boolean; readonly paneEnded: boolean }, MetatorError>
+  > {
     const id = await this.d.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const result = await this.result(id.value, input.worker);
@@ -252,12 +263,18 @@ export class Conductor {
           "Wait for it (`metator run wait <worker>`), or read its pane (`metator pane read <pane>`).",
         ),
       );
+    // The worker's pane ends (its process stopped, its screen kept) and stays with the worker's
+    // one line until a person closes it; it is never removed here.
     const pane = await this.workerPane(id.value, input.worker);
-    let paneClosed = false;
+    let paneEnded = false;
     if (pane.isOk()) {
-      const closed = await this.d.panes.closePane(pane.value.id);
-      if (closed.isErr()) return err(closed.error);
-      paneClosed = closed.value.closed;
+      const ended = await this.d.panes.end(pane.value.id, {
+        reason: "collected",
+        summary: result.value.summary.split("\n")[0] ?? "",
+        override: true,
+      });
+      if (ended.isErr()) return err(ended.error);
+      paneEnded = ended.value.ended;
     }
     const noted = await this.d.journal.record(id.value, {
       type: "agent",
@@ -267,7 +284,7 @@ export class Conductor {
       text: `collected worker ${input.worker}: ${result.value.status}, ${result.value.summary.split("\n")[0]}`,
     });
     if (noted.isErr()) return err(noted.error);
-    return ok({ ...result.value, paneClosed });
+    return ok({ ...result.value, paneClosed: false, paneEnded });
   }
 
   /** A worker's report (`metator run result`); a blocked one also asks the person its question. */
@@ -296,9 +313,12 @@ export class Conductor {
       ...(input.question?.trim() ? { question: input.question.trim() } : {}),
       at: this.d.clock.now().toISOString(),
     };
-    const written = await this.d.fs.write(
+    const written = await writeDocument(
+      this.d.fs,
       this.resultFile(id.value, input.worker),
-      serializeJsonDocument(WorkerResultDocument.stamp(result)),
+      WorkerResultDocument,
+      result,
+      "json",
     );
     if (written.isErr()) return err(written.error);
     const noted = await this.d.journal.record(id.value, {
@@ -329,13 +349,7 @@ export class Conductor {
     runId: string,
     worker: string,
   ): Promise<Result<WorkerResult | undefined, MetatorError>> {
-    const file = this.resultFile(runId, worker);
-    if (!(await this.d.fs.exists(file))) return ok(undefined);
-    const text = await this.d.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const raw = parseJsonDocument(text.value, file);
-    if (raw.isErr()) return err(raw.error);
-    return WorkerResultDocument.parse(raw.value, file);
+    return readDocument(this.d.fs, this.resultFile(runId, worker), WorkerResultDocument);
   }
 
   private resultFile(runId: string, worker: string): string {

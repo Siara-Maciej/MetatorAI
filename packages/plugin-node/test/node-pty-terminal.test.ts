@@ -32,7 +32,8 @@ describe("NodePtyTerminal", () => {
   test("kill ends the session", async () => {
     const pty = new NodePtyTerminal().spawn(["sleep", "30"], { cwd: tmpdir() })._unsafeUnwrap();
     pty.kill();
-    expect(await exitOf(pty)).not.toBe(-1);
+    // Ended by a signal (SIGHUP): 128 + 1, as a shell reports it, never a plain 0 that reads as done.
+    expect(await exitOf(pty)).toBe(129);
   }, 20_000);
 });
 

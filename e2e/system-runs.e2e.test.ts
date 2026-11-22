@@ -8,7 +8,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
+import { inTerminal } from "./helpers/terminal.ts";
 
 const MAP = `kind: SystemMap
 schemaVersion: 1
@@ -32,8 +33,20 @@ const git = (dir: string, ...a: string[]) =>
   Bun.spawnSync(["git", "-c", "user.name=T", "-c", "user.email=t@e", "-c", "commit.gpgsign=false", ...a], {
     cwd: dir,
   });
-const env = { METATOR_USER: "ana" };
-const mt = (repo: string, ...args: string[]) => metator(args, at(repo), env);
+// The child runs the plan starts are driven: by the scenario host, whose implementer waits on a
+// question until the test moves the run itself. No real AI host is ever started.
+const SCENARIO = `kind: AgentScenario
+schemaVersion: 1
+agents:
+  mt-implementer:
+    - - ask: { question: "Wait for the test?", options: [yes] }
+`;
+const env = () => ({
+  METATOR_USER: "ana",
+  METATOR_HOST: "scenario",
+  METATOR_AGENT_SCENARIO: join(folder, "scenario.yml"),
+});
+const mt = (repo: string, ...args: string[]) => metator(args, at(repo), env());
 
 interface Step {
   id: string;
@@ -44,6 +57,7 @@ interface Step {
 
 beforeAll(async () => {
   folder = await mkdtemp(join(tmpdir(), "metator-linked-"));
+  await Bun.write(join(folder, "scenario.yml"), SCENARIO);
   const W13 = await Bun.file(
     join(import.meta.dir, "..", ".github/metator/workflows/mt-system-change.yml"),
   ).text();
@@ -67,6 +81,7 @@ beforeAll(async () => {
     });
 });
 afterAll(async () => {
+  stopProcessesUnder(folder);
   await rm(folder, { recursive: true, force: true });
 });
 
@@ -106,10 +121,32 @@ describe("linked runs (real CLI, three repositories)", () => {
     expect(started.code).toBe(0);
     const first = (
       started.json.data as {
-        started: { step: string; app: string; root: string; run: string; task: string }[];
+        started: {
+          step: string;
+          app: string;
+          root: string;
+          run: string;
+          task: string;
+          session?: unknown;
+          noSession?: string;
+          drive?: { started: boolean; host?: string };
+        }[];
       }
     ).started;
     expect(first.map((s) => [s.step, s.app, s.root])).toEqual([["billing-bump", "billing", at("billing")]]);
+    // No daemon serves billing: the child cannot open as a session a person sees, so it is driven
+    // in the background (ADR-0090), and says why, in the output and in its activity.
+    expect([first[0]?.session, first[0]?.noSession, first[0]?.drive?.started, first[0]?.drive?.host]).toEqual(
+      [undefined, "no daemon runs for this repository", true, "scenario"],
+    );
+    const childActivity = (
+      (await mt("billing", "run", "activity", "--run", first[0]?.run as string)).json.data as {
+        entries: { text: string }[];
+      }
+    ).entries.map((e) => e.text);
+    expect(childActivity).toContain(
+      "no conductor session (no daemon runs for this repository): driven in the background on scenario",
+    );
     expect(first[0]?.task).toStartWith(
       "Release a new major version of billing-api (system plan rename-refunds, step billing-bump in billing",
     );
@@ -118,7 +155,7 @@ describe("linked runs (real CLI, three repositories)", () => {
       await Bun.file(join(at("billing"), ".metator/runs", first[0]?.run as string, "state.json")).text(),
     );
     expect([child.schemaVersion, child.parent, child.system]).toEqual([
-      8,
+      9,
       parent,
       { plan: "rename-refunds", step: "billing-bump", app: "billing" },
     ]);
@@ -130,8 +167,38 @@ describe("linked runs (real CLI, three repositories)", () => {
     const waiting = await mt("platform", "system", "plan", "run", "rename-refunds", "--workflow", "mt-tiny");
     expect([(waiting.json.data as { started: unknown[] }).started, waiting.json.warnings]).toEqual([
       [],
-      ["no step can start yet: the steps before them are not done (`metator system status`)"],
+      ["no step can start yet: the steps before them are not done (`metator system plan status`)"],
     ]);
+    // At a terminal the plan's status reads as waves of steps, each with its repository and run.
+    const shown = await inTerminal(
+      ["system", "plan", "status", "rename-refunds"],
+      at("platform"),
+      [],
+      20_000,
+      env(),
+    );
+    expect(shown.screen).toContain("rename-refunds · ");
+    expect(shown.screen).toMatch(/Wave 1\s+\S+ billing-bump\s+billing\s+running\s+\S+ \(active at build\)/);
+    expect(shown.screen).toMatch(/Wave 2\s+· web-migrate\s+web\s+pending\s+not started/);
+    // Only the text a person reads: the JSON line is for a pipe (or `--json`).
+    expect(shown.screen).not.toContain('{"ok"');
+    const shownPlan = await inTerminal(
+      ["system", "plan", "show", "rename-refunds"],
+      at("platform"),
+      [],
+      20_000,
+      env(),
+    );
+    expect(shownPlan.screen).toMatch(/Wave 2\s+web-migrate\s+web/);
+    expect(shownPlan.screen).not.toContain('{"ok"');
+    const asJson = await inTerminal(
+      ["system", "plan", "show", "rename-refunds", "--json"],
+      at("platform"),
+      [],
+      20_000,
+      env(),
+    );
+    expect(asJson.json.ok).toBe(true);
     const check = await mt("platform", "system", "status", "--run", parent, "--check");
     expect([check.code, (check.json.error as { message: string }).message]).toEqual([
       1,

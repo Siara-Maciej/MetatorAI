@@ -16,8 +16,9 @@ import {
   type Tier,
 } from "../domain/memory.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseYamlDocument, readFrontMatter } from "../domain/versioned.ts";
+import { readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, ReadonlyFileSystem } from "../ports/index.ts";
+import { parseDocumentText } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import { generatedHostFiles, type SourceFiles } from "./source-files.ts";
 
@@ -43,9 +44,7 @@ export class MemoryMapReader {
         }),
       );
     }
-    return parseYamlDocument(text.value, source)
-      .andThen((raw) => MemoryMapDocument.parse(raw, source))
-      .map((map) => ({ map, source }));
+    return parseDocumentText(text.value, source, MemoryMapDocument, "yaml").map((map) => ({ map, source }));
   }
 
   /** The map when present; `undefined` when the repository has none (inventory works without). */

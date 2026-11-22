@@ -265,6 +265,9 @@ describe("WorkOverview", () => {
     const o = (await overview.execute())._unsafeUnwrap();
     const d = o.runs.find((r) => r.runId.endsWith("-d"));
     expect([d?.stage, d?.attention, d?.reason]).toEqual(["plan", "escalated", "no plan.json"]);
+    // Its place on the board comes with it: the stage it stopped at is planning; a done run is done.
+    expect(d?.phase).toBe("planning");
+    expect(o.runs.filter((r) => r.status === "done").every((r) => r.phase === "done")).toBe(true);
     expect(d?.stages.map((s) => s.state)).toEqual(["done", "stopped", "next", "next"]);
     expect([o.counts.escalated, o.counts.finished]).toEqual([1, 1]);
     // What the inbox shows of it: the stage, the reason, how long, the two commands out.
@@ -274,6 +277,9 @@ describe("WorkOverview", () => {
         task: "d",
         stage: "plan",
         reason: "no plan.json",
+        // One try of one: the stage has no loop to go back on.
+        attempts: { tried: 1, of: 1 },
+        stop: { kind: "stopped", text: "stopped at plan: no plan.json", tried: 1, of: 1 },
         waitedMs: 1_800_000,
         next: [
           "metator run resume --run 20261028-mt-feature-d --by <name> --drive",

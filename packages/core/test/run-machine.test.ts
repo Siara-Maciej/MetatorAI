@@ -88,6 +88,20 @@ describe("RunStateMachine (XState)", () => {
     });
   });
 
+  test("a final FAIL escalates at once, with loops left: what it waits on stopped, and no retry fixes that", () => {
+    const at = drive(machine().start(), { type: "PASS" }, { type: "PASS" });
+    expect(at.stage).toBe("plan-gate");
+    const end = drive(at, { type: "FAIL", reason: "a child run escalated", final: true });
+    expect([end.stage, end.status, end.context.loops]).toEqual(["escalated", "escalated", {}]);
+    expect(end.context.history.at(-1)).toEqual({
+      stage: "plan-gate",
+      event: "FAIL",
+      detail: "a child run escalated",
+    });
+    // The same FAIL without `final` goes back as before.
+    expect(drive(at, { type: "FAIL", reason: "x" }).stage).toBe("plan");
+  });
+
   test("loops are counted per loop name", () => {
     const toReview = drive(
       machine().start(),

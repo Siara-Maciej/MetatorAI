@@ -1,12 +1,19 @@
 import { MetatorError } from "../domain/errors.ts";
 import type { PaneRole } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import type { Clock, PtyHandle, PtySize } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
+import type { Clock, PtyHandle, PtySize, ScreenModel, ScreenRenderer } from "../ports/index.ts";
+import type { TypedBy } from "./pane-typed.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 /** How much of a pane's output a late viewer gets. */
 const BACKLOG_BYTES = 200_000;
+
+/** The size a terminal is taken to have when its starter says none. */
+const SCREEN_SIZE: PtySize = { cols: 120, rows: 40 };
+
+/** How long after the nudge's words its Enter follows, so the two are not taken as one paste. */
+export const NUDGE_ENTER_MS = 150;
 
 export interface PtyBrokerDependencies {
   readonly repo: Pick<RunRepository, "load">;
@@ -17,6 +24,13 @@ export interface PtyBrokerDependencies {
   readonly after?: (ms: number, fn: () => void) => () => void;
   /** Stamps output and hook calls (the pane sensor reads them); the wall clock by default. */
   readonly clock?: Clock;
+  /** Draws each pane's screen as a person sees it (@xterm/headless); without it, the output without escapes. */
+  readonly screens?: ScreenRenderer;
+  /**
+   * Told of every line the daemon types into a pane: its own (`metator`: a nudge, a relay, a
+   * notice) or a person's answer typed for them (`answer`). A host reports each as a prompt.
+   */
+  readonly typed?: (paneId: string, text: string, by: TypedBy) => Promise<unknown>;
 }
 
 export interface PtyView {
@@ -42,6 +56,8 @@ interface Live {
   readonly sessionId: string;
   readonly pty: PtyHandle;
   backlog: string;
+  /** What the terminal shows now, as a person sees it (the backlog holds every frame drawn). */
+  readonly screen?: ScreenModel;
   alive: boolean;
   exitCode?: number;
   idle: boolean;
@@ -75,25 +91,33 @@ export class PtyBroker {
     readonly host: string;
     readonly sessionId: string;
     readonly pty: PtyHandle;
+    /** The terminal's size, for the screen it shows. */
+    readonly size?: PtySize;
+    /** What the pane showed before (a resumed session): kept above the new output. */
+    readonly backlog?: string;
   }): Result<PtyView, MetatorError> {
     const current = this.live.get(input.paneId);
     if (current?.alive) return err(MetatorError.usage(`pane ${input.paneId} already has a live terminal`));
     current?.cancelIdle?.();
+    current?.screen?.dispose();
     const entry: Live = {
       ...(input.runId ? { runId: input.runId } : {}),
       role: input.role,
       host: input.host,
       sessionId: input.sessionId,
       pty: input.pty,
-      backlog: "",
+      backlog: (input.backlog ?? "").slice(-BACKLOG_BYTES),
+      ...(this.d.screens ? { screen: this.d.screens.open(input.size ?? SCREEN_SIZE) } : {}),
       alive: true,
       idle: false,
       lastOutputAt: this.now(),
       listeners: new Set(),
     };
     this.live.set(input.paneId, entry);
+    if (input.backlog) entry.screen?.write(input.backlog);
     input.pty.onData((data) => {
       entry.backlog = (entry.backlog + data).slice(-BACKLOG_BYTES);
+      entry.screen?.write(data);
       entry.idle = false;
       entry.lastOutputAt = this.now();
       this.armIdle(input.paneId, entry);
@@ -114,6 +138,15 @@ export class PtyBroker {
     });
     this.armIdle(input.paneId, entry);
     return ok(this.view(input.paneId, entry));
+  }
+
+  /**
+   * What the pane's terminal shows, rendered as a person sees it (the last drawing of each line,
+   * no escapes); undefined for a pane with no terminal here. The sensor reads prompts from it.
+   */
+  async screen(paneId: string): Promise<string | undefined> {
+    const entry = this.live.get(paneId);
+    return entry?.screen ? entry.screen.text() : undefined;
   }
 
   /** Output since the terminal started (the last 200 kB), for a viewer that joins late. */
@@ -157,21 +190,78 @@ export class PtyBroker {
     return ok(undefined);
   }
 
-  /** The supervisor's words to an idle session: typed only while the agent drives, never over a person. */
-  async nudge(paneId: string, text: string): Promise<Result<void, MetatorError>> {
+  /** A person's answer the daemon is about to type into the pane for them (their own keystrokes path). */
+  async typedFor(paneId: string, text: string): Promise<void> {
+    await this.d.typed?.(paneId, text, "answer");
+  }
+
+  /** Whether a person holds the keyboard of the pane's run: nothing is typed over them. */
+  private async held(entry: Live, what: string): Promise<Result<void, MetatorError>> {
+    if (!entry.runId) return ok(undefined);
+    const record = await this.d.repo.load(entry.runId);
+    if (record.isErr()) return err(record.error);
+    return record.value.driver?.by === "human"
+      ? err(
+          MetatorError.usage(
+            `run ${entry.runId} is driven by ${record.value.driver.attachedBy}: no ${what} over a person`,
+          ),
+        )
+      : ok(undefined);
+  }
+
+  /**
+   * Stops what the pane's agent does and gives it words: Esc, the words a moment later, then
+   * Enter as its own write (ADR-0093). Never over a person who holds the run's keyboard.
+   */
+  async interrupt(paneId: string, text: string): Promise<Result<void, MetatorError>> {
     const entry = this.live.get(paneId);
     if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
-    if (entry.runId) {
-      const record = await this.d.repo.load(entry.runId);
-      if (record.isErr()) return err(record.error);
-      if (record.value.driver?.by === "human")
-        return err(
-          MetatorError.usage(
-            `run ${entry.runId} is driven by ${record.value.driver.attachedBy}: no nudge over a person`,
-          ),
-        );
-    }
-    entry.pty.write(`${text}\r`);
+    const free = await this.held(entry, "interrupt");
+    if (free.isErr()) return err(free.error);
+    const after =
+      this.d.after ??
+      ((delay, fn) => {
+        const t = setTimeout(fn, delay);
+        return () => clearTimeout(t);
+      });
+    await this.d.typed?.(paneId, text, "metator");
+    entry.pty.write("\x1b");
+    after(NUDGE_ENTER_MS, () => {
+      if (!entry.alive) return;
+      entry.pty.write(text);
+      after(NUDGE_ENTER_MS, () => {
+        if (entry.alive) entry.pty.write("\r");
+      });
+    });
+    entry.idle = false;
+    this.armIdle(paneId, entry);
+    return ok(undefined);
+  }
+
+  /**
+   * Words typed into a session for it to read as a new message: the daemon's own (a nudge, a
+   * relay, a notice) or a person's answer to a card (`by: "answer"`). Typed only while the agent
+   * drives, never over a person.
+   */
+  async nudge(paneId: string, text: string, by: TypedBy = "metator"): Promise<Result<void, MetatorError>> {
+    const entry = this.live.get(paneId);
+    if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
+    const free = await this.held(entry, "nudge");
+    if (free.isErr()) return err(free.error);
+    // The words, then Enter on its own a moment later: a terminal UI takes a burst of text that
+    // ends in "\r" as a paste, and the Enter would land in the input instead of sending it.
+    // Recorded before it is typed: the host's hook may report the line at once.
+    await this.d.typed?.(paneId, text, by);
+    entry.pty.write(text);
+    const after =
+      this.d.after ??
+      ((delay, fn) => {
+        const t = setTimeout(fn, delay);
+        return () => clearTimeout(t);
+      });
+    after(NUDGE_ENTER_MS, () => {
+      if (entry.alive) entry.pty.write("\r");
+    });
     entry.idle = false;
     this.armIdle(paneId, entry);
     return ok(undefined);
@@ -194,6 +284,7 @@ export class PtyBroker {
     const entry = this.live.get(paneId);
     if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
     entry.pty.resize(size.cols, size.rows);
+    entry.screen?.resize(size);
     return ok(undefined);
   }
 
@@ -214,11 +305,22 @@ export class PtyBroker {
   }
 
   /** Ends the terminal (SIGHUP) and forgets it. */
+  /** Stops the pane's process when it still lives; its screen and exit stay (an ended pane is read later). */
+  stop(paneId: string): void {
+    const entry = this.live.get(paneId);
+    if (!entry?.alive) return;
+    entry.cancelIdle?.();
+    entry.pty.kill();
+  }
+
   close(paneId: string): Result<{ readonly closed: boolean }, MetatorError> {
     const entry = this.live.get(paneId);
     if (!entry) return ok({ closed: false });
     entry.cancelIdle?.();
+    // Closed, not ended: nobody listening hears the exit the kill causes.
+    entry.listeners.clear();
     if (entry.alive) entry.pty.kill();
+    entry.screen?.dispose();
     this.live.delete(paneId);
     return ok({ closed: true });
   }

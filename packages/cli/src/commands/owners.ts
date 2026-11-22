@@ -1,10 +1,10 @@
 import { normalizePath } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerOwnersCommand(program: Command, { action, container }: CommandContext): void {
-  program
-    .command("owners")
+  meta(program.command("owners"), { audience: "person", reads: true })
     .description("Owners of each path from CODEOWNERS (last matching line wins), for escalation and review")
     .argument("<paths...>", "repo-relative paths")
     .action(

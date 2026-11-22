@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
+import { inTerminal } from "./helpers/terminal.ts";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -47,7 +48,7 @@ describe("metator issue (real CLI)", () => {
     expect(added).toMatchObject({ id: "i001", status: "open", priority: "high", labels: ["adr", "billing"] });
     expect(JSON.parse(await repo.read(".metator/issues/i001.json"))).toMatchObject({
       kind: "Issue",
-      schemaVersion: 2,
+      schemaVersion: 3,
       id: "i001",
     });
     const proposed = data(
@@ -131,6 +132,10 @@ describe("metator issue (real CLI)", () => {
       ["i002", "open"],
       ["i003", "dropped"],
     ]);
+    // At a terminal: one line per task, and no JSON line.
+    const shown = await inTerminal(["issue", "list"], repo.root, []);
+    expect(shown.screen).toMatch(/i001\s+open\s+\S+\s+/);
+    expect(shown.screen).not.toContain('{"ok"');
     expect((data(await mt("issue", "list", "--status", "open")) as { issues: Data[] }).issues).toHaveLength(
       2,
     );
@@ -143,8 +148,10 @@ describe("metator issue (real CLI)", () => {
       runId: string;
     };
     expect(started.issue).toMatchObject({ status: "in-progress", runId: started.runId });
-    expect(data(await mt("run", "status", "--run", started.runId)).task).toBe(
-      "ADR for rounding\n\nHalf-up or half-even.",
+    // The run's task is the issue's title; its body is the run's task.md, which the agents read.
+    expect(data(await mt("run", "status", "--run", started.runId)).task).toBe("ADR for rounding");
+    expect(await repo.read(`.metator/runs/${started.runId}/task.md`)).toBe(
+      "# ADR for rounding\n\nHalf-up or half-even.\n\nFrom issue i001.\n",
     );
     // A task whose run is still active is not started a second time: the refusal names the run.
     const twice = await mt("issue", "start", "i001", "--workflow", "demo", "--no-worktree");
@@ -155,12 +162,14 @@ describe("metator issue (real CLI)", () => {
     expect(data(await mt("issue", "show", "i001")).runId).toBe(started.runId);
     expect((await mt("issue", "close", "i001", "--by", "maciej")).code).toBe(0);
     const fourth = data(await mt("issue", "add", "Old TODO", "--by", "maciej"));
-    // Without --by the name is $METATOR_USER, else the one git signs commits with; with none, a usage error.
+    // Without --by the name is $METATOR_USER, else the one git signs commits with, else the login name; with none, a usage error.
     const named = { METATOR_USER: "ada" };
     expect(data(await metator(["issue", "drop", fourth.id as string], repo.root, named))).toMatchObject({
       status: "dropped",
     });
     const nameless = await metator(["issue", "add", "Nobody's task"], repo.root, {
+      USER: "",
+      USERNAME: "",
       GIT_CONFIG_GLOBAL: "/dev/null",
       GIT_CONFIG_NOSYSTEM: "1",
     });

@@ -50,7 +50,29 @@ export function liveDaemonAt(root: string): DaemonInfo | undefined {
   return info.isOk() && processLives(info.value.pid) ? info.value : undefined;
 }
 
+/**
+ * Inside the sandbox a host session starts in (ADR-0104): the daemon's process is in another PID
+ * namespace, out of sight, and the network is reached only through the sandbox's proxy, which
+ * lets the daemon's own address through.
+ */
+export const inSandbox = (env: Readonly<Record<string, string | undefined>> = process.env): boolean =>
+  env.METATOR_SANDBOX === "1";
+
+/**
+ * How a call reaches the daemon: directly, or inside the sandbox through its proxy. The proxy
+ * holds the only way out of the sandbox; the exceptions it is told to skip (`NO_PROXY` names the
+ * loopback) would lead nowhere there, so they are dropped.
+ */
+export function daemonRoute(env: Record<string, string | undefined> = process.env): { proxy?: string } {
+  const proxy = inSandbox(env) ? (env.HTTP_PROXY ?? env.http_proxy) : undefined;
+  if (!proxy) return {};
+  delete env.NO_PROXY;
+  delete env.no_proxy;
+  return { proxy };
+}
+
 function processLives(pid: number): boolean {
+  if (inSandbox()) return true;
   try {
     process.kill(pid, 0);
     return true;
@@ -71,6 +93,7 @@ export async function callDaemon<T>(
   let response: Response;
   try {
     response = await fetch(`${daemon.url}${path}`, {
+      ...daemonRoute(),
       method,
       headers: { "content-type": "application/json", ...headers },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -87,7 +110,7 @@ export async function callDaemon<T>(
   const envelope = (await response.json().catch(() => ({}))) as {
     ok?: boolean;
     data?: T;
-    error?: { code?: string; message?: string; hint?: string };
+    error?: { code?: string; message?: string; hint?: string; details?: Record<string, unknown> };
   };
   if (envelope.ok && envelope.data !== undefined) return ok(envelope.data);
   const e = envelope.error ?? {};
@@ -97,6 +120,8 @@ export async function callDaemon<T>(
       e.message ?? `HTTP ${response.status}`,
       {
         ...(e.hint ? { hint: e.hint } : {}),
+        // What the daemon gave with its refusal (the live sessions, say) reaches the caller too.
+        ...(e.details ? { details: e.details } : {}),
       },
     ),
   );
@@ -106,3 +131,11 @@ export async function callDaemon<T>(
 export const paneHeaders = (
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Record<string, string> => (env.METATOR_PANE_TOKEN ? { "x-metator-pane": env.METATOR_PANE_TOKEN } : {});
+
+/**
+ * A daemon path for the repository at `root`: a daemon that serves a folder takes the repository
+ * by its root (`?repo=`), so a command run in the folder's second repository reaches that one.
+ */
+export function inRepo(path: string, root: string): string {
+  return `${path}${path.includes("?") ? "&" : "?"}repo=${encodeURIComponent(root)}`;
+}

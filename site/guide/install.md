@@ -1,6 +1,6 @@
 # Install
 
-This page puts the `metator` command on your machine. MetatorAI works in repositories that use npm, pnpm, Yarn or Bun, and it runs your `lint`, `typecheck` and `test` scripts with the package manager it detects. Pick yours once and every tabbed command on this site follows it.
+This page puts the `metator` command on your machine. The desktop app is on its own page, [Get the desktop app](./desktop-app.md). MetatorAI works in repositories that use npm, pnpm, Yarn or Bun, and it runs your `lint`, `typecheck` and `test` scripts with the package manager it detects. Pick yours once and every tabbed command on this site follows it.
 
 <PmSwitch />
 
@@ -12,7 +12,7 @@ MetatorAI is pre-alpha and is not published to npm. You install it from a checko
 |---|---|
 | [Bun](https://bun.sh) 1.4 or newer | the `metator` CLI runs on Bun, whatever your project uses |
 | git | changed files, history, worktrees |
-| GitHub Copilot or Claude Code | the AI tool that runs the agents |
+| Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), installed and logged in | the AI tool that runs the agents. The daemon starts the command-line program in a terminal; Copilot Chat inside an IDE does not run a chat of the app |
 
 ## Install Bun
 
@@ -131,6 +131,6 @@ Without the binary, `metator rules check` fails with the error code `BIN_NOT_FOU
 cd ~/tools/metatorai && git pull && bun install
 ```
 
-Files written by an older version are migrated when they are read. To take the newer agents, skills and workflows into a repository you already set up, run `metator agents update` there (see [First run](./first-run.md#update-the-shipped-files)).
+Files written by an older version are migrated when they are read. To take the newer agents, skills and workflows into a repository you already set up, run `metator agents update` there (see [Start with one repository](./first-run.md#update-the-shipped-files)).
 
-Next: [First run](./first-run.md).
+Next: [Get the desktop app](./desktop-app.md), then [Start with one repository](./first-run.md) or [Start with many repositories](./many.md).

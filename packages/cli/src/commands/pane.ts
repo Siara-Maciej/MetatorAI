@@ -1,7 +1,8 @@
 import { type LayoutView, PANE_STATES, type PaneState } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
+import { callDaemon, findDaemon, inRepo, paneHeaders } from "../daemon-client.ts";
 import { positiveInt } from "../options.ts";
 
 /**
@@ -9,26 +10,32 @@ import { positiveInt } from "../options.ts";
  * Agents read, list and wait; typing into a pane is a person's, through a client that attached.
  */
 export function registerPaneCommands(program: Command, ctx: CommandContext): void {
-  const root = () => (program.opts() as { root?: string }).root ?? process.cwd();
+  // A daemon that serves a folder takes the repository this command runs in.
+  const here = () => ctx.runs().resolve("root");
+  const root = ctx.start;
   const pane = program
     .command("pane")
     .description("The runtime's workspaces and panes: list them, read one, wait for its state");
 
-  pane
-    .command("list")
+  meta(pane.command("list"), { reads: true })
     .description("Every workspace with its panes and their live state")
     .action(
       ctx.action(async () => {
         const daemon = findDaemon(root());
         if (daemon.isErr()) return { result: daemon };
         return {
-          result: await callDaemon<LayoutView>(daemon.value, "GET", "/layout", undefined, paneHeaders()),
+          result: await callDaemon<LayoutView>(
+            daemon.value,
+            "GET",
+            inRepo("/layout", here()),
+            undefined,
+            paneHeaders(),
+          ),
         };
       }),
     );
 
-  pane
-    .command("read <pane>")
+  meta(pane.command("read <pane>"), { reads: true, typed: true })
     .description("The last lines of a pane's output, without terminal escapes")
     .option("--lines <n>", "how many lines", positiveInt, 80)
     .action(
@@ -39,7 +46,7 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
           result: await callDaemon(
             daemon.value,
             "GET",
-            `/panes/${encodeURIComponent(id)}?lines=${opts.lines}`,
+            inRepo(`/panes/${encodeURIComponent(id)}?lines=${opts.lines}`, here()),
             undefined,
             paneHeaders(),
           ),
@@ -62,7 +69,7 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
           result: await callDaemon(
             daemon.value,
             "POST",
-            `/panes/${encodeURIComponent(id)}/split`,
+            inRepo(`/panes/${encodeURIComponent(id)}/split`, here()),
             { dir: opts.dir, ...(opts.argv ? { argv: opts.argv } : {}) },
             paneHeaders(),
           ),
@@ -93,7 +100,10 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
           result: await callDaemon(
             daemon.value,
             "GET",
-            `/panes/${encodeURIComponent(id)}/wait?until=${until.join(",")}&timeout=${opts.timeout}`,
+            inRepo(
+              `/panes/${encodeURIComponent(id)}/wait?until=${until.join(",")}&timeout=${opts.timeout}`,
+              here(),
+            ),
             undefined,
             paneHeaders(),
           ),

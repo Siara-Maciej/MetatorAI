@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { inTerminal } from "./helpers/terminal.ts";
 
 let folder: string;
@@ -35,6 +35,7 @@ beforeAll(async () => {
   await mkdir(join(folder, "notes"));
 });
 afterAll(async () => {
+  stopProcessesUnder(folder);
   await rm(folder, { recursive: true, force: true });
 });
 
@@ -90,17 +91,15 @@ describe("a folder of repositories (real CLI)", () => {
     );
   }, 60_000);
 
-  test("metator ui in the folder: every repository's sessions on one screen, by repository", async () => {
-    const r = await inTerminal(
-      ["ui"],
-      folder,
-      [
-        { waitFor: "3 repositories", keys: "" },
-        { waitFor: "Fix VAT", keys: "q" },
-      ],
-      60_000,
-    );
+  test("metator status in the folder, at a terminal: every repository's runs as text, by repository, and no JSON line", async () => {
+    const r = await inTerminal(["status"], folder, [], 60_000);
     expect(r.code).toBe(0);
-    for (const text of ["billing", "shop", "Add discount", "Fix VAT"]) expect(r.screen).toContain(text);
+    for (const text of ["3 repositories", "billing", "shop", "Add discount", "Fix VAT"])
+      expect(r.screen).toContain(text);
+    expect(r.screen).not.toContain('{"ok"');
+    // --json: the line alone, nothing a person reads.
+    const quiet = await inTerminal(["status", "--json"], folder, [], 60_000);
+    expect(quiet.screen).not.toContain("3 repositories");
+    expect((quiet.json.data as { repos: unknown[] }).repos).toHaveLength(3);
   }, 90_000);
 });

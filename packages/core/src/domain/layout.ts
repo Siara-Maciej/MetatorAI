@@ -24,7 +24,7 @@ const HostProcessSchema = z.strictObject({
 /** Any other program (a shell, `metator env logs`). Only a plain shell starts again by itself. */
 const CommandProcessSchema = z.strictObject({ kind: z.literal("command"), argv: z.array(z.string()).min(1) });
 
-export const PaneSchema = z.strictObject({
+const PaneV1Schema = z.strictObject({
   id: PaneId,
   tab: TabId,
   role: z.enum(PANE_ROLES),
@@ -36,6 +36,44 @@ export const PaneSchema = z.strictObject({
   /** A worker pane: who it is in the run and which stage it works. */
   worker: z.strictObject({ name: z.string().min(1), stage: z.string().min(1) }).optional(),
   createdAt: z.iso.datetime(),
+});
+/** Why a pane's work is over: its process exited, its run finished, its worker was collected, the host ended it. */
+export const PANE_END_REASONS = ["exited", "run-finished", "collected", "closed-by-host"] as const;
+export type PaneEndReason = (typeof PANE_END_REASONS)[number];
+
+/**
+ * v3 adds, optionally, that a pane's work is over (`ended`: it stays, read-only, until a person
+ * closes it) and the run a pane's agent started (`startedRun`: the intake chat where a person gave
+ * the task is that run's main terminal). Never change v1 or v2.
+ */
+/** Why a pane's process is gone while its work is not over: it can be continued (ADR-0092). */
+export const PANE_PAUSE_REASONS = ["daemon-stopped", "process-lost"] as const;
+export type PanePauseReason = (typeof PANE_PAUSE_REASONS)[number];
+
+const PaneV3Schema = z.strictObject({
+  ...PaneV1Schema.shape,
+  ended: z
+    .strictObject({
+      at: z.iso.datetime(),
+      reason: z.enum(PANE_END_REASONS),
+      exitCode: z.number().int().optional(),
+      summary: z.string().optional(),
+    })
+    .optional(),
+  startedRun: z.string().optional(),
+});
+const PaneV4Schema = z.strictObject({
+  ...PaneV3Schema.shape,
+  /**
+   * v4: the pane's process is gone because the daemon stopped (or the process was lost), not because
+   * its work is over: its session id and last screen are kept, and it is resumed in the same pane.
+   */
+  paused: z.strictObject({ at: z.iso.datetime(), why: z.enum(PANE_PAUSE_REASONS) }).optional(),
+});
+export const PaneSchema = z.strictObject({
+  ...PaneV4Schema.shape,
+  /** v5: the chat pane of a thread (ADR-0095): the thread it was opened for. Never change v4. */
+  threadId: z.string().min(1).optional(),
 });
 export type Pane = z.output<typeof PaneSchema>;
 export type PaneProcess = Pane["process"];
@@ -100,7 +138,23 @@ const NextSchema = z.strictObject({
 });
 const LayoutV1Schema = z.strictObject({
   workspaces: z.array(WorkspaceV1Schema),
-  panes: z.array(PaneSchema),
+  panes: z.array(PaneV1Schema),
+  next: NextSchema,
+});
+const LayoutV2Schema = z.strictObject({
+  workspaces: z.array(WorkspaceSchema),
+  panes: z.array(PaneV1Schema),
+  /** Counters, so an id is never reused after a close. */
+  next: NextSchema,
+});
+const LayoutV3Schema = z.strictObject({
+  workspaces: z.array(WorkspaceSchema),
+  panes: z.array(PaneV3Schema),
+  next: NextSchema,
+});
+const LayoutV4Schema = z.strictObject({
+  workspaces: z.array(WorkspaceSchema),
+  panes: z.array(PaneV4Schema),
   next: NextSchema,
 });
 export const LayoutSchema = z.strictObject({
@@ -112,9 +166,15 @@ export const LayoutSchema = z.strictObject({
 export type Layout = z.output<typeof LayoutSchema>;
 
 export const LayoutDocument = defineDocument("Layout", {
-  history: [{ schema: LayoutV1Schema }],
+  history: [
+    { schema: LayoutV1Schema },
+    { schema: LayoutV2Schema, fromPrevious: (v1) => v1 },
+    { schema: LayoutV3Schema, fromPrevious: (v2) => v2 },
+    { schema: LayoutV4Schema, fromPrevious: (v3) => v3 },
+  ],
   latest: LayoutSchema,
-  // Every tab field of v2 is optional: a v1 layout is a v2 layout with even grids.
+  // Every field v2 to v5 add is optional: a v1 layout is a v2 layout with even grids, a v2 one a
+  // v3 one with no pane ended, a v3 one a v4 one with no pane paused, a v4 one a v5 one without threads.
   upgrade: (previous) => previous,
   hint: "Written by the daemon (`metator serve`); do not edit by hand.",
 });
@@ -191,6 +251,8 @@ export function addPane(
     readonly process: PaneProcess;
     readonly runId?: string;
     readonly worker?: Pane["worker"];
+    /** The thread a chat pane is opened for (ADR-0095). */
+    readonly threadId?: string;
     readonly at: string;
     /** Where the pane goes in the tab's split tree: beside this pane, in this direction (S6). */
     readonly split?: { readonly target: string; readonly dir: "row" | "column" };
@@ -213,6 +275,7 @@ export function addPane(
     process: input.process,
     ...(input.runId ? { runId: input.runId } : {}),
     ...(input.worker ? { worker: input.worker } : {}),
+    ...(input.threadId ? { threadId: input.threadId } : {}),
     createdAt: input.at,
   };
   return {

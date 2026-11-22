@@ -43,7 +43,7 @@ describe("metator findings react and report (real CLI)", () => {
     const nobody = await metator(
       ["findings", "react", "LOGIC-001", "--pr", "42", "--state", "resolved"],
       repo.root,
-      { METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+      { METATOR_USER: "", USER: "", USERNAME: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
     );
     expect([nobody.code, (nobody.json.error as { message: string }).message]).toEqual([
       64,

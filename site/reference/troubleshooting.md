@@ -92,7 +92,7 @@ metator run close --aborted --reason "scope changed"
 
 ## A run cannot be read
 
-`metator run list`, `metator status`, `metator inbox` and `metator doctor` warn that `run <id> cannot be read and is left out`, and name the run's `state.json`. The file is cut short or was edited by hand. The other runs are listed as usual. Restore the file from git or a backup, or delete the run's directory `.metator/runs/<id>/` to drop the run.
+`metator run list`, `metator status`, `metator inbox` and `metator doctor` warn that `run <id> cannot be read and is left out`, and name the run's `state.json`. The file is cut short or was edited by hand. The other runs are listed as usual. The desktop app says the same at the bottom of the sidebar (**N runs cannot be read**), with the file of each. Restore the file from git or a backup, or delete the run's directory `.metator/runs/<id>/` to drop the run.
 
 ## A file is locked
 
@@ -117,15 +117,15 @@ metator run status --run <id>                      # the stage, the reason, the 
 metator run resume --run <id> --by alice --drive
 ```
 
-To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the app, the run's card in the Inbox has **Resume** and **Close run…**.
+To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the app, the run's card on Home has **Resume** and **Close run…**.
 
 ## A run cannot start here
 
-`metator run init` fails with `a run cannot start here` when the directory is not a git repository, and with `--worktree` when the repository has no commit. The hint names the command. With `--worktree` it also fails with `the run would start without your changes` when tracked files have uncommitted changes: commit them, stash them, or pass `--allow-dirty` (in the app: **Start from the last commit**).
+`metator run new` fails with `a run cannot start here` when the directory is not a git repository, and with `--worktree` when the repository has no commit. The hint names the command. With `--worktree` it also fails with `the run would start without your changes` when tracked files have uncommitted changes: commit them, stash them, or pass `--allow-dirty` (in the app: **Start from the last commit**).
 
 ## A precondition does not hold
 
-`metator run init` fails with `precondition <name> does not hold` when the workflow requires something the checkout does not meet. The hint names the fix.
+`metator run new` fails with `precondition <name> does not hold` when the workflow requires something the checkout does not meet. The hint names the fix.
 
 | Message starts with | Fix |
 |---|---|
@@ -134,21 +134,70 @@ To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the
 | `precondition tests-green does not hold` | `metator gate quick`, fix the failing steps, start again |
 | `the workflow requires ..., which nothing can check` | `metator setup` updates the installed workflows; in your own workflow, remove the line |
 
-`metator doctor --gates` tells you whether the quick gate is green before you start. [How runs work](../guide/runs.md#what-must-hold-before-a-run-starts) lists the preconditions.
+`metator doctor --gates` tells you whether the quick gate is green before you start. [Full runs](../use/runs.md#what-must-hold-before-a-run-starts) lists the preconditions.
 
 ## The AI host cannot start
 
 `metator run drive --host copilot` fails with `AI host copilot cannot start here` when the Copilot CLI is not installed. Install it, or drive with a host the hint lists. `metator doctor` shows the same under `host`.
 
-## A push is denied by the hook
+## A commit or a push asks, or is denied
 
-`metator guard pre-tool` denies `git push`, `gh pr create` and similar actions until a person approves them for the active run:
+A `git commit`, `push`, `merge` or `rebase` an agent runs needs your consent (`guard.commands.ask`). In a session with a terminal, the host shows its approval prompt and Home shows it as a card: say **Yes** there, or tell the chat "commit it". In a session without a terminal (`metator run drive`), nobody can be asked, so it is denied until the run's approval covers it:
 
 ```bash
-metator run approve push --by alice
+metator run approve push --by alice      # also what approving the delivery does
 ```
 
-Comments on pull requests and issues need `metator run approve comment --by alice`.
+A merge (`gh pr merge`, `glab mr merge`, a merge MCP tool, a push straight to `main` or `master`) always asks, also after an approved push: say "merge it", click **Yes**, or in a run `metator run approve merge --by alice`.
+
+Inside a run, `gh pr create`, `glab mr create` and code host MCP tools that write need the same `push` approval, and `gh pr comment` or `gh pr review` need `metator run approve comment --by alice`. See [Approvals and consent](../use/approvals.md#commit-and-push).
+
+## A command never runs here
+
+The hook answers `` `git reset --hard` never runs here (guard.commands.never: …) ``. The command is on `guard.commands.never`, and no agent runs it. If you want it, run it yourself in a terminal. To change the list, edit `guard.commands` in `metator.config.yml` ([Configuration](./configuration.md#guard)).
+
+## This commit holds debug changes
+
+A `git commit` stops with `this commit holds debug changes: src/price.ts`. A change recorded with `metator scratch` (a debug edit) is still in those files. Take it out (`metator scratch drop --all`, or **Remove debug changes** in the app), or say "commit anyway". A record whose lines changed since cannot be taken out as recorded: remove its lines by hand, then `metator scratch forget --id <id>` ([Quick and debug changes](../use/quick.md#debug-changes)).
+
+## A quick change is refused
+
+`metator quick start` answers one of:
+
+| Message | Fix |
+|---|---|
+| `not quick: size (6 files (limit 5)); …` | the change trips an escalator: use the full workflow, or keep it quick in your own words with `--override "<sentence>"` |
+| `not quick, and this cannot be overridden: it reaches another repository` | a change across repositories is a [system plan](../many/plans.md) |
+| `dirty: pass --here or --worktree` | the checkout has uncommitted changes: `--here` takes them into the change, `--worktree` works from the last commit |
+| `the quick gate has no steps: …` | the quick run checks its change with `metator gate quick`: add steps under `gates.quick` in `metator.config.yml` ([Gates and CI](../repo/gates-ci.md)) |
+
+## A session in the sandbox cannot start or cannot reach something
+
+With `sandbox.enabled`, every session MetatorAI starts runs in the operating system's sandbox ([Hold sessions in a sandbox](../repo/hooks.md#hold-sessions-in-a-sandbox)).
+
+| What you see | Fix |
+|---|---|
+| The pane ends at once with `Sandbox dependencies not available: ripgrep (rg) not found` (or `bwrap`, `socat`) | install `bubblewrap`, `socat` and `ripgrep`; `metator doctor` lists what is missing under `isolation` |
+| `metator doctor` says native Windows has no sandbox | run MetatorAI and the host inside WSL2, or turn the sandbox off |
+| A command in the session cannot reach a host (`Connection blocked by network allowlist`, a `403` from the proxy) | add the host: `metator config set sandbox.allowedDomains "registry.npmjs.org" --scope repo`; the next session has it |
+| A command cannot write a file outside the repository (`Read-only file system`) | add the path to `sandbox.allowWrite` |
+| `git push` over SSH fails to read the key | `~/.ssh` is in `sandbox.denyRead`: push through an SSH agent, or take it out of the list |
+| The session's sandbox does not start inside Claude Code's own sandbox | an earlier `metator generate --hooks` wrote a `sandbox` block into `.claude/settings.json`: remove it |
+| A `claude` or `copilot` you started yourself reads files the sandbox denies | it runs outside MetatorAI, without the sandbox: start the session from MetatorAI |
+
+## The app says no daemon
+
+The top bar reads **no daemon** and the main area shows `metator serve`, the address and **Retry**. Start the daemon in your repository or folder (`metator serve`). If it listens on another port, type its address in the field and click **Retry** ([Get the desktop app](../guide/desktop-app.md#connect-it-to-the-daemon)).
+
+`metator serve` itself fails with `a daemon already serves <dir>: <url> (pid <pid>)` when one runs there already, also when a folder's daemon serves the repository: use that one, or stop it first.
+
+## No chat opens
+
+**+ New chat** says that no AI host is installed and names the programs the daemon looked for. Install Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), log in once in a terminal, and click **+ New chat** again; the daemon needs no restart. A chat whose terminal ends at once with **Ended with code …** usually means the host is not logged in. [Copilot and Claude Code](../guide/hosts.md#which-host-runs-what) says which host the daemon picks.
+
+## A command works on one repository, and this is a folder
+
+In a folder of repositories, a command that works on one repository stops with `` `metator run status` works on one repository, and ~/work is a folder of 3 ``. Run it inside a repository, or with `-C <repository>`. In the folder itself, `status`, `inbox`, `repos`, `ask`, `report`, `serve`, `supervise` and `system discover` cover every repository ([Folder of repositories](../many/index.md#what-runs-in-the-folder)).
 
 ## An edit is denied as outside plan-scope.json
 
@@ -156,7 +205,7 @@ During a run, agents may edit only the files the approved plan lists. If the tas
 
 ## The repository has no commit yet
 
-Right after `git init` there is nothing to branch from, so `metator doctor` reports `commits` as `fail`, and `metator worktree new` and `metator run init --worktree` stop. Make the first commit:
+Right after `git init` there is nothing to branch from, so `metator doctor` reports `commits` as `fail`, and `metator worktree new` and `metator run new --worktree` stop. Make the first commit:
 
 ```bash
 git commit --allow-empty -m init

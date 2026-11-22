@@ -238,6 +238,15 @@ export class GitVcs
     });
   }
 
+  async fetchRef(ref: string, branch: string): Promise<Result<void, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      await git.value.raw(["fetch", "--no-tags", "origin", `+${ref}:refs/heads/${branch}`]);
+      return ok(undefined);
+    });
+  }
+
   async remoteUrl(): Promise<Result<string | undefined, MetatorError>> {
     const git = await this.repo();
     if (git.isErr()) return err(git.error);

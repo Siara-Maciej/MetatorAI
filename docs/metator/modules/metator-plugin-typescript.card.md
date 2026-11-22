@@ -29,7 +29,7 @@ dir: packages/plugin-typescript
 
 ## Allowed dependencies
 
-`@metator/core`, `oxc-parser` and `oxc-resolver` (ADR-0017); the compiler is the user's own `typescript` in `node_modules/.bin`.
+`@metator/core`, `oxc-parser` and `oxc-resolver` (ADR-0017); the compiler is the user's own `typescript` in `node_modules/.bin`, found by the `BinResolver` the engine and the emitter are given and run by `runTool`.
 
 ## Pitfalls
 

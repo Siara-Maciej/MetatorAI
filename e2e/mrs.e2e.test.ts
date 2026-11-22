@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, metator as cli, E2E_STATE_DIR } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 type Data = Record<string, unknown>;
@@ -34,9 +34,21 @@ const state = (threads: object[]) =>
   });
 
 let repo: ScratchRepo;
+// The answering run a scan starts is driven by the scenario host: its responder waits on a
+// question until the test moves the run itself. No real AI host is ever started.
+const SCENARIO = `kind: AgentScenario
+schemaVersion: 1
+agents:
+  mt-review-responder:
+    - - ask: { question: "Wait for the test?", options: [yes] }
+`;
+const hostEnv = () => ({ METATOR_HOST: "scenario", METATOR_AGENT_SCENARIO: repo.path("scenario.yml") });
+const metator = (args: readonly string[], cwd: string, env: Record<string, string> = {}) =>
+  cli(args, cwd, { ...hostEnv(), ...env });
 beforeAll(async () => {
   repo = await ScratchRepo.create();
-  await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\nnotified.txt\n");
+  await repo.write("scenario.yml", SCENARIO);
+  await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\nnotified.txt\nscenario.yml\n");
   await repo.write("src/discount.ts", "export const discount = 0.1;\nexport const cap = 100;\n");
   await repo.write(
     ".github/metator/workflows/mt-review-response.yml",
@@ -45,7 +57,7 @@ beforeAll(async () => {
   await repo.write(
     "metator.config.yml",
     `kind: MetatorConfig
-schemaVersion: 11
+schemaVersion: 15
 mcp:
   github:
     command: bun
@@ -53,9 +65,11 @@ mcp:
     env:
       FAKE_MCP_PULLS: "${repo.path("pulls.json")}"
       FAKE_MCP_LOG: "${repo.path("mcp.log")}"
-reviews:
+# Analysing a new review by itself is a choice (ADR-0097); this file chooses it.
+codehost:
   sources:
-    - { kind: github, repo: acme/shop, author: maciej }
+    - { id: shop, kind: github, repo: acme/shop, via: "mcp:github", author: maciej }
+  mine: { analyse: true }
 notify:
   command: echo "$METATOR_EVENT $METATOR_REVIEW_ID $METATOR_NOTIFY_TEXT" >> notified.txt
 `,
@@ -91,6 +105,7 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
         threads: 1,
         open: 1,
         proposed: 0,
+        fresh: 1,
         runId,
       },
     ]);
@@ -127,7 +142,13 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
     });
     expect(await Bun.file(repo.path("mcp.log")).exists()).toBe(false);
     // `send` records who decided: with no --by and no name anywhere it is refused, and nothing is sent.
-    const anonymous = { METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const anonymous = {
+      METATOR_USER: "",
+      USER: "",
+      USERNAME: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     expect((await metator(["mrs", "send", ID], repo.root, anonymous)).code).toBe(64);
     expect(await Bun.file(repo.path("mcp.log")).exists()).toBe(false);
     const sent = data(await metator(["mrs", "send", ID, "--by", "maciej"], repo.root));
@@ -143,7 +164,13 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
     );
     // Without --by the name is $METATOR_USER; with no name anywhere the command is refused.
     expect(data(await metator(["mrs", "send", ID], repo.root, { METATOR_USER: "maciej" })).sent).toEqual([]);
-    const nobody = { METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const nobody = {
+      METATOR_USER: "",
+      USER: "",
+      USERNAME: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     for (const argv of [
       ["mrs", "send", ID],
       ["mrs", "resolve", ID, "--thread", "T1"],
@@ -216,7 +243,7 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
       ],
       {
         cwd: repo.root,
-        env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR },
+        env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...hostEnv() },
         stdout: "ignore",
         stderr: "pipe",
       },

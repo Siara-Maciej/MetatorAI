@@ -44,9 +44,13 @@ describe("CheckReadiness", () => {
       "dependencies:ok",
       "environment:ok",
       "mcp:ok",
+      "isolation:warn",
       "remote:ok",
     ]);
-    expect(readinessWarnings(v)).toEqual([]);
+    // Isolation is doctor's to say: a run does not repeat it at every start.
+    expect(RUN_READINESS).not.toContain("isolation");
+    expect(readinessWarnings(v, RUN_READINESS)).toEqual([]);
+    expect(readinessWarnings(v)).toEqual([expect.stringContaining("without a sandbox")]);
   });
 
   test("a run whose record cannot be read is a warning that names the file and the way out (R2)", async () => {
@@ -70,6 +74,7 @@ describe("CheckReadiness", () => {
     const v = r._unsafeUnwrap();
     expect(v.ready).toBe(true);
     expect(readinessWarnings(v)).toEqual([
+      "isolation: agents' host sessions run without a sandbox: a script or a dependency they start can read every file you can (fix: metator config set sandbox.enabled true --scope repo)",
       "runs: run r1 cannot be read and is left out of the overviews (not valid JSON) (fix: restore .metator/runs/r1/state.json (from git or a backup), or delete the run's directory)",
     ]);
   });
@@ -121,6 +126,7 @@ describe("CheckReadiness", () => {
       "canon: the agents and skills are not installed by MetatorAI here (fix: metator setup)",
       "gates: no gates configured: a run's gates stage checks nothing (fix: metator init (it proposes gates from the repository's scripts))",
       "dependencies: dependencies are not installed: in a run, tests, the type checker and linters cannot run, so gates check only rules (fix: pnpm install)",
+      "isolation: agents' host sessions run without a sandbox: a script or a dependency they start can read every file you can (fix: metator config set sandbox.enabled true --scope repo)",
       "remote: no git remote: a run's publish stage cannot push its branch (fix: git remote add origin <url>)",
     ]);
   });
@@ -385,5 +391,57 @@ describe("CheckReadiness", () => {
     });
     expect((await deps('{"dependencies":{"a":"1"}}'))?.status).toBe("warn");
     expect((await deps('{"workspaces":["p/*"]}'))?.status).toBe("warn");
+  });
+});
+
+describe("CheckReadiness: the host conformance suite's kept runs (ADR-0098)", () => {
+  const withSeen = (seen: Parameters<typeof conformanceSeenStub>[0]) =>
+    new CheckReadiness(
+      present("metator/install.lock.json", "package.json"),
+      DEFAULT_PATHS,
+      { config: gated, source: "metator.config.yml" },
+      catalog("mt-feature"),
+      new FakeVcs([], [], "git@example.com:a/b.git"),
+      async () => true,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { conformance: conformanceSeenStub(seen) },
+    ).execute();
+  const conformanceSeenStub =
+    (seen: readonly { host: string; passed?: { cliVersion: string; at: string }; installed?: string }[]) =>
+    async () =>
+      seen;
+
+  test("a line per host that has a run kept: the version and day it last passed; an older version installed is a warning only", async () => {
+    const v = (
+      await withSeen([
+        {
+          host: "claude",
+          passed: { cliVersion: "2.1.0", at: "2026-11-22T10:00:00.000Z" },
+          installed: "2.1.0",
+        },
+        {
+          host: "copilot",
+          passed: { cliVersion: "1.0.114", at: "2026-11-21T10:00:00.000Z" },
+          installed: "1.0.99",
+        },
+      ])
+    )._unsafeUnwrap();
+    expect(v.checks.filter((c) => c.id === "conformance")).toEqual([
+      { id: "conformance", status: "ok", message: "last passed with claude 2.1.0 on 2026-11-22" },
+      {
+        id: "conformance",
+        status: "warn",
+        message: "last passed with copilot 1.0.114 on 2026-11-21; copilot 1.0.99 installed here is older",
+        fix: "metator host conformance --host copilot",
+      },
+    ]);
+    expect(v.ready).toBe(true);
+  });
+
+  test("no run kept: no line at all", async () => {
+    expect((await withSeen([]))._unsafeUnwrap().checks.some((c) => c.id === "conformance")).toBe(false);
   });
 });

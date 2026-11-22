@@ -2,6 +2,7 @@ import type { ContractStatus } from "../domain/contract-diff.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { planId } from "../domain/ids.ts";
+import { approvePlan, asDraft } from "../domain/plan-progress.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   analysisFrom,
@@ -17,10 +18,11 @@ import {
   systemPlannerPrompt,
   systemScoutPrompt,
 } from "../domain/system-plan.ts";
-import { type DocumentHeader, parseYamlDocument, renderYamlDocument } from "../domain/versioned.ts";
 import type { AgentHost, Clock, FileSystem } from "../ports/index.ts";
+import { hostNamed, runAgent } from "./agent-run.ts";
 import type { BreakingAllowance, DiffContracts } from "./contract-diff.ts";
-import { DocumentStore, runAgent } from "./document-store.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
+import { DocumentStore } from "./document-store.ts";
 import type { SystemImpactQuery, SystemLocation } from "./system-sources.ts";
 
 const SYSTEM_SCOUT_AGENT = "mt-system-scout";
@@ -44,18 +46,17 @@ export class SystemPlanStore extends DocumentStore<SystemPlan> {
   }
 
   async loadAnalysis(id: string): Promise<Result<SystemAnalysis | undefined, MetatorError>> {
-    const file = this.analysisFile(id);
-    if (!(await this.files.exists(file))) return ok(undefined);
-    const text = await this.files.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseYamlDocument(text.value, file).andThen((raw) => SystemAnalysisDocument.parse(raw, file));
+    return readDocument(this.files, this.analysisFile(id), SystemAnalysisDocument, "yaml");
   }
 
   async saveAnalysis(id: string, analysis: SystemAnalysis): Promise<Result<void, MetatorError>> {
-    const doc: DocumentHeader & Record<string, unknown> = { ...SystemAnalysisDocument.stamp(analysis) };
-    return this.files.write(
+    return writeDocument(
+      this.files,
       this.analysisFile(id),
-      renderYamlDocument(doc, "What a task touches across the system (metator system analyze)."),
+      SystemAnalysisDocument,
+      analysis,
+      "yaml",
+      "What a task touches across the system (metator system analyze).",
     );
   }
 }
@@ -179,18 +180,23 @@ export class LintSystemPlan {
   async execute(id: string): Promise<Result<LintedSystemPlan, MetatorError>> {
     const plan = await this.store.load(id);
     if (plan.isErr()) return err(plan.error);
+    return this.check(plan.value);
+  }
+
+  /** The same checks for a plan as given (a person's edit in the app), against the saved analysis. */
+  async check(plan: SystemPlan): Promise<Result<LintedSystemPlan, MetatorError>> {
     const map = await this.location.require();
     if (map.isErr()) return err(map.error);
-    const analysis = await this.store.loadAnalysis(id);
+    const analysis = await this.store.loadAnalysis(plan.id);
     if (analysis.isErr()) return err(analysis.error);
-    const problems = lintSystemPlan(plan.value, map.value, analysis.value);
+    const problems = lintSystemPlan(plan, map.value, analysis.value);
     // Without an analysis nobody said what breaks: nothing to approve against.
     if (!analysis.value)
       problems.push({
         severity: "error",
-        message: `no analysis (${this.store.analysisFile(id)}): run \`metator system analyze\` for the task`,
+        message: `no analysis (${this.store.analysisFile(plan.id)}): run \`metator system analyze\` for the task`,
       });
-    return ok({ plan: plan.value, problems });
+    return ok({ plan, problems });
   }
 }
 
@@ -208,31 +214,16 @@ export class ApproveSystemPlan {
   }): Promise<Result<SystemPlan, MetatorError>> {
     const linted = await this.lint.execute(input.id);
     if (linted.isErr()) return err(linted.error);
-    // A stale approval is exactly what approving again fixes; every other error blocks it.
-    const blocking = linted.value.problems.filter(
-      (p) => p.severity === "error" && p.code !== "stale-approval",
+    const { plan, problems } = linted.value;
+    const approved = approvePlan(
+      plan,
+      problems,
+      { by: input.by, at: this.clock.now().toISOString(), digest: systemPlanDigest(plan) },
+      "`metator system plan lint` lists them.",
     );
-    if (blocking.length > 0)
-      return err(
-        new MetatorError(
-          "CHECK_FAILED",
-          `${input.id}: ${blocking.length} lint error(s); fix them before approving`,
-          {
-            hint: "`metator system plan lint` lists them.",
-            details: { problems: blocking },
-          },
-        ),
-      );
-    const { plan } = linted.value;
-    if (plan.status === "running" || plan.status === "done")
-      return err(MetatorError.usage(`${input.id} is ${plan.status}; it cannot be approved again`));
-    const approved: SystemPlan = {
-      ...plan,
-      status: "approved",
-      approval: { by: input.by, at: this.clock.now().toISOString(), digest: systemPlanDigest(plan) },
-    };
-    const saved = await this.store.save(approved);
-    return saved.isErr() ? err(saved.error) : ok(approved);
+    if (approved.isErr()) return err(approved.error);
+    const saved = await this.store.save(approved.value);
+    return saved.isErr() ? err(saved.error) : ok(approved.value);
   }
 }
 
@@ -264,11 +255,8 @@ export class ProposeSystemPlan {
       readonly ask?: (q: AgentQuestion) => Promise<AgentAnswer>;
     },
   ): Promise<Result<LintedSystemPlan, MetatorError>> {
-    const host = this.hosts.get(input.host);
-    if (!host)
-      return err(
-        MetatorError.usage(`unknown host ${input.host}`, `Hosts: ${[...this.hosts.keys()].join(", ")}.`),
-      );
+    const host = hostNamed(this.hosts, input.host);
+    if (host.isErr()) return err(host.error);
     const id = planId(input.task);
     const saved = await this.store.loadAnalysis(id);
     if (saved.isErr()) return err(saved.error);
@@ -281,7 +269,7 @@ export class ProposeSystemPlan {
     );
     const agent = (name: string, prompt: string) =>
       runAgent({
-        host,
+        host: host.value,
         hostName: input.host,
         task: {
           agent: name,
@@ -312,9 +300,9 @@ export class ProposeSystemPlan {
     if (planned.isErr()) return err(planned.error);
     const written = await this.store.load(id);
     if (written.isErr()) return err(written.error);
-    if (written.value.approval || written.value.status !== "draft") {
-      const { approval: _, ...draft } = written.value;
-      const kept = await this.store.save({ ...draft, status: "draft" });
+    const draft = asDraft(written.value);
+    if (draft !== written.value) {
+      const kept = await this.store.save(draft);
       if (kept.isErr()) return err(kept.error);
     }
     return this.lint.execute(id);

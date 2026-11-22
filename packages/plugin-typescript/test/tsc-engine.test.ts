@@ -2,9 +2,14 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BunProcessRunner } from "@metator/plugin-bun";
-import { ScriptedProcessRunner } from "@metator/testing";
+import type { ProcessRunner } from "@metator/core";
+import { BunProcessRunner, NodeBinResolver } from "@metator/plugin-bun";
+import { ruleEngineContract, ScriptedProcessRunner } from "@metator/testing";
 import { TscEngine } from "../src/tsc-engine.ts";
+
+/** The engine as the runtime wires it: the repository's pinned binary first, PATH otherwise. */
+const tsc = (runner: ProcessRunner, root: string) =>
+  new TscEngine(runner, root, new NodeBinResolver(root, "path"));
 
 const TSC = join(import.meta.dir, "../node_modules/.bin/tsc");
 const runner = new BunProcessRunner();
@@ -34,13 +39,25 @@ const TSCONFIG = JSON.stringify({
   include: ["src"],
 });
 
+ruleEngineContract("TscEngine", async () => {
+  const files = {
+    "tsconfig.json": TSCONFIG,
+    "src/bad.ts": "const xs: number[] = [];\nexport const first: number = xs[0];\n",
+    "src/good.ts": "export const ok = 1;\n",
+  };
+  return {
+    engine: tsc(runner, await project(files)),
+    bare: tsc(runner, await project({ "src/a.ts": "export {};\n" }, false)),
+    missing: tsc(new ScriptedProcessRunner(), await project(files, false)),
+    finding: { file: "src/bad.ts", toolRuleId: "TS2322" },
+    clean: "src/good.ts",
+  };
+});
+
 describe("TscEngine (real tsc)", () => {
   test("rules are compiler checks, enabled as tsc --showConfig resolves them (strict family included)", async () => {
     const rules = (
-      await new TscEngine(
-        runner,
-        await project({ "tsconfig.json": TSCONFIG, "src/a.ts": "export {};\n" }),
-      ).rules()
+      await tsc(runner, await project({ "tsconfig.json": TSCONFIG, "src/a.ts": "export {};\n" })).rules()
     )._unsafeUnwrap();
     const on = (id: string) => rules.find((r) => r.id === id)?.enabled;
     expect([
@@ -65,7 +82,7 @@ describe("TscEngine (real tsc)", () => {
       "src/bad.ts": "const xs: number[] = [];\nexport const first: number = xs[0];\n",
       "src/good.ts": "export const ok = 1;\n",
     });
-    const engine = new TscEngine(runner, dir);
+    const engine = tsc(runner, dir);
     expect((await engine.check())._unsafeUnwrap()).toEqual([
       {
         source: "tsc",
@@ -83,20 +100,20 @@ describe("TscEngine (real tsc)", () => {
   test("no tsconfig: nothing to check; missing tsc and broken output are errors", async () => {
     const none = await project({ "src/a.ts": "export {};\n" }, false);
     expect([
-      (await new TscEngine(runner, none).rules())._unsafeUnwrap(),
-      (await new TscEngine(runner, none).check())._unsafeUnwrap(),
+      (await tsc(runner, none).rules())._unsafeUnwrap(),
+      (await tsc(runner, none).check())._unsafeUnwrap(),
     ]).toEqual([[], []]);
     const dir = await project({ "tsconfig.json": TSCONFIG }, false);
     const missing = new ScriptedProcessRunner([{ argvPrefix: ["tsc"], result: { exitCode: 127 } }]);
-    expect((await new TscEngine(missing, dir).check())._unsafeUnwrapErr().code).toBe("BIN_NOT_FOUND");
+    expect((await tsc(missing, dir).check())._unsafeUnwrapErr().code).toBe("BIN_NOT_FOUND");
     const crash = new ScriptedProcessRunner([
       {
         argvPrefix: ["tsc"],
         result: { exitCode: 2, stdout: "error TS5058: The specified path does not exist" },
       },
     ]);
-    expect((await new TscEngine(crash, dir).check())._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
+    expect((await tsc(crash, dir).check())._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
     const garbage = new ScriptedProcessRunner([{ argvPrefix: ["tsc"], result: { stdout: "not json" } }]);
-    expect((await new TscEngine(garbage, dir).rules())._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
+    expect((await tsc(garbage, dir).rules())._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
   });
 });

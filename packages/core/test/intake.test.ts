@@ -3,6 +3,7 @@ import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { ScanIntake } from "../src/application/intake.ts";
 import { Issues } from "../src/application/issues.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
+import { resolveIntake } from "../src/domain/codehost.ts";
 import { MetatorConfigDocument } from "../src/domain/config.ts";
 import { MetatorError } from "../src/domain/errors.ts";
 import { InProcessLock } from "../src/domain/in-process-lock.ts";
@@ -29,10 +30,15 @@ function world(config: unknown, items: Record<string, IntakeItem[] | MetatorErro
     fs,
     paths: DEFAULT_PATHS,
     clock: new FixedClock(new Date("2026-11-10T12:00:00.000Z")),
-    journal: { ask: async () => ok({ id: "q001" } as never), questions: async () => ok([]) },
+    journal: {
+      ask: async () => ok({ id: "q001" } as never),
+      questions: async () => ok([]),
+      answer: async () => ok({} as never),
+    },
     repo: {
       resolveId: async (id) => ok(id ?? "latest"),
       load: async () => err(MetatorError.notFound("run")),
+      runDir: (runId: string) => `.metator/runs/${runId}`,
     },
     initRun: {
       execute: async (input) => {
@@ -81,16 +87,30 @@ const RULES = {
 };
 
 describe("intake (T2, design/14 §3)", () => {
-  test("the rules live in MetatorConfig v10 with defaults; a v9 file upgrades with none", () => {
+  test("the rules live in MetatorConfig v10 with defaults; a v9 file upgrades with none; v15 names the source by id", () => {
     const v9 = MetatorConfigDocument.parse({ kind: "MetatorConfig", schemaVersion: 9 }, "x")._unsafeUnwrap();
     expect(v9.intake).toEqual({ everyMs: 120_000, maxActive: 2, rules: [] });
     const v10 = MetatorConfigDocument.parse(
       { kind: "MetatorConfig", schemaVersion: 10, intake: RULES },
       "x",
     )._unsafeUnwrap();
+    // v15 (ADR-0097): the source moved to `codehost.sources`; the rule keeps its id and the filters.
     expect(v10.intake.rules[0]).toEqual({
       id: "gh-bugs",
-      source: { kind: "github", repo: "acme/shop", labels: ["bug"], state: "open" },
+      source: "github-acme-shop",
+      labels: ["bug"],
+      state: "open",
+      workflow: "mt-bugfix",
+      autonomy: "gated",
+      worktree: true,
+    });
+    expect(v10.codehost.sources).toEqual([
+      { id: "github-acme-shop", kind: "github", repo: "acme/shop", via: "mcp:github" },
+      { id: "jira-shop", kind: "jira", project: "SHOP", via: "mcp:jira" },
+    ]);
+    expect(resolveIntake(v10.intake, v10.codehost.sources).rules[0]).toEqual({
+      id: "gh-bugs",
+      source: { kind: "github", repo: "acme/shop", labels: ["bug"], state: "open", mcp: "github" },
       workflow: "mt-bugfix",
       autonomy: "gated",
       worktree: true,

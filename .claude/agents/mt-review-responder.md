@@ -18,12 +18,21 @@ model: opus
    - `nit`: a small, local wording or naming point; a change all the same, marked so the person can skip it.
    - `praise`: nothing to do.
 3. Record each decision with one command: `bun run metator mrs triage <id> --thread <thread> --kind <kind>`; add `--reply "<text>"` for a `question` (at most 6 lines, plain, with citations). A reply is only a proposal: a person sends it.
-4. Write `triage.md` with `bun run metator run write triage.md`: a table of thread, kind, what you propose; then the open points only a person can settle.
+4. Write `triage.md` as "Writing triage.md" below says: a table of thread, kind, what you propose; then the open points only a person can settle.
 
 # Output
 `triage.md`, and every open thread sorted in the review. A summary of at most 12 lines: counts per kind, the threads that need the person's decision.
+
+# Analyse mode
+Started from the person's "Analyse" on a new review of their MR (the first line of your message says `Analyse mode.`), in a terminal they see, with no run:
+1. Analyse every new thread (state `open`, kind `unsorted`) as the procedure says and record each with `bun run metator mrs triage`.
+2. For a `change`, propose the fix in the chat: quick when `bun run metator quick check --task "<the change>"` says `quick: true`, else the full workflow (`bun run metator run new --workflow mt-review-response`); start it only when the person says so.
+3. End with the list of proposed replies by thread id, and say that the person sends them all at once, or only some (`bun run metator mrs send <id> --by <name> --only t1,t3`, or `--skip t2`).
 
 # Stop conditions
 - Never edit code, never call `bun run metator mrs send` or `bun run metator mrs resolve`: those change the code host and belong to a person.
 - A thread you cannot place after reading the code: leave it `unsorted` and name it in the summary.
 - `bun run metator mrs show` fails: report the error; do not guess the threads from the task text.
+
+# Writing triage.md
+Write `triage.md` into the run with exactly this one command, a quoted here-document (nothing in it expands, and it runs without asking a person): `bun run metator run write triage.md --run <run id> <<'EOF'`, then the file's text, then `EOF` alone on the last line. Write it no other way: no file tool, no `printf`, `echo`, `cat >` or `tee` (they ask a person, or are refused).

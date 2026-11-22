@@ -1,12 +1,13 @@
 import { err, MetatorError, ok, workflowJsonSchema } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { failWhen } from "../outcome.ts";
 
 export function registerWorkflowCommands(program: Command, { action, container }: CommandContext): void {
   const workflow = program.command("workflow").description("Inspect and validate workflow specs");
 
-  workflow
-    .command("list")
+  meta(workflow.command("list"), { reads: true })
     .description("List workflows declared in .github/metator/workflows")
     .action(
       action(async () => {
@@ -25,30 +26,23 @@ export function registerWorkflowCommands(program: Command, { action, container }
       }),
     );
 
-  workflow
-    .command("lint")
+  meta(workflow.command("lint"), { audience: "person", reads: true, check: [] })
     .description("Every workflow against the 16-section anatomy, with owners and critics in the canon")
     .action(
       action(async () => {
-        const report = await container().resolve("lintWorkflows").execute();
-        if (report.isErr()) return { result: report };
-        const errors = report.value.problems.filter((p) => p.severity === "error");
-        if (errors.length > 0) {
-          return {
-            result: err(
-              new MetatorError("CHECK_FAILED", `${errors.length} workflow problem(s)`, {
-                hint: "Each workflow answers the anatomy of docs/design/02-workflows.md §1; `metator workflow schema` prints the format.",
-                details: { ...report.value },
-              }),
-            ),
-          };
-        }
-        return { result: ok(report.value) };
+        return failWhen(await container().resolve("lintWorkflows").execute(), (r) => {
+          const errors = r.problems.filter((p) => p.severity === "error").length;
+          return (
+            errors > 0 && {
+              message: `${errors} workflow problem(s)`,
+              hint: "Each workflow answers the anatomy of docs/design/02-workflows.md §1; `metator workflow schema` prints the format.",
+            }
+          );
+        });
       }),
     );
 
-  workflow
-    .command("validate")
+  meta(workflow.command("validate"), { audience: "ci", reads: true, check: [] })
     .description("Validate one spec file, or every spec in the repository")
     .argument("[file]", "repo-relative path to a workflow YAML file")
     .action(

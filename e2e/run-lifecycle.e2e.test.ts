@@ -155,7 +155,14 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
     const wrong = await mt("run", "approve", "build", "--by", "maciej");
     expect([wrong.code, (wrong.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
     // With no --by and no name in the environment or git's config, nothing is approved.
-    const nobody = { ...NOW, METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const nobody = {
+      ...NOW,
+      METATOR_USER: "",
+      USER: "",
+      USERNAME: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     expect((await metator(["run", "approve", "push"], repo.root, nobody)).code).toBe(64);
 
     const approved = await mt("run", "approve", "approval", "--by", "maciej", "--choice", "1");
@@ -164,7 +171,7 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
       approvals: { approval: { by: "maciej", choice: "1" }, push: { by: "maciej" } },
     });
     const state = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
-    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([8, ["approval", "push"]]);
+    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([9, ["approval", "push"]]);
   });
 
   test("finishing the last stage completes the run", async () => {
@@ -270,7 +277,14 @@ describe("a run's files stay readable (R1, R2)", () => {
         .runId;
     type Approved = { approvals: Record<string, { by: string }> };
     // No name anywhere: git reads no global or system config, and the repository sets none.
-    const nobody = { ...NOW, METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const nobody = {
+      ...NOW,
+      METATOR_USER: "",
+      USER: "",
+      USERNAME: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     const runId = await start("who speaks");
     const file = `.metator/runs/${runId}/state.json`;
     const before = await repo.read(file);

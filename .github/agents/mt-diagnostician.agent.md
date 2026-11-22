@@ -26,3 +26,6 @@ user-invocable: false
 
 # Stop conditions
 - It does not reproduce: report what was tried; never guess a fix.
+
+# Writing diagnosis.md
+Write `diagnosis.md` into the run with exactly this one command, a quoted here-document (nothing in it expands, and it runs without asking a person): `bun run metator run write diagnosis.md --run <run id> <<'EOF'`, then the file's text, then `EOF` alone on the last line. Write it no other way: no file tool, no `printf`, `echo`, `cat >` or `tee` (they ask a person, or are refused).

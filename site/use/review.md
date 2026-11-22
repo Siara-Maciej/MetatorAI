@@ -4,14 +4,10 @@ Two workflows review code. `mt-pr-review` reviews a pull request or a branch and
 
 ## Start a review
 
-```text
-@mt-pr-review review PR #482
-```
-
-From a terminal, pass the base to review the branch's commits. Without a base, only the uncommitted change against `HEAD` is reviewed.
+In a chat, paste the pull request's link or ask for a review of your branch. From a terminal, pass the base to review the branch's commits. Without a base, only the uncommitted change against `HEAD` is reviewed.
 
 ```bash
-metator run init --workflow mt-pr-review --task "Review the reminder service" --input base=origin/main
+metator run new --workflow mt-pr-review --task "Review the reminder service" --input base=origin/main
 metator run drive --host claude
 ```
 
@@ -27,10 +23,14 @@ metator run drive --host claude
 | `find` | one lens per shard, at most 6 at once | `findings/` | each lens writes its findings; `metator findings validate --fix` then drops findings with invented quotes and blockers without proof |
 | `verify` | `metator findings merge`, then `mt-verifier` | `findings/merged.json` | duplicates across lenses are merged; an independent agent tries to refute each blocking finding |
 | `judge` | `mt-judge` | `verdict.json` | the decision, from what survived |
-| `approval` | you | | which comments are published, and in which format; approving also approves posting them |
-| `publish` | `metator findings to-github` | | the inline comments and the summary are formatted from the verdict and printed; `mt-pr-review` posts them through the code host |
+| `approval` | you | | the publish card ("Publish the review of MR #45? (3 inline comments, 1 general)"); approving also approves posting them |
+| `publish` | `metator review publish` | | the inline comments and the summary, posted in one go through the code host (a review from a link); without one, printed for `mt-pr-review` to post |
 
 A lens sees one package at a time, with that package's module card and rules. This works better than one pass over a large diff. The verifier starts with a clean context, and a failing test counts for more than an argument.
+
+## Review from a link
+
+Paste a pull request's link in a chat and the agent starts this workflow on it with `metator review open <url>`: the full review for a request of this repository (or one of the folder), a review from the diff only for any other. Publishing, watching for new commits, re-review and approval are on [Reviews](./reviews.md#review-a-pull-request-from-its-link).
 
 ## Lenses
 
@@ -83,13 +83,11 @@ metator findings to-github .metator/runs/<id>/verdict.json --format labeled
 
 As a reviewer, the default, you get inline comments only for confirmed blockers. Everything else goes into the summary. With `--role author`, on your own pull request, the blockers come back as a fix list instead of comments.
 
-`findings to-github` only formats the comments; it posts nothing and writes no file. Posting needs your approval: approving the `approval` gate of the run grants it, and `metator run approve comment --by <name>` grants it at any other time. The hooks deny posting without it. In CI at autonomy `L2` the gate is skipped and only confirmed blockers are published ([Gates and CI](../repo/gates-ci.md)).
+`findings to-github` only formats the comments; it posts nothing and writes no file. Posting needs your approval: approving the `approval` gate of the run grants it, and `metator run approve comment --by <name>` grants it at any other time. Inside the run, the hooks deny posting without it ([Approvals and consent](./approvals.md#pull-requests-and-comments-in-a-run)). In CI at autonomy `L2` the gate is skipped and only confirmed blockers are published ([Gates and CI](../repo/gates-ci.md)).
 
 ## Self-review
 
-```text
-@mt-pr-review self-review my branch against main
-```
+In a chat: "self-review my branch against main". From a terminal: `metator run new --workflow mt-self-review --task "Self-review" --input base=main`.
 
 <WorkflowDiagram id="mt-self-review" />
 

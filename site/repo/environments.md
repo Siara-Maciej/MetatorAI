@@ -146,4 +146,4 @@ metator env pool             # show free and taken pool worktrees
 metator env pool --drain     # stop and remove the free ones
 ```
 
-A run started with `metator run init ... --worktree` takes a free pool worktree instead of starting from cold. Run `env pool --size 2` again to top the pool up. Worktrees themselves are on [Sessions and worktrees](../use/sessions.md).
+A run started with `metator run new ... --worktree` takes a free pool worktree instead of starting from cold. Run `env pool --size 2` again to top the pool up. Worktrees themselves are on [Terminals and sessions](../use/sessions.md#worktrees).

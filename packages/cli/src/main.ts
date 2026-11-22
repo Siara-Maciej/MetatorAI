@@ -15,6 +15,7 @@ const code = await run(
   {
     stdin: () => Bun.stdin.text(),
     terminal: process.stdin.isTTY && process.stderr.isTTY ? clackTerminal : null,
+    stdoutTty: process.stdout.isTTY === true,
   },
 );
 await written;

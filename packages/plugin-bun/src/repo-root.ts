@@ -1,6 +1,13 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { CONFIG_FILES } from "@metator/core";
+import {
+  type Checkout,
+  CONFIG_FILES,
+  checkoutOf,
+  type FoundRepo,
+  type GitFiles,
+  groupCheckouts,
+} from "@metator/core";
 
 /** What marks a repository's root: git, or any config file MetatorAI loads. */
 const MARKERS = [".git", ...CONFIG_FILES];
@@ -48,7 +55,10 @@ export function findFolderRoot(start: string): string | undefined {
 
 const SKIP = new Set(["node_modules", ".metator", ".git", "dist", "build", "target", "vendor"]);
 
-/** Folder-relative directories that are repositories, down to `depth` levels; not inside them. */
+/**
+ * Folder-relative directories that are checkouts (a repository, or a worktree of one), down to
+ * `depth` levels; not inside them. `findFolderRepos` tells which are one repository.
+ */
 export function findChildRepos(folder: string, depth = 2): string[] {
   const found: string[] = [];
   const walk = (dir: string, left: number) => {
@@ -74,4 +84,34 @@ export function findChildRepos(folder: string, depth = 2): string[] {
   };
   walk(folder, depth);
   return found;
+}
+
+/** Git's files as they are on disk: a file read, never a git process. */
+const DISK: GitFiles = {
+  text: (path) => {
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return undefined;
+    }
+  },
+  isDir: (path) => {
+    try {
+      return statSync(path).isDirectory();
+    } catch {
+      return false;
+    }
+  },
+};
+
+/** What the checkout in `dir` is: a repository, a submodule, or a worktree of another (its branch from HEAD). */
+export function readCheckout(dir: string): Checkout {
+  return checkoutOf(resolve(dir), DISK);
+}
+
+/** The folder's repositories, each with the worktrees of it the folder holds (G2). */
+export function findFolderRepos(folder: string, depth = 2): FoundRepo[] {
+  return groupCheckouts(
+    findChildRepos(folder, depth).map((path) => ({ path, checkout: readCheckout(join(folder, path)) })),
+  );
 }

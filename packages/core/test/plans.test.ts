@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { InMemoryFileSystem } from "@metator/testing";
+import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { stringify } from "yaml";
 import { DEFAULT_PATHS, DEFAULT_TEST_GLOBS } from "../src/application/paths.ts";
-import { LintPlan, ScopePlan } from "../src/application/plans.ts";
+import { CheckPlanStep, LintPlan, PlanProgress, ScopePlan } from "../src/application/plans.ts";
 import { RuleCatalog } from "../src/application/rules.ts";
 import { MetatorError } from "../src/domain/errors.ts";
 import { err, ok } from "../src/domain/result.ts";
@@ -240,5 +240,95 @@ describe("ScopePlan", () => {
     )._unsafeUnwrap();
     expect([dry.output, dry.shards.map((s) => s.steps)]).toEqual([undefined, [["S1", "S2", "S3", "S4"]]]);
     expect(await files.exists(`${RUN}/plan-scope.json`)).toBe(false);
+  });
+});
+
+describe("CheckPlanStep and PlanProgress (Etap 3): a step is done when its own tests pass", () => {
+  const PLAN_FILE = `${RUN}/plan.json`;
+  const PROGRESS_FILE = `${RUN}/build-progress.json`;
+  type Asked = { changed: readonly string[]; script: string };
+  const tests = (passed: (changed: readonly string[]) => boolean) => {
+    const asked: Asked[] = [];
+    return {
+      asked,
+      runner: {
+        execute: async (input: { changed?: readonly string[]; script: string }) => {
+          const changed = input.changed ?? [];
+          asked.push({ changed, script: input.script });
+          const ok_ = passed(changed);
+          return ok({
+            changed,
+            tests: changed.filter((f) => f.endsWith(".test.ts")),
+            command: ["bun", "test"],
+            exitCode: ok_ ? 0 : 1,
+            passed: ok_,
+            output: ok_ ? "1 pass" : "expect(received).toBe(expected)\n 1 fail",
+          });
+        },
+      },
+    };
+  };
+  const setup = (passed: (changed: readonly string[]) => boolean = () => true) => {
+    const fs = new InMemoryFileSystem({ [PLAN_FILE]: JSON.stringify(PLAN) });
+    const t = tests(passed);
+    const clock = new FixedClock(new Date("2026-11-15T10:00:00.000Z"));
+    return {
+      fs,
+      asked: t.asked,
+      check: new CheckPlanStep(fs, t.runner, clock),
+      progress: new PlanProgress(fs),
+    };
+  };
+
+  test("a step runs the tests its file and its tests-first reach, and the result is kept with the output", async () => {
+    const { fs, asked, check } = setup();
+    expect((await check.execute({ file: PLAN_FILE, step: "S1" }))._unsafeUnwrap().passed).toBe(true);
+    const s2 = (await check.execute({ file: PLAN_FILE, step: "S2", script: "test:unit" }))._unsafeUnwrap();
+    expect(asked.at(-1)).toEqual({
+      changed: ["src/a.mapper.ts", "src/a.mapper.test.ts"],
+      script: "test:unit",
+    });
+    expect([s2.step, s2.passed, s2.tests]).toEqual(["S2", true, ["src/a.mapper.test.ts"]]);
+    const saved = JSON.parse((await fs.read(PROGRESS_FILE))._unsafeUnwrap()) as {
+      kind: string;
+      steps: Record<string, { passed: boolean; at: string; output?: string }>;
+    };
+    expect(saved.kind).toBe("BuildProgress");
+    expect(saved.steps.S2).toMatchObject({ passed: true, at: "2026-11-15T10:00:00.000Z", output: "1 pass" });
+  });
+
+  test("a red step is recorded as failed with what failed, and a later green run replaces it", async () => {
+    let green = false;
+    const { check, progress } = setup(() => green);
+    const red = (await check.execute({ file: PLAN_FILE, step: "S1" }))._unsafeUnwrap();
+    expect([red.passed, red.exitCode, red.output]).toEqual([false, 1, expect.stringContaining("1 fail")]);
+    expect((await progress.execute({ file: PLAN_FILE }))._unsafeUnwrap().steps[0]).toEqual({
+      id: "S1",
+      status: "failed",
+    });
+    green = true;
+    expect((await check.execute({ file: PLAN_FILE, step: "S1" }))._unsafeUnwrap().passed).toBe(true);
+    expect((await progress.execute({ file: PLAN_FILE }))._unsafeUnwrap().steps[0]?.status).toBe("passed");
+  });
+
+  test("a step whose dependencies have not passed is refused before any test runs", async () => {
+    const { asked, check } = setup();
+    const refused = (await check.execute({ file: PLAN_FILE, step: "S2" }))._unsafeUnwrapErr();
+    expect([refused.code, refused.message]).toEqual(["CHECK_FAILED", expect.stringContaining("S1")]);
+    expect(asked).toEqual([]);
+    const unknown = (await check.execute({ file: PLAN_FILE, step: "S9" }))._unsafeUnwrapErr();
+    expect([unknown.code, unknown.message]).toEqual(["NOT_FOUND", expect.stringContaining("S9")]);
+  });
+
+  test("progress: done only when every step passed; nothing recorded yet is pending", async () => {
+    const { check, progress } = setup();
+    const empty = (await progress.execute({ file: PLAN_FILE }))._unsafeUnwrap();
+    expect([empty.done, empty.steps.map((s) => s.status)]).toEqual([
+      false,
+      ["pending", "pending", "pending", "pending"],
+    ]);
+    for (const step of ["S1", "S3", "S2", "S4"]) await check.execute({ file: PLAN_FILE, step });
+    const all = (await progress.execute({ file: PLAN_FILE }))._unsafeUnwrap();
+    expect([all.done, all.passed, all.total]).toEqual([true, 4, 4]);
   });
 });

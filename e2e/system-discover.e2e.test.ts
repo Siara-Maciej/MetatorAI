@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -215,6 +215,7 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     });
   });
   afterAll(async () => {
+    stopProcessesUnder(folder);
     await rm(folder, { recursive: true, force: true });
   });
 
@@ -245,11 +246,73 @@ describe("metator system discover in a folder of three repositories (real CLI)",
       ["served:billing /docs-json", false, "billing/src/server.ts:3"],
       ["consumes:web→billing /docs-json", false, "web/package.json"],
     ]);
-    // A folder has no map of its own: --write and --check say so instead of doing nothing.
-    for (const flag of ["--write", "--check"]) {
-      const r2 = await metator(["system", "discover", flag], folder);
-      expect([r2.code, (r2.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
-    }
+    // A folder has no map of its own: --check says so instead of doing nothing.
+    const check = await metator(["system", "discover", "--check"], folder);
+    expect([check.code, (check.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+  }, 120_000);
+
+  test("--write in the folder writes the folder's map into one of its repositories, once, by the person", async () => {
+    const env = { METATOR_USER: "ana" };
+    const wrong = await metator(["system", "discover", "--write", "--repo", "nowhere"], folder, env);
+    expect([wrong.code, (wrong.json.error as { message: string }).message]).toEqual([
+      64,
+      `no repository nowhere in ${folder}`,
+    ]);
+    const w = await metator(["system", "discover", "--write", "--repo", "billing"], folder, env);
+    expect(w.code).toBe(0);
+    const written = w.json.data as {
+      written: boolean;
+      repo: string;
+      proposed: { applications: { id: string }[] };
+    };
+    expect([written.written, written.repo]).toEqual([true, "billing"]);
+    expect(written.proposed.applications.map((a) => a.id)).toEqual(["billing", "notify", "web"]);
+    const map = await Bun.file(join(folder, "billing/docs/metator/system.yml")).text();
+    expect(map).toContain("kind: SystemMap");
+    // Named from the repository that holds it: billing is the map's own checkout, the others beside it.
+    expect(map).toContain("source:\n      path: .");
+    expect(map).toContain("repo: ../notify");
+    expect(map).toContain("repo: ../web");
+    // Never over a map a person may have changed: the second time writes nothing.
+    const again = await metator(["system", "discover", "--write"], folder, env);
+    expect([
+      (again.json.data as { written: boolean; repo: string }).written,
+      (again.json.data as { repo: string }).repo,
+    ]).toEqual([false, "billing"]);
+  }, 120_000);
+
+  test("system.roots, the directories that hold the checkouts: set once, the other applications are found", async () => {
+    const billing = join(folder, "billing");
+    const before = await metator(["system", "sources"], billing);
+    const via = (r: typeof before) =>
+      (r.json.data as { sources: { app: string; via: string; root?: string }[] }).sources.map((x) => [
+        x.app,
+        x.via,
+        x.root,
+      ]);
+    // The siblings are found beside billing already; the option is for checkouts elsewhere.
+    expect(via(before).map(([a, v]) => [a, v])).toEqual([
+      ["billing", "here"],
+      ["notify", "local"],
+      ["web", "local"],
+    ]);
+    const elsewhere = await mkdtemp(join(tmpdir(), "metator-roots-"));
+    const map = join(billing, "docs/metator/system.yml");
+    await Bun.write(
+      map,
+      (await Bun.file(map).text()).replace("repo: ../web", "repo: git@example.com:shop/web.git"),
+    );
+    await Bun.write(join(elsewhere, "web/README.md"), "web\n");
+    expect(via(await metator(["system", "sources"], billing)).find(([a]) => a === "web")?.[1]).toBe("none");
+    const set = await metator(["config", "set", "system.roots", elsewhere, "--scope", "repo"], billing);
+    expect([set.code, (set.json.data as { value: unknown }).value]).toEqual([0, [elsewhere]]);
+    expect(via(await metator(["system", "sources"], billing)).find(([a]) => a === "web")).toEqual([
+      "web",
+      "local",
+      join(elsewhere, "web"),
+    ]);
+    stopProcessesUnder(elsewhere);
+    await rm(elsewhere, { recursive: true, force: true });
   }, 120_000);
 });
 

@@ -61,6 +61,6 @@
     "attachedAt": "2026-10-25T10:05:00.000Z"
   },
   "options": {
-    "supervisor.wipLimit": 1
+    "drive.waitMinutes": 30
   }
 }

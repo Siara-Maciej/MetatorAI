@@ -1,9 +1,11 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, hostRefusal, MetatorError, notDrivable, ok, type Result } from "@metator/core";
-import type { MetatorContainer } from "@metator/runtime";
-import { type FollowResult, follow, person } from "./live.ts";
+import { err, MetatorError, ok, type PaneView, type Result } from "@metator/core";
+import type { BootstrapOptions, MetatorContainer } from "@metator/runtime";
+import { callDaemon, findDaemon, inRepo } from "./daemon-client.ts";
+import { type FollowResult, follow } from "./live.ts";
 import type { Terminal } from "./terminal.ts";
+import { who } from "./who.ts";
 
 /**
  * The AI hosts that drive agents without a terminal, as the help names them. Which hosts exist is
@@ -11,7 +13,6 @@ import type { Terminal } from "./terminal.ts";
  * list it does hold (a test's scenario host is one only while a scenario is given).
  */
 export const HOSTS = ["claude", "copilot"] as const;
-const HOST_OF: Record<string, (typeof HOSTS)[number]> = { claude: "claude", copilot: "copilot" };
 
 /** The host a new run or question uses: `$METATOR_HOST` when it names a host, else the first of hosts.targets. */
 export const defaultHost = (
@@ -20,55 +21,86 @@ export const defaultHost = (
 ): string => {
   const chosen = env.METATOR_HOST;
   if (chosen && c.resolve("agentHosts").has(chosen)) return chosen;
-  return HOST_OF[c.resolve("config").config.hosts.targets[0] ?? "claude"] ?? "claude";
+  // The same choice every front makes: the team's order (`supervisor.hostOrder`), then the targets.
+  return c.resolve("defaultDriveHost")();
 };
 
 /**
- * Starts `run drive` for the run in its own process (the same entry point as this command).
- * Refused up front where that process would end at once without a word: a run that is not
- * active (an escalated one names its resume), a host whose program is not installed.
+ * How this program starts a run's drive as a background process (the `DetachedDrive` port):
+ * `run drive` for the run through the same entry point as this command. Whether a drive may
+ * start at all is core's decision (`StartDrive`, `EnsureDriven`); this only makes the process.
  */
-export async function startDetached(
-  c: MetatorContainer,
-  root: string | undefined,
-  runId: string,
-  host: string,
-  maxSteps = 200,
-) {
-  const record = await c.resolve("runRepository").load(runId);
-  if (record.isErr()) return err(record.error);
-  const refused = notDrivable(record.value);
-  if (refused) return err(refused);
-  if (record.value.state.status !== "active")
-    return err(
-      new MetatorError(
-        "TRANSITION_DENIED",
-        `run ${runId} is ${record.value.state.status}; there is nothing to drive`,
-      ),
-    );
-  const missing = hostRefusal(host, [...c.resolve("agentHosts").keys()], c.resolve("driveHostProblem"));
-  if (missing) return err(missing);
-  const argv = [
-    process.argv[0] as string,
-    process.argv[1] as string,
-    ...(root ? ["--root", root] : []),
-    "run",
-    "drive",
-    "--run",
-    runId,
-    "--host",
-    host,
-    "--max-steps",
-    String(maxSteps),
-  ];
-  return c.resolve("runDrivers").start({
-    runId,
-    host,
-    argv,
-    cwd: c.resolve("root"),
-    logFile: join(tmpdir(), `metator-drive-${runId}.log`),
+export const detachedDrive =
+  (): NonNullable<BootstrapOptions["detachedDrive"]> =>
+  ({ runDrivers, root }) => ({
+    start: ({ runId, host, maxSteps }) =>
+      runDrivers.start({
+        runId,
+        host,
+        argv: [
+          process.argv[0] as string,
+          process.argv[1] as string,
+          "--root",
+          root,
+          "run",
+          "drive",
+          "--run",
+          runId,
+          "--host",
+          host,
+          "--max-steps",
+          String(maxSteps ?? 200),
+        ],
+        cwd: root,
+        logFile: join(tmpdir(), `metator-drive-${runId}.log`),
+      }),
   });
-}
+
+/**
+ * A run's panes as a command reaches them (the `RunPanes` port): they live in the daemon's
+ * process, so a command asks the daemon, and the daemon itself closes them directly. With no
+ * daemon there are none, which is an error the caller leaves out of its answer.
+ */
+export const runPanes =
+  (): NonNullable<BootstrapOptions["runPanes"]> =>
+  ({ panes, root }) => ({
+    closeRun: async (runId) => {
+      const daemon = findDaemon(root);
+      if (daemon.isErr()) return err(daemon.error);
+      if (daemon.value.pid === process.pid) return panes.closeRun(runId);
+      return callDaemon(
+        daemon.value,
+        "POST",
+        inRepo(`/runs/${encodeURIComponent(runId)}/close-panes`, root),
+        {},
+      );
+    },
+  });
+
+/**
+ * Where a run's conductor session opens so a person sees it (the `ConductorSessions` port,
+ * ADR-0090): the daemon that serves the run's repository, asked as `metator run start` asks it.
+ * The daemon's own process asks itself the same way: its panes belong to its own containers.
+ * No daemon is an error that says so; core then drives the run in the background.
+ */
+export const conductorSessions =
+  (): NonNullable<BootstrapOptions["conductorSessions"]> =>
+  ({ root }) => ({
+    open: async ({ runId, host }) => {
+      const daemon = findDaemon(root);
+      if (daemon.isErr()) return err(daemon.error);
+      const opened = await callDaemon<PaneView>(
+        daemon.value,
+        "POST",
+        inRepo(`/runs/${encodeURIComponent(runId)}/start`, root),
+        { host },
+      );
+      return opened.map((pane) => ({
+        paneId: pane.id,
+        host: pane.process.kind === "host" ? (pane.process.host ?? host) : host,
+      }));
+    },
+  });
 
 export interface SessionRow {
   readonly runId: string;
@@ -122,7 +154,6 @@ export async function sessionRows(c: MetatorContainer): Promise<Result<readonly 
 export async function newRun(
   c: MetatorContainer,
   terminal: Terminal,
-  root: string | undefined,
 ): Promise<Result<FollowResult, MetatorError>> {
   const scan = await c.resolve("workflowCatalog").scan();
   if (scan.workflows.length === 0)
@@ -137,6 +168,8 @@ export async function newRun(
         "Install GitHub Copilot CLI or Claude Code, then run `metator doctor`.",
       ),
     );
+  const by = await who(c);
+  if (by.isErr()) return err(by.error);
   const answers = await terminal.newRun({
     workflows: scan.workflows.map((w) => ({
       id: w.spec.id,
@@ -147,54 +180,29 @@ export async function newRun(
     defaultHost: defaultHost(c),
   });
   if (!answers) return err(MetatorError.usage("no run started"));
-  const run = await c.resolve("initRun").execute({
+  // The run, its worktree's dependencies and its drive: the same start as every other front.
+  const started = await c.resolve("startRun").execute({
     workflow: answers.workflow,
     task: answers.task,
     autonomy: answers.autonomy,
     ...(answers.worktree ? { worktree: {} } : {}),
+    drive: { host: answers.host },
   });
-  if (run.isErr()) return err(run.error);
-  if (answers.worktree) {
-    // The worktree's dependencies first: the run's tests and gates run there.
-    const setup = await c.resolve("setupWorktree").execute({ run: run.value.runId });
-    terminal.show(
-      setup.isOk()
-        ? `worktree ${setup.value.worktree}: dependencies ${setup.value.dependencies}`
-        : `worktree setup failed: ${setup.error.message}`,
-    );
-  }
-  const started = await startDetached(c, root, run.value.runId, answers.host);
   if (started.isErr()) return err(started.error);
-  terminal.show(`run ${run.value.runId} · ${answers.host} · Ctrl+C leaves; the run goes on`);
-  return ok(await follow(c, run.value.runId, terminal, person()));
-}
-
-/** Makes sure an active run has a live driver, with the host it used unless told otherwise. */
-export async function resume(
-  c: MetatorContainer,
-  root: string | undefined,
-  runId: string,
-  host?: string,
-): Promise<Result<{ readonly stage: string; readonly started: boolean }, MetatorError>> {
-  const record = await c.resolve("runRepository").load(runId);
-  if (record.isErr()) return err(record.error);
-  const escalated = notDrivable(record.value);
-  if (escalated) return err(escalated);
-  if (record.value.state.status !== "active") {
+  const { run, setup, setupError, driveError } = started.value;
+  if (setup) terminal.show(`worktree ${setup.worktree}: dependencies ${setup.dependencies}`);
+  if (setupError) terminal.show(`worktree setup failed: ${setupError}`);
+  if (driveError)
     return err(
-      new MetatorError(
-        "TRANSITION_DENIED",
-        `run ${runId} is ${record.value.state.status}; there is nothing to continue`,
+      MetatorError.usage(
+        driveError.message,
+        driveError.hint ?? `Start it later: \`metator run continue ${run.runId}\`.`,
       ),
     );
-  }
-  const driver = await c.resolve("runDrivers").status(runId);
-  if (driver.isErr()) return err(driver.error);
-  if (driver.value?.alive) return ok({ stage: record.value.state.stage, started: false });
-  const hosts = c.resolve("agentHosts");
-  const chosen =
-    host ?? (record.value.host && hosts.has(record.value.host) ? record.value.host : defaultHost(c));
-  const started = await startDetached(c, root, runId, chosen);
-  if (started.isErr()) return err(started.error);
-  return ok({ stage: record.value.state.stage, started: true });
+  terminal.show(`run ${run.runId} · ${answers.host} · Ctrl+C leaves; the run goes on`);
+  return ok(await follow(c, run.runId, terminal, by.value));
 }
+
+/** Makes sure an active run has a live driver, with the host it used unless told otherwise (`EnsureDriven`). */
+export const resume = (c: MetatorContainer, runId: string, host?: string) =>
+  c.resolve("ensureDriven").execute({ runId, ...(host ? { host } : {}) });

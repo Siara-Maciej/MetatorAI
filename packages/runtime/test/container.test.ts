@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { type Clock, err, MetatorError, ok } from "@metator/core";
+import type { Clock } from "@metator/core";
 import { asFunction, asValue } from "awilix";
-import { bootstrap, checkoutRoots, orderedHosts, workNotes } from "../src/bootstrap.ts";
+import { bootstrap, orderedHosts } from "../src/bootstrap.ts";
 import { createMetatorContainer } from "../src/container.ts";
 
 const fixedClock = (iso: string): Clock => ({ now: () => new Date(iso) });
@@ -47,41 +47,40 @@ describe("bootstrap", () => {
     for (const port of ["vcs", "revisionReader", "changeHistory", "branchHistory", "changePatch"] as const)
       expect(c.resolve(port) as unknown).toBe(git);
   });
-});
 
-describe("workNotes", () => {
-  test("a Node project without node_modules is told its tools cannot run; an installed one is not", async () => {
-    const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const dir = await mkdtemp(join(tmpdir(), "metator-notes-"));
-    expect(workNotes(dir)).toEqual([]);
-    // Nothing to install: no node_modules is not a missing install (F5).
-    await writeFile(join(dir, "package.json"), "{}");
-    expect(workNotes(dir)).toEqual([]);
-    await writeFile(join(dir, "package.json"), '{"devDependencies":{"vitest":"3"}}');
-    expect(workNotes(dir)[0]).toContain("dependencies are not installed");
-    await mkdir(join(dir, "node_modules"));
-    expect(workNotes(dir)).toEqual([]);
-    await rm(dir, { recursive: true, force: true });
+  test("the import and the symbol analyzer are the one oxc analyzer", () => {
+    const c = bootstrap({ root: "/repo" });
+    const oxc = c.resolve("oxc");
+    expect(c.resolve("importAnalyzer") as unknown).toBe(oxc);
+    expect(c.resolve("symbolAnalyzer") as unknown).toBe(oxc);
   });
-});
 
-describe("checkoutRoots", () => {
-  test("the checkouts the map's applications are in; one not on this machine, or no map, adds none", async () => {
-    const apps = [{ id: "api" }, { id: "web" }, { id: "gone" }];
-    const roots: Record<string, string> = { api: "/f/api", web: "/f/front" };
-    const sources = {
-      location: { require: async () => ok({ applications: apps }) },
-      locate: async (app: { id: string }) =>
-        ok(roots[app.id] ? { app: app.id, root: roots[app.id], dir: ".", via: "local" } : undefined),
-    } as unknown as Parameters<typeof checkoutRoots>[0];
-    expect(await checkoutRoots(sources)).toEqual(["/f/api", "/f/front"]);
-    const none = {
-      location: { require: async () => err(new MetatorError("NOT_FOUND", "no map")) },
-      locate: async () => ok(undefined),
-    } as unknown as Parameters<typeof checkoutRoots>[0];
-    expect(await checkoutRoots(none)).toEqual([]);
+  test("the contract kinds are the ones a differ compares", () => {
+    const c = bootstrap({ root: "/repo" });
+    expect(c.resolve("contractKinds")).toEqual(["openapi"]);
+    expect(c.resolve("contractKinds")).toEqual(c.resolve("contractDiffers").map((d) => d.kind));
+  });
+
+  test("the adapters use cases are given are the registered ones, so a test container can replace them", () => {
+    const c = bootstrap({ root: "/repo" });
+    for (const key of [
+      "ruleEngines",
+      "toolBins",
+      "containerRuntime",
+      "mcpToolCaller",
+      "codeHost",
+      "reviewHost",
+      "declarationEmitter",
+      "coverageReader",
+      "plannedBreakingChanges",
+      "styleImports",
+      "apiSnapshots",
+      "diffCoverage",
+      "diffContracts",
+      "architectureFacts",
+    ] as const)
+      expect(c.resolve(key)).toBeDefined();
+    expect(c.resolve("ruleEngines").map((e) => e.engine)).toEqual(["ast-grep", "biome", "tsc", "test"]);
   });
 });
 

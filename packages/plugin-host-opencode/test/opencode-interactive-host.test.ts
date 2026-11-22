@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { MetatorError } from "@metator/core";
 import { NodePtyTerminal } from "@metator/plugin-node";
 import { FakeTerminal, interactiveHostContract, standInCli } from "@metator/testing";
+import { opencodeHost } from "../src/opencode-host.ts";
 import { CONTINUE, OpencodeInteractiveHost } from "../src/opencode-interactive-host.ts";
 
 const task = (cwd: string, extra: Record<string, unknown> = {}) => ({
@@ -80,5 +81,17 @@ describe("OpencodeInteractiveHost", () => {
   test("a terminal that cannot spawn is the error, not a throw", async () => {
     const host = new OpencodeInteractiveHost(new FakeTerminal(new MetatorError("COMMAND_FAILED", "no pty")));
     expect((await host.start(task("/work"), size))._unsafeUnwrapErr().message).toBe("no pty");
+  });
+});
+
+describe("opencodeHost", () => {
+  test("the descriptor: a session on its program, no agent host and no files of its own", async () => {
+    expect(opencodeHost.id).toBe("opencode");
+    expect(opencodeHost.program).toEqual({ env: "METATOR_OPENCODE_BIN", default: "opencode" });
+    expect([opencodeHost.agent, opencodeHost.files]).toEqual([undefined, undefined]);
+    const terminal = new FakeTerminal();
+    await opencodeHost.interactive?.(terminal, "/opt/opencode").start(task("/w"), size);
+    await opencodeHost.interactive?.(terminal, undefined).start(task("/w"), size);
+    expect(terminal.spawned.map((s) => s.argv[0])).toEqual(["/opt/opencode", "opencode"]);
   });
 });

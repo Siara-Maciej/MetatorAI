@@ -1,12 +1,16 @@
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerCardsCommands(program: Command, { action, container }: CommandContext): void {
-  program
-    .command("cards")
-    .description("Module cards: generated facts per workspace package, curated sections kept")
-    .command("build")
+  meta(
+    program
+      .command("cards")
+      .description("Module cards: generated facts per workspace package, curated sections kept")
+      .command("build"),
+    { audience: "person", check: ["--check"] },
+  )
     .description("Write the generated block of every module card (docs/metator/modules)")
     .option("--check", "compare only; fail when a card is missing or out of date", false)
     .action(

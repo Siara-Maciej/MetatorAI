@@ -1,69 +1,63 @@
 /**
  * An escalated run (F1, D9): why it stopped, and the two ways on. Resume puts it back at the stage
- * it escalated from and drives it; Close ends it as aborted, with the person's reason.
+ * it escalated from, or at an earlier one it worked, with a note for the next agent, and drives it;
+ * Close ends it as aborted, with the person's reason. The card
+ * is the Inbox's; the session screen of an escalated run shows the same actions in its bar.
  */
 import { useState } from "react";
 import { useDaemon } from "../daemon.tsx";
+import { useAction } from "../hooks.ts";
 import { duration, type Run, resumeNotice, resumePlan, resumeStages } from "../model.ts";
 import { Notice } from "./common.tsx";
+import { RetryAbortedSteps } from "./retry-step.tsx";
+import { StopReason } from "./stop-reason.tsx";
 
-export function EscalatedCard({
+/** Resume and Close of an escalated run, with the reason field Close needs and what the daemon answered. */
+export function EscalatedActions({
   run,
   onDone,
-  onBriefing,
-  onOpenChanges,
+  children,
 }: {
   readonly run: Run;
-  onDone(): void;
-  onBriefing(runId: string): void;
-  onOpenChanges(runId: string): void;
+  /** The run was resumed and is driven, or it was closed. */
+  onDone?: (() => void) | undefined;
+  /** More buttons on the same row (the card: Briefing, Changes). */
+  readonly children?: React.ReactNode;
 }) {
-  const { client, who } = useDaemon();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const { client } = useDaemon();
+  const action = useAction();
   const [closing, setClosing] = useState(false);
   const [reason, setReason] = useState("");
   const [to, setTo] = useState(run.stage);
   const [note, setNote] = useState("");
   const stages = resumeStages(run);
   const resume = async () => {
-    if (busy) return;
-    const by = await who();
-    if (!by) return;
-    setBusy(true);
-    const r = await client.resume(run.runId, by, run.repo, { ...(to === run.stage ? {} : { to }), note });
-    setBusy(false);
-    if (!r.ok) {
-      setError(`${r.error?.message ?? "the run was not resumed"}${r.error?.hint ? ` ${r.error.hint}` : ""}`);
-      return;
-    }
-    const notice = resumeNotice(run.runId, r.data?.drive);
-    setError(notice);
-    if (!notice) onDone();
+    if (action.busy) return;
+    let notice: string | undefined;
+    const ok = await action.run(
+      async (by) => {
+        const r = await client.resume(run.runId, by, run.repo, { ...(to === run.stage ? {} : { to }), note });
+        notice = r.ok ? resumeNotice(run.runId, r.data?.drive) : undefined;
+        return r;
+      },
+      { who: true, refused: "the run was not resumed" },
+    );
+    if (!ok) return;
+    // Resumed, but nothing drives it: the person must know, so the card stays to say so.
+    if (notice) action.say(notice);
+    else onDone?.();
   };
   const close = async () => {
-    if (busy || reason.trim() === "") return;
-    setBusy(true);
-    const r = await client.abort(run.runId, reason.trim(), run.repo);
-    setBusy(false);
-    if (!r.ok) setError(r.error?.message ?? "the run was not closed");
-    else onDone();
+    if (action.busy || reason.trim() === "") return;
+    const ok = await action.run(() => client.abort(run.runId, reason.trim(), run.repo), {
+      refused: "the run was not closed",
+    });
+    if (ok) onDone?.();
   };
   return (
-    <article className="card escalated-card" aria-label="escalated run" data-testid="escalated-card">
-      <h2>{run.task}</h2>
-      <p className="dim">
-        {run.runId}
-        {run.repo ? ` · ${run.repo}` : ""} · stopped at {run.stage} {duration(run.elapsedMs)} after it started
-      </p>
-      <h3>Why it stopped</h3>
-      <div className="reason-text mono" data-testid="escalated-reason">
-        {run.reason ?? "The run recorded no reason. Its briefing shows what happened last."}
-      </div>
-      <p>
-        The run tried this stage as often as its workflow allows. Remove the cause, then resume:{" "}
-        <span data-testid="resume-plan">{resumePlan(run.stage, to)}</span>. Or close it: it ends as aborted.
-      </p>
+    <>
+      {/* A system run blocked by an aborted child: its step can be retried, then the run resumed. */}
+      <RetryAbortedSteps run={run} />
       <div className="resume-at">
         <label>
           <span className="dim">Resume at</span>
@@ -85,19 +79,17 @@ export function EscalatedCard({
           />
         </label>
       </div>
+      <p className="dim">
+        Resume: <span data-testid="resume-plan">{resumePlan(run.stage, to)}</span>.
+      </p>
       <div className="actions">
-        <button type="button" className="primary" disabled={busy} onClick={() => void resume()}>
+        <button type="button" className="primary" disabled={action.busy} onClick={() => void resume()}>
           Resume
         </button>
-        <button type="button" disabled={busy} onClick={() => setClosing(!closing)}>
+        <button type="button" disabled={action.busy} onClick={() => setClosing(!closing)}>
           Close run…
         </button>
-        <button type="button" className="ghost" onClick={() => onBriefing(run.runId)}>
-          Briefing
-        </button>
-        <button type="button" className="ghost" onClick={() => onOpenChanges(run.runId)}>
-          Changes
-        </button>
+        {children}
       </div>
       {closing ? (
         <form
@@ -115,12 +107,48 @@ export function EscalatedCard({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
-          <button type="submit" disabled={busy || reason.trim() === ""}>
+          <button type="submit" disabled={action.busy || reason.trim() === ""}>
             Close as aborted
           </button>
         </form>
       ) : null}
-      <Notice text={error} onClose={() => setError(undefined)} />
+      <Notice {...action.notice} />
+    </>
+  );
+}
+
+export function EscalatedCard({
+  run,
+  onDone,
+  onBriefing,
+  onOpenChanges,
+}: {
+  readonly run: Run;
+  onDone(): void;
+  onBriefing(runId: string): void;
+  onOpenChanges(runId: string): void;
+}) {
+  return (
+    <article className="card escalated-card" aria-label="escalated run" data-testid="escalated-card">
+      <h2>{run.task}</h2>
+      <p className="dim">
+        {run.runId}
+        {run.repo ? ` · ${run.repo}` : ""} · stopped at {run.stage} {duration(run.elapsedMs)} after it started
+      </p>
+      <h3>Why it stopped</h3>
+      <StopReason reason={run.reason} stop={run.stop} testId="escalated-reason" />
+      <p>
+        Remove the cause, then resume at the stage it stopped at or an earlier one. Or close it: it ends as
+        aborted.
+      </p>
+      <EscalatedActions run={run} onDone={onDone}>
+        <button type="button" className="ghost" onClick={() => onBriefing(run.runId)}>
+          Briefing
+        </button>
+        <button type="button" className="ghost" onClick={() => onOpenChanges(run.runId)}>
+          Changes
+        </button>
+      </EscalatedActions>
     </article>
   );
 }

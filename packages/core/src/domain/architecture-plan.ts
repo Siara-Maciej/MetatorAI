@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { type ArchitectureInput, type ArchitectureReport, analyzeArchitecture } from "./architecture.ts";
+import { analyzeArchitecture } from "./architecture.ts";
+import type { ArchitectureInput } from "./architecture-context.ts";
 import { applyMoves, checkMoves, type Move, MoveSchema, simulateMoves } from "./architecture-moves.ts";
+import type { ArchitectureReport } from "./architecture-report.ts";
 import { canonical, digestOf } from "./ids.ts";
 import { defineDocument } from "./versioned.ts";
 

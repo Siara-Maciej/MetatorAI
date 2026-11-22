@@ -1,10 +1,4 @@
-import {
-  CONFIG_FILES,
-  type MetatorConfig,
-  MetatorConfigDocument,
-  RETIRED_CONFIG_KEYS,
-  withoutLocalStatePaths,
-} from "../domain/config.ts";
+import type { MetatorConfig } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { type McpServers, mergeMcpServers } from "../domain/mcp.ts";
 import { OPTIONS, optionByKey } from "../domain/option-registry.ts";
@@ -23,15 +17,10 @@ import {
   UserOptionsDocument,
 } from "../domain/options.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import {
-  deleteYamlPaths,
-  parseJsonDocument,
-  parseYamlDocument,
-  renderYamlDocument,
-  serializeJsonDocument,
-  updateYamlPath,
-} from "../domain/versioned.ts";
+import { renderYamlDocument, updateYamlPath } from "../domain/versioned.ts";
 import type { FileSystem, UserConfigStore } from "../ports/index.ts";
+import { editRepoConfig, locateRepoConfig, parseRepoConfig } from "./config-file.ts";
+import { parseDocumentText } from "./document-io.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 /** The person's options file, in the user config directory. */
@@ -186,13 +175,10 @@ export class OptionStore {
     source: string;
     diagnostic?: OptionDiagnostic;
   }> {
-    for (const file of CONFIG_FILES) {
-      if (!(await this.deps.fs.exists(file))) continue;
-      const text = await this.deps.fs.read(file);
-      if (text.isErr()) break;
-      const parsed = (
-        file.endsWith(".json") ? parseJsonDocument(text.value, file) : parseYamlDocument(text.value, file)
-      ).andThen((raw) => MetatorConfigDocument.parse(raw, file));
+    const file = await locateRepoConfig(this.deps.fs);
+    const text = file ? await this.deps.fs.read(file) : undefined;
+    if (file && text?.isOk()) {
+      const parsed = parseRepoConfig(text.value, file);
       if (parsed.isOk()) return { config: parsed.value, source: file };
       return {
         config: this.deps.config,
@@ -226,9 +212,7 @@ export class OptionStore {
     if (user.isErr()) return err(user.error);
     let mine: McpServers = {};
     if (user.value !== undefined) {
-      const parsed = parseYamlDocument(user.value, USER_OPTIONS_FILE).andThen((raw) =>
-        UserOptionsDocument.parse(raw, USER_OPTIONS_FILE),
-      );
+      const parsed = parseDocumentText(user.value, USER_OPTIONS_FILE, UserOptionsDocument, "yaml");
       if (parsed.isOk()) mine = parsed.value.mcp;
     }
     return (await this.repoMcp()).map((repo) => mergeMcpServers(repo, mine));
@@ -244,9 +228,7 @@ export class OptionStore {
     const user = await this.deps.user.read(USER_OPTIONS_FILE);
     if (user.isErr()) return err(user.error);
     if (user.value !== undefined) {
-      const parsed = parseYamlDocument(user.value, USER_OPTIONS_FILE).andThen((raw) =>
-        UserOptionsDocument.parse(raw, USER_OPTIONS_FILE),
-      );
+      const parsed = parseDocumentText(user.value, USER_OPTIONS_FILE, UserOptionsDocument, "yaml");
       if (parsed.isOk())
         layers.push({ scope: "user", source: USER_OPTIONS_FILE, values: parsed.value.options });
       else
@@ -301,47 +283,12 @@ export class OptionStore {
   }
 
   private async writeRepo(key: string, value: unknown): Promise<Result<void, MetatorError>> {
-    let file: string | undefined;
-    for (const f of CONFIG_FILES) if (await this.deps.fs.exists(f)) file = file ?? f;
-    if (!file) {
-      const text = renderYamlDocument(
-        {
-          kind: MetatorConfigDocument.kind,
-          schemaVersion: MetatorConfigDocument.current,
-          options: value === undefined ? {} : { [key]: value },
-        },
-        "Written by `metator config set`; every other setting keeps its default.",
-      );
-      return this.deps.fs.write("metator.config.yml", text);
-    }
-    const text = await this.deps.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const json = file.endsWith(".json");
-    let next: string;
-    if (json) {
-      const raw = parseJsonDocument(text.value, file);
-      if (raw.isErr()) return err(raw.error);
-      const doc = withoutLocalStatePaths(raw.value) as Record<string, unknown>;
-      const options = { ...((doc.options as Record<string, unknown> | undefined) ?? {}) };
-      if (value === undefined) delete options[key];
-      else options[key] = value;
-      next = serializeJsonDocument({ ...doc, schemaVersion: MetatorConfigDocument.current, options });
-    } else {
-      next = deleteYamlPaths(
-        updateYamlPath(
-          updateYamlPath(text.value, ["schemaVersion"], MetatorConfigDocument.current),
-          ["options", key],
-          value,
-        ),
-        RETIRED_CONFIG_KEYS,
-      );
-    }
-    // The file must still be a valid config before it is written.
-    const after = (json ? parseJsonDocument(next, file) : parseYamlDocument(next, file)).andThen((raw) =>
-      MetatorConfigDocument.parse(raw, file),
+    const saved = await editRepoConfig(
+      this.deps.fs,
+      [{ path: ["options", key], value }],
+      "Written by `metator config set`; every other setting keeps its default.",
     );
-    if (after.isErr()) return err(after.error);
-    return this.deps.fs.write(file, next);
+    return saved.map(() => undefined);
   }
 }
 

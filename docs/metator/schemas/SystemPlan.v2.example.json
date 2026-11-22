@@ -1,0 +1,75 @@
+{
+  "kind": "SystemPlan",
+  "schemaVersion": 2,
+  "id": "prices-in-the-customer-s-currency-with-tax-by-co",
+  "task": "Prices in the customer's currency, with tax by country",
+  "status": "running",
+  "createdBy": "ana",
+  "approval": {
+    "by": "ana",
+    "at": "2026-11-19T16:25:12.820Z",
+    "digest": "cb8c8000"
+  },
+  "strategies": [],
+  "steps": [
+    {
+      "id": "billing-change",
+      "app": "billing",
+      "summary": "Add GET /exchange-rates/{currency} -> {base: PLN, currency, rate} to billing's tax-api (openapi.yaml) and implement it, with 404 for an unknown currency, so shop-api can price in the customer's currency. This is an addition only: GET /tax-rates/{country}, /invoices and their shapes stay exactly as they are, so tax-api's change is compatible.",
+      "contracts": [
+        {
+          "id": "tax-api",
+          "role": "change"
+        }
+      ],
+      "dependsOn": [],
+      "deploy": {
+        "rollback": "Plain revert, done only after shop-api-change no longer calls /exchange-rates. Nothing else reads the new endpoint."
+      },
+      "status": "done",
+      "run": "20261119-mt-feature-add-get-exchange-rates-currency-base-pln",
+      "previousRuns": [
+        {
+          "run": "20261119-mt-feature-add-get-exchange-rates",
+          "status": "aborted",
+          "worktree": ".metator/wt/20261119-mt-feature-add-get-exchange-rates",
+          "retriedBy": "ana",
+          "at": "2026-11-19T17:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "shop-api-change",
+      "app": "shop-api",
+      "summary": "Make GET /prices/{sku} take optional `country` and `currency` query params. With them, return additive fields `currency`, `taxRate` and `grossAmountMinor`: the net PLN price converted with billing's new GET /exchange-rates/{currency}, plus VAT read from billing's existing GET /tax-rates/{country}. With neither param the response stays exactly {sku, amountCents} in net PLN cents. A country or currency billing does not know (404) answers 400 and never a guessed price. Update openapi.yaml and src/contract.ts to match, and keep the existing tests green.",
+      "contracts": [
+        {
+          "id": "prices-api",
+          "role": "change"
+        }
+      ],
+      "dependsOn": ["billing-change"],
+      "deploy": {
+        "rollback": "Plain revert. The new fields and params are additive and nothing stores them. Revert only after shop-web-change is off or reverted, because it reads the new fields."
+      },
+      "status": "blocked",
+      "run": "20261119-mt-feature-make-get-prices-sku-take-optional-countr"
+    },
+    {
+      "id": "shop-web-change",
+      "app": "shop-web",
+      "summary": "Show the customer's price on the price tag. Request /prices/{sku} with the customer's country and currency, and render `grossAmountMinor` in `currency` with that currency's symbol and decimal places instead of the hardcoded ' z\u0142'. Fall back to today's amountCents in z\u0142 when the new fields are absent. Extend src/price-response.ts with the new optional fields.",
+      "contracts": [
+        {
+          "id": "prices-api",
+          "role": "change"
+        }
+      ],
+      "dependsOn": ["shop-api-change"],
+      "deploy": {
+        "flag": "prices-in-customer-currency"
+      },
+      "status": "pending"
+    }
+  ]
+}

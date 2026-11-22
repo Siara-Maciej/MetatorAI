@@ -21,11 +21,11 @@ dir: packages/plugin-host-opencode
 
 ## Responsibility
 
-`OpencodeInteractiveHost` (`InteractiveHost`, D6, ADR-0077) opens `opencode <worktree> --prompt <task>` in a PTY through the `Terminal` port and resumes a session with `--session <id>` or `--continue`. It generates no host files: OpenCode agents and its hook plugin are the repository's own.
+`OpencodeInteractiveHost` (`InteractiveHost`, D6, ADR-0077) opens `opencode <worktree> --prompt <task>` in a PTY through the `Terminal` port and resumes a session with `--session <id>` or `--continue`. It generates no host files: OpenCode agents and its hook plugin are the repository's own. `opencodeHost` is the descriptor the composition root reads: the program, its variable and the session factory.
 
 ## Invariants
 
-- A started session reports `continue`, because OpenCode names its sessions itself [[cite: packages/plugin-host-opencode/src/opencode-interactive-host.ts:45 | "sessionId: resume ?? CONTINUE"]].
+- A started session reports `continue`, because OpenCode names its sessions itself [[cite: packages/plugin-host-opencode/src/opencode-interactive-host.ts:37 | "sessionId: resume ?? CONTINUE"]].
 - A terminal that cannot spawn is a failed result, never a throw.
 
 ## Allowed dependencies

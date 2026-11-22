@@ -21,10 +21,16 @@ output: { artifact: "triage.md", summaryLines: 12 }
    - `nit`: a small, local wording or naming point; a change all the same, marked so the person can skip it.
    - `praise`: nothing to do.
 3. Record each decision with one command: `metator mrs triage <id> --thread <thread> --kind <kind>`; add `--reply "<text>"` for a `question` (at most 6 lines, plain, with citations). A reply is only a proposal: a person sends it.
-4. Write `triage.md` with `metator run write triage.md`: a table of thread, kind, what you propose; then the open points only a person can settle.
+4. Write `triage.md` as "Writing triage.md" below says: a table of thread, kind, what you propose; then the open points only a person can settle.
 
 # Output
 `triage.md`, and every open thread sorted in the review. A summary of at most 12 lines: counts per kind, the threads that need the person's decision.
+
+# Analyse mode
+Started from the person's "Analyse" on a new review of their MR (the first line of your message says `Analyse mode.`), in a terminal they see, with no run:
+1. Analyse every new thread (state `open`, kind `unsorted`) as the procedure says and record each with `metator mrs triage`.
+2. For a `change`, propose the fix in the chat: quick when `metator quick check --task "<the change>"` says `quick: true`, else the full workflow (`metator run new --workflow mt-review-response`); start it only when the person says so.
+3. End with the list of proposed replies by thread id, and say that the person sends them all at once, or only some (`metator mrs send <id> --by <name> --only t1,t3`, or `--skip t2`).
 
 # Stop conditions
 - Never edit code, never call `metator mrs send` or `metator mrs resolve`: those change the code host and belong to a person.

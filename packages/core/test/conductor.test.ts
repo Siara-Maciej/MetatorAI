@@ -154,7 +154,7 @@ describe("Conductor", () => {
     ).toContain("allows 2");
   });
 
-  test("a worker reports; wait sees it; collect returns it and closes the pane; blocked asks the person", async () => {
+  test("a worker reports; wait sees it; collect returns it and ends the pane (kept, with the worker's one line); blocked asks the person", async () => {
     const w = world();
     const r = (await w.init("Add discount"))._unsafeUnwrap();
     await w.conductor.start({ runId: r.runId });
@@ -187,11 +187,19 @@ describe("Conductor", () => {
       (await w.conductor.wait({ runId: r.runId, worker: d.worker, timeoutMs: 1000 }))._unsafeUnwrap(),
     ).toEqual({ state: "result", result: reported });
     const collected = (await w.conductor.collect({ runId: r.runId, worker: d.worker }))._unsafeUnwrap();
-    expect([collected.status, collected.paneClosed, w.copilot.started[1]?.pty.killed]).toEqual([
-      "done",
-      true,
-      true,
+    expect([
+      collected.status,
+      collected.paneEnded,
+      collected.paneClosed,
+      w.copilot.started[1]?.pty.killed,
+    ]).toEqual(["done", true, false, true]);
+    // The pane stays, ended as collected with the worker's one line, until a person closes it.
+    const pane = (await w.panes.view())._unsafeUnwrap().panes.find((p) => p.worker?.name === d.worker);
+    expect([pane?.ended?.reason, pane?.ended?.summary]).toEqual([
+      "collected",
+      reported.summary.split("\n")[0],
     ]);
+    // The conductor's workers are the ones still to collect.
     expect((await w.conductor.workers(r.runId))._unsafeUnwrap()).toEqual([]);
     // A blocked worker: its question reaches the person as a MetatorAI question.
     const d2 = (
@@ -218,6 +226,14 @@ describe("Conductor", () => {
     expect(questions.map((q) => [q.source, q.agent, q.prompt])).toEqual([
       ["agent", "mt-planner", "mt-planner-2: Round half up?"],
     ]);
+    // A worker whose process exited after it reported: collected, its pane says so, with its line.
+    w.copilot.started[2]?.pty.exit(0);
+    await Bun.sleep(5);
+    const exited = (await w.panes.pane(d2.paneId))._unsafeUnwrap().ended;
+    expect(exited?.reason).toBe("exited");
+    (await w.conductor.collect({ runId: r.runId, worker: d2.worker }))._unsafeUnwrap();
+    const after = (await w.panes.pane(d2.paneId))._unsafeUnwrap().ended;
+    expect([after?.reason, after?.summary]).toEqual(["collected", "two ways"]);
     const texts = (await w.journal.activity(r.runId))._unsafeUnwrap().map((a) => a.text);
     expect(texts).toContain("delegated plan to worker mt-planner-1 in pane w1:p2");
     expect(texts).toContain("worker mt-planner-1 reported done: plan.json written");

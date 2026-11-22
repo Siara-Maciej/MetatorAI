@@ -14,7 +14,7 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0008](0008-typescript-7-graph.md) | Graf importów przy TypeScript 7 (natywny kompilator) | Accepted, częściowo zastąpiony przez 0017 |
 | 0009 | *zarezerwowany: platforma hostów (spike F0)* | – |
 | [0010](0010-dependency-policy.md) | Polityka zależności: gotowe biblioteki zamiast własnych | Accepted |
-| [0011](0011-di-awilix.md) | DI: awilix | Accepted |
+| [0011](0011-di-awilix.md) | DI: awilix | Superseded by 0084 |
 | [0012](0012-graph-graphlib.md) | Graf zależności: @dagrejs/graphlib | Accepted |
 | [0013](0013-state-machine-xstate.md) | Maszyna stanów runu: XState v5 | Accepted |
 | [0014](0014-cli-commander.md) | Parser CLI: commander | Accepted |
@@ -63,7 +63,7 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0057](0057-folder-of-repositories.md) | Folder repozytoriów (`metator.repos.yml`, `repos *`) | Accepted |
 | [0058](0058-ask.md) | Pytania do kodu: `metator ask`, agent `mt-guide`, `Conversation` | Accepted |
 | [0059](0059-work-overview.md) | Przegląd pracy: `metator status` (`WorkOverview`) | Accepted |
-| [0060](0060-terminal-ui-ink.md) | Pełnoekranowy `metator ui` na Ink | Accepted |
+| [0060](0060-terminal-ui-ink.md) | Pełnoekranowy `metator ui` na Ink | Superseded by 0086 |
 | [0061](0061-package-architecture.md) | Architektura pakietów (`arch analyze`, `ArchitectureReport`, `ArchitecturePolicy`) | Accepted |
 | [0062](0062-architecture-ratchet.md) | Architektura w CI: zapadka, baseline, SARIF i pierwsza polityka | Accepted |
 | [0063](0063-architecture-metrics.md) | Metryki i granice pakietów, historia zmian, raport HTML | Accepted |
@@ -87,4 +87,24 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0081](0081-mcp-server.md) | MetatorAI jako serwer MCP (tylko komendy czytające) | Proposed |
 | [0082](0082-copilot-memory-policy.md) | Polityka Copilot Memory: co wolno zapamiętać, co jest kanonem | Proposed |
 | [0083](0083-agent-cli-entry-and-event-intake.md) | CLI agenta jako punkt wejścia; issue i review z zewnątrz jako drugie wejście do tej samej ścieżki | Accepted |
-| [0084](0084-di-static-registration.md) | DI: awilix ze statyczną rejestracją w runtime i kontenerem na repozytorium (zastąpi 0011 po akceptacji) | Proposed |
+| [0084](0084-di-static-registration.md) | DI: awilix ze statyczną rejestracją w runtime i kontenerem na repozytorium (zastępuje 0011) | Accepted |
+| [0085](0085-desktop-type-imports-from-core.md) | Aplikacja desktopowa importuje z `@metator/core` wyłącznie typy (`import type`); zmienia jeden punkt 0078 | Accepted |
+| [0086](0086-withdraw-terminal-ui.md) | Wycofanie pełnoekranowego `metator ui`; frontem graficznym jest aplikacja desktopowa (zastępuje 0060) | Accepted |
+| [0087](0087-person-edits-plans-in-the-app.md) | Osoba edytuje plany w aplikacji | Superseded by 0089 (odrzucony przez właściciela) |
+| [0088](0088-text-only-at-a-terminal.md) | Przy terminalu tylko tekst dla osoby (zmienia jeden punkt 0052) | Accepted |
+| [0089](0089-plan-changes-go-through-the-agent.md) | Zmiany planu idą przez agenta | Accepted |
+| [0090](0090-child-runs-as-visible-sessions.md) | Runy potomne planu systemowego startują jako widoczne sesje | Proposed |
+| [0091](0091-pane-questions-and-rendered-screen.md) | Pytania paneli bez runu i ekran czytany tak, jak widzi go osoba | Proposed |
+| [0092](0092-paused-panes-and-continue.md) | Panel zabity razem z demonem jest wstrzymany, a nie zakończony; jedno „Continue” dla zadania | Proposed |
+| [0093](0093-conversation-agent-three-weights.md) | Agent rozmowy: jeden „mózg”, trzy wagi pracy i deterministyczne eskalatory | Proposed |
+| [0094](0094-dangerous-commands-three-levels.md) | Blokady niebezpiecznych komend: trzy poziomy w jednym miejscu konfiguracji; commit zawsze decyzją osoby | Proposed |
+| [0095](0095-threads.md) | Wątki: jeden na temat, jedna hierarchia w pasku bocznym, zapis MetatorAI źródłem prawdy | Proposed |
+| [0096](0096-analysis-and-plan-in-backlog.md) | Analiza i plan w Backlogu: na żądanie, ze świeżością według cytowanych plików | Proposed |
+| [0097](0097-review-from-link-watch-rereview.md) | Review: cudzy MR z linku, publikacja po jednej zgodzie, obserwowanie i ponowne review; moje MR analizowane na kliknięcie | Proposed |
+| [0098](0098-hosts-parity-conformance-suite.md) | Hosty: Copilot CLI na równi z Claude Code, wspólny zestaw zgodności | Proposed |
+| [0099](0099-merge-is-a-persons.md) | Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR | Superseded by 0094 (decyzja właściciela 2026-11-22: każde scalenie za zgodą osoby) |
+| [0100](0100-host-deny-rules.md) | Nieodwracalne działania jako reguły deny hosta, nie tylko hook | Accepted |
+| [0101](0101-app-starts-the-daemon.md) | Aplikacja sama uruchamia demona (`metator serve --ensure`) | Accepted |
+| [0102](0102-local-sandbox.md) | Sandbox lokalny: środowisko ogranicza zasięg komend agenta | Accepted |
+| [0103](0103-build-checkpoints.md) | Punkty kontrolne w buildzie: krok jest zrobiony, gdy jego testy przeszły | Proposed |
+| [0104](0104-sandbox-wraps-every-host-session.md) | Sandbox obejmuje każdą sesję hosta, którą uruchamia MetatorAI, na obu hostach (zmienia 0102) | Proposed |

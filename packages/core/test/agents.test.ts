@@ -231,6 +231,31 @@ describe("partials", () => {
     expect((await fs.read("host/claude-mt-a.md"))._unsafeUnwrap()).toContain("# Stop conditions");
   });
 
+  test("a worker without a Write tool is told the one way to write its Markdown artifact into the run", async () => {
+    const fs = new InMemoryFileSystem({
+      "metator/agents/mt-review.md": agentFile("mt-review", { output: { artifact: "quick-review.md" } }),
+      "metator/agents/mt-build.md": agentFile("mt-build", {
+        capabilities: ["read", "edit", "metator:graph"],
+        output: { artifact: "build-log.md" },
+      }),
+      "metator/agents/mt-plan.md": agentFile("mt-plan", { output: { artifact: "plan.json" } }),
+    });
+    await new GenerateHosts(
+      new AgentCatalog(fs, DEFAULT_PATHS),
+      [new FakeGenerator("claude")],
+      fs,
+      MetatorConfigSchema.parse({ hosts: { targets: ["claude"], metatorCommand: "npx metator" } }),
+    ).execute({ check: false });
+    const review = (await fs.read("host/claude-mt-review.md"))._unsafeUnwrap();
+    expect(review).toContain(
+      "# Writing quick-review.md\nWrite `quick-review.md` into the run with exactly this one command, a quoted here-document (nothing in it expands, and it runs without asking a person): `npx metator run write quick-review.md --run <run id> <<'EOF'`, then the file's text, then `EOF` alone on the last line.",
+    );
+    expect(review).toContain("Write it no other way");
+    // With a Write tool, or a JSON artifact: the stage's message says how (nothing added here).
+    for (const id of ["mt-build", "mt-plan"])
+      expect((await fs.read(`host/claude-${id}.md`))._unsafeUnwrap()).not.toContain("# Writing");
+  });
+
   test("an unknown partial fails lint and stops generation", async () => {
     expect(await lint({ "metator/agents/mt-a.md": withPartial })).toContain(
       "mt-a: error: includes unknown partial worker-sections",
@@ -251,5 +276,31 @@ describe("withMetatorCommand", () => {
     expect(
       withMetatorCommand("Run `metator gate quick` and `metator`; metator is the tool.", "bun run metator"),
     ).toBe("Run `bun run metator gate quick` and `bun run metator`; metator is the tool.");
+  });
+});
+
+describe("the generated agents of this repository", () => {
+  const root = new URL("../../../", import.meta.url).pathname;
+  const read = (path: string) => Bun.file(`${root}${path}`).text();
+
+  test("each worker without a Write tool says, on both hosts, the one command that writes its Markdown artifact", async () => {
+    const told: string[] = [];
+    for await (const file of new Bun.Glob("metator/agents/mt-*.md").scan(root)) {
+      const source = await read(file);
+      const artifact = /^output: \{ artifact: "?([A-Za-z0-9._-]+\.md)"?,/m.exec(source)?.[1];
+      const edits = /^capabilities: \[[^\]]*\bedit\b/m.test(source);
+      if (!artifact || edits || !/^role: worker$/m.test(source)) continue;
+      const id = file.slice("metator/agents/".length, -".md".length);
+      for (const generated of [`.claude/agents/${id}.md`, `.github/agents/${id}.agent.md`]) {
+        const text = await read(generated);
+        expect([generated, text.includes(`run write ${artifact} --run <run id> <<'EOF'\``)]).toEqual([
+          generated,
+          true,
+        ]);
+        expect([generated, text.includes("Write tool")]).toEqual([generated, false]);
+      }
+      told.push(id);
+    }
+    expect(told.sort()).toEqual(["mt-diagnostician", "mt-quick-review", "mt-review-responder"]);
   });
 });

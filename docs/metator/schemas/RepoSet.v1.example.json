@@ -1,0 +1,5 @@
+{
+  "kind": "RepoSet",
+  "schemaVersion": 1,
+  "repos": [{ "path": "shop" }, { "path": "shop-fix" }, { "path": "services/mailer", "name": "mailer" }]
+}

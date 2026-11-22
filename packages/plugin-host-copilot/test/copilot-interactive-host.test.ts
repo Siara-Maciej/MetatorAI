@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { MetatorError } from "@metator/core";
 import { NodePtyTerminal } from "@metator/plugin-node";
 import { FakeTerminal, interactiveHostContract, standInCli } from "@metator/testing";
-import { CONTINUE, CopilotInteractiveHost } from "../src/copilot-interactive-host.ts";
+import { CONTINUE, CopilotInteractiveHost, copilotArgv } from "../src/copilot-interactive-host.ts";
 
 const task = (cwd: string, extra: Record<string, unknown> = {}) => ({
   agent: "session",
@@ -30,9 +30,16 @@ interactiveHostContract("CopilotInteractiveHost", async () => {
 });
 
 describe("CopilotInteractiveHost", () => {
-  test("starts `copilot -i <task>` in the worktree with the run directory added and git push denied", async () => {
+  test("starts `copilot -i <task>` in the worktree with the run directory added and the config's never-commands denied", async () => {
     const terminal = new FakeTerminal();
-    const host = new CopilotInteractiveHost(terminal, "copilot", { PATH: "/bin", HOME: undefined });
+    // The repository's own list (guard.commands): what never runs is denied at the process level;
+    // what asks (commit, push) is left to the hook and Copilot's own approval prompt.
+    const guard = {
+      never: ["git push --force*", "git reset --hard"],
+      ask: ["git commit", "git push"],
+      allow: [],
+    };
+    const host = new CopilotInteractiveHost(terminal, "copilot", { PATH: "/bin", HOME: undefined }, guard);
     const cwd = "/work/wt";
     const session = (await host.start(task(cwd, { dirs: ["/work/other"] }), size))._unsafeUnwrap();
     expect(session.sessionId).toBe(CONTINUE);
@@ -46,7 +53,9 @@ describe("CopilotInteractiveHost", () => {
         "--add-dir",
         "/work/other",
         "--deny-tool",
-        "shell(git push)",
+        "shell(git push --force)",
+        "--deny-tool",
+        "shell(git reset --hard)",
       ],
       cwd,
       env: {
@@ -58,6 +67,27 @@ describe("CopilotInteractiveHost", () => {
       size,
     });
     expect(terminal.spawned[0]?.env).not.toHaveProperty("HOME");
+  });
+
+  test("guard.prompts: metator: Copilot takes the allow list up front, after the denials", () => {
+    const argv = copilotArgv("copilot", task("/work/wt"), ["-i", "Add discount"], {
+      never: ["git push --force*"],
+      ask: ["git commit"],
+      allow: [],
+      unprompted: ["shell(npx metator run status)", "shell(npm test)"],
+    });
+    expect(argv.slice(-6)).toEqual([
+      "--deny-tool",
+      "shell(git push --force)",
+      "--allow-tool",
+      "shell(npx metator run status)",
+      "--allow-tool",
+      "shell(npm test)",
+    ]);
+    // `guard.prompts: host` (no list): nothing is allowed up front.
+    expect(
+      copilotArgv("copilot", task("/work/wt"), ["-i", "x"], { never: [], ask: [], allow: [] }),
+    ).not.toContain("--allow-tool");
   });
 
   test("the run's agent is passed when the repository has its Copilot agent file", async () => {

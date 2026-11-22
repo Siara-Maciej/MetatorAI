@@ -100,8 +100,9 @@ export class NodePtyTerminal implements Terminal {
         -1,
         true,
         this.helper,
-        (code) => {
-          exit = code;
+        (code, signal) => {
+          // A process a signal ended exits as a shell reports it: 128 + the signal (SIGHUP: 129).
+          exit = signal ? 128 + signal : code;
           exitedAt = Date.now();
         },
       );

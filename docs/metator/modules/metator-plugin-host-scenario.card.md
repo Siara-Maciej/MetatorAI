@@ -21,11 +21,11 @@ dir: packages/plugin-host-scenario
 
 ## Responsibility
 
-`AgentHost` that plays an `AgentScenario` instead of calling a model (ADR-0051): `run drive --host scenario` with `METATOR_AGENT_SCENARIO=<file>`. It drives whole workflows in tests, demos and workflow CI; it is not a model and decides nothing. `ScenarioInteractiveHost` (`InteractiveHost`) plays the same scenario as a shell script in a PTY through the `Terminal` port (ADR-0077): it says each `say` line, reads a line for each `ask` and exits 0, or 1 on `fail`.
+`AgentHost` that plays an `AgentScenario` instead of calling a model (ADR-0051): `run drive --host scenario` with `METATOR_AGENT_SCENARIO=<file>`. It drives whole workflows in tests, demos and workflow CI; it is not a model and decides nothing. `ScenarioInteractiveHost` (`InteractiveHost`) plays the same scenario as a shell script in a PTY through the `Terminal` port (ADR-0077): it says each `say` line, reads a line for each `ask`, runs each `run` command (AgentScenario v2) with the session's environment (`sessionEnv`: its pane and run, as a real host's) and exits 0, or 1 on `fail`, or a failed command's code. `ScenarioAgentHost` runs a `run` command too, and a failing one ends the start as a failed result. Both hosts take their turns from one `ScenarioPlayer` (the file read once, the next entry of an agent, the entry after a continued session). `scenarioHost(source)` is the descriptor of both for the composition root; it has no program, so it is always there.
 
 ## Invariants
 
-- The n-th start of an agent plays its n-th entry and the last entry repeats [[cite: packages/plugin-host-scenario/src/scenario-agent-host.ts:60 | "const steps = entries[Math.min(n, entries.length - 1)] ?? [];"]].
+- The n-th start of an agent in a run plays its n-th entry and the last entry repeats; runs count apart, so the conductors of two runs in one daemon both begin at the first entry [[cite: packages/plugin-host-scenario/src/scenario-player.ts:58 | "steps: entries[Math.min(n, entries.length - 1)] ?? [],"]].
 - A missing or invalid scenario is a failed result, never a throw.
 
 ## Allowed dependencies

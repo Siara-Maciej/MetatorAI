@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
-import { RunJournal } from "../src/application/drive.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
+import { RunJournal } from "../src/application/run-journal.ts";
 import {
   RunRepository,
   type UnreadableRun,
@@ -101,7 +101,7 @@ describe("run lifecycle", () => {
     const state = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     expect(state).toMatchObject({
       kind: "RunRecord",
-      schemaVersion: 8,
+      schemaVersion: 9,
       workflow: { id: "feature", revision: 1 },
       approvals: {},
       createdAt: "2026-10-25T09:00:00.000Z",
@@ -210,7 +210,7 @@ describe("run lifecycle", () => {
     await w.fs.write(run.files.state, JSON.stringify(headerless));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
     expect(error.code).toBe("INVALID_ARTIFACT");
-    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 8" at the top of the document.');
+    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 9" at the top of the document.');
   });
 
   test("state.json from a newer MetatorAI is refused, not misread", async () => {
@@ -219,7 +219,7 @@ describe("run lifecycle", () => {
     const saved = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     await w.fs.write(run.files.state, JSON.stringify({ ...saved, schemaVersion: 99 }));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
-    expect(error.message).toContain("schemaVersion 99 is newer than supported (8)");
+    expect(error.message).toContain("schemaVersion 99 is newer than supported (9)");
     expect(error.hint).toContain("Upgrade metator-ai");
   });
 
@@ -597,6 +597,29 @@ describe("the current run and its artifacts", () => {
     );
   });
 
+  test("a worktree a later run adopted (a quick run continued as full): no run named means the run that works there now", async () => {
+    const w = world();
+    const quick = (await w.init.execute({ workflow: "feature", task: "a quick one" }))._unsafeUnwrap().runId;
+    const place = { id: quick, path: `.metator/wt/${quick}`, branch: `metator/${quick}` };
+    const mine = new RunRepository(w.fs, DEFAULT_PATHS, quick);
+    // Adopted, with the work so far uncommitted: the worktree is the earlier run's, as it is.
+    const full = (
+      await w.init.execute({ workflow: "feature", task: "the same, as a full run", adopt: place })
+    )._unsafeUnwrap();
+    expect((await w.repo.load(full.runId))._unsafeUnwrap().worktree).toEqual(place);
+    // While the first run is active, it is still the worktree's run.
+    expect((await mine.resolveId(undefined))._unsafeUnwrap()).toBe(quick);
+    (
+      await w.advance.execute({ runId: quick, event: { type: "ABORT", reason: "continued as full" } })
+    )._unsafeUnwrap();
+    expect((await mine.resolveId(undefined))._unsafeUnwrap()).toBe(full.runId);
+    // An ended run nobody continued stays the worktree's run.
+    (
+      await w.advance.execute({ runId: full.runId, event: { type: "ABORT", reason: "given up" } })
+    )._unsafeUnwrap();
+    expect((await mine.resolveId(undefined))._unsafeUnwrap()).toBe(quick);
+  });
+
   test("a run is named by its id or by the start of it; a start two runs share is refused with both", async () => {
     const w = world();
     const first = (await w.init.execute({ workflow: "feature", task: "alpha one" }))._unsafeUnwrap().runId;
@@ -737,6 +760,9 @@ describe("resuming an escalated run", () => {
     expect(escalated.escalated).toEqual({
       stage: "plan-gate",
       reason: "again",
+      // Its loop of one spent: two tries of two.
+      attempts: { tried: 2, of: 2 },
+      stop: { kind: "exhausted", text: "tried plan-gate 2 of 2 times: again", tried: 2, of: 2 },
       next: [
         `metator run resume --run ${runId} --by <name> --drive`,
         `metator run close --run ${runId} --aborted --reason <why>`,
@@ -768,7 +794,7 @@ describe("resuming an escalated run", () => {
     const w = world();
     const runId = (await w.init.execute({ workflow: "feature", task: "back to plan" }))._unsafeUnwrap().runId;
     const said: { type: string; stage: string; text: string; origin: string }[] = [];
-    const resume = new ResumeRun(w.catalog, w.repo, w.clock, {
+    const resume = new ResumeRun(w.catalog, w.repo, w.clock, undefined, {
       record: async (_run, entry) => {
         said.push(entry);
         return ok(undefined);
@@ -957,5 +983,25 @@ describe("no workflow installed", () => {
     );
     const known = (await world().init.execute({ workflow: "nope", task: "t" }))._unsafeUnwrapErr();
     expect(known.hint).toBe("Known workflows: feature. Specs live in .github/metator/workflows/*.yml.");
+  });
+});
+
+describe("a run sent back to an earlier stage", () => {
+  test("the stage it goes back to keeps what it is to revise (its plan); a stage moved on to keeps nothing", async () => {
+    const w = world();
+    const kept: string[] = [];
+    const advance = new AdvanceRun(w.catalog, w.repo, w.clock, undefined, undefined, {
+      keep: async (runId, stage) => {
+        kept.push(`${runId} ${stage}`);
+        return ok(undefined);
+      },
+    });
+    const run = (await w.init.execute({ workflow: "feature", task: "Add discount" }))._unsafeUnwrap();
+    (await advance.execute({ runId: run.runId, event: { type: "PASS" } }))._unsafeUnwrap();
+    expect(kept).toEqual([]);
+    const back = (
+      await advance.execute({ runId: run.runId, event: { type: "FAIL", reason: "no" } })
+    )._unsafeUnwrap();
+    expect(kept).toEqual([`${run.runId} ${back.stage}`]);
   });
 });

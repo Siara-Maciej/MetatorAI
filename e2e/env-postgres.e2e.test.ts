@@ -8,7 +8,7 @@ import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { findPostgresBin, postgresScript } from "@metator/testing";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const bin = findPostgresBin();
@@ -78,6 +78,7 @@ afterAll(async () => {
   for (const wt of ["one", "two"]) await mt("env", "down", "--worktree", wt);
   await mt("env", "down", "--shared");
   await repo.dispose();
+  stopProcessesUnder(dataDir);
   await rm(dataDir, { recursive: true, force: true });
 }, 60_000);
 

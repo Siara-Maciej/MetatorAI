@@ -1,8 +1,15 @@
 import { z } from "zod";
 import { ModelTierSchema } from "./agent.ts";
-import { IntakeConfigSchema } from "./intake.ts";
+import { CodeHostConfigSchema, codehostFromV14 } from "./codehost.ts";
+import {
+  DEFAULT_GUARD_CONFIG,
+  GuardConfigSchema,
+  GuardConfigV13Schema,
+  GuardConfigV14Schema,
+} from "./guard-commands.ts";
+import { IntakeConfigSchema, IntakeSettingsSchema } from "./intake.ts";
 import { McpServersSchema } from "./mcp.ts";
-import { ReviewsConfigSchema } from "./review-thread.ts";
+import { ReviewsConfigSchema, ReviewsSettingsSchema } from "./review-thread.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -323,7 +330,65 @@ export function withoutLocalStatePaths(v11: unknown): unknown {
   return { ...config, paths };
 }
 
-export const MetatorConfigSchema = ConfigV12Schema;
+/** `quick` (ADR-0093): how large a change may be and still be a quick one. */
+export const QuickLimitsSchema = z.strictObject({
+  /** Changed files. */
+  maxFiles: z.number().int().min(1).default(5),
+  /** Changed lines (added plus removed). */
+  maxLines: z.number().int().min(1).default(150),
+  /** Files that depend on the changed ones, transitively. */
+  maxDependents: z.number().int().min(0).default(10),
+});
+export type QuickLimits = z.output<typeof QuickLimitsSchema>;
+
+/**
+ * v13 adds `guard` (ADR-0094: the commands an agent never runs and the ones that need the person's
+ * consent, in one place for both hosts) and `quick` (ADR-0093: the limits of a quick change).
+ * Every v12 file is a v13 file.
+ */
+const ConfigV13Schema = z.strictObject({
+  ...ConfigV12Schema.shape,
+  guard: GuardConfigV13Schema.default(GuardConfigV13Schema.parse({})),
+  quick: QuickLimitsSchema.default(QuickLimitsSchema.parse({})),
+});
+
+/**
+ * v14 adds `guard.prompts` (ADR-0094): whether MetatorAI answers the host's approval prompt for
+ * what it knows to be safe (`metator`, the default) or the host asks as it does by itself
+ * (`host`). Every v13 file is a v14 file.
+ */
+const ConfigV14Schema = z.strictObject({
+  ...ConfigV13Schema.shape,
+  guard: GuardConfigV14Schema.default(GuardConfigV14Schema.parse({})),
+});
+
+/**
+ * v15 (ADR-0097) adds `codehost`: one list of sources for intake and reviews (each with the tool
+ * that reads it, an MCP server or `gh`), whether a review is published without asking, whether
+ * watched MRs are followed, and whether a new review of my MR is analysed by itself. The
+ * migration moves `reviews.sources` and `intake.rules[].source` there; a rule names its source by
+ * id. `guard.commands.ask` adds `metator review approve`.
+ */
+const ConfigV15Schema = z
+  .strictObject({
+    ...ConfigV14Schema.shape,
+    guard: GuardConfigSchema.default(DEFAULT_GUARD_CONFIG),
+    codehost: CodeHostConfigSchema.default(CodeHostConfigSchema.parse({})),
+    reviews: ReviewsSettingsSchema.default(ReviewsSettingsSchema.parse({})),
+    intake: IntakeSettingsSchema.default(IntakeSettingsSchema.parse({})),
+  })
+  .superRefine((c, ctx) => {
+    const ids = new Set(c.codehost.sources.map((s) => s.id));
+    for (const rule of c.intake.rules)
+      if (!ids.has(rule.source))
+        ctx.addIssue({
+          code: "custom",
+          path: ["intake", "rules"],
+          message: `intake rule ${rule.id} names the source ${rule.source}, which is not in codehost.sources`,
+        });
+  });
+
+export const MetatorConfigSchema = ConfigV15Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -344,9 +409,12 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV9Schema, fromPrevious: (v8) => v8 },
     { schema: ConfigV10Schema, fromPrevious: (v9) => v9 },
     { schema: ConfigV11Schema, fromPrevious: (v10) => v10 },
+    { schema: ConfigV12Schema, fromPrevious: withoutLocalStatePaths },
+    { schema: ConfigV13Schema, fromPrevious: (v12) => v12 },
+    { schema: ConfigV14Schema, fromPrevious: (v13) => v13 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: withoutLocalStatePaths,
+  upgrade: codehostFromV14,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

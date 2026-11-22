@@ -1,5 +1,5 @@
 import { cancel, confirm, intro, isCancel, log, multiselect, outro, select, text } from "@clack/prompts";
-import type { Autonomy, HostTarget, Question } from "@metator/core";
+import { type Autonomy, type HostTarget, needsWords, type Question, wordsRequired } from "@metator/core";
 
 export interface SetupAnswers {
   readonly hosts: readonly HostTarget[];
@@ -9,7 +9,9 @@ export interface SetupAnswers {
 export interface SetupQuestions {
   /** Ask which hosts: nothing in the repository or on the machine says, or they point two ways. */
   readonly askHosts: boolean;
-  /** The hosts found (preselected when asked, said when not) and whether `--hooks` was given. */
+  /** Ask whether to install the hooks: neither `--hooks` nor `--no-hooks` was given. */
+  readonly askHooks: boolean;
+  /** The hosts found (preselected when asked, said when not) and the hooks' default (yes). */
   readonly defaults: SetupAnswers;
 }
 
@@ -72,12 +74,12 @@ export interface Terminal {
   newRun(q: NewRunQuestions): Promise<NewRunAnswers | null>;
   pickRun(runs: readonly RunChoice[]): Promise<string | null>;
   answer(q: Question): Promise<PersonAnswer | null>;
-  /** One choice from a list (`metator ui` menus). */
+  /** One choice from a list (a yes or no before something is done). */
   choose<T extends string>(message: string, options: readonly Choice<T>[]): Promise<T | null>;
   show(line: string): void;
   /** Gets the person's attention (terminal bell): a question is waiting. */
   bell(): void;
-  /** Writes control text as is (the full-screen view's screen switch). */
+  /** Writes text as is: what a command renders for a person (`render`). */
   raw(text: string): void;
 }
 
@@ -96,7 +98,7 @@ const HOST_LABELS: Record<string, string> = {
 
 /** The terminal on @clack/prompts. */
 export const clackTerminal: Terminal = {
-  async setup({ askHosts, defaults }) {
+  async setup({ askHosts, askHooks, defaults }) {
     intro("MetatorAI setup", io);
     let hosts: readonly HostTarget[] = defaults.hosts;
     if (askHosts) {
@@ -114,11 +116,12 @@ export const clackTerminal: Terminal = {
       hosts = chosen;
     } else log.info(`AI hosts: ${hosts.map((h) => HOST_LABELS[h]).join(", ")} (--host changes it)`, io);
     let hooks = defaults.hooks;
-    if (!hooks) {
+    if (askHooks) {
       const wanted = await confirm({
         ...io,
-        message: "Install the hooks (`metator guard`) that enforce scope and approvals?",
-        initialValue: false,
+        message:
+          "Install the hooks (`metator guard`)? They guard commits and pushes, take your word in the chat as consent, and enforce scope and approvals.",
+        initialValue: defaults.hooks,
       });
       if (isCancel(wanted)) return cancelled("Setup cancelled; nothing was written.");
       hooks = wanted;
@@ -224,12 +227,12 @@ export const clackTerminal: Terminal = {
         });
     if (isCancel(chosen)) return null;
     const choices = Array.isArray(chosen) ? chosen : [chosen];
-    const needsText = choices.includes("Other") || choices.includes("Reject") || choices.includes("Deny");
-    if (!needsText) return { choices };
+    // Only Other and Reject promise the person's own words; Deny is a whole answer.
+    if (!needsWords(choices)) return { choices };
     const words = await text({
       ...io,
-      message: choices.includes("Other") ? "Your answer" : "Why? (it goes back to the run)",
-      validate: (v) => (choices.includes("Other") && !v?.trim() ? "Write your answer" : undefined),
+      message: wordsRequired(choices) ? "Your answer" : "Why? (it goes back to the run)",
+      validate: (v) => (wordsRequired(choices) && !v?.trim() ? "Write your answer" : undefined),
     });
     if (isCancel(words)) return null;
     return { choices, ...(words.trim() ? { text: words.trim() } : {}) };

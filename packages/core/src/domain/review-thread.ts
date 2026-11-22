@@ -31,6 +31,9 @@ export const ReviewsConfigSchema = z.strictObject({
 });
 export type ReviewsConfig = z.output<typeof ReviewsConfigSchema>;
 
+/** `reviews` of MetatorConfig v15: the sources moved to `codehost.sources` (ADR-0097). */
+export const ReviewsSettingsSchema = ReviewsConfigSchema.omit({ sources: true });
+
 export const THREAD_KINDS = ["unsorted", "question", "change", "nit", "praise"] as const;
 export type ThreadKind = (typeof THREAD_KINDS)[number];
 /** open: nothing done · answered: a reply was sent · planned: the plan covers it · fixed: the change is pushed · resolved: closed at the host. */
@@ -93,6 +96,58 @@ export interface HostThread {
   readonly line?: number | undefined;
   readonly body: string;
   readonly resolved: boolean;
+  /** The comments after the first, oldest first: who answered and what. */
+  readonly replies?: readonly { readonly author: string; readonly body: string }[] | undefined;
+}
+
+/** One request read whole from its link (ADR-0097): what it is, its change and its threads. */
+export interface HostPullRequestDetail {
+  readonly number: number;
+  readonly title: string;
+  readonly url: string;
+  readonly author: string;
+  /** The branch it goes into, and its own branch. */
+  readonly base: string;
+  readonly head: string;
+  readonly headSha: string;
+  readonly state: "open" | "merged" | "closed";
+  /** Its commits' SHAs, oldest first, when the host lists them. */
+  readonly commits?: readonly string[] | undefined;
+  /** The change as a unified diff (`diff --git` form). */
+  readonly diff: string;
+  readonly threads: readonly HostThread[];
+}
+
+/** A review to post in one go: comments on lines (inline) and a general body. */
+export interface HostReview {
+  readonly body: string;
+  /** The head the comments are about. */
+  readonly headSha: string;
+  readonly comments: readonly { readonly file: string; readonly line: number; readonly body: string }[];
+}
+
+/** What the host made of a posted review: the comments' ids, in the order given. */
+export interface PostedReview {
+  readonly comments: readonly { readonly hostId: string; readonly threadId?: string | undefined }[];
+  /** The general comment's id, when the host gives one. */
+  readonly bodyId?: string | undefined;
+}
+
+/**
+ * The threads a send covers (ADR-0097): all of them, or only those named, or all but those
+ * skipped. A name that is no thread of the request is refused, as is naming both.
+ */
+export function selectThreads(
+  ids: readonly string[],
+  choice: { readonly only?: readonly string[] | undefined; readonly skip?: readonly string[] | undefined },
+): { readonly chosen: readonly string[] } | { readonly problem: string } {
+  const only = choice.only ?? [];
+  const skip = choice.skip ?? [];
+  if (only.length > 0 && skip.length > 0) return { problem: "say either --only or --skip, not both" };
+  const unknown = [...only, ...skip].filter((t) => !ids.includes(t));
+  if (unknown.length > 0) return { problem: `no thread ${unknown.join(", ")} in this request` };
+  if (only.length > 0) return { chosen: ids.filter((t) => only.includes(t)) };
+  return { chosen: ids.filter((t) => !skip.includes(t)) };
 }
 
 /** `github-acme-shop-45`: the file name of a request's review, and how a person names it. */

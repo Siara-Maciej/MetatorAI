@@ -613,3 +613,39 @@ describe("system plan use cases", () => {
     );
   });
 });
+
+describe("SystemPlan v3 (ADR-0096)", () => {
+  test("a v2 plan reads as v3; a v3 step keeps the run that planned it", async () => {
+    const { SystemPlanDocument } = await import("../src/domain/system-plan.ts");
+    const step = {
+      id: "web-change",
+      app: "web",
+      summary: "Do it",
+      contracts: [],
+      dependsOn: [],
+      status: "pending",
+    };
+    const v2 = SystemPlanDocument.parse(
+      { kind: "SystemPlan", schemaVersion: 2, id: "p", task: "t", steps: [step] },
+      "p.yml",
+    );
+    expect(v2._unsafeUnwrap().steps[0]?.planRunId).toBeUndefined();
+    expect(
+      SystemPlanDocument.parse(
+        { kind: "SystemPlan", schemaVersion: 2, id: "p", task: "t", steps: [{ ...step, planRunId: "r" }] },
+        "p.yml",
+      ).isErr(),
+    ).toBe(true);
+    const v3 = SystemPlanDocument.parse(
+      {
+        kind: "SystemPlan",
+        schemaVersion: 3,
+        id: "p",
+        task: "t",
+        steps: [{ ...step, planRunId: "20261122-mt-feature-x" }],
+      },
+      "p.yml",
+    )._unsafeUnwrap();
+    expect(v3.steps[0]?.planRunId).toBe("20261122-mt-feature-x");
+  });
+});

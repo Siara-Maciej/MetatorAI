@@ -2,7 +2,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Driver } from "../domain/run-record.ts";
 import type { Clock } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 export interface DriverLockView {

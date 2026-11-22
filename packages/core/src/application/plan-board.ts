@@ -1,15 +1,25 @@
 import { WorkerResultDocument } from "../domain/conductor.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { type GateReport, GateReportDocument } from "../domain/gate.ts";
+import { planId } from "../domain/ids.ts";
 import { PlanDocument } from "../domain/plan.ts";
-import { type BoardWorker, type PlanBoardView, planBoardOf, withLiveWorker } from "../domain/plan-board.ts";
+import {
+  type BoardSystemPlan,
+  type BoardWorker,
+  type PlanBoardView,
+  planBoardOf,
+  withLiveWorker,
+} from "../domain/plan-board.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import type { RunRecord } from "../domain/run-record.ts";
 import { parseJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { Conductor } from "./conductor.ts";
-import type { RunJournal } from "./drive.ts";
+import { parseDocumentText } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
+import type { SystemPlans } from "./system-plan-edit.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 
 export interface PlanBoardDependencies {
@@ -19,6 +29,20 @@ export interface PlanBoardDependencies {
   readonly catalog: Pick<WorkflowCatalog, "get">;
   readonly conductor: Pick<Conductor, "workers">;
   readonly paths: Pick<MetatorPaths, "gates">;
+  /** System plans, for a run that carries one out (a system run, or a child run of one). */
+  readonly systemPlans?: Pick<SystemPlans, "view">;
+}
+
+/**
+ * The system plan a run carries out: a child run's names it; a system run's (a workflow whose
+ * scripts work on `system plan`) is the plan of its task, as `metator system plan --run` finds it.
+ */
+export function systemPlanOf(
+  record: Pick<RunRecord, "task" | "system">,
+  owners: readonly string[],
+): { readonly id: string; readonly step?: string } | undefined {
+  if (record.system) return { id: record.system.plan, step: record.system.step };
+  return owners.some((o) => o.includes("system plan")) ? { id: planId(record.task) } : undefined;
 }
 
 /** `metator run board`, `GET /runs/:id/board` (S2): the run's plan board, computed from its files. */
@@ -59,7 +83,7 @@ export class PlanBoard {
     for (const f of files.filter((x) => x.startsWith("results/"))) {
       const text = await this.d.fs.read(`${dir}/${f}`);
       if (text.isErr()) continue;
-      const parsed = parseJsonDocument(text.value, f).andThen((raw) => WorkerResultDocument.parse(raw, f));
+      const parsed = parseDocumentText(text.value, f, WorkerResultDocument, "json");
       if (parsed.isOk()) results.push(parsed.value);
     }
     const workers = await this.d.conductor.workers(runId);
@@ -85,11 +109,25 @@ export class PlanBoard {
       if (!(await this.d.fs.exists(file))) continue;
       const text = await this.d.fs.read(file);
       if (text.isErr()) continue;
-      const parsed = parseJsonDocument(text.value, file).andThen((raw) =>
-        GateReportDocument.parse(raw, file),
-      );
+      const parsed = parseDocumentText(text.value, file, GateReportDocument, "json");
       if (parsed.isOk()) gates.push(parsed.value);
     }
+    const carried = systemPlanOf(
+      r,
+      stages.flatMap((s) => s.owners),
+    );
+    const systemView = carried && this.d.systemPlans ? await this.d.systemPlans.view(carried.id) : undefined;
+    const system: BoardSystemPlan | undefined = systemView?.isOk()
+      ? {
+          id: systemView.value.plan.id,
+          status: systemView.value.status,
+          ...(systemView.value.approval ? { approval: systemView.value.approval } : {}),
+          waves: systemView.value.waves,
+          steps: systemView.value.steps,
+          lint: systemView.value.lint,
+          ...(carried?.step ? { step: carried.step } : {}),
+        }
+      : undefined;
     const board = planBoardOf({
       runId,
       task: r.task,
@@ -107,6 +145,7 @@ export class PlanBoard {
       gates,
       resumes: r.resumes,
       ...(input.timeline ? { timelineLength: input.timeline } : {}),
+      ...(system ? { system } : {}),
     });
     return ok(withLiveWorker(board));
   }

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
-import { EvalCaseDocument, err, MetatorError, normalizePath, ok } from "@metator/core";
+import { EvalCaseDocument, err, MetatorError, normalizePath } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
-import { positiveInt, ratio, renamedOption } from "../options.ts";
+import { baseOption, positiveInt, ratio, renamedOption } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 
 export function registerEvalCommands(program: Command, { action, container }: CommandContext): void {
   const evals = program.command("eval").description("Review evals on the golden set: run, score, compare");
@@ -76,7 +77,7 @@ export function registerEvalCommands(program: Command, { action, container }: Co
     .option("--seeded <n>", "how many seeded cases", positiveInt, 30)
     .option("--bugs <n>", "how many bug cases", positiveInt, 10)
     .option("--clean <n>", "how many clean cases", positiveInt, 10)
-    .option("--base <ref>", "the ref seeded cases are planted on", "HEAD")
+    .addOption(baseOption("the ref seeded cases are planted on", "HEAD"))
     .option("--history <n>", "how many commits back fixes and clean changes are looked for", positiveInt, 500)
     .action(
       action(
@@ -159,8 +160,5 @@ export function registerEvalCommands(program: Command, { action, container }: Co
       }),
     );
 
-  evals
-    .command("schema")
-    .description("Print the JSON Schema of a golden eval case")
-    .action(action(() => ({ result: ok(EvalCaseDocument.jsonSchema("input")) })));
+  schemaCommand(evals, { action }, "Print the JSON Schema of a golden eval case", EvalCaseDocument);
 }

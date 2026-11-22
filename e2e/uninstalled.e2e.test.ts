@@ -122,7 +122,13 @@ describe("a monorepo before install", () => {
       (d) => `${d.gate}: ${d.step}`,
     );
     // ESLint is configured per package only: a root `eslint <files>` would find no config.
-    expect(decisions).toEqual(["full: script lint", "quick: script lint", "full: script test"]);
+    expect(decisions).toEqual([
+      "full: script lint",
+      "quick: script lint",
+      "full: script test",
+      // The quick gate runs the tests too: a quick change (mt-quick) ends at it.
+      "quick: script test",
+    ]);
     const discovery = JSON.parse(await repo.read(".metator/discovery.json")) as {
       scripts: { name: string }[];
     };

@@ -9,6 +9,12 @@ export type ErrorCode =
   | "TRANSITION_DENIED"
   | "PARSE_FAILED"
   | "CHECK_FAILED"
+  /** A write based on a stale `digest`: someone changed the document since; `details.current` is it now. */
+  | "CONFLICT"
+  /** A gate that waits on other work (a system run's children): not yet, look again later (exit 4). */
+  | "WAITING"
+  /** A gate that waits on work that stopped (a child run escalated): no retry passes it (exit 3). */
+  | "BLOCKED"
   | "INTERNAL";
 
 export interface MetatorErrorInit {

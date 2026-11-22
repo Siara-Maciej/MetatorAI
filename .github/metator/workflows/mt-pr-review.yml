@@ -1,25 +1,28 @@
-# W4: review a PR, interactive or in CI (02-workflows §3, review core §3.1).
+# W4: review a PR, interactive or in CI (02-workflows §3, review core §3.1); from a link (ADR-0097):
+# `source: local` (the repository is here: the full review) or `diff` (only the diff the host gave:
+# logic, security and tests read it, nothing runs code; the report says so first).
 kind: Workflow
 schemaVersion: 3
 id: mt-pr-review
-revision: 10
+revision: 11
 description: Shard, find with lenses, verify, judge, publish after approval
 entry: { prompt: mt-review, ci: true }
 input:
   oneOf: [pr, base]
-  optional: [lenses]
-# Scripts read the run's inputs: `run init --input base=main`; without it, HEAD (the uncommitted change).
+  optional: [lenses, source, review, since]
+# Scripts read the run's inputs: `run new --input base=main`; without it, HEAD (the uncommitted change).
+# `metator review open <url>` starts it with pr, source and review (the watched MR's id); a re-review adds since.
 preconditions: []
 limits: { parallel: 6 }
 stages:
   - id: metadata
     description: PR metadata and authorship
     # From git, as a document: the coordinator needs no shell for it.
-    owner: "script:metator review metadata --base {base|HEAD} --out {runDir}/pr.json"
+    owner: "script:metator review metadata --base {base|HEAD} --source {source|local} --review {review|-} --out {runDir}/pr.json"
     produces: [pr.json]
   - id: shard
     description: Affected files and shards per package
-    owner: "script:metator review plan --base {base|HEAD} --out {runDir}/review-plan.json"
+    owner: "script:metator review plan --base {base|HEAD} --source {source|local} --review {review|-} --out {runDir}/review-plan.json"
     produces: [review-plan.json]
   - id: rules
     description: Rule pack per shard
@@ -36,11 +39,15 @@ stages:
     produces: [findings]
     # --fix updates the line of a quote that moved; an invented quote is still dropped. --plan
     # fails the stage when a lens wrote no file for a shard (it found nothing: an empty list).
-    gate: { script: "metator findings validate {runDir}/findings --fix --plan {runDir}/review-plan.json" }
+    # --diff: a file that is not here (a review from the diff only) is checked against the diff.
+    gate:
+      {
+        script: "metator findings validate {runDir}/findings --fix --plan {runDir}/review-plan.json --diff {runDir}/change.diff",
+      }
   - id: verify
     description: Merge, then refute each blocking finding with fresh eyes
     # The verifier works on merged.json: merge first.
-    owner: ["script:metator findings merge {runDir}/findings", mt-verifier]
+    owner: ["script:metator findings merge {runDir}/findings --diff {runDir}/change.diff", mt-verifier]
     produces: [findings/merged.json]
   - id: judge
     owner: [mt-judge, skill:mt-review-rubric]
@@ -49,13 +56,15 @@ stages:
   - id: approval
     description: Comment format and scope (blocking or all)
     hitl: true
-    skipAt: [L2]
+    # The publish card ("Publish the review of MR #N?"); `codehost.review.autoPublish` starts the run at L1.
+    skipAt: [L1, L2]
     # Approving the gate approves the comments: the publish stage posts without asking again.
     grants: [comment]
   - id: publish
-    description: The comments and the summary, formatted from the verdict; the reviewer agent posts them
-    # Prints them (no file): posting is mt-pr-review's, through the code host, once comment is approved.
-    owner: "script:metator findings to-github {runDir}/verdict.json"
+    description: The comments and the summary from the verdict, posted in one go through the code host
+    # With a watched MR (`review`): posted through the port, inline where the host allows, once comment
+    # is approved. Without one (`-`): printed, and the reviewer agent posts them as before.
+    owner: "script:metator review publish {runDir}/verdict.json --review {review|-}"
 loops: {}
 escalation:
   onLoopExhausted: not used (no loops); an unverified blocker is reported as not decided

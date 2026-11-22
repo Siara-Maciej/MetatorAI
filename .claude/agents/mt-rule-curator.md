@@ -18,5 +18,8 @@ model: haiku
 - `rulepack.md`: rule ids, one-line summaries, do/don't examples, E1 ids.
 - A summary of at most 10 lines.
 
+# From the diff only
+A review whose `review-plan.json` lists no rules and no card (the run's input `source: diff`) has no local repository: write `rulepack.md` as one line, "No rules: reviewed from the diff only.", and stop.
+
 # Stop conditions
 - `rules pack` fails because the canon is invalid: stop and report `bun run metator rules lint` output.

@@ -7,6 +7,11 @@ packages:
       need: "Claude Code as an AI host for run drive",
       adr: 0051-cli-drives-runs.md,
     }
+  - {
+      package: "@anthropic-ai/sandbox-runtime",
+      need: "the operating system's sandbox every host session starts in (srt: bubblewrap, sandbox-exec)",
+      adr: 0104-sandbox-wraps-every-host-session.md,
+    }
   - { package: "@ast-grep/cli", need: "structural rules (E1 engine)", adr: 0020-rule-canon.md }
   - {
       package: "@biomejs/biome",
@@ -51,12 +56,17 @@ packages:
       adr: 0078-desktop-app-tauri-xterm.md,
     }
   - {
+      package: "@xterm/headless",
+      need: "a pane's screen as a person sees it, rendered in the daemon (host prompts, kept screens)",
+      adr: 0091-pane-questions-and-rendered-screen.md,
+    }
+  - {
       package: "@xterm/xterm",
       need: "terminals in the desktop app over the daemon's PTYs",
       adr: 0078-desktop-app-tauri-xterm.md,
     }
   - { package: "@sindresorhus/slugify", need: "ids from titles", adr: 0015-schemas-zod-yaml.md }
-  - { package: awilix, need: "dependency injection", adr: 0011-di-awilix.md }
+  - { package: awilix, need: "dependency injection", adr: 0084-di-static-registration.md }
   - { package: commander, need: "CLI arguments", adr: 0014-cli-commander.md }
   - { package: get-port, need: "free ports for worktree port blocks", adr: 0050-run-worktrees.md }
   - { package: github-slugger, need: "Markdown heading anchors", adr: 0020-rule-canon.md }
@@ -108,26 +118,11 @@ packages:
   - { package: yaml, need: "YAML documents", adr: 0015-schemas-zod-yaml.md }
   - { package: zod, need: "schemas", adr: 0015-schemas-zod-yaml.md }
   - {
-      package: "@inkjs/ui",
-      need: "text input, select and spinner for the full-screen terminal view",
-      adr: 0060-terminal-ui-ink.md,
-    }
-  - {
       package: "@types/react",
-      need: "types for the terminal view's React components",
-      adr: 0060-terminal-ui-ink.md,
+      need: "types for the desktop app's React components",
+      adr: 0078-desktop-app-tauri-xterm.md,
     }
-  - {
-      package: ink,
-      need: "full-screen terminal view (`metator ui`) as React components",
-      adr: 0060-terminal-ui-ink.md,
-    }
-  - {
-      package: ink-testing-library,
-      need: "component tests of the terminal view",
-      adr: 0060-terminal-ui-ink.md,
-    }
-  - { package: react, need: "the component model under Ink", adr: 0060-terminal-ui-ink.md }
+  - { package: react, need: "the desktop app's component model", adr: 0078-desktop-app-tauri-xterm.md }
   - {
       package: "@modelcontextprotocol/sdk",
       need: "MetatorAI as an MCP server over stdio (`metator mcp`); the MCP client that reads code hosts for intake (ADR-0083)",

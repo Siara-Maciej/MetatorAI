@@ -2,9 +2,14 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BunProcessRunner } from "@metator/plugin-bun";
-import { ScriptedProcessRunner } from "@metator/testing";
+import type { ProcessRunner } from "@metator/core";
+import { BunProcessRunner, NodeBinResolver } from "@metator/plugin-bun";
+import { ruleEngineContract, ScriptedProcessRunner } from "@metator/testing";
 import { BiomeEngine } from "../src/biome-engine.ts";
+
+/** The engine as the runtime wires it: the repository's pinned binary first, PATH otherwise. */
+const biome = (runner: ProcessRunner, root: string) =>
+  new BiomeEngine(runner, root, new NodeBinResolver(root, "path"));
 
 const BIOME_PKG = join(import.meta.dir, "../node_modules/@biomejs/biome");
 const runner = new BunProcessRunner();
@@ -34,9 +39,17 @@ const FILES = {
   "README.md": "# not linted\n",
 };
 
+ruleEngineContract("BiomeEngine", async () => ({
+  engine: biome(runner, await project(FILES)),
+  bare: biome(runner, await project({ "src/bad.ts": FILES["src/bad.ts"] }, false)),
+  missing: biome(new ScriptedProcessRunner(), await project(FILES, false)),
+  finding: { file: "src/bad.ts", toolRuleId: "lint/suspicious/noDebugger" },
+  clean: "src/good.ts",
+}));
+
 describe("BiomeEngine (real Biome)", () => {
   test("rules come from the installed Biome's schema, as lint/<group>/<rule>", async () => {
-    const rules = (await new BiomeEngine(runner, await project(FILES)).rules())._unsafeUnwrap();
+    const rules = (await biome(runner, await project(FILES)).rules())._unsafeUnwrap();
     expect(rules.length).toBeGreaterThan(200);
     expect(rules.find((r) => r.id === "lint/suspicious/noDebugger")).toEqual({
       id: "lint/suspicious/noDebugger",
@@ -52,7 +65,7 @@ describe("BiomeEngine (real Biome)", () => {
       linter: { rules: { suspicious: { noDebugger: "off" }, style: { useConst: "error" } } },
     });
     const rules = (
-      await new BiomeEngine(runner, await project({ ...FILES, "biome.json": config })).rules()
+      await biome(runner, await project({ ...FILES, "biome.json": config })).rules()
     )._unsafeUnwrap();
     const of = (id: string) => rules.find((r) => r.id === id)?.enabled;
     expect([
@@ -67,7 +80,7 @@ describe("BiomeEngine (real Biome)", () => {
   });
 
   test("whole project and selected files; unknown and deleted files are ignored", async () => {
-    const engine = new BiomeEngine(runner, await project(FILES));
+    const engine = biome(runner, await project(FILES));
     expect((await engine.check())._unsafeUnwrap()).toEqual([
       {
         source: "biome",
@@ -84,17 +97,17 @@ describe("BiomeEngine (real Biome)", () => {
 
   test("a repo without a Biome config is skipped; without Biome installed there are no rules", async () => {
     const { "biome.json": _config, ...rest } = FILES;
-    expect((await new BiomeEngine(runner, await project(rest)).check())._unsafeUnwrap()).toEqual([]);
-    expect((await new BiomeEngine(runner, await project(FILES, false)).rules())._unsafeUnwrap()).toEqual([]);
+    expect((await biome(runner, await project(rest)).check())._unsafeUnwrap()).toEqual([]);
+    expect((await biome(runner, await project(FILES, false)).rules())._unsafeUnwrap()).toEqual([]);
   });
 
   test("missing binary and unreadable output are errors, never an empty success", async () => {
     const dir = await project(FILES, false);
     const missing = new ScriptedProcessRunner([{ argvPrefix: ["biome"], result: { exitCode: 127 } }]);
-    expect((await new BiomeEngine(missing, dir).check())._unsafeUnwrapErr().code).toBe("BIN_NOT_FOUND");
+    expect((await biome(missing, dir).check())._unsafeUnwrapErr().code).toBe("BIN_NOT_FOUND");
     const garbage = new ScriptedProcessRunner([
       { argvPrefix: ["biome"], result: { exitCode: 1, stdout: "panic" } },
     ]);
-    expect((await new BiomeEngine(garbage, dir).check())._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
+    expect((await biome(garbage, dir).check())._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
   });
 });

@@ -1,4 +1,4 @@
-import type { Question, RunActivity } from "../domain/drive.ts";
+import { attemptsOf, type Question, type RunActivity, type RunStop, stopOf } from "../domain/drive.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import {
   type Attention,
@@ -12,12 +12,13 @@ import {
 } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { resumableStages } from "../domain/run-record.ts";
+import { type WorkPhase, workPhase } from "../domain/work-phase.ts";
 import type { Clock } from "../ports/index.ts";
 import type { ConversationRepository } from "./ask.ts";
-import type { RunJournal } from "./drive.ts";
 import type { EnvironmentServices, ServiceReport } from "./environments.ts";
 import type { PtyBroker, PtyView } from "./pty-broker.ts";
 import type { RunDrivers } from "./run-drivers.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { WorktreeRegistry } from "./worktrees.ts";
@@ -31,9 +32,15 @@ export interface RunOverview {
   readonly stage: string;
   /** Why an escalated or aborted run stopped: what its last transition recorded. */
   readonly reason?: string;
+  /** An escalated run: how often it tried the stage it stopped at, of how often it could. */
+  readonly attempts?: { readonly tried: number; readonly of: number };
+  /** An escalated run: why it stopped, as one sentence (a person's Reject, spent tries, or where). */
+  readonly stop?: RunStop;
   /** An escalated run: the stages a resume may go on at, the one it escalated from included. */
   readonly resumable?: readonly string[];
   readonly attention: Attention;
+  /** Where the run is on the board (planning, in progress, review, done), from its workflow and stage. */
+  readonly phase: Exclude<WorkPhase, "todo">;
   readonly stages: readonly StageProgress[];
   /** Open questions: what to answer, in order. */
   readonly questions: readonly Question[];
@@ -161,6 +168,29 @@ export class WorkOverview {
         status: r.state.status,
         stage,
         ...(reason && r.state.status !== "done" ? { reason } : {}),
+        ...(r.state.status === "escalated" && spec.isOk()
+          ? (() => {
+              const at = attemptsOf(
+                spec.value.spec.stages,
+                stage,
+                r.state.context.loops,
+                spec.value.spec.loops ?? {},
+              );
+              return at ? { attempts: at } : {};
+            })()
+          : {}),
+        ...(r.state.status === "escalated" && spec.isOk()
+          ? {
+              stop: stopOf({
+                stages: spec.value.spec.stages,
+                stage,
+                reason,
+                loops: r.state.context.loops,
+                limits: spec.value.spec.loops ?? {},
+                questions: questions.isOk() ? questions.value : [],
+              }),
+            }
+          : {}),
         ...(r.state.status === "escalated"
           ? {
               resumable: resumableStages(
@@ -170,6 +200,7 @@ export class WorkOverview {
             }
           : {}),
         attention: attentionOf(r.state.status, open.length, driving || session?.working === true, atGate),
+        phase: workPhase(declared, stage, r.state.status),
         stages,
         questions: open,
         driving,

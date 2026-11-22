@@ -18,6 +18,7 @@ model: opus
 3. Add `deploy.flag` where a step ships behind a feature flag and `deploy.rollback` where undoing it is not a plain revert.
 4. Order the steps with `dependsOn`: providers before consumers, consumers before the old shape is removed.
 5. Run `bun run metator system plan lint <id>` until it is clean.
+6. Sent back by a person (the prompt quotes what they want different) or by the plan's lint: revise the system plan you wrote against those words. Keep the steps they did not object to, change what they asked for, and do not start over.
 
 # Output
 - The plan file, lint clean.

@@ -147,8 +147,3 @@ export async function follow(
     }
   }
 }
-
-/** Who answers: METATOR_USER, else the login name. */
-export function person(env: Readonly<Record<string, string | undefined>> = process.env): string {
-  return env.METATOR_USER ?? env.USER ?? env.USERNAME ?? "you";
-}

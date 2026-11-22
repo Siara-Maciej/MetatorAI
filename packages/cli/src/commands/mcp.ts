@@ -46,8 +46,19 @@ export function registerMcpCommand(program: Command, ctx: CommandContext): void 
     .action(
       ctx.action(async (opts: { list: boolean }) => {
         const tools = mcpTools(program);
-        if (opts.list) return { result: ok({ tools }) };
-        const root = (program.opts() as { root?: string }).root;
+        // The list is what a client sees of a tool: its name, command, description and typed fields.
+        if (opts.list)
+          return {
+            result: ok({
+              tools: tools.map(({ name, command, description, shape }) => ({
+                name,
+                command,
+                description,
+                ...(shape ? { shape } : {}),
+              })),
+            }),
+          };
+        const root = ctx.root();
         const served = await serve(tools, (argv) => ctx.invoke(root ? ["--root", root, ...argv] : argv));
         return { result: ok(served) };
       }),

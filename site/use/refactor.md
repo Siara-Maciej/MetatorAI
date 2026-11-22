@@ -4,14 +4,16 @@ The `mt-refactor` workflow changes structure (split a module, extract a function
 
 ## Start
 
+In a chat:
+
 ```text
-@mt-orchestrator run mt-refactor for packages/billing: split invoice.ts into calculation and formatting.
+› use mt-refactor in packages/billing: split invoice.ts into calculation and formatting.
 ```
 
 Name the scope in the task: the package or the files the refactor may touch. From a terminal you can also pass it as the input `scope`. The tests must be green before the run starts.
 
 ```bash
-metator run init --workflow mt-refactor --task "Split invoice.ts into calculation and formatting" --input scope=packages/billing
+metator run new --workflow mt-refactor --task "Split invoice.ts into calculation and formatting" --input scope=packages/billing
 metator run drive --detach
 ```
 

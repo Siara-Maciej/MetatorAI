@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
@@ -13,15 +14,18 @@ import {
   declaredWithDocument,
   deliveryCommand,
   type HostUsage,
+  mergeAttempt,
   permissionResponse,
   RunRecordDocument,
   readOnlyCommand,
   removeInside,
   runArtifactWrite,
   runControlCommand,
+  type SandboxLaunch,
   secretPath,
   singleDeclaredCommand,
 } from "@metator/core";
+import { claudeAgentFile } from "./claude-generator.ts";
 
 /** The slice of the Agent SDK's `query()` this host uses; injected in tests, imported lazily otherwise. */
 export type ClaudeQuery = (params: {
@@ -170,7 +174,11 @@ export function agentDefinition(
 export class ClaudeAgentHost implements AgentHost {
   readonly id = "claude";
 
-  constructor(private readonly query?: ClaudeQuery) {}
+  constructor(
+    private readonly query?: ClaudeQuery,
+    /** How the `claude` program starts: in the sandbox when the repository has one (ADR-0104). */
+    private readonly launch?: SandboxLaunch,
+  ) {}
 
   async *run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent> {
     const query = this.query ?? (await loadQuery());
@@ -219,10 +227,14 @@ export class ClaudeAgentHost implements AgentHost {
     const canUseTool = async (tool: string, input: Record<string, unknown>): Promise<Permission> => {
       if (tool === "AskUserQuestion")
         return { behavior: "allow", updatedInput: await answerQuestions(input, ask) };
-      if (needsNoPerson(tool, input)) return { behavior: "allow", updatedInput: input };
+      // A merge always goes to the person, whatever needs no person otherwise.
+      const merging = mergeAttempt({ tool, input, stopActive: false });
+      if (!merging && needsNoPerson(tool, input)) return { behavior: "allow", updatedInput: input };
       const answer = await ask({
         source: "permission",
-        prompt: `${task.agent} wants to use ${tool}: ${described(input)}`,
+        prompt: merging
+          ? `${task.agent} wants to merge (${merging}): ${described(input)}`
+          : `${task.agent} wants to use ${tool}: ${described(input)}`,
         options: [
           { label: "Allow", description: "Run this tool call" },
           { label: "Deny", description: "Refuse it; the agent is told why" },
@@ -233,7 +245,7 @@ export class ClaudeAgentHost implements AgentHost {
         ? { behavior: "allow", updatedInput: input }
         : { behavior: "deny", message: answer.text ?? "a person denied this tool call" };
     };
-    const agentFile = join(task.projectRoot, ".claude", "agents", `${task.agent}.md`);
+    const agentFile = join(task.projectRoot, claudeAgentFile(task.agent));
     const definition = agentDefinition(agentFile);
     // Secrets stay unread in-process too: the project's own deny rules and hooks may not apply
     // where the session works (a folder of repositories has no settings of its own).
@@ -249,6 +261,14 @@ export class ClaudeAgentHost implements AgentHost {
         return permissionResponse({
           decision: "deny",
           reason: `${file} may hold secrets; agents do not read it.`,
+        });
+      // Every merge is the person's to consent to (ADR-0094): the host's prompt, put to the person
+      // by \`canUseTool\`, whatever the session's rules would let through.
+      const merging = mergeAttempt(hook);
+      if (merging)
+        return permissionResponse({
+          decision: "ask",
+          reason: `\`${merging}\` merges: it needs the person's consent.`,
         });
       // The drive moves a run it carries: an agent that advances it makes the drive's own event
       // land on the next stage, which is then skipped.
@@ -288,6 +308,7 @@ export class ClaudeAgentHost implements AgentHost {
       }
       return {};
     };
+    const stop = new AbortController();
     const options: Record<string, unknown> = {
       cwd: task.cwd,
       agent: task.agent,
@@ -310,8 +331,17 @@ export class ClaudeAgentHost implements AgentHost {
         ...(task.driven ? { METATOR_DRIVEN: "1" } : {}),
       },
       ...(task.resume ? { resume: task.resume } : {}),
+      abortController: stop,
+      ...(this.launch ? { spawnClaudeCodeProcess: sandboxedSpawn(this.launch) } : {}),
     };
-    for await (const message of query({ prompt: task.prompt, options })) yield* toEvents(message);
+    // A drive that stops reading (its run's directory is gone) ends the agent's process with it.
+    let finished = false;
+    try {
+      for await (const message of query({ prompt: task.prompt, options })) yield* toEvents(message);
+      finished = true;
+    } finally {
+      if (!finished) stop.abort();
+    }
   }
 }
 
@@ -387,6 +417,38 @@ async function answerQuestions(
 }
 
 /** The SDK is large (it ships Claude Code): load it only when a run uses this host. */
+/**
+ * The Agent SDK's start of the `claude` program, through the launch (ADR-0104): the same command
+ * line, inside the sandbox when the repository has one. A launch that fails starts no `claude`:
+ * its error is the process's, as a program that cannot start (exit 127).
+ */
+export function sandboxedSpawn(launch: SandboxLaunch) {
+  return (o: {
+    command: string;
+    args: string[];
+    cwd?: string;
+    env: Record<string, string | undefined>;
+    signal?: AbortSignal;
+  }) => {
+    const cwd = o.cwd ?? process.cwd();
+    const launched = launch([o.command, ...o.args], cwd);
+    // A launch that failed is a program that could not start: it says why and exits 127.
+    const [command, ...args] = launched.isOk()
+      ? (launched.value.argv as [string, ...string[]])
+      : [
+          process.execPath,
+          "-e",
+          `process.stderr.write(${JSON.stringify(`${launched.error.message}\n`)}); process.exit(127)`,
+        ];
+    return spawn(command, args, {
+      cwd,
+      env: o.env,
+      stdio: ["pipe", "pipe", "pipe"],
+      ...(o.signal ? { signal: o.signal } : {}),
+    });
+  };
+}
+
 async function loadQuery(): Promise<ClaudeQuery> {
   const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as { query: ClaudeQuery };
   return sdk.query;

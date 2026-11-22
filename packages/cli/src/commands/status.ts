@@ -1,22 +1,29 @@
 import {
-  byUrgency,
-  type EscalatedItem,
   err,
-  escalatedOf,
+  fleetCounts,
+  fleetInbox,
   fleetReport,
-  type InboxItem,
-  inboxOf,
   MetatorError,
   normalizePath,
   type Overview,
   ok,
+  type RepoRuns,
   type RunFacts,
   readinessWarnings,
   unreadableRunWarning,
 } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, liveDaemonAt } from "../daemon-client.ts";
+import { type PaneAsk, paneAsks } from "../pane-asks.ts";
+import { renderDoctor, renderInbox, renderStatus } from "../render.ts";
+
+type Read = Overview | { error: string };
+/** A worktree of a folder's repository in `metator status`, with the label that tells it apart. */
+type FolderStatusWorktree = { name: string; path: string; label: string; branch?: string } & Read;
+/** A repository of a folder in `metator status`: its own work, and each worktree's under it. */
+type FolderStatusRepo = { name: string; path: string; worktrees?: FolderStatusWorktree[] } & Read;
 
 /**
  * `metator status` (G4, ADR-0059): every run (its stages, who must act, the questions, the last
@@ -24,8 +31,7 @@ import { callDaemon, liveDaemonAt } from "../daemon-client.ts";
  * repositories, that for each repository.
  */
 export function registerStatusCommand(program: Command, ctx: CommandContext): void {
-  program
-    .command("status")
+  meta(program.command("status"), { audience: "person", reads: true, folder: true, render: renderStatus })
     .description("The work at a glance: each run's stages, who must act, questions, services; conversations")
     .action(
       ctx.action(async () => {
@@ -43,26 +49,43 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
               : await ctx.container().resolve("workOverview").execute();
           return { result: o, warnings: o.isOk() ? o.value.unreadable.map(unreadableRunWarning) : [] };
         }
-        const repos: ({ name: string; path: string } & (Overview | { error: string }))[] = [];
         const warnings: string[] = [];
-        for (const r of f.repos) {
+        // One checkout's overview; its warnings are named with its label (`shop (fix-tax)`).
+        const read = async (label: string, root: string): Promise<Read> => {
           try {
-            const o = await ctx.containerAt(r.root).resolve("workOverview").execute();
+            const o = await ctx.containerAt(root).resolve("workOverview").execute();
             if (o.isErr()) {
-              warnings.push(`${r.name}: ${o.error.message}`);
-              repos.push({ name: r.name, path: r.path, error: o.error.message });
-            } else {
-              repos.push({ name: r.name, path: r.path, ...o.value });
-              for (const u of o.value.unreadable) warnings.push(`${r.name}: ${unreadableRunWarning(u)}`);
+              warnings.push(`${label}: ${o.error.message}`);
+              return { error: o.error.message };
             }
+            for (const u of o.value.unreadable) warnings.push(`${label}: ${unreadableRunWarning(u)}`);
+            return o.value;
           } catch (e) {
-            warnings.push(`${r.name}: ${(e as Error).message}`);
-            repos.push({ name: r.name, path: r.path, error: (e as Error).message });
+            warnings.push(`${label}: ${(e as Error).message}`);
+            return { error: (e as Error).message };
           }
+        };
+        // By repository: the work of its worktrees under it, each with the label that tells it apart.
+        const repos: FolderStatusRepo[] = [];
+        const every: object[] = [];
+        for (const r of f.repos) {
+          const own = await read(r.name, r.root);
+          every.push(own);
+          const worktrees: FolderStatusWorktree[] = [];
+          for (const w of f.checkouts.filter((c) => c.worktreeOf === r.name)) {
+            const o = await read(w.label, w.root);
+            every.push(o);
+            worktrees.push({
+              name: w.name,
+              path: w.path,
+              label: w.label,
+              ...(w.branch ? { branch: w.branch } : {}),
+              ...o,
+            });
+          }
+          repos.push({ name: r.name, path: r.path, ...own, ...(worktrees.length > 0 ? { worktrees } : {}) });
         }
         const folder = await ctx.containerAt(f.root).resolve("conversationRepository").list();
-        const sum = (k: "you" | "driving" | "stopped" | "questions" | "services") =>
-          repos.reduce((n, r) => n + ("counts" in r ? r.counts[k] : 0), 0);
         return {
           result: ok({
             folder: f.root,
@@ -76,21 +99,19 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
                   updatedAt: c.updatedAt,
                 }))
               : [],
-            counts: {
-              you: sum("you"),
-              driving: sum("driving"),
-              stopped: sum("stopped"),
-              questions: sum("questions"),
-              services: sum("services"),
-            },
+            counts: fleetCounts(every),
           }),
           warnings,
         };
       }),
     );
 
-  program
-    .command("doctor")
+  meta(program.command("doctor"), {
+    audience: "person",
+    reads: true,
+    writesWith: ["--gates"],
+    render: renderDoctor,
+  })
     .description(
       "What a run here will and will not do: config, canon, workflows, gates, dependencies, environment, remote",
     )
@@ -121,17 +142,18 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
       }),
     );
 
-  program
-    .command("inbox")
+  meta(program.command("inbox"), { audience: "person", reads: true, folder: true, render: renderInbox })
     .description(
       "Every open decision of every run, first the ones a live drive waits on, then the oldest; and the escalated runs waiting for a resume",
     )
     .action(
       ctx.action(async () => {
         const f = ctx.folder();
-        const roots = f ? f.repos.map((r) => ({ name: r.name, root: r.root })) : [{ name: "", root: "" }];
-        const items: (InboxItem & { repo?: string })[] = [];
-        const escalated: (EscalatedItem & { repo?: string })[] = [];
+        // Every checkout: a worktree's runs are named with its label (`shop (fix-tax)`).
+        const roots = f
+          ? f.checkouts.map((r) => ({ name: r.label, root: r.root }))
+          : [{ name: "", root: "" }];
+        const repos: RepoRuns[] = [];
         const warnings: string[] = [];
         for (const r of roots) {
           const c = r.root ? ctx.containerAt(r.root) : ctx.container();
@@ -143,18 +165,16 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
           }
           for (const u of o.value.unreadable)
             warnings.push(f ? `${r.name}: ${unreadableRunWarning(u)}` : unreadableRunWarning(u));
-          const now = c.resolve("clock").now();
-          for (const item of inboxOf(o.value.runs, now)) items.push(f ? { repo: r.name, ...item } : item);
-          for (const item of escalatedOf(o.value.runs, now))
-            escalated.push(f ? { repo: r.name, ...item } : item);
+          repos.push({ name: r.name, runs: o.value.runs, now: c.resolve("clock").now() });
         }
-        // One queue across repositories, in the same order as within one.
-        return { result: ok({ decisions: items.sort(byUrgency), escalated }), warnings };
+        // One queue across repositories, in the same order as within one; then the questions of
+        // panes, which only the daemon that owns the panes knows (ADR-0091).
+        const panes: PaneAsk[] = await paneAsks(ctx.start());
+        return { result: ok({ ...fleetInbox(repos, f !== null), panes }), warnings };
       }),
     );
 
-  program
-    .command("report")
+  meta(program.command("report"), { audience: "person", reads: true, writesWith: ["--html"], folder: true })
     .description(
       "What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent",
     )
@@ -190,7 +210,7 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
         // A folder: every repository's runs in one report, each run named with its repository.
         const facts: RunFacts[] = [];
         const warnings: string[] = [];
-        for (const r of f.repos) {
+        for (const r of f.checkouts) {
           const got = await ctx.containerAt(r.root).resolve("buildReport").facts(since);
           if (got.isErr()) warnings.push(`${r.name}: ${got.error.message}`);
           else facts.push(...got.value.map((x) => ({ ...x, runId: `${r.name}/${x.runId}` })));

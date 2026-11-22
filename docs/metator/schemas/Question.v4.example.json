@@ -1,0 +1,29 @@
+{
+  "kind": "Question",
+  "schemaVersion": 4,
+  "id": "q002",
+  "runId": "20261027-mt-feature-add-discount",
+  "stage": "session",
+  "source": "permission",
+  "prompt": "metator run delegate build --agent mt-implementer --card \"Implement step S1: — This command requires approval",
+  "options": [
+    {
+      "label": "Yes"
+    },
+    {
+      "label": "No"
+    },
+    {
+      "label": "Attach and answer in the pane"
+    },
+    {
+      "label": "Leave it"
+    },
+    {
+      "label": "Other"
+    }
+  ],
+  "multiSelect": false,
+  "askedAt": "2026-10-27T10:00:00.000Z",
+  "command": "metator run delegate build --agent mt-implementer --card \"Implement step S1:\nadd the currency field.\""
+}

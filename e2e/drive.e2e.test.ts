@@ -98,9 +98,11 @@ describe("metator run drive (real CLI, scenario host)", () => {
     ]);
     const wrong = await mt("run", "answer", "q001", "--choice", "Maybe", "--by", "maciej");
     expect((wrong.json.error as { message: string }).message).toBe("choose from: Approve, Reject, Other");
-    // With no --by, no $METATOR_USER and no name in git, the answer is refused with where to set one.
+    // With no --by, no $METATOR_USER, no name in git and no login name, the answer is refused with where to set one.
     const nameless = await metator(["run", "answer", "q001", "--choice", "approve"], repo.root, {
       ...env,
+      USER: "",
+      USERNAME: "",
       GIT_CONFIG_GLOBAL: "/dev/null",
       GIT_CONFIG_NOSYSTEM: "1",
     });
@@ -242,7 +244,7 @@ describe("metator run drive (real CLI, scenario host)", () => {
     for (const runId of runs) {
       const text = await repo.read(`.metator/runs/${runId}/activity.jsonl`);
       for (const line of text.trim().split("\n"))
-        expect(JSON.parse(line)).toMatchObject({ kind: "RunActivity", schemaVersion: 2 });
+        expect(JSON.parse(line)).toMatchObject({ kind: "RunActivity", schemaVersion: 3 });
     }
     expect(CLI_ENTRY.endsWith("main.ts")).toBe(true);
   });

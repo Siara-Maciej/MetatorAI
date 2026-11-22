@@ -4,376 +4,55 @@ import {
   type AgentAnswer,
   type AgentQuestion,
   blockedPrompt,
-  type DecisionCard,
+  envelopeError,
+  failedSteps,
+  GATE_EXIT,
   gatePrompt,
-  gateQuestion,
   hostLimit,
-  labelFor,
-  nextQuestionId,
+  hostRefusal,
+  notDrivable,
   parseCriticVerdict,
   parseStatus,
   type Question,
-  type QuestionAnswer,
-  QuestionDocument,
   type ResumeNote,
-  type RunActivity,
-  RunActivityDocument,
-  RunSeenDocument,
   stagePrompt,
   stageWork,
+  taskInFull,
 } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
-import { GateReportDocument } from "../domain/gate.ts";
 import { stoppedAt } from "../domain/overview.ts";
-import { PlanScopeDocument } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { messageLines, type RunMessage } from "../domain/run-message.ts";
-import {
-  APPROVAL_ACTIONS,
-  fillInputs,
-  isRunBookkeeping,
-  pendingResume,
-  type RunRecord,
-} from "../domain/run-record.ts";
+import { APPROVAL_ACTIONS, fillInputs, pendingResume, type RunRecord } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
-import { type AgentUsage, AgentUsageDocument, type HostUsage } from "../domain/telemetry.ts";
+import type { HostUsage } from "../domain/telemetry.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
-import { parseJsonDocument, serializeJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
 import type { StageSpec } from "../domain/workflow-spec.ts";
-import type { AgentHost, Clock, FileSystem, ProcessRunner, Timer } from "../ports/index.ts";
+import type { AgentHost, FileSystem, ProcessRunner, Timer } from "../ports/index.ts";
+import { decisionCard } from "./decision-card.ts";
+import { loadDocument } from "./document-io.ts";
+import { gateQuestionOf, publishQuestion } from "./gate-questions.ts";
 import type { Notifier } from "./notifier.ts";
 import type { CloseRun } from "./run-close.ts";
+import { type ActivityInput, OTHER, type RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { AdvanceRun, ApproveRun } from "./runs.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { WorktreeRegistry } from "./worktrees.ts";
 
-/** The free-text option every question has, so a person is never forced into a listed choice. */
-export const OTHER = "Other";
-/**
- * A failed `metator gate` read for a person: each failing step and the first line of its output
- * (a stack trace's tail says nothing). Undefined when the output is no gate result.
- */
-export function failedSteps(stdout: string): string | undefined {
-  const parsed = parseJsonDocument(stdout.trim().split("\n").at(-1) ?? "", "gate output");
-  if (parsed.isErr()) return undefined;
-  const envelope = parsed.value;
-  const error = (envelope as { error?: { message?: unknown; details?: { steps?: unknown } } } | null)?.error;
-  const steps = error?.details?.steps;
-  if (!Array.isArray(steps)) return undefined;
-  const failed = steps
-    .filter((s): s is { id: string; detail?: string } => (s as { status?: unknown }).status === "fail")
-    .map((s) => {
-      const first = (s.detail ?? "").split("\n").find((l) => l.trim() !== "") ?? "";
-      return `${s.id}: ${first.trim().slice(0, 300)}`;
-    });
-  return [typeof error?.message === "string" ? error.message : "gate failed", ...failed].join("; ");
-}
-
 /** How many times one worker may ask a person in a stage before the stage fails. */
 const MAX_ANSWERS = 3;
-/** The two answers to a worker that found nothing to do. */
-export const CLOSE_RUN = "Close the run";
+/**
+ * The two answers to a worker that found nothing to do. Ending the run is never one of them: a
+ * person closes a run on purpose, with a reason (`run close --aborted`); here the stage finishes
+ * and its gate and tests judge what is there.
+ */
+export const FINISH_STAGE = "Finish the stage";
 export const DO_IT = "Do it anyway";
 
 /** How many of a person's latest answers go into every prompt. */
 const MAX_DECISIONS = 12;
-
-export type ActivityInput = Omit<RunActivity, "at">;
-
-/** What a drive leaves in the run directory: the activity line by line, and the questions. */
-export class RunJournal {
-  constructor(
-    private readonly fs: FileSystem,
-    private readonly repo: RunRepository,
-    private readonly clock: Clock,
-  ) {}
-
-  activityFile(runId: string): string {
-    return `${this.repo.runDir(runId)}/activity.jsonl`;
-  }
-
-  usageFile(runId: string): string {
-    return `${this.repo.runDir(runId)}/usage.jsonl`;
-  }
-
-  /** The time now, from the journal's clock: how long an agent call took. */
-  now(): Date {
-    return this.clock.now();
-  }
-
-  /** One agent call's usage, appended to `usage.jsonl`. */
-  async recordUsage(runId: string, entry: Omit<AgentUsage, "at">): Promise<Result<void, MetatorError>> {
-    const line = serializeJsonLine(
-      AgentUsageDocument.stamp({ at: this.clock.now().toISOString(), ...entry }),
-    );
-    return this.fs.append(this.usageFile(runId), line);
-  }
-
-  async usage(runId: string): Promise<Result<readonly AgentUsage[], MetatorError>> {
-    const file = this.usageFile(runId);
-    if (!(await this.fs.exists(file))) return ok([]);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const out: AgentUsage[] = [];
-    for (const [i, line] of text.value.split("\n").entries()) {
-      if (line.trim() === "") continue;
-      const parsed = parseJsonDocument(line, `${file}:${i + 1}`).andThen((raw) =>
-        AgentUsageDocument.parse(raw, `${file}:${i + 1}`),
-      );
-      if (parsed.isErr()) return err(parsed.error);
-      out.push(parsed.value);
-    }
-    return ok(out);
-  }
-
-  seenFile(runId: string): string {
-    return `${this.repo.runDir(runId)}/seen.json`;
-  }
-
-  /** When a person last read the run's brief; undefined before the first. */
-  async seen(runId: string): Promise<Result<string | undefined, MetatorError>> {
-    const file = this.seenFile(runId);
-    if (!(await this.fs.exists(file))) return ok(undefined);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file)
-      .andThen((raw) => RunSeenDocument.parse(raw, file))
-      .map((d) => d.at);
-  }
-
-  /** A person has read the run up to now: the next brief starts here. */
-  async markSeen(runId: string): Promise<Result<string, MetatorError>> {
-    const at = this.clock.now().toISOString();
-    const written = await this.fs.write(
-      this.seenFile(runId),
-      serializeJsonDocument(RunSeenDocument.stamp({ at })),
-    );
-    return written.map(() => at);
-  }
-
-  questionFile(runId: string, id: string): string {
-    return `${this.repo.runDir(runId)}/questions/${id}.json`;
-  }
-
-  /** One line appended in one step: hooks, the daemon and the CLI record at once without losing a line. */
-  async record(runId: string, entry: ActivityInput): Promise<Result<void, MetatorError>> {
-    const line = serializeJsonLine(
-      RunActivityDocument.stamp({ at: this.clock.now().toISOString(), ...entry }),
-    );
-    return this.fs.append(this.activityFile(runId), line);
-  }
-
-  async activity(runId: string): Promise<Result<readonly RunActivity[], MetatorError>> {
-    const file = this.activityFile(runId);
-    if (!(await this.fs.exists(file))) return ok([]);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const out: RunActivity[] = [];
-    for (const [i, line] of text.value.split("\n").entries()) {
-      if (line.trim() === "") continue;
-      const parsed = parseJsonDocument(line, `${file}:${i + 1}`).andThen((raw) =>
-        RunActivityDocument.parse(raw, `${file}:${i + 1}`),
-      );
-      // A torn line (a writer killed mid-append) is skipped: the rest of the journal still reads.
-      if (parsed.isErr()) continue;
-      out.push(parsed.value);
-    }
-    return ok(out);
-  }
-
-  async questions(runId: string): Promise<Result<readonly Question[], MetatorError>> {
-    const files = await this.fs.glob([`${this.repo.runDir(runId)}/questions/q*.json`]);
-    const out: Question[] = [];
-    for (const file of files) {
-      const text = await this.fs.read(file);
-      if (text.isErr()) return err(text.error);
-      const q = parseJsonDocument(text.value, file).andThen((raw) => QuestionDocument.parse(raw, file));
-      if (q.isErr()) return err(q.error);
-      out.push(q.value);
-    }
-    return ok(out.sort((a, b) => a.id.localeCompare(b.id)));
-  }
-
-  /**
-   * Asks a person. A drive that restarts (`run continue`) asks again: the question it asked before
-   * stands, and so does an answer given after `pendingSince` (the run's last change), which no
-   * drive has acted on yet.
-   */
-  async ask(
-    runId: string,
-    q: Pick<Question, "stage" | "source" | "prompt" | "options" | "multiSelect"> & {
-      readonly agent?: string;
-      readonly card?: DecisionCard;
-    },
-    pendingSince?: string,
-  ): Promise<Result<Question, MetatorError>> {
-    const existing = await this.questions(runId);
-    if (existing.isErr()) return err(existing.error);
-    const standing = existing.value.find(
-      (e) =>
-        e.stage === q.stage &&
-        e.source === q.source &&
-        e.prompt === q.prompt &&
-        (!e.answer || (pendingSince !== undefined && e.answer.at > pendingSince)),
-    );
-    if (standing) return ok(standing);
-    const options = q.options.some((o) => o.label === OTHER)
-      ? q.options
-      : [...q.options, { label: OTHER, description: "Answer in your own words" }];
-    const question: Question = {
-      id: nextQuestionId(existing.value.map((e) => e.id)),
-      runId,
-      stage: q.stage,
-      source: q.source,
-      ...(q.agent ? { agent: q.agent } : {}),
-      prompt: q.prompt,
-      options,
-      multiSelect: q.multiSelect,
-      askedAt: this.clock.now().toISOString(),
-      ...(q.card ? { card: q.card } : {}),
-    };
-    const saved = await this.save(question);
-    if (saved.isErr()) return err(saved.error);
-    const logged = await this.record(runId, {
-      type: "question",
-      stage: q.stage,
-      ...(q.agent ? { agent: q.agent } : {}),
-      text: `${question.id}: ${q.prompt}`,
-    });
-    if (logged.isErr()) return err(logged.error);
-    return ok(question);
-  }
-
-  /** Records a person's answer; the drive waiting on the question picks it up. */
-  async answer(
-    runId: string,
-    id: string,
-    input: {
-      readonly choices: readonly string[];
-      readonly text?: string;
-      readonly by: string;
-      /** `inbox`: answered from the decision card, without opening the session (11a). */
-      readonly origin?: "inbox";
-    },
-  ): Promise<Result<Question, MetatorError>> {
-    if (input.by.trim() === "")
-      return err(MetatorError.usage("say who answers: --by <name>", "An answer records who gave it."));
-    const file = this.questionFile(runId, id);
-    if (!(await this.fs.exists(file))) return err(MetatorError.notFound(`question ${id} of run ${runId}`));
-    const q = await this.load(file);
-    if (q.isErr()) return err(q.error);
-    if (q.value.answer) return err(MetatorError.usage(`question ${id} is already answered`));
-    // A run that ended asks nothing any more: an answer now would change nothing (R3).
-    const run = await this.repo.load(runId);
-    if (run.isOk() && run.value.state.status !== "active")
-      return err(
-        MetatorError.usage(
-          `run ${runId} is ${run.value.state.status}: question ${id} no longer waits for an answer`,
-          run.value.state.status === "escalated"
-            ? `Resume the run first: \`metator run resume --run ${runId} --by <name>\`.`
-            : "Nothing is left to answer in this run.",
-        ),
-      );
-    const labels = q.value.options.map((o) => o.label);
-    const choices =
-      input.choices.length === 0 && input.text ? [OTHER] : input.choices.map((c) => labelFor(labels, c));
-    const unknown = choices.filter((c) => !labels.includes(c));
-    if (choices.length === 0 || unknown.length > 0) {
-      return err(
-        MetatorError.usage(
-          `choose from: ${labels.join(", ")}`,
-          "Give --choice <label>, or --text for Other.",
-        ),
-      );
-    }
-    if (!q.value.multiSelect && choices.length > 1)
-      return err(MetatorError.usage("this question takes one choice"));
-    if (choices.includes(OTHER) && !input.text) return err(MetatorError.usage(`${OTHER} needs --text`));
-    const answered: Question = {
-      ...q.value,
-      answer: {
-        choices,
-        ...(input.text ? { text: input.text } : {}),
-        by: input.by,
-        at: this.clock.now().toISOString(),
-      },
-    };
-    return this.settle(answered, input.origin);
-  }
-
-  /**
-   * A gate approved outside its question (`run approve <gate>`, R8): the stage's open gate
-   * questions get that approval as their answer, so no card asks for a decision already made.
-   */
-  async settleGate(
-    runId: string,
-    stage: string,
-    by: string,
-  ): Promise<Result<readonly Question[], MetatorError>> {
-    const all = await this.questions(runId);
-    if (all.isErr()) return err(all.error);
-    const out: Question[] = [];
-    for (const q of all.value) {
-      if (q.answer || q.stage !== stage || q.source !== "gate") continue;
-      const settled = await this.settle({
-        ...q,
-        answer: { choices: ["Approve"], by, at: this.clock.now().toISOString() },
-      });
-      if (settled.isErr()) return err(settled.error);
-      out.push(settled.value);
-    }
-    return ok(out);
-  }
-
-  private async settle(answered: Question, origin?: "inbox"): Promise<Result<Question, MetatorError>> {
-    const a = answered.answer as QuestionAnswer;
-    const saved = await this.save(answered);
-    if (saved.isErr()) return err(saved.error);
-    const logged = await this.record(answered.runId, {
-      type: "answer",
-      stage: answered.stage,
-      text: `${answered.id}: ${a.choices.join(", ")}${a.text ? ` (${a.text})` : ""} · ${a.by}`,
-      ...(origin ? { origin } : {}),
-    });
-    if (logged.isErr()) return err(logged.error);
-    return ok(answered);
-  }
-
-  /**
-   * Waits until the question has an answer; the answer comes from another process or this one.
-   * Undefined when the run left the question's stage or ended meanwhile (an approval or an abort
-   * from another terminal, R3 and R8): nobody will answer, and the caller looks at the run again.
-   */
-  async waitFor(
-    runId: string,
-    id: string,
-    timer: Timer,
-    pollMs: number,
-  ): Promise<Result<QuestionAnswer | undefined, MetatorError>> {
-    const file = this.questionFile(runId, id);
-    for (;;) {
-      const q = await this.load(file);
-      if (q.isErr()) return err(q.error);
-      if (q.value.answer) return ok(q.value.answer);
-      const run = await this.repo.load(runId);
-      if (run.isOk() && (run.value.state.status !== "active" || run.value.state.stage !== q.value.stage))
-        return ok(undefined);
-      await timer.sleep(pollMs);
-    }
-  }
-
-  private async load(file: string): Promise<Result<Question, MetatorError>> {
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file).andThen((raw) => QuestionDocument.parse(raw, file));
-  }
-
-  private save(q: Question): Promise<Result<void, MetatorError>> {
-    return this.fs.write(this.questionFile(q.runId, q.id), serializeJsonDocument(QuestionDocument.stamp(q)));
-  }
-}
 
 export interface DriveInput {
   readonly runId?: string;
@@ -382,6 +61,8 @@ export interface DriveInput {
   /** A safety net against endless loops; the workflow's own loop limits come first. */
   readonly maxSteps?: number;
   readonly pollMs?: number;
+  /** How long a gate that waits on other work (a system run's children) sleeps between looks. */
+  readonly gateWaitMs?: number;
 }
 
 export interface DriveReport {
@@ -397,6 +78,19 @@ type Outcome =
   /** The run left the stage while it waited for a person: the drive looks at the run again. */
   | { readonly type: "MOVED" };
 const MOVED = { type: "MOVED" } as const;
+/** The run's directory went away while an agent worked. */
+const GONE = Symbol("gone");
+/** How often a drive looks whether its run's directory is still there while an agent works. */
+const GONE_WATCH_MS = 2000;
+
+/** A moment that elapses after `ms`, unless cancelled first (no timer is left behind). */
+function after(ms: number): { readonly elapsed: Promise<void>; cancel(): void } {
+  let handle: ReturnType<typeof setTimeout> | undefined;
+  const elapsed = new Promise<void>((resolve) => {
+    handle = setTimeout(resolve, ms);
+  });
+  return { elapsed, cancel: () => clearTimeout(handle) };
+}
 
 /** Why the drive stopped on a host limit, and how the person carries on. */
 const limitReason = (agent: string, limit: string) =>
@@ -431,6 +125,8 @@ export interface DriveDependencies {
   readonly worktrees?: Pick<WorktreeRegistry, "get">;
   /** Why a host cannot start here (its program is not installed); undefined when it can (F3). */
   readonly hostProblem?: (host: string) => string | undefined;
+  /** How often to look whether the run's directory is still there while an agent works (ms). */
+  readonly goneWatchMs?: number;
 }
 
 /**
@@ -460,6 +156,11 @@ export class DriveRun {
     if (refused) return err(refused);
     const say = (entry: ActivityInput) => this.d.journal.record(runId, entry);
     await say({ type: "drive", text: `driving with ${host.id}` });
+    // The run's host is the one that drives it now, whether or not the host keeps a session.
+    if (first.value.host !== host.id) {
+      const named = await this.d.repo.update(runId, (record) => ok({ ...record, host: host.id }));
+      if (named.isErr()) return err(named.error);
+    }
 
     let steps = 0;
     // A run resumed after it escalated starts where it failed: its agents hear why (F1).
@@ -468,11 +169,13 @@ export class DriveRun {
     let retry: string | undefined = resumed ? failed.detail : undefined;
     let retryFrom: string | undefined = resumed && failed.detail ? failed.stage : undefined;
     // A later stage that failed and sent the run back: every stage until it is reached again hears it.
-    let sentBack: { readonly from: string; readonly reason: string } | undefined;
-    // A person sent the escalated run back to an earlier stage: the same, with the failure it escalated on.
-    const back = pendingResume(first.value);
-    if (back && back.to !== back.from && failed?.event === "FAIL" && failed.detail)
-      sentBack = { from: back.from, reason: failed.detail };
+    // Sent back before this drive started (a Reject on a card with no drive alive), or by a person who
+    // resumed the escalated run at an earlier stage (`run resume --to`): the same, with the failure
+    // the run stopped on. A resume records no transition, so that failure is still the last one.
+    let sentBack: { readonly from: string; readonly reason: string } | undefined =
+      failed?.event === "FAIL" && failed.stage !== first.value.state.stage && failed.detail
+        ? { from: failed.stage, reason: failed.detail }
+        : undefined;
     for (; steps < (input.maxSteps ?? 200); steps++) {
       const record = await this.d.repo.load(runId);
       if (record.isErr()) return err(record.error);
@@ -484,9 +187,13 @@ export class DriveRun {
         return err(new MetatorError("INTERNAL", `stage ${record.value.state.stage} is not in the workflow`));
       await say({ type: "stage", stage: stage.id, text: stage.description ?? stage.id });
       if (sentBack?.from === stage.id) sentBack = undefined;
+      const rejectedBy =
+        sentBack && retryFrom !== stage.id
+          ? await this.rejecter(runId, entry.value.spec.stages, sentBack.from)
+          : undefined;
       const why =
         sentBack && retryFrom !== stage.id
-          ? { retry: sentBack.reason, retryFrom: sentBack.from }
+          ? { retry: sentBack.reason, retryFrom: sentBack.from, ...(rejectedBy ? { rejectedBy } : {}) }
           : retry
             ? { retry, ...(retryFrom ? { retryFrom } : {}) }
             : {};
@@ -503,7 +210,7 @@ export class DriveRun {
       const runsIn = cwd;
       const ctx: StageContext = {
         runId,
-        task: record.value.task,
+        task: taskInFull(record.value.task, await this.brief(runId)),
         stage,
         host,
         cwd,
@@ -522,6 +229,7 @@ export class DriveRun {
         children: record.value.children ?? [],
         ...(await this.ports(record.value.worktree?.id)),
         pollMs: input.pollMs ?? 500,
+        gateWaitMs: input.gateWaitMs ?? 5000,
         inputs: record.value.inputs ?? {},
       };
       const outcome = stage.hitl ? await this.humanGate(ctx) : await this.work(ctx);
@@ -595,20 +303,16 @@ export class DriveRun {
 
   /** A HITL stage: the person approves, or rejects with a reason (FAIL). */
   private async humanGate(ctx: StageContext): Promise<Result<Outcome, MetatorError>> {
+    // The question every front asks at a human gate (`GateQuestions`): the one already asked when
+    // the run reached the gate is found again, not asked twice.
+    const publish = await publishQuestion(this.d.fs, ctx.runDir, ctx.stage, ctx.inputs);
     const q = await this.ask(
       ctx.runId,
       {
-        stage: ctx.stage.id,
-        source: "gate",
-        prompt: gateQuestion(ctx.stage, ctx.task, ctx.done.at(-1)),
-        options: [
-          { label: "Approve", description: "Continue with the next stage" },
-          { label: "Reject", description: "Send the run back, with your reason" },
-        ],
-        multiSelect: false,
+        ...gateQuestionOf(ctx.stage, ctx.task, ctx.done.at(-1), publish),
         // The stage before passed its checks: the evidence points to approving. A gate that grants
         // an external action (the push) starts something approving cannot take back.
-        card: await this.card(ctx, {
+        card: await decisionCard(this.d, ctx, {
           ...(ctx.lastEvent === "PASS" ? { recommended: "Approve" } : {}),
           reversible: (ctx.stage.grants ?? []).length === 0,
         }),
@@ -631,7 +335,8 @@ export class DriveRun {
     for (const script of work.scripts) {
       const r = await this.script(ctx, script);
       if (r.isErr()) return err(r.error);
-      if (!r.value.ok) return ok({ type: "FAIL", reason: `\`${script}\` failed: ${r.value.tail}` });
+      if (!r.value.ok)
+        return ok({ type: "FAIL", reason: failedScript(`\`${this.shown(ctx, script)}\` failed`, r.value) });
     }
     for (const agent of work.agents) {
       const r = await this.agent(ctx, agent, work.skills);
@@ -657,9 +362,7 @@ export class DriveRun {
     // way back), CHANGES_REQUIRED is an answer, not a failure.
     if ((ctx.stage.produces ?? []).includes("verdict.json") && ctx.stage.onFail) {
       const file = `${this.d.repo.runDir(ctx.runId)}/verdict.json`;
-      const verdict = (await this.d.fs.read(file))
-        .andThen((text) => parseJsonDocument(text, file))
-        .andThen((raw) => VerdictDocument.parse(raw, file));
+      const verdict = await loadDocument(this.d.fs, file, VerdictDocument, "json");
       if (verdict.isErr()) return ok({ type: "FAIL", reason: verdict.error.message });
       const blocks = verdictBlocks(verdict.value);
       if (blocks) return ok({ type: "FAIL", reason: blocks });
@@ -667,13 +370,13 @@ export class DriveRun {
 
     const gate = ctx.stage.gate;
     if (gate?.script) {
-      const r = await this.script(ctx, gate.script);
+      const r = await this.gateScript(ctx, gate.script);
       if (r.isErr()) return err(r.error);
-      if (!r.value.ok) return ok({ type: "FAIL", reason: `gate \`${gate.script}\`: ${r.value.tail}` });
+      if (r.value.type !== "PASS") return ok(r.value);
       await this.d.journal.record(ctx.runId, {
         type: "gate",
         stage: ctx.stage.id,
-        text: `${gate.script}: pass`,
+        text: `${this.shown(ctx, gate.script)}: pass`,
       });
     }
     if (gate?.llm) {
@@ -684,10 +387,44 @@ export class DriveRun {
     return ok({ type: "PASS" });
   }
 
+  /**
+   * A gate script. MetatorAI's own command may say "not yet" (WAITING): the drive looks again
+   * after a while, saying what it waits on whenever that changes, and spends no loop; the run
+   * reads as working meanwhile. BLOCKED fails the stage for good: the run escalates at once.
+   */
+  private async gateScript(ctx: StageContext, script: string): Promise<Result<Outcome, MetatorError>> {
+    let said: string | undefined;
+    for (let look = 0; ; look++) {
+      const r = await this.script(ctx, script, look > 0);
+      if (r.isErr()) return err(r.error);
+      if (r.value.ok) return ok({ type: "PASS" });
+      const reason = failedScript(`gate \`${this.shown(ctx, script)}\``, r.value);
+      if (r.value.metator && r.value.exitCode === GATE_EXIT.blocked)
+        return ok({ type: "FAIL", reason, final: true });
+      if (!(r.value.metator && r.value.exitCode === GATE_EXIT.waiting)) return ok({ type: "FAIL", reason });
+      if (r.value.tail !== said) {
+        said = r.value.tail;
+        await this.d.journal.record(ctx.runId, { type: "gate", stage: ctx.stage.id, text: r.value.tail });
+      }
+      await this.d.timer.sleep(ctx.gateWaitMs);
+      // Someone moved the run meanwhile (an abort, a person in another terminal): stop waiting.
+      const now = await this.d.repo.load(ctx.runId);
+      if (now.isErr()) return err(now.error);
+      if (now.value.state.stage !== ctx.stage.id || now.value.state.status !== "active") return ok(MOVED);
+    }
+  }
+
+  /** A script as it runs, for what a person reads: its inputs and `{runDir}` filled in. */
+  private shown(ctx: StageContext, script: string): string {
+    const filled = fillInputs(script, ctx.inputs);
+    return (filled.isOk() ? filled.value : script).replaceAll("{runDir}", this.d.repo.runDir(ctx.runId));
+  }
+
   private async script(
     ctx: StageContext,
     script: string,
-  ): Promise<Result<{ ok: boolean; tail: string }, MetatorError>> {
+    quiet = false,
+  ): Promise<Result<{ ok: boolean; tail: string; exitCode: number; metator: boolean }, MetatorError>> {
     // `{runDir}` is repository-relative: the same path in the checkout and in a run's worktree (it
     // links the run directory in), where an absolute path to the checkout would be outside the root.
     const filled = fillInputs(script, ctx.inputs);
@@ -695,18 +432,27 @@ export class DriveRun {
     const words = parseShell(filled.value.replaceAll("{runDir}", this.d.repo.runDir(ctx.runId))).filter(
       (w) => typeof w === "string",
     );
-    if (words[0] === "metator") {
+    const metator = words[0] === "metator";
+    if (metator) {
       words.splice(0, 1, ...parseShell(this.d.metatorCommand).filter((w) => typeof w === "string"));
     }
     if (words.length === 0) return err(MetatorError.usage(`empty script in stage ${ctx.stage.id}`));
-    await this.d.journal.record(ctx.runId, { type: "tool", stage: ctx.stage.id, text: `$ ${script}` });
+    if (!quiet)
+      await this.d.journal.record(ctx.runId, {
+        type: "tool",
+        stage: ctx.stage.id,
+        text: `$ ${this.shown(ctx, script)}`,
+      });
     const r = await this.d.process.run(
       { argv: words, cwd: ctx.cwd, env: { METATOR_RUN: ctx.runId, METATOR_RUN_DIR: ctx.runDir } },
       { timeoutMs: 30 * 60_000 },
     );
+    // A MetatorAI command's failure is its message and hint, never its JSON (a person reads it).
     const tail =
-      failedSteps(r.stdout) ?? `${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-5).join("\n").slice(-800);
-    return ok({ ok: r.exitCode === 0, tail });
+      failedSteps(r.stdout) ??
+      (metator ? envelopeError(r.stdout) : undefined) ??
+      `${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-5).join("\n").slice(-800);
+    return ok({ ok: r.exitCode === 0, tail, exitCode: r.exitCode, metator });
   }
 
   /** One worker: runs until it reports done; a blocked worker asks a person, then continues. */
@@ -734,6 +480,7 @@ export class DriveRun {
         ...(answer ? { answer } : {}),
         ...(ctx.retry ? { retry: ctx.retry } : {}),
         ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+        ...(ctx.rejectedBy ? { rejectedBy: ctx.rejectedBy } : {}),
         ...(ctx.resumed ? { resumed: ctx.resumed } : {}),
         ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
         ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
@@ -751,7 +498,7 @@ export class DriveRun {
       if (status?.kind === "nothing") {
         const decided = await this.nothingToDo(ctx, agent, status.evidence, result.value.text);
         if (decided.isErr()) return err(decided.error);
-        if (decided.value.type === "ABORT" || decided.value.type === "MOVED") return ok(decided.value);
+        if (decided.value.type === "PASS" || decided.value.type === "MOVED") return ok(decided.value);
         if (answers === MAX_ANSWERS)
           return ok({ type: "FAIL", reason: `${agent} found nothing to do after ${MAX_ANSWERS} answers` });
         answer = decided.value.answer;
@@ -769,7 +516,7 @@ export class DriveRun {
           prompt: blockedPrompt(result.value.text, status.question),
           options: [{ label: OTHER, description: "Your answer goes back to the agent" }],
           multiSelect: false,
-          card: await this.card(ctx, { reversible: true }),
+          card: await decisionCard(this.d, ctx, { reversible: true }),
         },
         ctx.since,
       );
@@ -782,8 +529,10 @@ export class DriveRun {
   }
 
   /**
-   * A worker found the task already done (or asking for no change): one decision with two
-   * answers instead of a question in prose. Headless (L2), the run ends with the evidence.
+   * A worker found the task already done (or asking for no change, the work already in the
+   * worktree): one decision with two answers instead of a question in prose. Finishing the stage
+   * passes it, and the gates and tests judge what is there; the run is never ended from here.
+   * Headless (L2), the stage finishes without asking.
    */
   private async nothingToDo(
     ctx: StageContext,
@@ -792,28 +541,34 @@ export class DriveRun {
     text: string,
   ): Promise<
     Result<
-      | { readonly type: "ABORT"; readonly reason: string }
+      | { readonly type: "PASS" }
       | { readonly type: "MOVED" }
       | { readonly type: "GO_ON"; readonly answer: string },
       MetatorError
     >
   > {
-    const reason = `nothing to do: ${evidence}`;
-    if (ctx.autonomy === "L2") return ok({ type: "ABORT", reason });
+    const said = `${agent} found nothing to do: ${evidence}`;
+    if (ctx.autonomy === "L2") {
+      await this.d.journal.record(ctx.runId, { type: "agent", stage: ctx.stage.id, agent, text: said });
+      return ok({ type: "PASS" });
+    }
     const q = await this.ask(
       ctx.runId,
       {
         stage: ctx.stage.id,
         source: "agent",
         agent,
-        prompt: blockedPrompt(text, `${agent} found nothing to do: ${evidence}`),
+        prompt: blockedPrompt(text, said),
         options: [
-          { label: CLOSE_RUN, description: "Nothing changes; the run ends as aborted, with this evidence" },
+          {
+            label: FINISH_STAGE,
+            description: "The stage is done as it is; its gate and tests judge what is there",
+          },
           { label: DO_IT, description: "The agent goes on with the task as written" },
         ],
         multiSelect: false,
-        // The worker's evidence points to closing; a closed run does not come back.
-        card: await this.card(ctx, { recommended: CLOSE_RUN, reversible: false }),
+        // The worker's evidence points to finishing; the gates still check it, so it can be undone.
+        card: await decisionCard(this.d, ctx, { recommended: FINISH_STAGE, reversible: true }),
       },
       ctx.since,
     );
@@ -821,7 +576,7 @@ export class DriveRun {
     const a = await this.d.journal.waitFor(ctx.runId, q.value.id, this.d.timer, ctx.pollMs);
     if (a.isErr()) return err(a.error);
     if (!a.value) return ok({ type: "MOVED" });
-    if (a.value.choices.includes(CLOSE_RUN)) return ok({ type: "ABORT", reason });
+    if (a.value.choices.includes(FINISH_STAGE)) return ok({ type: "PASS" });
     return ok({
       type: "GO_ON",
       answer: a.value.text ?? "A person decided the task is not done yet: do it as written.",
@@ -872,89 +627,6 @@ export class DriveRun {
   /** Tells a person about a question that now waits; a failure is logged by the Notifier, never fatal. */
   private async notify(q: Question): Promise<void> {
     await this.d.notifier?.notify(q);
-  }
-
-  /**
-   * The decision card of a question (P4, D5): the task, the stages passed, the artifacts written so
-   * far, what the caller knows of the recommended option and whether it can be taken back, and
-   * what the record, the activity, the gate reports and the plan scope say besides.
-   */
-  private async card(
-    ctx: StageContext,
-    known: { readonly recommended?: string; readonly reversible: boolean },
-  ): Promise<DecisionCard> {
-    const dir = this.d.repo.runDir(ctx.runId);
-    const files = await this.d.fs.glob([`${dir}/*`]);
-    const artifacts = files.map((f) => f.slice(dir.length + 1)).filter((f) => !isRunBookkeeping(f));
-    const activity = await this.d.journal.activity(ctx.runId);
-    const soFar = activity.isOk() ? sinceLastAnswer(activity.value) : [];
-    const evidence = await this.evidence();
-    const blastRadius = await this.blastRadius(dir);
-    const costOfDelay = await this.costOfDelay(ctx);
-    const group = await this.group(ctx.runId);
-    return {
-      task: ctx.task,
-      done: [...ctx.done],
-      artifacts,
-      ...known,
-      soFar,
-      evidence,
-      consequences: consequencesOf(ctx.stage, ctx.stages, ctx.loops, ctx.loopLimits),
-      ...(blastRadius ? { blastRadius } : {}),
-      costOfDelay,
-      ...(group ? { group } : {}),
-    };
-  }
-
-  /** Each gate report as one line: the gate, whether it passed, every step's outcome. */
-  private async evidence(): Promise<string[]> {
-    const out: string[] = [];
-    for (const file of await this.d.fs.glob([`${this.d.gatesDir ?? ".metator/gates"}/*.json`])) {
-      const text = await this.d.fs.read(file);
-      if (text.isErr()) continue;
-      const report = parseJsonDocument(text.value, file).andThen((raw) =>
-        GateReportDocument.parse(raw, file),
-      );
-      if (report.isErr()) continue;
-      const steps = report.value.steps.map(
-        (s) => `${s.id} ${s.status === "pass" ? "✓" : s.status === "fail" ? "✗" : s.status}`,
-      );
-      out.push(`${report.value.gate}: ${report.value.passed ? "passed" : "failed"} (${steps.join(", ")})`);
-    }
-    return out;
-  }
-
-  /** The plan's files, and the top-level areas (first path segment) they are in. */
-  private async blastRadius(dir: string): Promise<DecisionCard["blastRadius"]> {
-    const file = `${dir}/plan-scope.json`;
-    if (!(await this.d.fs.exists(file))) return undefined;
-    const text = await this.d.fs.read(file);
-    if (text.isErr()) return undefined;
-    const scope = parseJsonDocument(text.value, file).andThen((raw) => PlanScopeDocument.parse(raw, file));
-    if (scope.isErr()) return undefined;
-    const areas = [...new Set(scope.value.edit.map((f) => f.split("/")[0] ?? f))].sort();
-    return { files: scope.value.edit.length, areas };
-  }
-
-  /** What waiting costs: ports the worktree holds, loops used, children waiting on this run. */
-  private async costOfDelay(ctx: StageContext): Promise<string[]> {
-    const out: string[] = [];
-    if (ctx.ports)
-      out.push(`its worktree keeps ports ${ctx.ports.from}–${ctx.ports.from + ctx.ports.count - 1} busy`);
-    // A gate's Reject already says how far its own loop is: the card counts it once (F9).
-    out.push(...loopCosts(ctx.loops, ctx.loopLimits, ctx.stage.hitl ? ctx.stage.onFail?.loop : undefined));
-    if (ctx.children.length > 0) out.push(`${ctx.children.length} child run(s) depend on this run`);
-    return out;
-  }
-
-  /** The feature group: the parent run, and this run's place among its children. */
-  private async group(runId: string): Promise<DecisionCard["group"]> {
-    const record = await this.d.repo.load(runId);
-    if (record.isErr() || !record.value.parent) return undefined;
-    const parent = await this.d.repo.load(record.value.parent);
-    const siblings = parent.isOk() ? (parent.value.children ?? []) : [];
-    const at = siblings.indexOf(runId);
-    return { parent: record.value.parent, step: at >= 0 ? at + 1 : 1, of: Math.max(siblings.length, 1) };
   }
 
   /**
@@ -1063,7 +735,7 @@ export class DriveRun {
             ...(o.description ? { description: o.description } : {}),
           })),
           multiSelect: q.multiSelect,
-          card: await this.card(ctx, { reversible: true }),
+          card: await decisionCard(this.d, ctx, { reversible: true }),
         },
         ctx.since,
       );
@@ -1088,19 +760,36 @@ export class DriveRun {
     let usage: HostUsage | undefined;
     const started = this.d.journal.now().getTime();
     try {
-      for await (const event of ctx.host.run(
-        {
-          agent,
-          prompt,
-          cwd: ctx.cwd,
-          projectRoot: this.d.root,
-          runDir: ctx.runDir,
-          driven: true,
-          ...(approved.length > 0 ? { approved } : {}),
-          ...(resume ? { resume } : {}),
-        },
-        ask,
-      )) {
+      const events = ctx.host
+        .run(
+          {
+            agent,
+            prompt,
+            cwd: ctx.cwd,
+            projectRoot: this.d.root,
+            runDir: ctx.runDir,
+            driven: true,
+            ...(approved.length > 0 ? { approved } : {}),
+            ...(resume ? { resume } : {}),
+          },
+          ask,
+        )
+        [Symbol.asyncIterator]();
+      for (;;) {
+        const read = await this.unlessGone(ctx, events.next());
+        // The repository went away under the agent (a deleted checkout): the agent is stopped
+        // and so is the drive; nothing outlives the directory it works in.
+        if (read === GONE) {
+          void events.return?.(undefined);
+          return err(MetatorError.usage(`the run's directory is gone (${this.d.root}): the drive stops`));
+        }
+        if ("error" in read) {
+          const why = read.error instanceof Error ? read.error.message : String(read.error);
+          return ok({ ok: false, text: `${ctx.host.id} failed: ${why}` });
+        }
+        const next = read.value;
+        if (next.done) break;
+        const event = next.value;
         if (event.type === "session") {
           session = event.id;
           const saved = await this.rememberSession(ctx, event.id);
@@ -1141,6 +830,60 @@ export class DriveRun {
     return ok({ ok: okResult, text: text.trim(), ...(session ? { session } : {}) });
   }
 
+  /**
+   * The next event of an agent, or GONE once the run's directory disappears meanwhile (looked at
+   * every few seconds while the agent works).
+   */
+  private async unlessGone<T>(
+    ctx: StageContext,
+    next: Promise<T>,
+  ): Promise<{ readonly value: T } | { readonly error: unknown } | typeof GONE> {
+    let settled: { readonly value: T } | { readonly error: unknown } | undefined;
+    const done = next.then(
+      (value) => {
+        settled = { value };
+      },
+      (error: unknown) => {
+        settled = { error };
+      },
+    );
+    // A clock of its own, not the timer port: the drive's waits (and a test's instant timer) stay
+    // the drive's; this only looks at the directory while the agent works.
+    const every = this.d.goneWatchMs ?? GONE_WATCH_MS;
+    for (;;) {
+      const tick = after(every);
+      await Promise.race([done, tick.elapsed]);
+      tick.cancel();
+      if (settled) return settled;
+      if (!(await this.d.fs.exists(`${this.d.repo.runDir(ctx.runId)}/state.json`))) return GONE;
+    }
+  }
+
+  /** Who rejected at a human gate: the last answer of its gate question that was not Approve. */
+  private async rejecter(
+    runId: string,
+    stages: readonly StageSpec[],
+    gate: string,
+  ): Promise<string | undefined> {
+    if (!stages.find((s) => s.id === gate)?.hitl) return undefined;
+    const all = await this.d.journal.questions(runId);
+    if (all.isErr()) return undefined;
+    const q = [...all.value]
+      .reverse()
+      .find(
+        (x) => x.stage === gate && x.source === "gate" && x.answer && !x.answer.choices.includes("Approve"),
+      );
+    return q?.answer?.by ?? "a person";
+  }
+
+  /** The run's task.md, when it has one. */
+  private async brief(runId: string): Promise<string | undefined> {
+    const file = `${this.d.repo.runDir(runId)}/task.md`;
+    if (!(await this.d.fs.exists(file))) return undefined;
+    const text = await this.d.fs.read(file);
+    return text.isOk() ? text.value : undefined;
+  }
+
   /** The host session goes into the run, so `run continue` can resume the agent where it was. */
   private async rememberSession(ctx: StageContext, session: string): Promise<Result<void, MetatorError>> {
     // On the record as it is now: an approval a person gives meanwhile is not written over (R5).
@@ -1160,6 +903,8 @@ interface StageContext {
   readonly runDir: string;
   readonly retry?: string;
   readonly retryFrom?: string;
+  /** The person whose Reject at `retryFrom` (a human gate) sent the run back. */
+  readonly rejectedBy?: string;
   /** A person's resume of the escalated run that no agent has answered yet, with their note. */
   readonly resumed?: ResumeNote;
   readonly decisions?: readonly string[];
@@ -1167,6 +912,8 @@ interface StageContext {
   /** When the run last changed: answers given after it are still to be acted on. */
   readonly since: string;
   readonly pollMs: number;
+  /** How long a gate that waits (WAITING) sleeps before it looks again. */
+  readonly gateWaitMs: number;
   /** The run's inputs, for `{name}` in its scripts. */
   readonly inputs: Readonly<Record<string, string>>;
   /** L2 is headless: what a person would decide in one click is decided by the evidence. */
@@ -1184,87 +931,6 @@ interface StageContext {
   readonly ports?: { readonly from: number; readonly count: number };
 }
 
-/** Why a drive cannot use this host here (its program is not installed), with the hosts that can; undefined when it can. */
-export function hostRefusal(
-  host: string,
-  known: readonly string[],
-  problem: ((host: string) => string | undefined) | undefined,
-): MetatorError | undefined {
-  const why = problem?.(host);
-  if (!why) return undefined;
-  const others = known.filter((h) => h !== host && !problem?.(h));
-  return MetatorError.usage(
-    `AI host ${host} cannot start here: ${why}`,
-    others.length > 0
-      ? `Install it, or drive with a host that is here: --host ${others.join(" | ")}.`
-      : "Install it, then drive the run again.",
-  );
-}
-
-/**
- * Why a drive does not start on this run: an escalated run waits for a person's resume, and a
- * drive that "ran" it would report success having done nothing (F1). Undefined for any other run.
- */
-export function notDrivable(record: RunRecord): MetatorError | undefined {
-  if (record.state.status !== "escalated") return undefined;
-  const last = record.state.context.history.at(-1);
-  return MetatorError.usage(
-    `run ${record.runId} escalated${last ? ` at ${last.stage}` : ""}${last?.detail ? `: ${last.detail.slice(0, 300)}` : ""}`,
-    `Remove the cause, then \`metator run resume --run ${record.runId} --by <name> --drive\`; or give it up: \`metator run close --run ${record.runId} --aborted --reason <why>\`.`,
-  );
-}
-
-/** The longest line a decision card carries of what happened; the run's log has the whole text. */
-const CARD_LINE = 240;
-/** A transition's text as one line of a card: its first non-empty line, at most CARD_LINE characters. */
-export function cardLine(text: string): string {
-  const first = (text.split("\n").find((l) => l.trim() !== "") ?? "").trim();
-  return first.length > CARD_LINE ? `${first.slice(0, CARD_LINE - 1)}…` : first;
-}
-
-/** Transitions and tool calls since a person last answered (the whole run before any answer). */
-export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
-  const last = activity.map((a) => a.type).lastIndexOf("answer");
-  const after = activity.slice(last + 1);
-  // One line each, for a card: the first line of a failure's reason, cut where a sentence still reads.
-  const out = after.filter((a) => a.type === "advance").map((a) => `${a.stage ?? "?"} ${cardLine(a.text)}`);
-  const tools = after.filter((a) => a.type === "tool").length;
-  if (tools > 0) out.push(`${tools} tool call(s)`);
-  return out;
-}
-
-/**
- * The loops already used, as costs of waiting on a card: one line each. The loop a gate's own
- * Reject consequence counts (`stated`) is left out, so the card says that number once.
- */
-export function loopCosts(
-  loops: Readonly<Record<string, number>>,
-  limits: Readonly<Record<string, number>>,
-  stated?: string,
-): string[] {
-  return Object.entries(loops)
-    .filter(([loop, used]) => used > 0 && loop !== stated)
-    .map(([loop, used]) => `loop ${loop}: ${used} of ${limits[loop] ?? "?"} used`);
-}
-
-/** What each answer to a gate does, from the workflow: the next stage, or where a FAIL sends the run. */
-export function consequencesOf(
-  stage: StageSpec,
-  stages: readonly StageSpec[],
-  loops: Readonly<Record<string, number>>,
-  limits: Readonly<Record<string, number>>,
-): Record<string, string> {
-  const at = stages.findIndex((s) => s.id === stage.id);
-  const next = stages[at + 1];
-  const out: Record<string, string> = { Approve: next ? `the run goes on to ${next.id}` : "the run is done" };
-  if (stage.onFail) {
-    const used = loops[stage.onFail.loop] ?? 0;
-    const limit = limits[stage.onFail.loop];
-    out.Reject = `back to ${stage.onFail.goto} with your reason (loop ${stage.onFail.loop}: ${used + 1}${limit ? ` of ${limit}` : ""}; past the limit the run escalates)`;
-  } else out.Reject = "the run escalates with your reason: it waits for a person to resume it";
-  return out;
-}
-
 const passedStages = (history: readonly { readonly stage: string; readonly event: string }[]): string[] => [
   ...new Set(history.filter((h) => h.event === "PASS" || h.event === "APPROVE").map((h) => h.stage)),
 ];
@@ -1279,3 +945,12 @@ const lastEventOf = (history: readonly { readonly event: string }[]) => {
   const last = history.at(-1);
   return last ? { lastEvent: last.event } : {};
 };
+
+/** Why a script failed: its last output, or its exit code when it printed nothing (never a bare colon). */
+export function failedScript(
+  what: string,
+  run: { readonly tail: string; readonly exitCode: number },
+): string {
+  const tail = run.tail.trim();
+  return tail ? `${what}: ${tail}` : `${what} with exit code ${run.exitCode}`;
+}

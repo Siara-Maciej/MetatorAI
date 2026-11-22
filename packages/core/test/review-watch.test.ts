@@ -24,8 +24,9 @@ const thread = (id: string, extra: Partial<HostThread> = {}): HostThread => ({
   ...extra,
 });
 
-function world(threads: () => HostThread[] | MetatorError, notifyExit = 0) {
+function world(threads: () => HostThread[] | MetatorError, notifyExit = 0, analyse = true) {
   const fs = new InMemoryFileSystem();
+  const panes: Record<string, unknown>[] = [];
   const started: { workflow: string; task: string; base?: string }[] = [];
   const sent: string[] = [];
   const notified: Record<string, string>[] = [];
@@ -43,6 +44,15 @@ function world(threads: () => HostThread[] | MetatorError, notifyExit = 0) {
       command: "notify-send hi",
     }),
     config: ReviewsConfigSchema.parse({ sources: [{ kind: "github", repo: "acme/shop", author: "maciej" }] }),
+    analyse,
+    panes: {
+      openWorkspace: async (input) => ok({ id: `ws-${input.label}` } as never),
+      openTab: async (_ws, label) => ok(`tab-${label}`),
+      openPane: async (input) => {
+        panes.push(input as unknown as Record<string, unknown>);
+        return ok({ id: "w1:p1" } as never);
+      },
+    },
     fs,
     paths: DEFAULT_PATHS,
     clock: new FixedClock(new Date("2026-11-10T12:00:00.000Z")),
@@ -71,6 +81,7 @@ function world(threads: () => HostThread[] | MetatorError, notifyExit = 0) {
         sent.push(`resolve #${n} ${id}`);
         return ok(undefined);
       },
+      openFromUrl: async () => err(MetatorError.usage("not used")),
     },
     initRun: {
       execute: async (input) => {
@@ -85,7 +96,7 @@ function world(threads: () => HostThread[] | MetatorError, notifyExit = 0) {
     runActive: async (runId) => runId === "run-1" && !done.has(runId),
     runDone: async (runId) => done.has(runId),
   });
-  return { fs, reviews, started, sent, notified, done };
+  return { fs, reviews, started, sent, notified, done, panes };
 }
 
 describe("reviews of my requests (T3, design/14 §4)", () => {
@@ -94,7 +105,13 @@ describe("reviews of my requests (T3, design/14 §4)", () => {
       { kind: "MetatorConfig", schemaVersion: 10 },
       "x",
     )._unsafeUnwrap();
-    expect(v10.reviews).toEqual({ everyMs: 120_000, sources: [], workflow: "mt-review-response" });
+    // v15 (ADR-0097): the sources live in `codehost.sources`.
+    expect(v10.reviews).toEqual({ everyMs: 120_000, workflow: "mt-review-response" });
+    expect(v10.codehost).toEqual({
+      sources: [],
+      review: { autoPublish: false, watch: true, everyMs: 120_000 },
+      mine: { analyse: false },
+    });
     expect(reviewId({ kind: "github", repo: "acme/shop" }, 45)).toBe("github-acme-shop-45");
     const first = mergeThreads(
       [],
@@ -233,5 +250,84 @@ describe("reviews of my requests (T3, design/14 §4)", () => {
     ]);
     // Said once: the next scan has nothing left to mark.
     expect((await w.reviews.scan())._unsafeUnwrap().requests[0]?.fixed).toBeUndefined();
+  });
+
+  test("with mine.analyse off (the default) a new review is kept and carded, never started; Analyse opens the responder", async () => {
+    const w = world(() => [thread("t1"), thread("t2")], 0, false);
+    const report = (await w.reviews.scan())._unsafeUnwrap();
+    expect(report.requests[0]).toMatchObject({ fresh: ["t1", "t2"] });
+    expect(report.requests[0]?.started).toBeUndefined();
+    expect(w.started).toEqual([]);
+    const id = "github-acme-shop-45";
+    const seen = (await w.reviews.overview())._unsafeUnwrap();
+    expect(seen.requests[0]).toMatchObject({ id, fresh: 2 });
+    expect(seen.cards).toEqual([
+      {
+        id: `mine:${id}`,
+        kind: "mine",
+        review: id,
+        number: 45,
+        title: "Cap the discount",
+        url: "https://x/45",
+        prompt: "New review in MR #45 (2 threads)",
+        actions: [{ label: "Analyse", method: "POST", path: `/mrs/${id}/analyse` }],
+      },
+    ]);
+    const opened = (await w.reviews.analyse(id, { by: "maciej" }))._unsafeUnwrap();
+    expect(opened.pane.id).toBe("w1:p1");
+    expect(w.panes[0]).toMatchObject({
+      role: "apps",
+      label: `analyse ${id}`,
+      process: { agent: "mt-review-responder" },
+    });
+    expect(String((w.panes[0]?.process as { prompt?: string } | undefined)?.prompt)).toContain(
+      "Analyse mode.",
+    );
+    // Each thread triaged: nothing is new any more, the card goes.
+    await w.reviews.triage(id, "t1", { kind: "question" });
+    await w.reviews.triage(id, "t2", { kind: "nit" });
+    expect((await w.reviews.overview())._unsafeUnwrap().cards).toEqual([]);
+  });
+
+  test("send covers only the threads named, or all but the skipped; an unknown thread or both lists are refused", async () => {
+    const w = world(() => [thread("t1"), thread("t2"), thread("t3")]);
+    await w.reviews.scan();
+    const id = "github-acme-shop-45";
+    for (const t of ["t1", "t2", "t3"])
+      await w.reviews.triage(id, t, { kind: "question", reply: `About ${t}.` });
+    expect((await w.reviews.send(id, { by: "maciej", only: ["t9"] }))._unsafeUnwrapErr().message).toBe(
+      "no thread t9 in this request",
+    );
+    expect(
+      (await w.reviews.send(id, { by: "maciej", only: ["t1"], skip: ["t2"] }))._unsafeUnwrapErr().code,
+    ).toBe("USAGE");
+    expect(w.sent).toEqual([]);
+    expect((await w.reviews.send(id, { by: "maciej", only: ["t1", "t3"] }))._unsafeUnwrap()).toEqual({
+      sent: ["t1", "t3"],
+      skipped: ["t2"],
+    });
+    expect(w.sent).toEqual(["reply #45 t1: About t1.", "reply #45 t3: About t3."]);
+    expect((await w.reviews.send(id, { by: "maciej", skip: ["t2"] }))._unsafeUnwrap()).toEqual({
+      sent: [],
+      skipped: ["t2"],
+    });
+    expect((await w.reviews.send(id, { by: "maciej" }))._unsafeUnwrap().sent).toEqual(["t2"]);
+  });
+
+  test("Analyse needs the daemon's panes", async () => {
+    const fs = new InMemoryFileSystem();
+    const bare = new MyReviews({
+      config: ReviewsConfigSchema.parse({}),
+      fs,
+      paths: DEFAULT_PATHS,
+      clock: new FixedClock(new Date("2026-11-10T12:00:00.000Z")),
+      host: {} as never,
+      initRun: { execute: async () => err(MetatorError.usage("x")) },
+      runActive: async () => false,
+      runDone: async () => false,
+    });
+    expect((await bare.analyse("github-acme-shop-45"))._unsafeUnwrapErr().message).toContain(
+      "needs the daemon",
+    );
   });
 });

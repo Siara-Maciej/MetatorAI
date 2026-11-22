@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 import { inTerminal } from "./helpers/terminal.ts";
 
@@ -126,6 +126,7 @@ describe("metator ask (real CLI)", () => {
     expect(r.code).toBe(0);
     const id = (r.json.data as Answer).conversation;
     expect(await Bun.file(join(folder, ".metator/conversations", `${id}.json`)).exists()).toBe(true);
+    stopProcessesUnder(folder);
     await rm(folder, { recursive: true, force: true });
   }, 30_000);
 });

@@ -1,21 +1,23 @@
 import {
   type Agent,
   type BasicCapability,
+  claudeDenyRules,
+  DEFAULT_GUARD_COMMANDS,
   err,
   type GeneratedFile,
-  generatedMarker,
+  type GuardCommands,
   HOOK_BINDINGS,
   type HostAgentContext,
   type HostGenerator,
+  hostAgentFile,
   isGuardCommand,
   MetatorError,
   type ModelTier,
   metatorGroups,
   ok,
   type Result,
-  withMetatorCommand,
+  SECRET_GLOBS,
 } from "@metator/core";
-import { stringify } from "yaml";
 
 /** The one place that knows Claude Code's tool names. Changes go here only. */
 export const CLAUDE_TOOLS: Readonly<Record<BasicCapability, readonly string[]>> = {
@@ -35,14 +37,25 @@ export const CLAUDE_MODELS: Readonly<Record<ModelTier, string>> = {
   fast: "haiku",
 };
 
+/** Where Claude Code reads an agent from, repo-relative. The one place that knows. */
+export const claudeAgentFile = (id: string): string => `.claude/agents/${id}.md`;
+
 /** `.claude/agents/<id>.md` (ADR-0030). */
 export class ClaudeGenerator implements HostGenerator {
   readonly host = "claude";
   readonly owns = [".claude/agents/*.md"];
   readonly hooksFile = ".claude/settings.json";
 
-  /** `.claude/settings.json#hooks`; the user's other settings and their own hooks stay. */
-  hooks(metatorCommand: string, existing: string | undefined): Result<GeneratedFile, MetatorError> {
+  /**
+   * `.claude/settings.json#hooks` and `permissions.deny`; the user's other settings, their own
+   * hooks and rules stay. No `sandbox` block is written (ADR-0104): MetatorAI starts the whole
+   * session inside its own sandbox, and a second one nested in it cannot start.
+   */
+  hooks(
+    metatorCommand: string,
+    existing: string | undefined,
+    guard: GuardCommands = DEFAULT_GUARD_COMMANDS,
+  ): Result<GeneratedFile, MetatorError> {
     let settings: Record<string, unknown>;
     try {
       settings = existing === undefined ? {} : (JSON.parse(existing) as Record<string, unknown>);
@@ -60,7 +73,15 @@ export class ClaudeGenerator implements HostGenerator {
       };
       hooks[b.event] = [...theirs, ours];
     }
-    return ok({ path: this.hooksFile, content: `${JSON.stringify({ ...settings, hooks }, null, 2)}\n` });
+    // What cannot be taken back is a deny rule as well (ADR-0100): Claude Code reads those before
+    // any hook, prompt or classifier. The person's rules stay first; ours are added once.
+    const permissions = { ...((settings.permissions as Record<string, unknown> | undefined) ?? {}) };
+    const theirs = Array.isArray(permissions.deny) ? (permissions.deny as unknown[]) : [];
+    const deny = [...theirs, ...denyRules(guard).filter((r) => !theirs.includes(r))];
+    return ok({
+      path: this.hooksFile,
+      content: `${JSON.stringify({ ...settings, permissions: { ...permissions, deny }, hooks }, null, 2)}\n`,
+    });
   }
 
   agent(agent: Agent, body: string, context: HostAgentContext): GeneratedFile {
@@ -81,16 +102,24 @@ export class ClaudeGenerator implements HostGenerator {
       tools: [...tools].join(", "),
       model: context.model ?? CLAUDE_MODELS[agent.tier],
     };
-    return {
-      path: `.claude/agents/${agent.id}.md`,
-      content: `---\n${stringify(front, { lineWidth: 0 }).trimEnd()}\n---\n${generatedMarker(context.source)}\n${prose(body, context)}`,
-    };
+    return hostAgentFile(claudeAgentFile(agent.id), front, body, context);
   }
 }
 
-function prose(body: string, context: HostAgentContext): string {
-  const text = withMetatorCommand(body, context.metatorCommand);
-  return text.startsWith("\n") ? text : `\n${text}`;
+/**
+ * Claude Code deny rules (ADR-0100): the secret files, and the config's `guard.commands.never`,
+ * the same list Copilot CLI is given as `--deny-tool` (a merge asks, ADR-0094, so it is none of
+ * them). A path without a slash matches at any depth; a `!` rule carves its files out of the rules
+ * before it, so the examples follow the patterns they belong to.
+ */
+function denyRules(guard: GuardCommands): string[] {
+  const name = (glob: string) => glob.replace(/^(!?)\*\*\//, "$1");
+  const secrets = SECRET_GLOBS.filter((g) => !g.startsWith("!"));
+  const examples = SECRET_GLOBS.filter((g) => g.startsWith("!"));
+  return [
+    ...[...secrets, ...examples].map((g) => `Read(${name(g)})`),
+    ...claudeDenyRules(guard, { headless: false }),
+  ];
 }
 
 interface Group {

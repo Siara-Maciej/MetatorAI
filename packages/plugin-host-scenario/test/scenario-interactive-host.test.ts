@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { AgentScenario } from "@metator/core";
 import { NodePtyTerminal } from "@metator/plugin-node";
 import { FakeTerminal, interactiveHostContract, outputUntil } from "@metator/testing";
+import { scenarioHost } from "../src/scenario-host.ts";
 import { ScenarioInteractiveHost } from "../src/scenario-interactive-host.ts";
 
 const scenario: AgentScenario = {
@@ -62,6 +63,63 @@ describe("ScenarioInteractiveHost", () => {
     await rm(cwd, { recursive: true, force: true });
   }, 30_000);
 
+  test("a session resumed by another process (a new host) plays the entry after the one its id names", async () => {
+    const terminal = new FakeTerminal();
+    const host = new ScenarioInteractiveHost(terminal, scenario);
+    const again = (
+      await host.resume("scenario-session-1", task(tmpdir()), { cols: 80, rows: 24 })
+    )._unsafeUnwrap();
+    expect(again.sessionId).toBe("scenario-session-2");
+    expect(terminal.spawned[0]?.argv[2]).toContain("Resumed");
+  });
+
+  test("a run step runs its command in the session's directory, with the session's environment (its pane, its run)", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "metator-scenario-pty-"));
+    const host = new ScenarioInteractiveHost(new NodePtyTerminal(), {
+      agents: {
+        "mt-orchestrator": [
+          [
+            { run: 'printf "%s %s" "$METATOR_PANE_ID" "$METATOR_RUN" > ran.txt' },
+            { say: "after the command" },
+            { run: "exit 4" },
+            { say: "never said" },
+          ],
+        ],
+      },
+    });
+    const session = (
+      await host.start(
+        { ...task(cwd), agent: "mt-orchestrator", env: { METATOR_PANE_ID: "w1:p1" } },
+        { cols: 80, rows: 24 },
+      )
+    )._unsafeUnwrap();
+    const out = await outputUntil(session.pty, "exited 4");
+    expect(out).toContain("$ exit 4");
+    expect(out).not.toContain("never said");
+    expect(await Bun.file(join(cwd, "ran.txt")).text()).toBe("w1:p1 r");
+    await rm(cwd, { recursive: true, force: true });
+  }, 30_000);
+
+  test("the conductors of two runs each start at their agent's first entry; a resumed one plays its next", async () => {
+    const terminal = new FakeTerminal();
+    const host = new ScenarioInteractiveHost(terminal, {
+      agents: { "mt-orchestrator": [[{ say: "first conducting" }], [{ say: "conductor resumed" }]] },
+    });
+    const size = { cols: 80, rows: 24 };
+    const conductor = (runDir: string) => ({ ...task(tmpdir()), agent: "mt-orchestrator", runDir });
+    const task1 = (await host.start(conductor("/repo/.metator/runs/r1"), size))._unsafeUnwrap();
+    // Another run's conductor in the same daemon is a new session of its own run, not a second start.
+    const child = (await host.start(conductor("/repo/.metator/runs/r2"), size))._unsafeUnwrap();
+    expect(terminal.spawned.map((s) => s.argv[2]?.includes("first conducting"))).toEqual([true, true]);
+    // Resumed (the daemon stopped and came back): the entry after the one it played.
+    await host.resume(child.sessionId, conductor("/repo/.metator/runs/r2"), size);
+    expect(terminal.spawned[2]?.argv[2]).toContain("conductor resumed");
+    expect([task1.sessionId, child.sessionId]).toEqual([
+      "scenario-mt-orchestrator-1",
+      "scenario-mt-orchestrator-1",
+    ]);
+  });
+
   test("a scenario without a session entry cannot start", async () => {
     const host = new ScenarioInteractiveHost(new NodePtyTerminal(), { agents: {} });
     const r = await host.start(task(tmpdir()), { cols: 80, rows: 24 });
@@ -84,5 +142,24 @@ describe("ScenarioInteractiveHost", () => {
       "scenario-mt-implementer-1",
       expect.stringContaining("Planning the change"),
     ]);
+  });
+});
+
+describe("scenarioHost", () => {
+  test("the descriptor: both hosts play the scenario given, and there is no program to install", async () => {
+    const host = scenarioHost(scenario);
+    expect([host.id, host.program, host.files, host.agent?.runsProgram]).toEqual([
+      "scenario",
+      undefined,
+      undefined,
+      false,
+    ]);
+    expect(host.agent?.host(undefined).id).toBe("scenario");
+    const terminal = new FakeTerminal();
+    const session = (
+      await host.interactive?.(terminal, undefined).start(task(tmpdir()), { cols: 80, rows: 24 })
+    )?._unsafeUnwrap();
+    expect(session?.sessionId).toBe("scenario-session-1");
+    expect(terminal.spawned[0]?.argv[2]).toContain("Planning the change");
   });
 });

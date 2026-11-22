@@ -2,4 +2,5 @@ id: mt-pattern-interactive-host
 valid:
   - "class Helper { run() {} }"
 invalid:
+  - "export class ZedInteractiveHost extends PtyInteractiveHost { constructor(t: Terminal) { super(t, spec); } }"
   - "export class ZedInteractiveHost implements InteractiveHost { readonly id = 'zed'; }"

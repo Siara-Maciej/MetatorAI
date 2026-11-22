@@ -11,9 +11,9 @@ import {
   SkillDocument,
   TRIGGER,
 } from "../domain/skill.ts";
-import { readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, GeneratedFile, ReadonlyFileSystem, SkillGenerator } from "../ports/index.ts";
 import type { GenerateReport } from "./agents.ts";
+import { scanDocuments } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 
 export interface SkillEntry {
@@ -35,21 +35,21 @@ export class SkillCatalog {
     readonly skills: readonly SkillEntry[];
     readonly problems: readonly { readonly source: string; readonly error: MetatorError }[];
   }> {
-    const skills: SkillEntry[] = [];
-    const problems: { source: string; error: MetatorError }[] = [];
-    for (const source of [...(await this.fs.glob([`${this.paths.skills}/*/SKILL.md`]))].sort()) {
-      const text = await this.fs.read(source);
-      if (text.isErr()) continue;
-      const skill = readFrontMatter(text.value, source).andThen((raw) => SkillDocument.parse(raw, source));
-      if (skill.isErr()) problems.push({ source, error: skill.error });
-      else
-        skills.push({
-          skill: skill.value,
-          body: text.value.replace(/^---\n[\s\S]*?\n---\n/, ""),
-          source,
-          dir: source.slice(0, -"/SKILL.md".length),
-        });
-    }
+    // A file that cannot be read is left out, not reported: only what was read can be wrong.
+    const { entries, problems } = await scanDocuments(
+      this.fs,
+      [`${this.paths.skills}/*/SKILL.md`],
+      SkillDocument,
+      { format: "front-matter", unreadable: "skip" },
+    );
+    const skills = entries.map(
+      ({ value, source, text }): SkillEntry => ({
+        skill: value,
+        body: text.replace(/^---\n[\s\S]*?\n---\n/, ""),
+        source,
+        dir: source.slice(0, -"/SKILL.md".length),
+      }),
+    );
     return { skills, problems };
   }
 }

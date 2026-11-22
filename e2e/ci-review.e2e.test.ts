@@ -60,9 +60,13 @@ describe("mt-pr-review in CI (L2) may post its comments; with a person (L0) it a
       "approved comment · by autonomy L2 (granted by approval)",
     );
     expect((await hook(["guard", "pre-tool"], POST, repo.root, { METATOR_RUN: runId })).json).toBeNull();
-    // A push is never granted by a level.
+    // A push is never granted by a level: in CI the session is driven and nobody can be asked.
     const push = { tool_name: "Bash", tool_input: { command: "git push origin HEAD" } };
-    expect(decision(await hook(["guard", "pre-tool"], push, repo.root, { METATOR_RUN: runId }))).toBe("deny");
+    expect(
+      decision(
+        await hook(["guard", "pre-tool"], push, repo.root, { METATOR_RUN: runId, METATOR_DRIVEN: "1" }),
+      ),
+    ).toBe("deny");
   }, 60_000);
 
   test("L0: the run waits at the gate and the post is denied until the gate is approved", async () => {

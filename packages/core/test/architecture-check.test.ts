@@ -7,13 +7,7 @@ import {
   InitArchitecturePolicy,
   RecordArchitectureBaseline,
 } from "../src/application/architecture.ts";
-import {
-  type ArchitectureInput,
-  type ArchitectureReport,
-  analyzeArchitecture,
-  manifestOf,
-  type Violation,
-} from "../src/domain/architecture.ts";
+import { analyzeArchitecture } from "../src/domain/architecture.ts";
 import {
   architectureSarif,
   baselineOf,
@@ -23,7 +17,10 @@ import {
   rulesFromTurbo,
   tightenBaseline,
 } from "../src/domain/architecture-check.ts";
+import type { ArchitectureInput } from "../src/domain/architecture-context.ts";
+import { manifestOf } from "../src/domain/architecture-manifests.ts";
 import { ArchitecturePolicySchema, EMPTY_POLICY } from "../src/domain/architecture-policy.ts";
+import type { ArchitectureReport, Violation } from "../src/domain/architecture-report.ts";
 import { MetatorError } from "../src/domain/errors.ts";
 import { resolveAmong } from "../src/domain/import-index.ts";
 import { err, ok } from "../src/domain/result.ts";

@@ -2,75 +2,50 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   type AgentTask,
-  err,
-  type InteractiveHost,
-  type InteractiveSession,
-  type MetatorError,
+  claudeDenyRules,
+  DEFAULT_GUARD_COMMANDS,
+  type GuardCommands,
   ok,
-  type PtySize,
-  type Result,
+  PtyInteractiveHost,
   sessionEnv,
   type Terminal,
 } from "@metator/core";
+import { claudeAgentFile } from "./claude-generator.ts";
 
 /**
  * InteractiveHost on Claude Code (D6, ADR-0077): `claude <task> --session-id <uuid>` in a PTY in
  * the run's worktree, with the run directory added and the run's agent when the repository has
- * it; `claude --resume <uuid>` continues. The project's hooks (`.claude/settings.json`) write
+ * it, and the config's never-commands denied at the process level; `claude --resume <uuid>` continues. The project's hooks (`.claude/settings.json`) write
  * the run's activity; the end of the session is the process exit.
  */
-export class ClaudeInteractiveHost implements InteractiveHost {
-  readonly id = "claude";
-
+export class ClaudeInteractiveHost extends PtyInteractiveHost {
   constructor(
-    private readonly terminal: Terminal,
-    private readonly bin: string = "claude",
-    private readonly env: Readonly<Record<string, string | undefined>> = process.env,
-    private readonly newId: () => string = () => crypto.randomUUID(),
-  ) {}
-
-  /** The session's command line and id; with `resume`, the one that continues that session. */
-  private async launch(
-    task: AgentTask,
-    resume?: string,
-  ): Promise<Result<{ argv: string[]; sessionId: string }, MetatorError>> {
-    const sessionId = resume ?? this.newId();
-    const mode = resume === undefined ? [task.prompt, "--session-id", sessionId] : ["--resume", resume];
-    return ok({ argv: claudeArgv(this.bin, task, mode), sessionId });
-  }
-
-  async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size);
-  }
-
-  async resume(
-    sessionId: string,
-    task: AgentTask,
-    size: PtySize,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size, sessionId);
-  }
-
-  private async spawn(
-    task: AgentTask,
-    size: PtySize,
-    resume?: string,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
-    const launch = await this.launch(task, resume);
-    if (launch.isErr()) return err(launch.error);
-    const spawned = this.terminal.spawn(launch.value.argv, {
-      cwd: task.cwd,
-      env: sessionEnv(task, this.env),
-      size,
+    terminal: Terminal,
+    bin = "claude",
+    env: Readonly<Record<string, string | undefined>> = process.env,
+    newId: () => string = () => crypto.randomUUID(),
+    guard: GuardCommands = DEFAULT_GUARD_COMMANDS,
+  ) {
+    super(terminal, {
+      id: "claude",
+      env: (task) => sessionEnv(task, env),
+      launch: async (task, resume) => {
+        const sessionId = resume ?? newId();
+        const mode = resume === undefined ? [task.prompt, "--session-id", sessionId] : ["--resume", resume];
+        return ok({ argv: claudeArgv(bin, task, mode, guard), sessionId });
+      },
     });
-    if (spawned.isErr()) return err(spawned.error);
-    return ok({ sessionId: launch.value.sessionId, pty: spawned.value });
   }
 }
 
 /** The Claude Code command line of a session: the mode (start or resume) first, then the run's context. */
-export function claudeArgv(bin: string, task: AgentTask, mode: readonly string[]): string[] {
-  const agentFile = join(task.projectRoot, ".claude", "agents", `${task.agent}.md`);
+export function claudeArgv(
+  bin: string,
+  task: AgentTask,
+  mode: readonly string[],
+  guard: GuardCommands = DEFAULT_GUARD_COMMANDS,
+): string[] {
+  const agentFile = join(task.projectRoot, claudeAgentFile(task.agent));
   return [
     bin,
     ...mode,
@@ -78,5 +53,8 @@ export function claudeArgv(bin: string, task: AgentTask, mode: readonly string[]
     ...[task.runDir, ...(task.dirs ?? [])].flatMap((d) => ["--add-dir", d]),
     "--permission-mode",
     "default",
+    // What never runs (guard.commands.never) is denied by the process too, the same list Copilot
+    // CLI gets as --deny-tool (ADR-0100); the generated settings say it for a session started by hand.
+    ...claudeDenyRules(guard, { headless: false }).flatMap((r) => ["--disallowedTools", r]),
   ];
 }

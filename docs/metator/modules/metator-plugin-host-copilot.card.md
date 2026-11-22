@@ -14,25 +14,26 @@ dir: packages/plugin-host-copilot
 - Test-only dependencies: `@metator/plugin-node`, `@metator/testing`
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-host-copilot/src/index.ts`
-- Third-party: `yaml`
+- Third-party: none
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility
 
-`HostGenerator` for GitHub Copilot: writes `.github/agents/<id>.agent.md` from canonical agents (ADR-0030). `CopilotAgentHost` runs a canonical agent in Copilot CLI's prompt mode for `run drive`, with git push denied at the process level (ADR-0051). `CopilotInteractiveHost` opens `copilot -i <task>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077).
+`HostGenerator` for GitHub Copilot: writes `.github/agents/<id>.agent.md` from canonical agents (ADR-0030). `CopilotAgentHost` runs a canonical agent in Copilot CLI's prompt mode for `run drive`, with git push denied at the process level (ADR-0051). `CopilotInteractiveHost` opens `copilot -i <task>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077). `copilotHost` is the descriptor the composition root reads: the program and its variable, the factories, where an agent file goes (`copilotAgentFile`, the one place that knows) and what Copilot CLI needs inside the sandbox (`api.githubcopilot.com`, `*.githubcopilot.com`, `github.com`, `api.github.com`, `~/.copilot`; ADR-0104). `CopilotAgentHost` starts `copilot -p` through its launch.
 
 ## Invariants
 
-- Workers stay out of the user's agent picker [[cite: packages/plugin-host-copilot/src/copilot-generator.ts:58 | "\"user-invocable\": userInvocable(agent),"]].
+- Workers stay out of the user's agent picker [[cite: packages/plugin-host-copilot/src/copilot-generator.ts:59 | "\"user-invocable\": userInvocable(agent),"]].
 - Copilot tool names live in one table, pinned by a snapshot test.
 
 ## Allowed dependencies
 
-`@metator/core` and `yaml` only.
+`@metator/core` only.
 
 ## Pitfalls
 
 - Copilot cannot narrow `execute` to commands, so the allowed `metator` groups are written into the prompt; do not drop that note.
+- The dangerous commands come from the repository's `guard.commands` (ADR-0094), never from a list here: the CLI is started with `--deny-tool shell(<command>)` for each `never` pattern (`denyToolsOf`), and in prompt mode (no person to ask) for the `ask` commands that push as well. Whether an `ask` command runs is the hook's answer (`ask`) and Copilot's own approval prompt, as on Claude Code. With `guard.prompts: metator` an interactive session also gets `--allow-tool` for each entry of `allowToolsOf` (MetatorAI's commands that hold none of the person's, the repository's check scripts); reads and edits are not on it.
 - Unknown front matter keys make VS Code warn: the version marker is an HTML comment, not a front matter field.

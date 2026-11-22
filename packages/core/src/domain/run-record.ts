@@ -17,16 +17,26 @@ const HistorySchema = z
   })
   .strict();
 
-export const RunStateSchema = z
+const ContextSchema = z
+  .object({ loops: z.record(z.string(), z.number().int().min(0)), history: z.array(HistorySchema) })
+  .strict();
+
+/** The state of v1–v8 records. Never change it (MT-CODE-003). */
+const RunStateV1Schema = z
   .object({
     workflow: z.string(),
     stage: z.string(),
     status: z.enum(["active", "done", "escalated", "aborted"]),
-    context: z
-      .object({ loops: z.record(z.string(), z.number().int().min(0)), history: z.array(HistorySchema) })
-      .strict(),
+    context: ContextSchema,
   })
   .strict();
+
+/**
+ * The run's state (v9): `planned` is a run started `--until plan` whose plan was approved
+ * (ADR-0096). It is finished, not escalated: the plan waits in the Backlog for "Implement".
+ */
+export const RUN_STATUSES = ["active", "done", "escalated", "aborted", "planned"] as const;
+export const RunStateSchema = RunStateV1Schema.extend({ status: z.enum(RUN_STATUSES) }).strict();
 
 /** JSON-serializable run state produced by RunStateMachine. Types derive from the schema (DRY). */
 export type RunState = z.infer<typeof RunStateSchema>;
@@ -48,7 +58,7 @@ const RunRecordV1Schema = z
     autonomy: AutonomySchema,
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
-    state: RunStateSchema,
+    state: RunStateV1Schema,
   })
   .strict();
 type RunRecordV1 = z.infer<typeof RunRecordV1Schema>;
@@ -147,8 +157,23 @@ export type RunResume = z.infer<typeof RunResumeSchema>;
  * v8 adds, optionally, the run's resumes: a person may send an escalated run back to an earlier
  * stage with a note, and the first agent that works after it reads the note. Never change v1–v7.
  */
-export const RunRecordSchema = RunRecordV7Schema.extend({
+const RunRecordV8Schema = RunRecordV7Schema.extend({
   resumes: z.array(RunResumeSchema).optional(),
+}).strict();
+
+/** Where a run's plan comes from (ADR-0096): its start stage, `build` or the plan's `review`. */
+export const PLAN_FROM_STAGES = ["build", "review"] as const;
+export type PlanFromStage = (typeof PLAN_FROM_STAGES)[number];
+
+/**
+ * v9 (ADR-0096) adds the status `planned` and, optionally, `until: "plan"` (the run stops once its
+ * plan is approved) and `planFrom` (the run took the approved plan of an earlier run and started
+ * at `build`, or at the plan's review when that plan was stale). Never change v1–v8.
+ */
+export const RunRecordSchema = RunRecordV8Schema.extend({
+  state: RunStateSchema,
+  until: z.literal("plan").optional(),
+  planFrom: z.strictObject({ run: z.string().regex(RUN_ID), from: z.enum(PLAN_FROM_STAGES) }).optional(),
 }).strict();
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
@@ -177,9 +202,11 @@ export const RunRecordDocument = defineDocument("RunRecord", {
     { schema: RunRecordV6Schema, fromPrevious: (previous) => previous },
     // `options` is optional: a v6 record is a v7 record with no overrides.
     { schema: RunRecordV7Schema, fromPrevious: (previous) => previous },
+    // `resumes` is optional: a v7 record is a v8 record nobody resumed.
+    { schema: RunRecordV8Schema, fromPrevious: (previous) => previous },
   ],
   latest: RunRecordSchema,
-  // `resumes` is optional: a v7 record is a v8 record nobody resumed.
+  // A v8 status is a v9 status; `until` and `planFrom` are optional: a v8 record is a v9 run of the whole workflow.
   upgrade: (previous) => previous,
   hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });

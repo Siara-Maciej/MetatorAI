@@ -62,6 +62,50 @@ describe("RunRecord v5", () => {
   });
 });
 
+describe("RunRecord v9 (ADR-0096)", () => {
+  test("a v8 record reads as v9 unchanged; v9 adds planned, until and planFrom", async () => {
+    const { RunRecordDocument } = await import("../src/domain/run-record.ts");
+    const base = {
+      runId: "20261122-mt-feature-round",
+      workflow: { id: "mt-feature", revision: 4, source: "x.yml" },
+      task: "Round prices",
+      autonomy: "L0",
+      createdAt: "2026-11-22T09:00:00.000Z",
+      updatedAt: "2026-11-22T09:00:00.000Z",
+      approvals: {},
+    };
+    const active = {
+      workflow: "mt-feature",
+      stage: "build",
+      status: "active",
+      context: { loops: {}, history: [] },
+    };
+    const v8 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 8, ...base, state: active }, "s");
+    expect([v8._unsafeUnwrap().until, v8._unsafeUnwrap().planFrom]).toEqual([undefined, undefined]);
+    // `planned` is no v8 status: a v8 file that says so is refused.
+    const planned = { ...active, stage: "planned", status: "planned" };
+    expect(
+      RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 8, ...base, state: planned }, "s").isErr(),
+    ).toBe(true);
+    const v9 = RunRecordDocument.parse(
+      { kind: "RunRecord", schemaVersion: 9, ...base, state: planned, until: "plan" },
+      "s",
+    )._unsafeUnwrap();
+    expect([v9.state.status, v9.until]).toEqual(["planned", "plan"]);
+    const from = RunRecordDocument.parse(
+      {
+        kind: "RunRecord",
+        schemaVersion: 9,
+        ...base,
+        state: active,
+        planFrom: { run: "20261121-mt-feature-x", from: "review" },
+      },
+      "s",
+    )._unsafeUnwrap();
+    expect(from.planFrom).toEqual({ run: "20261121-mt-feature-x", from: "review" });
+  });
+});
+
 describe("RunRecord v8: resumes", () => {
   const v7 = {
     kind: "RunRecord",
@@ -92,7 +136,7 @@ describe("RunRecord v8: resumes", () => {
   test("a v7 record reads as a v8 record nobody resumed; a resume names who, where and when", () => {
     const old = RunRecordDocument.parse(v7, "state.json")._unsafeUnwrap();
     expect([RunRecordDocument.current, old.resumes, old.options]).toEqual([
-      8,
+      9,
       undefined,
       { "supervisor.wipLimit": 1 },
     ]);

@@ -28,8 +28,8 @@ The ports are in `packages/core/src/ports/index.ts`. A port has at most five mem
 | Plugin | Ports it implements |
 |---|---|
 | `plugin-bun` | `FileSystem`, `ProcessRunner`, `BinResolver`, `MachineState`, `TreeCopier`, `DataIsolator`, `Sandbox`, `Launcher`, `Timer`, and a `RuleEngine` for conformance tests |
-| `plugin-git` | `Vcs`, `RevisionReader`, `WorktreeManager`, `BranchHistory`, `BranchPublication`, `ChangeHistory`, `ChangePatch`, `RepositoryCloner` |
-| `plugin-node` | `WorkspaceReader`, `PackageManagerDetector`, `PackageManager`, `ManifestReader`, `CoverageReader`, `Terminal`, `PortProbe`, `HealthProbe`, `ToolBoundariesReader` |
+| `plugin-git` | `Vcs`, `RevisionReader`, `WorkingTree`, `WorktreeManager`, `BranchHistory`, `BranchPublication`, `ChangeHistory`, `ChangePatch`, `RepositoryCloner` |
+| `plugin-node` | `WorkspaceReader`, `PackageManagerDetector`, `PackageManager`, `ManifestReader`, `CoverageReader`, `Terminal`, `PortProbe`, `HealthProbe`, `ToolBoundariesReader`, `ScreenRenderer`, `ContentHasher`, `HostSandbox` (the sandbox host sessions start in) |
 | `plugin-typescript` | `ImportAnalyzer`, `SymbolAnalyzer`, `DeclarationEmitter`, and a `RuleEngine` for `tsc` |
 | `plugin-astgrep` | `RuleEngine`, `RuleScaffolder` |
 | `plugin-biome` | `RuleEngine` |
@@ -57,7 +57,7 @@ Every method returns a `Result`. An adapter returns a tool's failure as a `Metat
 
 ## Contract suites
 
-A contract suite is one set of tests that every adapter of a port must pass, the in-memory fake included. The suites are in `packages/testing/src/contracts`: file system, process runner, worktree manager, machine state, tree copier, data isolator, agent host, interactive host, code host, review host and contract differ.
+A contract suite is one set of tests that every adapter of a port must pass, the in-memory fake included. The suites are in `packages/testing/src/contracts`: file system, file lock, process runner, worktree manager, machine state, tree copier, data isolator, version control, rule engine, agent host, interactive host, host generator, skill generator, code host, review host and contract differ.
 
 ```ts
 // packages/plugin-bun/test/bun-process-runner.test.ts
@@ -80,4 +80,4 @@ Rule `MT-TEST-002` fails CI when an adapter does not run the suite of its port.
 
 ## Contract kinds
 
-The contracts in a [system map](../repo/systems.md) work the same way. A plugin registers a kind with a detector and a compatibility check. `plugin-openapi` provides `openapi`. Another kind is another plugin, with no change to the map's schema.
+The contracts in a [system map](../many/systems.md) work the same way. A plugin registers a kind with a detector and a compatibility check. `plugin-openapi` provides `openapi`. Another kind is another plugin, with no change to the map's schema.

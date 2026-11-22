@@ -1,15 +1,18 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
+  type BinResolver,
   type Diagnostic,
   type EngineRule,
   err,
   MetatorError,
   normalizePath,
   ok,
+  type ProcessResult,
   type ProcessRunner,
   type Result,
   type RuleEngine,
+  runTool,
 } from "@metator/core";
 
 /** Options `strict` turns on unless they are set to false explicitly. */
@@ -58,6 +61,7 @@ export class TscEngine implements RuleEngine {
   constructor(
     private readonly runner: ProcessRunner,
     private readonly root: string,
+    private readonly bins: BinResolver,
     private readonly project = "tsconfig.json",
   ) {}
 
@@ -115,21 +119,12 @@ export class TscEngine implements RuleEngine {
     return ok(files ? diagnostics.filter((d) => files.includes(d.file)) : diagnostics);
   }
 
-  private async tsc(
-    args: string[],
-  ): Promise<Result<{ stdout: string; stderr: string; exitCode: number }, MetatorError>> {
-    const local = join(this.root, "node_modules", ".bin", "tsc");
-    const r = await this.runner.run(
-      { argv: [existsSync(local) ? local : "tsc", ...args], cwd: this.root },
-      { timeoutMs: 300_000 },
-    );
-    if (r.exitCode === 127) {
-      return err(
-        new MetatorError("BIN_NOT_FOUND", "tsc is not installed", {
-          hint: "Install TypeScript with `bun add -d typescript` (or npm/pnpm/yarn).",
-        }),
-      );
-    }
-    return ok(r);
+  private tsc(args: string[]): Promise<Result<ProcessResult, MetatorError>> {
+    return runTool(this.runner, this.bins, {
+      bin: "tsc",
+      args,
+      hint: "Install TypeScript with `bun add -d typescript` (or npm/pnpm/yarn).",
+      timeoutMs: 300_000,
+    });
   }
 }

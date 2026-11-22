@@ -1,4 +1,4 @@
-import type { Question, RunActivity } from "./drive.ts";
+import type { Question, RunActivity, RunStop } from "./drive.ts";
 
 /** One decision waiting for a person, with what it costs to leave it (P4). */
 export interface InboxItem {
@@ -52,6 +52,10 @@ export interface EscalatedItem {
   readonly waitedMs: number;
   /** The two ways out, as commands. */
   readonly next: readonly string[];
+  /** How often it tried the stage, of how often it could ("tried 1 of 13 times"). */
+  readonly attempts?: { readonly tried: number; readonly of: number };
+  /** Why it stopped, as one sentence: a person's Reject, spent tries, or where it stopped. */
+  readonly stop?: RunStop;
 }
 
 /** The two ways out of an escalated run, as the commands a person runs. */
@@ -69,6 +73,8 @@ export function escalatedOf(
     readonly stage: string;
     readonly reason?: string;
     readonly updatedAt: string;
+    readonly attempts?: { readonly tried: number; readonly of: number };
+    readonly stop?: RunStop;
   }[],
   now: Date,
 ): EscalatedItem[] {
@@ -81,6 +87,8 @@ export function escalatedOf(
       ...(r.reason ? { reason: r.reason } : {}),
       waitedMs: Math.max(0, now.getTime() - new Date(r.updatedAt).getTime()),
       next: escalatedNext(r.runId),
+      ...(r.attempts ? { attempts: r.attempts } : {}),
+      ...(r.stop ? { stop: r.stop } : {}),
     }))
     .sort((a, b) => b.waitedMs - a.waitedMs || a.runId.localeCompare(b.runId));
 }

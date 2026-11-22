@@ -1,6 +1,6 @@
-import { MetatorError } from "../domain/errors.ts";
+import type { MetatorError } from "../domain/errors.ts";
 import { planId } from "../domain/ids.ts";
-import { err, ok, type Result } from "../domain/result.ts";
+import { err, type Result } from "../domain/result.ts";
 import {
   failedSystemCase,
   type SystemCaseScore,
@@ -9,8 +9,8 @@ import {
   scoreSystemCase,
   summarizeSystemEval,
 } from "../domain/system-eval.ts";
-import { parseYamlDocument } from "../domain/versioned.ts";
 import type { FileSystem, Sandbox } from "../ports/index.ts";
+import { loadGoldenCases, runGoldenCases } from "./golden-cases.ts";
 import type { CreateSystemPlan, LintSystemPlan, ProposeSystemPlan, SystemPlanStore } from "./system-plans.ts";
 
 /** The system tools of one sandbox repository, built for its root (the CLI makes a container there). */
@@ -35,18 +35,8 @@ export class RunSystemEvals {
     private readonly extraFiles: () => Promise<Readonly<Record<string, string>>> = async () => ({}),
   ) {}
 
-  async cases(): Promise<Result<readonly SystemEvalCase[], MetatorError>> {
-    const out: SystemEvalCase[] = [];
-    for (const file of await this.fs.glob([`${this.dir}/*.yml`])) {
-      const text = await this.fs.read(file);
-      if (text.isErr()) return err(text.error);
-      const parsed = parseYamlDocument(text.value, file).andThen((raw) =>
-        SystemEvalCaseDocument.parse(raw, file),
-      );
-      if (parsed.isErr()) return err(parsed.error);
-      out.push(parsed.value);
-    }
-    return ok(out.sort((a, b) => a.id.localeCompare(b.id)));
+  cases(): Promise<Result<readonly SystemEvalCase[], MetatorError>> {
+    return loadGoldenCases(this.fs, this.dir, SystemEvalCaseDocument);
   }
 
   async execute(input: {
@@ -65,25 +55,17 @@ export class RunSystemEvals {
   > {
     const cases = await this.cases();
     if (cases.isErr()) return err(cases.error);
-    const selected = cases.value.filter((c) => !input.only || c.id === input.only);
-    if (selected.length === 0)
-      return err(
-        MetatorError.notFound(
-          input.only ? `system eval case ${input.only}` : `system eval cases in ${this.dir}`,
-        ),
-      );
-    const extra = input.host ? await this.extraFiles() : {};
-    const scores: SystemCaseScore[] = [];
-    for (const c of selected) {
-      const box = await this.sandbox.create({ ...extra, ...c.files });
-      if (box.isErr()) return err(box.error);
-      try {
-        scores.push(await this.scoreCase(c, box.value.root, input));
-      } finally {
-        await box.value.dispose();
-      }
-    }
-    return ok({ summary: summarizeSystemEval(scores), cases: scores });
+    const scores = await runGoldenCases({
+      cases: cases.value,
+      ...(input.only ? { only: input.only } : {}),
+      noun: "system eval",
+      dir: this.dir,
+      sandbox: this.sandbox,
+      // The agents' host definitions are needed only when a host refines the plan.
+      extra: input.host ? this.extraFiles : async () => ({}),
+      score: (c, root) => this.scoreCase(c, root, input),
+    });
+    return scores.map((s) => ({ summary: summarizeSystemEval(s), cases: s }));
   }
 
   private async scoreCase(

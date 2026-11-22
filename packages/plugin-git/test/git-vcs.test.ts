@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BunProcessRunner } from "@metator/plugin-bun";
+import { vcsContract } from "@metator/testing";
 import { excludeLocally, GitVcs } from "../src/git-vcs.ts";
 
 const runner = new BunProcessRunner();
@@ -61,6 +62,25 @@ async function scenario(): Promise<string> {
   await Bun.write(join(dir, "dist/out.js"), "ignored");
   return dir;
 }
+
+vcsContract("GitVcs", async () => {
+  const dir = await repo();
+  await writeFile(join(dir, "a.ts"), "a");
+  await writeFile(join(dir, "b.ts"), "b");
+  await sh(dir, "add", ".");
+  await sh(dir, "commit", "-q", "-m", "init");
+  await sh(dir, "remote", "add", "origin", "git@example.com:shop/web.git");
+  await writeFile(join(dir, "a.ts"), "a changed");
+  await writeFile(join(dir, "c.ts"), "c");
+  const outside = await mkdtemp(join(tmpdir(), "metator-git-none-"));
+  dirs.push(outside);
+  return {
+    vcs: new GitVcs(dir),
+    base: "main",
+    remote: "git@example.com:shop/web.git",
+    outside: new GitVcs(outside),
+  };
+});
 
 describe("GitVcs (real git)", () => {
   test("against a branch: committed, staged, unstaged, deleted and untracked changes", async () => {

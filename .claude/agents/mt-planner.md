@@ -18,6 +18,7 @@ model: opus
 5. A step's `rules` are canon rule ids from `rulepack.md` in the run directory (the context stage wrote it; read it, do not rebuild it); none there means `[]`. Conventions from docs or CLAUDE.md go into the step's description, not `rules`.
 6. Write `plan.json` (`bun run metator plan schema`), then `bun run metator plan lint <plan.json>` until it passes.
 7. `bun run metator plan scope <plan.json>` writes `plan-scope.json` for the build stage.
+8. Sent back by a person (the prompt quotes what they want different) or by the plan's lint: revise the `plan.json` you wrote against those words, step by step. Keep what they did not object to, change what they asked for, and do not start over.
 
 # Output
 - `plan.json` and `plan-scope.json` in the run directory, lint green.

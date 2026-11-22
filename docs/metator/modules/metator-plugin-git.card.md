@@ -21,10 +21,11 @@ dir: packages/plugin-git
 
 ## Responsibility
 
-`GitVcs` on simple-git implements `Vcs`, `RevisionReader`, `ChangeHistory`, `BranchHistory`, `ChangePatch` and `BranchPublication`: changed files and added lines against a base, the repository's file list as git sees it, file contents at the merge base, commit history, the branch against its base, the change as a patch, and whether the branch is published on origin. `GitWorktreeManager` implements `WorktreeManager` (`git worktree add|remove`, ADR-0050). `GitRepositoryCloner` implements `RepositoryCloner`: the commit a ref of another repository points to and a cached checkout of it.
+`GitVcs` on simple-git implements `Vcs`, `RevisionReader`, `ChangeHistory`, `BranchHistory`, `ChangePatch` and `BranchPublication`: changed files and added lines against a base, the repository's file list as git sees it, file contents at the merge base, commit history, the branch against its base, the change as a patch, and whether the branch is published on origin. `GitWorktreeManager` implements `WorktreeManager` (`git worktree add|remove`, ADR-0050). `GitRepositoryCloner` implements `RepositoryCloner`: the commit a ref of another repository points to and a cached checkout of it. `GitWorkingTree` implements `WorkingTree` on the git CLI through the `ProcessRunner`: what a worktree changed since it branched off, the tracked files with uncommitted changes (its own state aside) and whether HEAD is detached.
 
 ## Invariants
 
+- `GitWorkingPatches` (the `WorkingPatches` port, on the git CLI through the `ProcessRunner`) never touches the real index, HEAD, a branch or the stash: a snapshot is a tree written through a copy of the index (`GIT_INDEX_FILE`), a patch is `git diff --binary` between two trees, and taking one out is `git apply -R` after `--check` passed for the whole patch (or for the files named). `remains` says which files still hold lines a patch added, although it no longer applies; only lines that say something count (not a lone brace).
 - Paths under the `own` prefixes (MetatorAI's state, `.metator/`) are never a change or uncommitted work.
 - Renames count under both paths, so importers of the old path are affected [[cite: packages/plugin-git/src/git-vcs.ts:49 | "diffSummary([\"--no-renames\", ref.value])"]].
 

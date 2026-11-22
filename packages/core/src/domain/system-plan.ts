@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ContractStatus } from "./contract-diff.ts";
+import { readyItems } from "./dependencies.ts";
 import { digestOf } from "./ids.ts";
 import type { SystemImpact } from "./system-impact.ts";
 import { consumersOf, parseConsumes, type SystemMap } from "./system-map.ts";
@@ -70,30 +71,60 @@ const StepSchema = z.strictObject({
   /** The child run in the application's repository (F7.6). */
   run: z.string().optional(),
 });
-export type SystemStep = z.output<typeof StepSchema>;
+export type SystemStepV1 = z.output<typeof StepSchema>;
 
-export const SystemPlanSchema = z.strictObject({
-  id,
-  task: z.string().min(1),
-  status: z.enum(["draft", "approved", "running", "done"]).default("draft"),
-  createdBy: z.string().optional(),
-  approval: z.strictObject({ by: z.string().min(1), at: z.string(), digest: z.string() }).optional(),
-  /** How each breaking change is introduced. */
-  strategies: z
-    .array(
-      z.strictObject({
-        contract: id,
-        strategy: z.enum(["expand-contract", "versioned"]),
-        note: z.string().optional(),
-      }),
-    )
-    .default([]),
-  steps: z.array(StepSchema).default([]),
+/** A run of a step that a person retried: kept with the step, its worktree left as it was. */
+const PreviousRunSchema = z.strictObject({
+  run: z.string().min(1),
+  status: z.string().min(1),
+  /** The old run's worktree (repository-relative), left for a person to look at. */
+  worktree: z.string().optional(),
+  retriedBy: z.string().min(1),
+  at: z.string(),
 });
+
+/** v2 adds, optionally, the runs of a step a person retried (`previousRuns`). */
+const StepSchemaV2 = StepSchema.extend({
+  previousRuns: z.array(PreviousRunSchema).optional(),
+});
+/**
+ * v3 (ADR-0096) adds, optionally, the run that planned the step on demand ("Plan this step",
+ * `--until plan`): the step's own run later starts from that plan (`planFrom`).
+ */
+const StepSchemaV3 = StepSchemaV2.extend({
+  planRunId: z.string().min(1).optional(),
+});
+export type SystemStep = z.output<typeof StepSchemaV3>;
+
+const planShape = <S extends z.ZodType>(steps: S) =>
+  z.strictObject({
+    id,
+    task: z.string().min(1),
+    status: z.enum(["draft", "approved", "running", "done"]).default("draft"),
+    createdBy: z.string().optional(),
+    approval: z.strictObject({ by: z.string().min(1), at: z.string(), digest: z.string() }).optional(),
+    /** How each breaking change is introduced. */
+    strategies: z
+      .array(
+        z.strictObject({
+          contract: id,
+          strategy: z.enum(["expand-contract", "versioned"]),
+          note: z.string().optional(),
+        }),
+      )
+      .default([]),
+    steps: z.array(steps).default([]),
+  });
+const SystemPlanV1Schema = planShape(StepSchema);
+const SystemPlanV2Schema = planShape(StepSchemaV2);
+export const SystemPlanSchema = planShape(StepSchemaV3);
 export type SystemPlan = z.output<typeof SystemPlanSchema>;
 
 export const SystemPlanDocument = defineDocument("SystemPlan", {
+  history: [{ schema: SystemPlanV1Schema }, { schema: SystemPlanV2Schema, fromPrevious: (v1) => v1 }],
   latest: SystemPlanSchema,
+  // `planRunId` is optional: a v2 step is a v3 step nobody planned on its own yet.
+  upgrade: (v2) => v2,
   errorCode: "INVALID_CONFIG",
   hint: "`metator system plan schema` prints the format; `metator system plan new` drafts one.",
 });
@@ -297,8 +328,11 @@ export function systemPlanWaves(plan: Pick<SystemPlan, "steps">): string[][] | u
 
 /** The steps that can start now: pending, with every step they depend on done. */
 export function readySteps(plan: Pick<SystemPlan, "steps">): SystemStep[] {
-  const done = new Set(plan.steps.filter((s) => s.status === "done").map((s) => s.id));
-  return plan.steps.filter((s) => s.status === "pending" && s.dependsOn.every((d) => done.has(d)));
+  return readyItems(
+    plan.steps,
+    (s) => s.status === "done",
+    (s) => s.status === "pending",
+  );
 }
 
 /** The task a step's child run gets: what to do, where, and how it fits the plan. */

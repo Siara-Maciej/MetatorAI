@@ -2,18 +2,16 @@ import {
   type Agent,
   type BasicCapability,
   type GeneratedFile,
-  generatedMarker,
   HOOK_BINDINGS,
   type HostAgentContext,
   type HostGenerator,
+  hostAgentFile,
   type MetatorError,
   metatorGroups,
   ok,
   type Result,
   userInvocable,
-  withMetatorCommand,
 } from "@metator/core";
-import { stringify } from "yaml";
 
 /** The one place that knows Copilot's tool names (VS Code custom agents). Changes go here only. */
 export const COPILOT_TOOLS: Readonly<Record<BasicCapability, readonly string[]>> = {
@@ -25,6 +23,9 @@ export const COPILOT_TOOLS: Readonly<Record<BasicCapability, readonly string[]>>
   todo: ["todo"],
   web: ["web"],
 };
+
+/** Where Copilot reads an agent from, repo-relative. The one place that knows. */
+export const copilotAgentFile = (id: string): string => `.github/agents/${id}.agent.md`;
 
 /** `.github/agents/<id>.agent.md` (ADR-0030). */
 export class CopilotGenerator implements HostGenerator {
@@ -57,10 +58,13 @@ export class CopilotGenerator implements HostGenerator {
       ...(context.model ? { model: context.model } : {}),
       "user-invocable": userInvocable(agent),
     };
-    return {
-      path: `.github/agents/${agent.id}.agent.md`,
-      content: `---\n${stringify(front, { lineWidth: 0 }).trimEnd()}\n---\n${generatedMarker(context.source)}\n${commandsNote(groups, context.metatorCommand)}${prose(body, context)}`,
-    };
+    return hostAgentFile(
+      copilotAgentFile(agent.id),
+      front,
+      body,
+      context,
+      commandsNote(groups, context.metatorCommand),
+    );
   }
 }
 
@@ -68,9 +72,4 @@ export class CopilotGenerator implements HostGenerator {
 function commandsNote(groups: readonly string[], command: string): string {
   if (groups.length === 0) return "";
   return `\n> Run MetatorAI only as: ${groups.map((g) => `\`${command} ${g} …\``).join(", ")}. Every command prints one JSON line.\n`;
-}
-
-function prose(body: string, context: HostAgentContext): string {
-  const text = withMetatorCommand(body, context.metatorCommand);
-  return text.startsWith("\n") ? text : `\n${text}`;
 }

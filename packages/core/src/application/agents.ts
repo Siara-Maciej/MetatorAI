@@ -1,6 +1,7 @@
 import {
   type Agent,
   AgentDocument,
+  artifactSection,
   BODY_LINES,
   expandPartials,
   GENERATED_MARKER,
@@ -12,8 +13,8 @@ import { MetatorError } from "../domain/errors.ts";
 import { DependencyGraph } from "../domain/graph.ts";
 import { type McpServers, mcpJson } from "../domain/mcp.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, HostGenerator, ReadonlyFileSystem } from "../ports/index.ts";
+import { scanDocuments } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 
 export interface AgentEntry {
@@ -36,28 +37,25 @@ export class AgentCatalog {
     readonly agents: readonly AgentEntry[];
     readonly problems: readonly { readonly source: string; readonly error: MetatorError }[];
   }> {
-    const agents: AgentEntry[] = [];
-    const problems: { source: string; error: MetatorError }[] = [];
     const partials = new Map<string, string>();
     for (const file of await this.fs.glob([`${this.paths.agents}/partials/*.md`])) {
       const text = await this.fs.read(file);
       if (text.isOk()) partials.set(file.slice(file.lastIndexOf("/") + 1, -".md".length), text.value);
     }
-    for (const source of [...(await this.fs.glob([`${this.paths.agents}/*.md`]))].sort()) {
-      const text = await this.fs.read(source);
-      if (text.isErr()) continue;
-      const agent = readFrontMatter(text.value, source).andThen((raw) => AgentDocument.parse(raw, source));
-      if (agent.isErr()) problems.push({ source, error: agent.error });
-      else {
-        const raw = text.value.replace(/^---\n[\s\S]*?\n---\n/, "");
-        agents.push({
-          agent: agent.value,
-          body: expandPartials(raw, partials),
-          source,
-          missingPartials: partialsOf(raw).filter((p) => !partials.has(p)),
-        });
-      }
-    }
+    // A file that cannot be read is left out, not reported: only what was read can be wrong.
+    const { entries, problems } = await scanDocuments(this.fs, [`${this.paths.agents}/*.md`], AgentDocument, {
+      format: "front-matter",
+      unreadable: "skip",
+    });
+    const agents = entries.map(({ value, source, text }): AgentEntry => {
+      const raw = text.replace(/^---\n[\s\S]*?\n---\n/, "");
+      return {
+        agent: value,
+        body: expandPartials(raw, partials),
+        source,
+        missingPartials: partialsOf(raw).filter((p) => !partials.has(p)),
+      };
+    });
     return { agents, problems };
   }
 }
@@ -201,7 +199,8 @@ export class GenerateHosts {
     for (const g of hosts) {
       for (const { agent, body, source } of scan.agents) {
         const model = this.config.hosts.models[agent.tier]?.[g.host];
-        const file = g.agent(agent, body, {
+        const section = artifactSection(agent);
+        const file = g.agent(agent, section ? `${body.trimEnd()}\n${section}` : body, {
           source,
           metatorCommand: this.config.hosts.metatorCommand,
           ...(model ? { model } : {}),
@@ -212,7 +211,11 @@ export class GenerateHosts {
 
     for (const g of input.hooks ? hosts : []) {
       const current = await this.fs.read(g.hooksFile);
-      const hooks = g.hooks(this.config.hosts.metatorCommand, current.isOk() ? current.value : undefined);
+      const hooks = g.hooks(
+        this.config.hosts.metatorCommand,
+        current.isOk() ? current.value : undefined,
+        this.config.guard.commands,
+      );
       if (hooks.isErr()) return err(hooks.error);
       expected.set(hooks.value.path, hooks.value.content);
     }

@@ -6,7 +6,7 @@ A gate is a named list of checks from your configuration. Agents, you and CI run
 
 | Gate | When it runs | Typical steps |
 |---|---|---|
-| `quick` | after edits, on the changed files | linter on the files, `rules check`, typecheck |
+| `quick` | after edits, on the changed files; a quick run (`mt-quick`) ends at it | linter on the files, `rules check`, typecheck, tests |
 | `full` | before review and in CI | lint, typecheck, tests, `graph diff`, `arch check` |
 
 ```bash
@@ -55,7 +55,7 @@ A step runs a `package.json` script with your package manager (`script`), a bina
 | `metator graph diff --base main` | reports import edges added and removed, new package dependencies and new cycles |
 | `metator graph cycles --check` | two files import each other, directly or through others. An `import type` counts, so this finds cycles that a linter and the type checker accept |
 | `metator arch check --base main` | the change adds a [package architecture](./architecture.md) violation |
-| `metator contract diff --base main --check` | the change breaks an API contract in a way the [system map](./systems.md) does not allow |
+| `metator contract diff --base main --check` | the change breaks an API contract in a way the [system map](../many/systems.md) does not allow |
 | `metator coverage diff --base main --min 80` | fewer than 80 percent of the added lines are covered (reads `coverage/lcov.info`) |
 | `metator api diff @shop/money` | the package's public API differs from its snapshot (`metator api snapshot`) |
 | `metator flaky check src/a.test.ts --runs 5` | the test file gives mixed results over five runs |

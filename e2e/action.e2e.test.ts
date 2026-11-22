@@ -9,7 +9,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -83,6 +83,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await repo.dispose();
+  stopProcessesUnder(scratch);
   await rm(scratch, { recursive: true, force: true });
 });
 

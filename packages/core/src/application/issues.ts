@@ -6,26 +6,35 @@ import {
   IssueDocument,
   type IssuePriority,
   type IssueRef,
-  issueTask,
+  issueBrief,
   nextIssueId,
+  PROPOSAL_ADD,
+  PROPOSAL_DROP,
   proposalDecision,
   proposalQuestion,
 } from "../domain/issue.ts";
+import { settledParents, waitRefusal } from "../domain/issue-snapshot.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileLock, FileSystem } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
+import { loadDocument, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { RunJournal } from "./run-journal.ts";
+import type { StartRun } from "./run-operations.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { InitRun } from "./runs.ts";
+
+/** A run's task in full (intake writes it; a run started from an issue starts with it). */
+export const TASK_BRIEF = "task.md";
 
 export interface IssuesDependencies {
   readonly fs: FileSystem;
   readonly paths: Pick<MetatorPaths, "issues">;
   readonly clock: Clock;
-  readonly journal: Pick<RunJournal, "ask" | "questions">;
-  readonly repo: Pick<RunRepository, "resolveId" | "load">;
+  readonly journal: Pick<RunJournal, "ask" | "questions" | "answer">;
+  readonly repo: Pick<RunRepository, "resolveId" | "load" | "runDir">;
   readonly initRun: Pick<InitRun, "execute">;
+  /** A run started as every front starts one, with its conductor where a person sees it (`session`). */
+  readonly startRun?: Pick<StartRun, "execute" | "see">;
   /** `issues.proposeFromAgents`: false refuses proposals. */
   readonly proposalsAllowed?: () => Promise<boolean>;
   /** One writer at a time for an issue's id and its run; the runtime gives the lock across processes. */
@@ -47,6 +56,22 @@ export interface StartIssueInput {
   readonly autonomy?: "L0" | "L1" | "L2";
   /** Start although tracked files have uncommitted changes: the run does not need them. */
   readonly allowDirty?: boolean;
+  /** The run only plans: it stops `planned` once its plan is approved (ADR-0096). */
+  readonly until?: "plan";
+  /** The run takes the approved plan of this run, starting at `build` or at the plan's review. */
+  readonly planFrom?: { readonly run: string; readonly from: "build" | "review" };
+  /** The run's task.md (default: the item's title and body). */
+  readonly brief?: string;
+  /** Open the run's conductor where a person sees it (else it is only made, as `run new` makes one). */
+  readonly session?: { readonly host?: string };
+}
+
+/** What starting a run on an item gives back. */
+export interface StartedIssue {
+  readonly issue: Issue;
+  readonly runId: string;
+  readonly session?: { readonly paneId: string; readonly host: string };
+  readonly noSession?: string;
 }
 
 /**
@@ -76,7 +101,9 @@ export class Issues {
   ): Promise<Result<readonly Issue[], MetatorError>> {
     const all = await this.load();
     if (all.isErr()) return err(all.error);
-    const synced = await this.applyAnswers(all.value);
+    const answered = await this.applyAnswers(all.value);
+    if (answered.isErr()) return err(answered.error);
+    const synced = await this.settleParents(answered.value);
     if (synced.isErr()) return err(synced.error);
     return ok(
       synced.value
@@ -124,6 +151,7 @@ export class Issues {
         priority: input.priority ?? "normal",
         labels: [...(input.labels ?? [])],
         refs: [...(input.refs ?? [])],
+        dependsOn: [],
         decidedBy: { by: input.by, at: now, decision: "added" },
         ...(input.source ? { source: input.source } : {}),
         createdAt: now,
@@ -173,6 +201,7 @@ export class Issues {
       labels: [...(input.labels ?? [])],
       refs: [...(input.refs ?? []), ...(input.refs?.some((r) => r.run) ? [] : [{ run: runId }])],
       proposedBy: { agent: input.agent, runId, at: now },
+      dependsOn: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -206,7 +235,22 @@ export class Issues {
       updatedAt: now,
     };
     const saved = await this.save(next);
-    return saved.map(() => next);
+    if (saved.isErr()) return err(saved.error);
+    await this.settleProposal(issue.value, input.decision === "add" ? PROPOSAL_ADD : PROPOSAL_DROP, input.by);
+    return ok(next);
+  }
+
+  /**
+   * A proposal decided outside the inbox (Backlog, `issue decide`, `issue rm`): its question gets
+   * the same answer, so it leaves Needs you. A run that ended asks nothing any more: nothing to settle.
+   */
+  private async settleProposal(issue: Issue, choice: string, by: string): Promise<void> {
+    const p = issue.proposedBy;
+    if (issue.status !== "proposed" || !p?.runId || !p.questionId) return;
+    const questions = await this.d.journal.questions(p.runId);
+    const q = questions.isOk() ? questions.value.find((x) => x.id === p.questionId) : undefined;
+    if (!q || q.answer) return;
+    await this.d.journal.answer(p.runId, q.id, { choices: [choice], by });
   }
 
   async edit(id: string, patch: IssuePatch): Promise<Result<Issue, MetatorError>> {
@@ -229,10 +273,7 @@ export class Issues {
    * A run on the task: its title and body are the task, the issue is in progress and remembers the
    * run. `allowDirty` starts the worktree from the last commit although tracked files changed.
    */
-  async start(
-    id: string,
-    input: StartIssueInput,
-  ): Promise<Result<{ readonly issue: Issue; readonly runId: string }, MetatorError>> {
+  async start(id: string, input: StartIssueInput): Promise<Result<StartedIssue, MetatorError>> {
     // Answers given in the inbox are applied first (outside the lock: applying one may start a run).
     const known = await this.show(id);
     if (known.isErr()) return err(known.error);
@@ -240,10 +281,7 @@ export class Issues {
     return this.lock.hold(this.file(id), () => this.startLocked(id, input));
   }
 
-  private async startLocked(
-    id: string,
-    input: StartIssueInput,
-  ): Promise<Result<{ readonly issue: Issue; readonly runId: string }, MetatorError>> {
+  private async startLocked(id: string, input: StartIssueInput): Promise<Result<StartedIssue, MetatorError>> {
     const issue = await this.read(this.file(id));
     if (issue.isErr()) return err(issue.error);
     if (issue.value.status === "proposed")
@@ -264,22 +302,57 @@ export class Issues {
           ),
         );
     }
-    const started = await this.d.initRun.execute({
+    // One rule decides what may start (the system plan's steps use it too): every item it depends on is done.
+    const all = await this.load();
+    if (all.isErr()) return err(all.error);
+    const waits = waitRefusal(issue.value, all.value);
+    if (waits) return err(waits);
+    const run = {
       workflow: input.workflow,
-      task: issueTask(issue.value),
+      // The task is the issue's title; its body is the run's task.md, which every agent reads.
+      task: issue.value.title,
       ...(input.autonomy ? { autonomy: input.autonomy } : {}),
-      ...(input.worktree === false ? {} : { worktree: input.allowDirty ? { allowDirty: true } : {} }),
-    });
+      ...(input.worktree === false
+        ? input.allowDirty
+          ? { allowDirty: true }
+          : {}
+        : { worktree: input.allowDirty ? { allowDirty: true } : {} }),
+      ...(input.until ? { until: input.until } : {}),
+      ...(input.planFrom ? { planFrom: input.planFrom } : {}),
+    };
+    // Seen by a person: started as every front starts a run (its worktree set up), else only made.
+    const visible = input.session ? this.d.startRun : undefined;
+    const started = visible
+      ? (await visible.execute(run)).map((s) => s.run)
+      : await this.d.initRun.execute(run);
     if (started.isErr()) return err(started.error);
+    const runId = started.value.runId;
+    // The brief is there before its conductor opens: the first thing every agent reads.
+    const brief = await this.d.fs.write(
+      `${this.d.repo.runDir(runId)}/${TASK_BRIEF}`,
+      input.brief ?? issueBrief(issue.value),
+    );
+    if (brief.isErr()) return err(brief.error);
+    let opened: Pick<StartedIssue, "session" | "noSession"> = {};
+    if (visible && input.session) {
+      const seen = await visible.see(runId, { session: input.session });
+      if (seen.isErr()) return err(seen.error);
+      opened = {
+        ...(seen.value.session
+          ? { session: { paneId: seen.value.session.paneId, host: seen.value.session.host } }
+          : {}),
+        ...(seen.value.noSession ? { noSession: seen.value.noSession } : {}),
+      };
+    }
     const next: Issue = {
       ...issue.value,
       status: "in-progress",
-      runId: started.value.runId,
+      runId,
       updatedAt: this.d.clock.now().toISOString(),
     };
     const saved = await this.save(next);
     if (saved.isErr()) return err(saved.error);
-    return ok({ issue: next, runId: started.value.runId });
+    return ok({ issue: next, runId, ...opened });
   }
 
   private async setStatus(
@@ -298,7 +371,70 @@ export class Issues {
       updatedAt: now,
     };
     const saved = await this.save(next);
-    return saved.map(() => next);
+    if (saved.isErr()) return err(saved.error);
+    if (status === "dropped") await this.settleProposal(issue.value, PROPOSAL_DROP, by);
+    return ok(next);
+  }
+
+  /**
+   * A parent whose children are all done or dropped is done by itself (ADR-0096), applied when the
+   * Backlog is read like a proposal's answer, so every front sees the same.
+   */
+  private async settleParents(issues: readonly Issue[]): Promise<Result<Issue[], MetatorError>> {
+    const ids = new Set(settledParents(issues));
+    if (ids.size === 0) return ok([...issues]);
+    const now = this.d.clock.now().toISOString();
+    const out: Issue[] = [];
+    for (const issue of issues) {
+      if (!ids.has(issue.id)) {
+        out.push(issue);
+        continue;
+      }
+      const done: Issue = { ...issue, status: "done", updatedAt: now };
+      const saved = await this.save(done);
+      if (saved.isErr()) return err(saved.error);
+      out.push(done);
+    }
+    return ok(out);
+  }
+
+  /** New items whose ids are taken and written in one step (a parent and its children from a plan). */
+  async create(
+    count: number,
+    make: (
+      ids: readonly string[],
+      now: string,
+    ) => Result<readonly Issue[], MetatorError> | Promise<Result<readonly Issue[], MetatorError>>,
+  ): Promise<Result<readonly Issue[], MetatorError>> {
+    return this.numbered(async () => {
+      const all = await this.load();
+      if (all.isErr()) return err(all.error);
+      const ids: string[] = [];
+      for (let i = 0; i < count; i++) ids.push(nextIssueId([...all.value.map((x) => x.id), ...ids]));
+      const made = await make(ids, this.d.clock.now().toISOString());
+      if (made.isErr()) return err(made.error);
+      for (const issue of made.value) {
+        const saved = await this.save(issue);
+        if (saved.isErr()) return err(saved.error);
+      }
+      return ok(made.value);
+    });
+  }
+
+  /** Reads, changes and writes one item as one step. */
+  async update(
+    id: string,
+    change: (issue: Issue) => Result<Issue, MetatorError>,
+  ): Promise<Result<Issue, MetatorError>> {
+    return this.lock.hold(this.file(id), async () => {
+      const current = await this.read(this.file(id));
+      if (current.isErr()) return err(current.error);
+      const next = change(current.value);
+      if (next.isErr()) return err(next.error);
+      if (next.value === current.value) return ok(current.value);
+      const saved = await this.save({ ...next.value, updatedAt: this.d.clock.now().toISOString() });
+      return saved.isErr() ? err(saved.error) : this.read(this.file(id));
+    });
   }
 
   /** Proposals whose inbox question was answered take the answer: open, open and started, or dropped. */
@@ -359,13 +495,11 @@ export class Issues {
   }
 
   private async read(file: string): Promise<Result<Issue, MetatorError>> {
-    const text = await this.d.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file).andThen((raw) => IssueDocument.parse(raw, file));
+    return loadDocument(this.d.fs, file, IssueDocument);
   }
 
   private save(issue: Issue): Promise<Result<void, MetatorError>> {
-    return this.d.fs.write(this.file(issue.id), serializeJsonDocument(IssueDocument.stamp(issue)));
+    return writeDocument(this.d.fs, this.file(issue.id), IssueDocument, issue);
   }
 }
 

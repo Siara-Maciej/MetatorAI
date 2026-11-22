@@ -1,0 +1,46 @@
+# Quick: a small change without a plan (ADR-0093). `metator quick start` starts it after
+# `metator quick check` says the change is small enough (or the person keeps it quick in words).
+kind: Workflow
+schemaVersion: 3
+id: mt-quick
+revision: 1
+description: A small change without a plan; build, check, one short review; ends with a diff to look at
+entry: { prompt: mt-quick }
+input:
+  oneOf: [task_text]
+preconditions: []
+limits: { parallel: 1 }
+stages:
+  - id: build
+    description: The change itself, with its test when it changes behaviour; nothing is committed
+    owner: mt-implementer
+    produces: [build-log.md]
+  - id: gate
+    description: Lint, types and the tests of the changed files (the repository's quick gate)
+    owner: "script:metator gate quick --base HEAD"
+    onFail: { goto: build, loop: build }
+  - id: fit
+    description: The real diff against the limits of a quick change; past them, the person decides (continue as full, or keep as quick)
+    owner: "script:metator quick check --diff"
+    gate: { script: metator quick fit }
+  - id: review
+    description: "One short review of the diff by one reviewer (quick-review.md: `BLOCKING: <n>` sends it back to build, once)"
+    owner: mt-quick-review
+    produces: [quick-review.md]
+    gate: { script: metator quick reviewed }
+    onFail: { goto: build, loop: review }
+  - id: ready
+    description: The uncommitted diff is ready; the person looks at it (Open diff) and says Fine, which ends the run
+    owner: "script:metator run status"
+    gate: { script: metator quick ready }
+loops: { build: 2, review: 1 }
+escalation:
+  onLoopExhausted: report what still fails and offer the full workflow
+  onAmbiguity: stop and ask
+autonomy: [L0]
+permissions: { edit: repository, external: [] }
+done: [the quick gate passes, the review has no blocking finding, the person looked at the diff]
+recovery: [a failed gate goes back to build; a second failure escalates to the person]
+resume: metator run status, then continue at the current stage
+telemetry: [stage_duration, tokens, loops, outcome]
+report: the files changed, the gate's result, the review's findings; the diff stays uncommitted

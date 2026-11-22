@@ -1,3 +1,4 @@
+import { CHAT_AGENT } from "../domain/conductor.ts";
 import type { AgentTask } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { PaneState, PaneStateView } from "../domain/host-manifest.ts";
@@ -6,8 +7,9 @@ import {
   addTab,
   addWorkspace,
   isPlainShell,
-  type Layout,
   type Pane,
+  type PaneEndReason,
+  type PanePauseReason,
   type PaneProcess,
   type PaneRole,
   paneOf,
@@ -24,11 +26,19 @@ import {
   workspaceOfRun,
 } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import type { Clock, InteractiveHost, PtyHandle, PtySize, Terminal, Timer } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
+import type {
+  Clock,
+  FileSystem,
+  InteractiveHost,
+  PtyHandle,
+  PtySize,
+  Terminal,
+  Timer,
+} from "../ports/index.ts";
 import type { LayoutStore } from "./layout-store.ts";
 import type { PaneSensor } from "./pane-sensor.ts";
 import type { PtyBroker, PtyView } from "./pty-broker.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 export const DEFAULT_SIZE: PtySize = { cols: 120, rows: 36 };
@@ -50,6 +60,15 @@ export interface PanesDependencies {
   readonly sensor?: Pick<PaneSensor, "state">;
   /** A fresh pane token; random by default. */
   readonly token?: () => string;
+  /** Where an ended pane's last screen is kept (`.metator/panes/`), so it can be read after a restart. */
+  readonly fs?: Pick<FileSystem, "write" | "read" | "exists" | "remove">;
+}
+
+/** Why and when a pane's work ended, as `end` is told it. */
+export interface PaneEnd {
+  readonly reason: PaneEndReason;
+  readonly exitCode?: number;
+  readonly summary?: string;
 }
 
 /** A pane with its terminal's state, as clients see it. */
@@ -73,6 +92,8 @@ export interface OpenPaneInput {
   readonly cwd?: string;
   readonly runId?: string;
   readonly worker?: Pane["worker"];
+  /** The thread a chat pane is opened for (ADR-0095). */
+  readonly threadId?: string;
   /** Beside this pane of the same tab, in this direction (S6); the tab is the target's then. */
   readonly split?: { readonly target: string; readonly dir: "row" | "column" };
   readonly process:
@@ -99,13 +120,191 @@ export interface OpenPaneInput {
  * any run exists; it answers questions about the repository and starts a run only for a task.
  */
 export const INTAKE_PROMPT =
-  "You are MetatorAI's entry point: a person is talking to you before any run exists. Answer questions about this repository with file:line citations; when the person asks for a change, ask only what the repository cannot tell you, then start the run from this pane (`metator run init`, then `metator run drive --detach`) and say its id.";
+  "You are MetatorAI's entry point: a person is talking to you before any run exists. Answer questions about this repository with file:line citations; when the person asks for a change, ask only what the repository cannot tell you, then start the run from this pane (`metator run init`, then `metator run drive --detach`) and say its id. The child runs a system plan starts open as their own conductor sessions: never drive those.";
+
+/** What the conversation agent is told when its chat opens: who it is; how it works is its own file. */
+export const CHAT_PROMPT =
+  "You are MetatorAI's chat: a person is talking to you, and no run exists yet. For each thing they ask, take the lightest way that fits (direct, quick, or a full workflow), suggest it and let them decide, as your instructions say. You never commit or push by yourself. Lines that begin with `[metator]` are MetatorAI's notes, never the person's words.";
 
 export class Panes {
   /** Pane tokens, in memory only: a restarted daemon gives new ones to the panes it restarts. */
   private readonly tokens = new Map<string, string>();
+  /** Ended panes' last screens read back from disk. */
+  private readonly kept = new Map<string, string>();
+  /** Sessions the daemon resumed that are still to be told to go on (`ResumeNotices`). */
+  private readonly resumed = new Map<string, ResumeNotice>();
 
   constructor(private readonly d: PanesDependencies) {}
+
+  /**
+   * The daemon stops (SIGTERM, SIGINT): every live host session is paused with its session id and
+   * last screen, before its process goes with the daemon (ADR-0092). The exits that follow find
+   * the panes paused and leave them so; the next start resumes them in the same panes. A session a
+   * signal ends while the daemon runs is paused too (`process-lost`).
+   */
+  async pauseAll(
+    why: PanePauseReason = "daemon-stopped",
+  ): Promise<Result<{ readonly paused: number }, MetatorError>> {
+    const saved = await this.saveScreens();
+    if (saved.isErr()) return err(saved.error);
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    let paused = 0;
+    for (const pane of layout.value.panes) {
+      if (pane.process.kind !== "host" || pane.ended || !this.d.broker.status(pane.id)?.alive) continue;
+      const r = await this.pause(pane.id, why);
+      if (r.isErr()) return err(r.error);
+      if (r.value.paused) paused++;
+    }
+    return ok({ paused });
+  }
+
+  /**
+   * A host pane whose process is gone while its work is not over: paused, its session id and last
+   * screen kept, to be resumed in the same pane. A pane whose work ended stays ended.
+   */
+  async pause(
+    paneId: string,
+    why: PanePauseReason,
+  ): Promise<Result<{ readonly paused: boolean }, MetatorError>> {
+    const at = this.d.clock.now().toISOString();
+    const marked = await this.d.layout.update((l) => {
+      const pane = paneOf(l, paneId);
+      if (!pane || pane.ended || pane.paused || pane.process.kind !== "host")
+        return ok({ layout: l, value: undefined });
+      return ok({ layout: updatePane(l, paneId, (p) => ({ ...p, paused: { at, why } })), value: pane });
+    });
+    if (marked.isErr()) return err(marked.error);
+    const pane = marked.value;
+    if (!pane) return ok({ paused: false });
+    const kept = await this.keepScreen(paneId);
+    if (kept.isErr()) return err(kept.error);
+    if (pane.runId) {
+      const noted = await this.d.journal.record(pane.runId, {
+        type: "agent",
+        origin: "run",
+        agent: pane.process.kind === "host" ? pane.process.host : pane.label,
+        text:
+          pane.process.kind === "host" && pane.process.sessionId
+            ? `pane ${paneId} paused (${why}): session ${pane.process.sessionId} can be continued`
+            : `pane ${paneId} paused (${why})`,
+      });
+      if (noted.isErr()) return err(noted.error);
+    }
+    return ok({ paused: true });
+  }
+
+  /**
+   * The conductors and workers the daemon resumed (restore, Continue) whose agents are still to
+   * be told to go on: a host's own resume brings back the conversation, not the turn it was in.
+   */
+  resumeNotices(): readonly ResumeNotice[] {
+    return [...this.resumed.values()];
+  }
+
+  /** A resumed session's line was typed: it is not told again. */
+  resumeNoticeTold(paneId: string): void {
+    this.resumed.delete(paneId);
+  }
+
+  /** The supervisor leaves a session to its resume notice rather than nudging it as well. */
+  resumeNoticePending(paneId: string): boolean {
+    return this.resumed.has(paneId);
+  }
+
+  /** A run's conductor or worker was resumed in its pane: its agent is to be told to go on. */
+  noteResumed(pane: Pick<Pane, "id" | "runId" | "role" | "paused">): void {
+    if (!pane.runId || (pane.role !== "conductor" && pane.role !== "worker")) return;
+    this.resumed.set(pane.id, {
+      paneId: pane.id,
+      runId: pane.runId,
+      role: pane.role,
+      why: pane.paused?.why ?? "daemon-stopped",
+      at: pane.paused?.at ?? this.d.clock.now().toISOString(),
+    });
+  }
+
+  /** Every live pane's screen kept on disk (the daemon does it every few seconds): a SIGKILL loses little. */
+  async saveScreens(): Promise<Result<{ readonly saved: number }, MetatorError>> {
+    let saved = 0;
+    for (const live of this.d.broker.list()) {
+      if (!live.alive) continue;
+      const kept = await this.keepScreen(live.paneId);
+      if (kept.isErr()) return err(kept.error);
+      saved++;
+    }
+    return ok({ saved });
+  }
+
+  private async keepScreen(paneId: string): Promise<Result<void, MetatorError>> {
+    const screen = this.d.broker.backlog(paneId);
+    if (!screen || !this.d.fs) return ok(undefined);
+    this.kept.set(paneId, screen);
+    return this.d.fs.write(screenFile(paneId), screen);
+  }
+
+  /**
+   * A person continues one paused pane (its own Continue): its host session resumed in the pane,
+   * nothing else; a pane that is not paused is refused, with why.
+   */
+  async continuePane(
+    paneId: string,
+    by: string,
+  ): Promise<
+    Result<{ readonly paneId: string; readonly role: string; readonly sessionId: string }, MetatorError>
+  > {
+    if (by.trim() === "")
+      return err(MetatorError.usage("say who continues: by", "Continuing records who did."));
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    const pane = paneOf(layout.value, paneId);
+    if (!pane) return err(MetatorError.notFound(`pane ${paneId}`));
+    if (!pane.paused || this.d.broker.status(paneId)?.alive)
+      return err(
+        new MetatorError("TRANSITION_DENIED", `pane ${paneId} is not paused: there is nothing to continue`, {
+          hint: pane.ended
+            ? `Its work ended (${pane.ended.reason}); close it when you are done.`
+            : "It runs: open it in Terminals.",
+        }),
+      );
+    const back = await this.resumePane(paneId);
+    if (back.isErr()) return err(back.error);
+    const sessionId = back.value.live?.sessionId ?? "";
+    if (pane.runId) {
+      const noted = await this.d.journal.record(pane.runId, {
+        type: "agent",
+        origin: "run",
+        text: `continued by ${by}: resumed pane ${paneId} (session ${sessionId})`,
+      });
+      if (noted.isErr()) return err(noted.error);
+    }
+    return ok({ paneId, role: pane.role, sessionId });
+  }
+
+  /**
+   * A paused pane (or one that died with the daemon) started again in the same pane: its host
+   * session resumed by its id, its last screen shown above what the session prints now.
+   */
+  async resumePane(paneId: string, size: PtySize = DEFAULT_SIZE): Promise<Result<PaneView, MetatorError>> {
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    const pane = paneOf(layout.value, paneId);
+    if (!pane) return err(MetatorError.notFound(`pane ${paneId}`));
+    if (this.d.broker.status(paneId)?.alive) return ok(await this.withLive(pane));
+    if (pane.ended)
+      return err(
+        MetatorError.usage(`pane ${paneId} has ended (${pane.ended.reason}): there is nothing to continue`),
+      );
+    if (pane.process.kind !== "host")
+      return err(MetatorError.usage(`pane ${paneId} runs a command: it is not continued`));
+    const back = await this.spawn(pane, size, await this.keptScreen(paneId));
+    if (back.isOk())
+      this.noteResumed({
+        ...pane,
+        paused: pane.paused ?? { at: this.d.clock.now().toISOString(), why: "process-lost" },
+      });
+    return back;
+  }
 
   /** The run's workspace, made in its worktree (or the repository) when it has none. */
   async openWorkspace(input: {
@@ -168,6 +367,125 @@ export class Panes {
     const closed = await this.closeWorkspace(workspace.id);
     if (closed.isErr()) return err(closed.error);
     return ok({ closed: closed.value.closed, workspace: workspace.id });
+  }
+
+  /**
+   * The panes of every run that is done or aborted, ended (conductor and workers): a living
+   * process is stopped and the pane says why, its last screen kept. Nothing is removed: a person
+   * closes ended panes. A finished run's idle conductor no longer reads as a session that waits.
+   */
+  async endFinished(): Promise<Result<{ readonly runId: string; readonly ended: number }[], MetatorError>> {
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    const runIds = [...new Set(layout.value.panes.flatMap((p) => (p.runId && !p.ended ? [p.runId] : [])))];
+    const out: { runId: string; ended: number }[] = [];
+    for (const runId of runIds) {
+      const record = await this.d.repo.load(runId);
+      if (record.isErr() || (record.value.state.status !== "done" && record.value.state.status !== "aborted"))
+        continue;
+      let ended = 0;
+      for (const pane of layout.value.panes.filter((p) => p.runId === runId && !p.ended)) {
+        const r = await this.end(pane.id, { reason: "run-finished" });
+        if (r.isErr()) return err(r.error);
+        if (r.value.ended) ended++;
+      }
+      if (ended > 0) out.push({ runId, ended });
+    }
+    return ok(out);
+  }
+
+  /**
+   * The pane's work is over: it says why and when, its process is stopped if it still lives, and
+   * its last screen is kept to read. A pane that already ended keeps why, unless `override` (a
+   * collected worker says it was collected, with its summary, after its process exited).
+   */
+  async end(
+    paneId: string,
+    input: PaneEnd & { readonly override?: boolean },
+  ): Promise<Result<{ readonly ended: boolean }, MetatorError>> {
+    const at = this.d.clock.now().toISOString();
+    const marked = await this.d.layout.update((l) => {
+      const pane = paneOf(l, paneId);
+      if (!pane || (pane.ended && !input.override)) return ok({ layout: l, value: undefined });
+      // A paused pane's process exiting (it went with the daemon) is no end of its work.
+      if (pane.paused && input.reason === "exited") return ok({ layout: l, value: undefined });
+      const ended = {
+        at,
+        reason: input.reason,
+        ...(input.exitCode !== undefined ? { exitCode: input.exitCode } : {}),
+        ...(input.summary ? { summary: input.summary } : {}),
+      };
+      return ok({
+        layout: updatePane(l, paneId, (p) => {
+          const { paused: _resumable, ...rest } = p;
+          return { ...rest, ended };
+        }),
+        value: pane,
+      });
+    });
+    if (marked.isErr()) return err(marked.error);
+    const pane = marked.value;
+    if (!pane) return ok({ ended: false });
+    // Marked first: the exit the stop causes finds the pane ended already, and keeps why.
+    this.d.broker.stop(paneId);
+    const screen = this.d.broker.backlog(paneId);
+    if (screen && this.d.fs) {
+      const kept = await this.d.fs.write(screenFile(paneId), screen);
+      if (kept.isErr()) return err(kept.error);
+    }
+    // An exit is in the run's activity already (the broker says it): only other ends are said.
+    if (pane.runId && input.reason !== "exited") {
+      const noted = await this.d.journal.record(pane.runId, {
+        type: "agent",
+        origin: "run",
+        agent: pane.process.kind === "host" ? pane.process.host : pane.label,
+        text: `pane ${paneId} ended (${input.reason}${input.exitCode !== undefined ? ` ${input.exitCode}` : ""})${input.summary ? `: ${input.summary}` : ""}`,
+      });
+      if (noted.isErr()) return err(noted.error);
+    }
+    return ok({ ended: true });
+  }
+
+  /** The run a pane's agent started (`run new` from the chat where a person gave the task): that task's main terminal. */
+  async setStartedRun(paneId: string, runId: string): Promise<Result<Pane, MetatorError>> {
+    const saved = await this.d.layout.update((l) => {
+      if (!paneOf(l, paneId)) return err(MetatorError.notFound(`pane ${paneId}`));
+      const updated = updatePane(l, paneId, (p) => ({ ...p, startedRun: runId }));
+      return ok({ layout: updated, value: paneOf(updated, paneId) as Pane });
+    });
+    return saved;
+  }
+
+  /** Every ended pane closed (of one run, when named): what a person clears in one go. */
+  async closeEnded(input: {
+    readonly runId?: string;
+  }): Promise<Result<{ readonly closed: number }, MetatorError>> {
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    let closed = 0;
+    for (const pane of layout.value.panes.filter(
+      (p) => p.ended && (!input.runId || p.runId === input.runId),
+    )) {
+      const r = await this.closePane(pane.id);
+      if (r.isErr()) return err(r.error);
+      if (r.value.closed) closed++;
+    }
+    return ok({ closed });
+  }
+
+  /** A pane's screen as printed: its live backlog, or an ended pane's kept last screen. */
+  screen(paneId: string): string {
+    return this.d.broker.backlog(paneId) || this.kept.get(paneId) || "";
+  }
+
+  /** The kept last screen of an ended pane, read from disk (after a restart). */
+  async keptScreen(paneId: string): Promise<string> {
+    const live = this.screen(paneId);
+    if (live || !this.d.fs) return live;
+    if (!(await this.d.fs.exists(screenFile(paneId)))) return "";
+    const text = await this.d.fs.read(screenFile(paneId));
+    if (text.isOk()) this.kept.set(paneId, text.value);
+    return text.isOk() ? text.value : "";
   }
 
   /**
@@ -252,8 +570,10 @@ export class Panes {
             kind: "host",
             host: hostId as string,
             agent: input.process.agent,
-            // A host pane with no task yet is the entry point: it gets the intake prompt.
-            prompt: input.process.prompt || INTAKE_PROMPT,
+            // A host pane with no task yet is the entry point: it is told who it is (the
+            // conversation agent in its words, any other agent as the intake).
+            prompt:
+              input.process.prompt || (input.process.agent === CHAT_AGENT ? CHAT_PROMPT : INTAKE_PROMPT),
             ...(input.process.sessionId ? { sessionId: input.process.sessionId } : {}),
           }
         : { kind: "command", argv: [...input.process.argv] };
@@ -272,6 +592,7 @@ export class Panes {
         process,
         ...(runId ? { runId } : {}),
         ...(input.worker ? { worker: input.worker } : {}),
+        ...(input.threadId ? { threadId: input.threadId } : {}),
         ...(input.split ? { split: input.split } : {}),
         at: this.d.clock.now().toISOString(),
       });
@@ -320,7 +641,8 @@ export class Panes {
     if (conductor) {
       const live = this.d.broker.status(conductor.id);
       if (live?.alive) return ok({ ...conductor, live });
-      return this.spawn(conductor, input.size ?? DEFAULT_SIZE);
+      // Its session again in its pane: what the last one showed stays above what this one prints.
+      return this.spawn(conductor, input.size ?? DEFAULT_SIZE, await this.keptScreen(conductor.id));
     }
     const known = record.value.host && this.d.hosts.has(record.value.host) ? record.value.host : undefined;
     const host = input.host ?? known ?? [...this.d.hosts.keys()][0];
@@ -347,7 +669,11 @@ export class Panes {
    * shells opened. A pane that ran a command stays as it ended (the command is not run a second
    * time, R11), and so does the session of a run that is no longer active; each says why in `skipped`.
    */
-  async restore(size: PtySize = DEFAULT_SIZE): Promise<
+  async restore(
+    size: PtySize = DEFAULT_SIZE,
+    /** false (`metator serve --no-restore`): host sessions stay paused until a person continues them. */
+    options: { readonly resume?: boolean } = {},
+  ): Promise<
     Result<
       readonly {
         readonly paneId: string;
@@ -368,7 +694,17 @@ export class Panes {
         out.push({ paneId: pane.id, ok: false, skipped });
         continue;
       }
-      const started = await this.spawn(pane, size);
+      if (pane.process.kind === "host" && options.resume === false) {
+        // Went with the daemon (a SIGKILL leaves it looking live): paused until it is continued.
+        const paused = await this.pause(pane.id, pane.paused?.why ?? "daemon-stopped");
+        if (paused.isErr()) return err(paused.error);
+        out.push({ paneId: pane.id, ok: false, skipped: "paused: `metator run continue` resumes it" });
+        continue;
+      }
+      // A host session resumed in its pane, with the screen it left; a shell starts afresh.
+      const previous = pane.process.kind === "host" ? await this.keptScreen(pane.id) : undefined;
+      const started = await this.spawn(pane, size, previous);
+      if (started.isOk() && pane.process.kind === "host" && pane.process.sessionId) this.noteResumed(pane);
       out.push(
         started.isOk()
           ? { paneId: pane.id, ok: true }
@@ -386,6 +722,7 @@ export class Panes {
 
   /** Why a pane is not started again by itself; undefined when it is. */
   private async notRestored(pane: Pane): Promise<string | undefined> {
+    if (pane.ended) return `its work ended (${pane.ended.reason})`;
     if (pane.process.kind === "command")
       return isPlainShell(pane.process.argv)
         ? undefined
@@ -405,6 +742,12 @@ export class Panes {
     const closed = this.d.broker.close(paneId);
     if (closed.isErr()) return err(closed.error);
     this.tokens.delete(paneId);
+    // Its kept screen goes with it: a pane given the same id later starts with a clean screen.
+    this.kept.delete(paneId);
+    if (this.d.fs && (await this.d.fs.exists(screenFile(paneId)))) {
+      const forgot = await this.d.fs.remove(screenFile(paneId));
+      if (forgot.isErr()) return err(forgot.error);
+    }
     if (!pane) return ok({ closed: closed.value.closed });
     const removed = await this.d.layout.update((l) =>
       ok({ layout: removePane(l, paneId), value: undefined }),
@@ -471,9 +814,9 @@ export class Panes {
     return ok(await this.withLive(pane));
   }
 
-  /** The last lines of the pane's output, without terminal escapes. */
-  read(paneId: string, lines = 80): string {
-    return tailLines(stripAnsi(this.d.broker.backlog(paneId)), lines);
+  /** The last lines of the pane's screen as a person sees it (rendered; a kept screen without escapes). */
+  async read(paneId: string, lines = 80): Promise<string> {
+    return tailLines((await this.d.broker.screen(paneId)) ?? stripAnsi(this.screen(paneId)), lines);
   }
 
   /**
@@ -506,7 +849,11 @@ export class Panes {
   }
 
   /** Starts the pane's process with the pane's identity in its environment; a host session with an id resumes. */
-  private async spawn(pane: Pane, size: PtySize): Promise<Result<PaneView, MetatorError>> {
+  private async spawn(
+    pane: Pane,
+    size: PtySize,
+    previousScreen?: string,
+  ): Promise<Result<PaneView, MetatorError>> {
     const token = (this.d.token ?? (() => crypto.randomUUID()))();
     const env = {
       METATOR_PANE_ID: pane.id,
@@ -554,19 +901,32 @@ export class Panes {
       host,
       sessionId,
       pty,
+      size,
+      // A session resumed in its pane: the screen it left is shown above what it prints now.
+      ...(previousScreen ? { backlog: `${previousScreen}\r\n` } : {}),
     });
     if (adopted.isErr()) {
       pty.kill();
       return err(adopted.error);
     }
     this.tokens.set(pane.id, token);
+    // Started (again): its work is not over.
     const saved = await this.d.layout.update((layout) => {
-      const updated = updatePane(layout, pane.id, (p) =>
-        p.process.kind === "host" ? { ...p, process: { ...p.process, sessionId } } : p,
-      );
+      const updated = updatePane(layout, pane.id, (p) => {
+        const { ended: _over, paused: _resumed, ...open } = p;
+        return open.process.kind === "host" ? { ...open, process: { ...open.process, sessionId } } : open;
+      });
       return ok({ layout: updated, value: paneOf(updated, pane.id) });
     });
     if (saved.isErr()) return err(saved.error);
+    // The process exits: the pane says so, with the code, and stays until a person closes it. A
+    // host session that goes with the daemon, or that a signal ended, is paused instead: its work
+    // is not over, and it is continued in the same pane.
+    this.d.broker.subscribe(pane.id, (event) => {
+      if (event.type !== "exit") return;
+      if (pane.process.kind === "host" && event.code >= SIGNALLED) void this.pause(pane.id, "process-lost");
+      else void this.end(pane.id, { reason: "exited", exitCode: event.code });
+    });
     if (pane.runId) {
       // The conductor's session is the run's host session too (`run drive` resumes it).
       if (pane.role === "conductor" && pane.process.kind === "host") {
@@ -588,19 +948,20 @@ export class Panes {
   }
 }
 
-/** The layout a client renders: workspaces with their panes nested, the live state on each. */
-export function layoutTree(
-  view: LayoutView,
-): readonly (Workspace & { readonly panes: readonly PaneView[] })[] {
-  const byWorkspace = new Map<string, PaneView[]>();
-  for (const p of view.panes) {
-    const w = p.tab.split(":")[0] as string;
-    byWorkspace.set(w, [...(byWorkspace.get(w) ?? []), p]);
-  }
-  return view.workspaces.map((w) => ({ ...w, panes: byWorkspace.get(w.id) ?? [] }));
+/** A resumed session still to be told to go on: which pane, whose, and why it had stopped. */
+export interface ResumeNotice {
+  readonly paneId: string;
+  readonly runId: string;
+  readonly role: "conductor" | "worker";
+  readonly why: PanePauseReason;
+  readonly at: string;
 }
 
-export const isLayout = (x: unknown): x is Layout => typeof x === "object" && x !== null && "workspaces" in x;
+/** An exit code at or above this is a process a signal ended (128 + the signal). */
+const SIGNALLED = 128;
+
+/** Where an ended pane's last screen is kept. */
+const screenFile = (paneId: string): string => `.metator/panes/${paneId.replaceAll(":", "-")}.screen`;
 
 const basename = (path: string): string => path.split(/[\\/]/).filter(Boolean).at(-1) ?? "workspace";
 

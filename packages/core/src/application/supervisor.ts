@@ -1,13 +1,14 @@
+import { agentQuestionOf } from "../domain/agent-question.ts";
 import type { SupervisorPolicy } from "../domain/config.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { countAttention } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import type { RunJournal } from "./drive.ts";
 import type { HostPrompts, HostPromptsReport } from "./host-prompts.ts";
 import type { WorkOverview } from "./overview.ts";
 import type { Panes } from "./panes.ts";
 import type { PtyBroker } from "./pty-broker.ts";
 import type { RunDrivers } from "./run-drivers.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 
 export interface SupervisorDependencies {
@@ -15,14 +16,16 @@ export interface SupervisorDependencies {
   readonly repo: Pick<RunRepository, "list" | "load">;
   readonly drivers: Pick<RunDrivers, "status">;
   readonly journal: Pick<RunJournal, "record" | "activity" | "questions" | "ask">;
-  readonly broker: Pick<PtyBroker, "list" | "nudge" | "close">;
+  readonly broker: Pick<PtyBroker, "list" | "nudge" | "close"> & Partial<Pick<PtyBroker, "screen">>;
   readonly overview: Pick<WorkOverview, "execute">;
   /** Starts a run's drive again (the CLI's `run continue`); the stage it stands at. */
   readonly restart: (runId: string) => Promise<Result<{ readonly stage: string }, MetatorError>>;
   /** Host prompts on pane screens into the inbox (R3); without it, nothing is sensed. */
   readonly prompts?: Pick<HostPrompts, "tick">;
   /** The layout's panes (R5): a dead conductor pane of an active run is resumed, up to the policy's attempts. */
-  readonly panes?: Pick<Panes, "view" | "openRun">;
+  readonly panes?: Pick<Panes, "view" | "openRun"> & Partial<Pick<Panes, "resumeNoticePending">>;
+  /** A pane whose agent asked the person in words and waits (a pane question is open). */
+  readonly asksInPane?: (paneId: string) => boolean;
 }
 
 export interface SupervisorReport {
@@ -157,6 +160,12 @@ export class Supervisor {
       // Only a run's conductor is nudged; workers answer to it, shells to nobody.
       const runId = session.runId;
       if (!runId || session.role !== "conductor") continue;
+      // A session the daemon just resumed is told to go on by its own line (ResumeNotices): one line, not two.
+      if (this.d.panes?.resumeNoticePending?.(session.paneId)) continue;
+      // An agent that asked the person in words waits for them: a nudge would answer for them. Its
+      // last message is read here too, so a question not yet in the inbox is never nudged over.
+      if (this.d.asksInPane?.(session.paneId)) continue;
+      if (session.idle && agentQuestionOf((await this.d.broker.screen?.(session.paneId)) ?? "")) continue;
       const episode = this.episodes.get(runId);
       if (!session.alive) {
         this.episodes.delete(runId);

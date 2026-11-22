@@ -87,3 +87,16 @@ rules:
       - "declare the type both files need in a third file, or where it is used"
     dont:
       - 'a.ts: import type { B } from "./b.ts"; b.ts: import { a } from "./a.ts"'
+  - id: MT-ARCH-010
+    title: The desktop app takes only types from core
+    applyTo: ["packages/desktop/src/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-desktop-type-imports
+    summary: The desktop app imports from MetatorAI only types of @metator/core, with a whole-statement `import type`; no value, no other package, no re-export, no import().
+    rationale: docs/adr/0085-desktop-type-imports-from-core.md
+    source: { ref: docs/adr/0085-desktop-type-imports-from-core.md, verified: 2026-11-13 }
+    do:
+      - 'import type { RunOverview } from "@metator/core";'
+    dont:
+      - 'import { type RunOverview } from "@metator/core";'
+      - 'import { briefOf } from "@metator/core";'

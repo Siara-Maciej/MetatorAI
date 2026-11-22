@@ -18,6 +18,16 @@ stages:
   - id: approval
     hitl: true
 `;
+/** A gate first, then work: an answer to the gate decides it and the work still needs a drive. */
+const GATED = `kind: Workflow
+schemaVersion: 2
+id: gated
+stages:
+  - id: approval
+    hitl: true
+  - id: build
+    owner: mt-implementer
+`;
 /** A run of this workflow escalates at once: its only stage is a gate that fails until a file exists. */
 const STUCK = `kind: Workflow
 schemaVersion: 2
@@ -30,6 +40,10 @@ const SCENARIO = `kind: AgentScenario
 schemaVersion: 1
 agents:
   session:
+    - - say: "hello from the session"
+      - ask: { question: "Which rounding?", options: [half-up, half-even] }
+      - say: "STATUS: done"
+  mt-orchestrator:
     - - say: "hello from the session"
       - ask: { question: "Which rounding?", options: [half-up, half-even] }
       - say: "STATUS: done"
@@ -68,6 +82,7 @@ beforeAll(async () => {
   await repo.write(".gitignore", ".metator/\n");
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
   await repo.write(".github/metator/workflows/stuck.yml", STUCK);
+  await repo.write(".github/metator/workflows/gated.yml", GATED);
   await repo.write("scenario.yml", SCENARIO);
   await repo.commit("init");
   // Drives the daemon starts use the scenario host too: no real AI host is ever started.
@@ -133,9 +148,39 @@ describe("metator serve (real daemon)", () => {
 
   test("a PTY session over a WebSocket: output streams, only the attached person types, the exit arrives", async () => {
     const runId = ((await get("/state")).data as { runs: { runId: string }[] }).runs[0]?.runId as string;
+    // Opening the socket starts nothing: a run without a session is told how to start one.
+    const early: Record<string, unknown>[] = [];
+    const none = new WebSocket(`${base.replace("http", "ws")}/ws/pty/${runId}?by=maciej`);
+    none.onmessage = (m) => early.push(JSON.parse(String(m.data)) as Record<string, unknown>);
+    await new Promise<void>((resolve) => {
+      none.onclose = () => resolve();
+    });
+    expect(early).toEqual([
+      {
+        type: "error",
+        error: {
+          code: "NOT_FOUND",
+          message: `run ${runId} has no terminal session`,
+          hint: `Start one first: POST /runs/${runId}/pty-open (\`metator run start --run ${runId}\`).`,
+        },
+      },
+    ]);
+    expect(((await get(`/runs/${runId}/pty`)).data as { session: unknown }).session).toBeNull();
+    // The explicit start; then the socket finds the session.
+    const openedSession = await post(`/runs/${runId}/pty-open`, {});
+    expect([openedSession.ok, (openedSession.data as { runId: string }).runId]).toEqual([true, runId]);
     const events: Record<string, unknown>[] = [];
     const ws = new WebSocket(`${base.replace("http", "ws")}/ws/pty/${runId}?by=maciej`);
     ws.onmessage = (m) => events.push(JSON.parse(String(m.data)) as Record<string, unknown>);
+    // A second socket on the same run is a reconnect: the same session and what it has printed so far.
+    const again: Record<string, unknown>[] = [];
+    const second = new WebSocket(`${base.replace("http", "ws")}/ws/pty/${runId}?by=maciej`);
+    second.onmessage = (m) => again.push(JSON.parse(String(m.data)) as Record<string, unknown>);
+    await until("the reconnect to see the session", async () =>
+      again.some((e) => e.type === "session") ? true : undefined,
+    );
+    expect((again[0] as { session: { runId: string } }).session.runId).toBe(runId);
+    second.close();
     await until("the session to greet", async () =>
       events.some((e) => e.type === "data" && String(e.data).includes("hello from the session"))
         ? true
@@ -174,8 +219,8 @@ describe("metator serve (real daemon)", () => {
       entries: { type: string; origin?: string; text: string }[];
     };
     expect(activity.entries.filter((e) => e.origin === "pty").map((e) => e.text)).toEqual([
-      expect.stringContaining("started session scenario-session-1 in pane w1:p1"),
-      "session scenario-session-1 exited with 0 (pane w1:p1)",
+      expect.stringContaining("started session scenario-mt-orchestrator-1 in pane w1:p1"),
+      "session scenario-mt-orchestrator-1 exited with 0 (pane w1:p1)",
     ]);
     expect((await post(`/runs/${runId}/release`, {})).ok).toBe(true);
     // The session ended: the run stands still again.
@@ -214,8 +259,8 @@ describe("metator serve (real daemon)", () => {
     ws.close();
   }, 60_000);
 
-  test("an answer through the API to a run nothing drives starts its drive again, as the TUI does", async () => {
-    const runId = data(await mt("run", "init", "--workflow", "demo", "--task", "Round the totals"))
+  test("an answer through the API to a gate nothing drives decides it and starts the drive again", async () => {
+    const runId = data(await mt("run", "init", "--workflow", "gated", "--task", "Round the totals"))
       .runId as string;
     await mt("run", "drive", "--run", runId, "--host", "scenario", "--detach");
     const q = await until("the gate", async () => {
@@ -304,7 +349,7 @@ describe("metator serve (real daemon)", () => {
       "check",
       `metator run resume --run ${runId} --by <name> --drive`,
     ]);
-    expect(item?.reason).toStartWith("gate `test -f {runDir}/fixed`");
+    expect(item?.reason).toStartWith(`gate \`test -f .metator/runs/${runId}/fixed\``);
     const counts = (await get("/state")).data.counts as { escalated: number; finished: number };
     expect(counts.escalated).toBe(1);
     // A resume needs a name; with one the run is active again and a drive is started.
@@ -370,6 +415,148 @@ describe("metator serve (real daemon)", () => {
     const after = (await get("/inbox")).data as { decisions: { runId: string }[] };
     expect(after.decisions.some((x) => x.runId === live)).toBe(false);
   }, 90_000);
+});
+
+describe("one way to start, answer, brief and close a run, on the API as in the terminal", () => {
+  const status = async (path: string, init?: RequestInit) => {
+    const r = await fetch(`${base}${path}`, init);
+    return { http: r.status, body: (await r.json()) as { ok: boolean; data: Data; error?: Data } };
+  };
+
+  test("the API's statuses: a body that does not fit is 400 USAGE, what is not there 404 NOT_FOUND", async () => {
+    const runId = data(await mt("run", "new", "--workflow", "demo", "--task", "Answer me with a bad body"))
+      .runId as string;
+    const bad = await status(`/runs/${runId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ question: "q001", choices: "Approve", by: 7 }),
+    });
+    expect([bad.http, bad.body.ok, bad.body.error?.code]).toEqual([400, false, "USAGE"]);
+    expect(String(bad.body.error?.message)).toStartWith(
+      "the request's body does not fit POST /runs/:run/answer: ",
+    );
+    const nowhere = await status("/no/such/route");
+    expect([nowhere.http, nowhere.body.error]).toEqual([
+      404,
+      { code: "NOT_FOUND", message: "no route GET /no/such/route" },
+    ]);
+    const gone = await status("/runs/no-such-run/board");
+    expect([gone.http, gone.body.error?.code]).toEqual([404, "NOT_FOUND"]);
+    // A field a newer client sends is ignored, and the envelope is the terminal's.
+    const fine = await status(`/runs/${runId}/board?timeline=3`);
+    expect([fine.http, fine.body.ok]).toEqual([200, true]);
+  }, 60_000);
+
+  test("a since that is no time is a usage error on both fronts", async () => {
+    const runId = data(await mt("run", "new", "--workflow", "demo", "--task", "Brief me about it"))
+      .runId as string;
+    const api = await status(`/runs/${runId}/brief?since=yesterday-ish`);
+    const cli = await mt("run", "brief", runId, "--since", "yesterday-ish", "--peek");
+    expect([api.http, api.body.error?.code, api.body.error?.message]).toEqual([
+      400,
+      "USAGE",
+      "since yesterday-ish: expected an ISO time",
+    ]);
+    expect([cli.code, (cli.json.error as Data).code, (cli.json.error as Data).message]).toEqual([
+      64,
+      "USAGE",
+      "since yesterday-ish: expected an ISO time",
+    ]);
+    // A good one answers the same brief on both; reading it through the API marks nothing as read.
+    const good = await status(`/runs/${runId}/brief?since=2020-01-01T00:00:00Z`);
+    const same = await mt("run", "brief", runId, "--since", "2020-01-01T00:00:00Z", "--peek");
+    expect([good.http, good.body.data]).toEqual([200, data(same)]);
+  }, 60_000);
+
+  test("a run started through the API in a worktree gets its dependencies, as `run new --worktree` does; closing it removes the worktree when asked", async () => {
+    const started = await post("/runs", { workflow: "demo", task: "Start me in a worktree", worktree: true });
+    expect(started.ok).toBe(true);
+    const run = started.data.run as { runId: string; worktree?: { id: string } };
+    expect(run.worktree?.id).toBeDefined();
+    expect(started.data.setup).toBeDefined(); // the setup ran: its report, or its error
+    const declined = await post("/runs", {
+      workflow: "demo",
+      task: "Start me without the setup",
+      worktree: true,
+      setup: false,
+    });
+    expect(declined.data.setup).toBeUndefined();
+    const listed = async () =>
+      (await mt("worktree", "list")).json.data as { worktrees?: { id: string }[] } | { id: string }[];
+    const ids = async () => JSON.stringify(await listed());
+    expect(await ids()).toContain(run.worktree?.id as string);
+    const closed = await post(`/runs/${run.runId}/close`, {
+      aborted: true,
+      reason: "the test ends it",
+      removeWorktree: true,
+      force: true,
+    });
+    expect([closed.ok, (closed.data.worktree as Data)?.removed]).toEqual([true, true]);
+    expect(await ids()).not.toContain(`"${run.worktree?.id}"`);
+    // Without the option the worktree stays, as in the terminal.
+    const other = declined.data.run as { runId: string; worktree?: { id: string } };
+    const kept = await post(`/runs/${other.runId}/close`, { aborted: true, reason: "the test ends it" });
+    expect([kept.ok, kept.data.worktree]).toEqual([true, undefined]);
+    expect(await ids()).toContain(other.worktree?.id as string);
+    await mt("worktree", "rm", other.worktree?.id as string, "--force");
+  }, 120_000);
+
+  test("an answer through the API with `always` is a policy too, refused where the terminal refuses it", async () => {
+    const ask = async (task: string) => {
+      const runId = data(await mt("run", "new", "--workflow", "demo", "--task", task)).runId as string;
+      await mt("run", "drive", "--run", runId, "--host", "scenario", "--detach");
+      const q = await until("the gate", async () => {
+        const inbox = (await get("/inbox")).data as {
+          decisions: { runId: string; question: { id: string } }[];
+        };
+        return inbox.decisions.find((d) => d.runId === runId)?.question;
+      });
+      return { runId, q };
+    };
+    const policies = async () =>
+      ((await mt("policy", "list")).json.data as { policies: { id: string }[] }).policies.map((p) => p.id);
+    const before = await policies();
+    const first = await ask("Answer me for good through the API");
+    // Other needs a person's own words each time: no policy, on the API as in the terminal.
+    const refused = await status(`/runs/${first.runId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({
+        question: first.q.id,
+        choices: ["Other"],
+        text: "x",
+        by: "maciej",
+        always: true,
+      }),
+    });
+    const cli = await mt(
+      "run",
+      "answer",
+      first.q.id,
+      "--run",
+      first.runId,
+      "--choice",
+      "Other",
+      "--text",
+      "x",
+      "--by",
+      "maciej",
+      "--always",
+    );
+    expect([refused.http, refused.body.error?.code]).toEqual([400, "USAGE"]);
+    expect(refused.body.error?.message).toBe((cli.json.error as Data).message as string);
+    expect(String(refused.body.error?.message)).toStartWith("no policy: ");
+    expect(await policies()).toEqual(before);
+    const answered = await post(`/runs/${first.runId}/answer`, {
+      question: first.q.id,
+      choices: ["approve"],
+      by: "maciej",
+      always: true,
+    });
+    expect(answered.ok).toBe(true);
+    const policy = answered.data.policy as { id: string } | undefined;
+    expect(policy?.id).toBeDefined();
+    expect(await policies()).toEqual([...before, policy?.id as string]);
+    await mt("policy", "rm", policy?.id as string);
+  }, 120_000);
 });
 
 describe("metator serve stops (last: the daemon is gone after it)", () => {

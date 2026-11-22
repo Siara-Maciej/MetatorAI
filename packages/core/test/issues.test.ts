@@ -7,7 +7,7 @@ import {
   type Issue,
   IssueDocument,
   Issues,
-  issueTask,
+  issueBrief,
   nextIssueId,
   PROPOSAL_ADD,
   PROPOSAL_DROP,
@@ -54,26 +54,25 @@ const issue = (over: Partial<Issue> = {}): Issue => ({
   labels: ["billing"],
   refs: [{ file: "src/invoice.ts", line: 10 }, { run: "r1", step: "S2" }, { note: "see the plan" }],
   proposedBy: { agent: "mt-implementer-1", runId: "r1", at: "2026-11-09T22:36:00.000Z" },
+  dependsOn: [],
   createdAt: "2026-11-09T22:36:00.000Z",
   updatedAt: "2026-11-09T22:36:00.000Z",
   ...over,
 });
 
 describe("issue domain", () => {
-  test("ids count up past the ones taken; refs read as text; the task of a run is title and body", () => {
+  test("ids count up past the ones taken; refs read as text; a run's task.md is the title and the body", () => {
     expect(nextIssueId([])).toBe("i001");
     expect(nextIssueId(["i001", "i007", "i003"])).toBe("i008");
     expect(issue().refs.map(refText)).toEqual(["src/invoice.ts:10", "run r1/S2", "see the plan"]);
-    expect(issueTask(issue())).toBe(
-      "Negative amounts in round2\n\nMath.round is half-up for positives only.",
+    expect(issueBrief(issue())).toBe(
+      "# Negative amounts in round2\n\nMath.round is half-up for positives only.\n\nFrom issue i001.\n",
     );
-    expect(issueTask(issue({ body: " " }))).toBe("Negative amounts in round2");
-    expect(IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...issue() }, "i001.json").isOk()).toBe(
-      true,
-    );
-    expect(
-      IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...issue({ id: "x1" }) }, "x").isErr(),
-    ).toBe(true);
+    expect(issueBrief(issue({ body: " " }))).toBe("# Negative amounts in round2\n\nFrom issue i001.\n");
+    // A v1 file has no `dependsOn`: it reads as an item that waits for nothing.
+    const { dependsOn: _none, ...v1 } = issue();
+    expect(IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...v1 }, "i001.json").isOk()).toBe(true);
+    expect(IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...v1, id: "x1" }, "x").isErr()).toBe(true);
   });
 
   test("a proposal is a question with three answers; the answer is the decision", () => {
@@ -195,6 +194,22 @@ describe("Issues", () => {
       )._unsafeUnwrap(),
     ).toMatchObject({ status: "open", priority: "low" });
     expect((await w.issues.decide(third.issue.id, { by: "maciej", decision: "add" })).isErr()).toBe(true);
+    // Decided outside the inbox, either way: its question is settled, so it leaves Needs you.
+    const answerOf = async (q: string) =>
+      (await w.journal.questions(run.runId))._unsafeUnwrap().find((x) => x.id === q)?.answer;
+    expect(await answerOf(third.questionId)).toMatchObject({ choices: [PROPOSAL_ADD], by: "maciej" });
+    const fourth = (
+      await w.issues.propose({ title: "A contract test", agent: "mt-test-author-1", runId: run.runId })
+    )._unsafeUnwrap();
+    expect(
+      (await w.issues.decide(fourth.issue.id, { by: "ana", decision: "drop" }))._unsafeUnwrap().status,
+    ).toBe("dropped");
+    expect(await answerOf(fourth.questionId)).toMatchObject({ choices: [PROPOSAL_DROP], by: "ana" });
+    const fifth = (
+      await w.issues.propose({ title: "Another idea", agent: "mt-test-author-1", runId: run.runId })
+    )._unsafeUnwrap();
+    expect((await w.issues.drop(fifth.issue.id, { by: "ana" }))._unsafeUnwrap().status).toBe("dropped");
+    expect(await answerOf(fifth.questionId)).toMatchObject({ choices: [PROPOSAL_DROP], by: "ana" });
     // Proposals can be switched off.
     const off = world(false);
     const r = (await off.init("x"))._unsafeUnwrap();
@@ -221,7 +236,7 @@ describe("Issues", () => {
     expect(await w.repo.list()).toEqual([won?.runId as string]);
   });
 
-  test("start makes a run on the task (title and body), the issue is in progress and remembers the run; 'Add and start' does both", async () => {
+  test("start makes a run on the task (its title; the body in task.md), the issue is in progress and remembers the run; 'Add and start' does both", async () => {
     const w = world();
     const added = (
       await w.issues.add({ title: "PDF cents", body: "Round sums to cents.", by: "maciej" })
@@ -229,7 +244,10 @@ describe("Issues", () => {
     const started = (await w.issues.start(added.id, { workflow: "demo", worktree: false }))._unsafeUnwrap();
     expect(started.issue).toMatchObject({ status: "in-progress", runId: started.runId });
     const record = (await w.repo.load(started.runId))._unsafeUnwrap();
-    expect(record.task).toBe("PDF cents\n\nRound sums to cents.");
+    expect(record.task).toBe("PDF cents");
+    expect((await w.fs.read(`.metator/runs/${started.runId}/task.md`))._unsafeUnwrap()).toBe(
+      `# PDF cents\n\nRound sums to cents.\n\nFrom issue ${added.id}.\n`,
+    );
     expect((await w.issues.list({ runId: started.runId }))._unsafeUnwrap().map((i) => i.id)).toEqual([
       added.id,
     ]);

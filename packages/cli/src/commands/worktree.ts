@@ -1,19 +1,20 @@
 import { portVariables } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { person } from "../live.ts";
-import { positiveInt } from "../options.ts";
+import { baseOption, byOption, positiveInt } from "../options.ts";
+import { asPerson } from "../who.ts";
 
 export function registerWorktreeCommands(program: Command, { action, container }: CommandContext): void {
-  const worktree = program
-    .command("worktree")
-    .description("Git worktrees for runs, each on its own branch with its own block of ports");
+  const worktree = meta(program.command("worktree"), { audience: "person" }).description(
+    "Git worktrees for runs, each on its own branch with its own block of ports",
+  );
 
   worktree
     .command("new")
     .description("Create .metator/wt/<id> on branch metator/<id> with a free block of ports")
     .argument("<id>", "worktree id (lowercase letters, digits, -)")
-    .option("--base <ref>", "ref to branch from", "HEAD")
+    .addOption(baseOption("ref to branch from", "HEAD"))
     .option("--run <id>", "the run that works in it")
     .option("--ports <count>", "how many ports to lease", positiveInt, 20)
     .action(
@@ -50,25 +51,21 @@ export function registerWorktreeCommands(program: Command, { action, container }
       })),
     );
 
-  worktree
-    .command("conflicts")
+  meta(worktree.command("conflicts"), { reads: true, writesWith: ["--notify"] })
     .description("Files two active runs changed in their own worktrees, and which to merge first")
     .option("--notify", "tell both runs of each conflict (a shared-file message each way)", false)
-    .option(
-      "--by <name>",
-      "who sends the messages (with --notify; default: $METATOR_USER, else your login name)",
-    )
+    .addOption(byOption("who sends the messages (with --notify)"))
     .action(
       // `--by` is resolved here, not as the option's default: the CLI reference is generated from the options.
-      action(async (opts: { notify: boolean; by?: string }) => ({
-        result: await container()
-          .resolve("worktreeConflicts")
-          .execute(opts.notify ? { notify: { by: opts.by ?? person() } } : {}),
-      })),
+      action(async (opts: { notify: boolean; by?: string }) => {
+        if (!opts.notify) return { result: await container().resolve("worktreeConflicts").execute({}) };
+        return asPerson(container(), opts.by, async (by) => ({
+          result: await container().resolve("worktreeConflicts").execute({ notify: { by } }),
+        }));
+      }),
     );
 
-  worktree
-    .command("list")
+  meta(worktree.command("list"), { reads: true })
     .description("Worktrees with their branch, ports, run status and whether they hold uncommitted work")
     .action(
       action(async () => {

@@ -1,5 +1,6 @@
 import { err, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { resume } from "../sessions.ts";
 
@@ -23,8 +24,7 @@ export function registerIntakeCommands(program: Command, { action, container }: 
       }),
     );
 
-  intake
-    .command("scan")
+  meta(intake.command("scan"), { audience: "person" })
     .description("One pass over every rule: new items become issues and runs (at most `maxActive` at once)")
     .option("--dry-run", "only say what is new; write nothing and start nothing", false)
     .option("--drive [host]", "also drive each started run in the background (on this host, or the default)")
@@ -35,14 +35,8 @@ export function registerIntakeCommands(program: Command, { action, container }: 
         if (report.isErr()) return { result: err(report.error) };
         const warnings = report.value.rules.flatMap((r) => (r.error ? [`${r.rule}: ${r.error}`] : []));
         if (opts.drive !== undefined && opts.drive !== false) {
-          const root = (program.opts() as { root?: string }).root;
           for (const s of report.value.rules.flatMap((r) => r.started)) {
-            const driven = await resume(
-              c,
-              root,
-              s.runId,
-              typeof opts.drive === "string" ? opts.drive : undefined,
-            );
+            const driven = await resume(c, s.runId, typeof opts.drive === "string" ? opts.drive : undefined);
             if (driven.isErr()) warnings.push(`${s.runId}: ${driven.error.message}`);
           }
         }

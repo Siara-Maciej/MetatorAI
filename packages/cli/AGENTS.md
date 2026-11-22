@@ -2,9 +2,12 @@
 
 The driving adapter on commander. It talks to use cases only through the runtime container.
 
-- `src/commands/*.ts`: one module per command group, exported as `register*(program, ctx)`; register it in `src/program.ts`.
-- `src/program.ts` sets commander up for JSON output; `src/run.ts` builds the envelope and the exit code (MT-CODE-004).
-- Validate values with commander (`Option.choices`, `Argument.choices`, `requiredOption`, an `argParser` from `src/options.ts`), not by hand.
-- Name a flag as the rest of the CLI does (`--files`, `--timeout`; `FLAG_NAMES` in `src/options.ts`); rename with `renamedOption`, never by dropping the old spelling.
+- `src/commands/*.ts`: one module per command group, `register*(program, ctx)`, registered in `src/program.ts`. `src/run.ts` builds the envelope and the exit code (MT-CODE-004).
+- Validate values with commander (`choices`, `requiredOption`, an `argParser` from `src/options.ts`), not by hand.
+- Say what a command is where it is registered: `meta(cmd, { audience, reads, writesWith, readsWith, folder, check, render })` (`src/command-meta.ts`). MCP tools, folder commands, `meta check-all` and `help --for` come from it.
+- Rename with `renamedOption` / `renamedCommand` (the old spelling stays, hidden), never by dropping it.
+- A person's command registers a pure `render` (`src/render.ts`): text on stderr at a terminal, the JSON line on stdout, `--json` for the line alone.
+- Shared: `runOption`, `RUN_ARGUMENT` + `runGiven`, `byOption` + `who()` (the one rule for who acts), `defined`, `failWhen`, `schemaCommand`, `ctx.root()`.
 - A new leaf command needs a literal argv in an e2e test (MT-TEST-001) and its line in the help list of `e2e/cli.e2e.test.ts`.
-- `src/tui/`: `metator ui` on Ink (React). Views call only `TuiService` (`tui/service.ts`); test them with `ink-testing-library` and a fake service (`test/tui.test.tsx`).
+- No full-screen view (ADR-0086): prompts are `@clack/prompts` in `src/terminal.ts`.
+- `src/serve/`: the daemon. A route is a row in `routes/*.ts` with a zod `body`; `http.ts` dispatches. Run logic lives in core use cases, never in a command or a route.

@@ -56,6 +56,8 @@ describe("metator init", () => {
       "full:script lint",
       "quick:script lint + files",
       "full:script test",
+      // The quick gate runs the tests too: a quick change (mt-quick) ends at this gate.
+      "quick:script test",
     ]);
     // Warnings go out once, in the envelope, never inside the data too (C11).
     expect(data(r).warnings).toBeUndefined();
@@ -63,10 +65,12 @@ describe("metator init", () => {
     expect((await metator(["init", "--dry-run"], repo.root)).code).toBe(0);
     const bare = await ScratchRepo.create();
     try {
-      await bare.write("package.json", JSON.stringify({ name: "bare", scripts: { test: "true" } }));
+      await bare.write("package.json", JSON.stringify({ name: "bare" }));
       await bare.commit("init");
       const dry = await metator(["init", "--dry-run"], bare.root);
-      expect(dry.json.warnings).toEqual(["no file-scoped checks found for the quick gate; add one by hand"]);
+      expect(dry.json.warnings).toEqual([
+        "nothing found for the quick gate (no lint, typecheck or test script): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
+      ]);
       expect(Object.keys(data(dry)).sort()).toEqual(["config", "decisions", "written"]);
     } finally {
       await bare.dispose();
@@ -93,6 +97,7 @@ describe("metator gate", () => {
     expect(r.code).toBe(0);
     expect((data(r).steps as Data[]).map((s) => [s.id, s.status, s.command])).toEqual([
       ["lint", "pass", ["bun", "run", "lint", "src/a.ts"]],
+      ["test", "pass", ["bun", "run", "test"]],
     ]);
     expect(await repo.read(".metator-eslint.log")).toContain("eslint src/a.ts");
     expect((await findUnversioned(repo.root, [".metator/gates"])).unversioned).toEqual([]);

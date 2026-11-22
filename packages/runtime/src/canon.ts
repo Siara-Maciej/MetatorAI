@@ -8,6 +8,9 @@ import pkg from "../package.json" with { type: "json" };
  * The MetatorAI installation this runtime belongs to: the checkout (packages/runtime/src → root)
  * or the npm package (bin/metator.js → its root), whichever has the agents beside it.
  */
+/** This installation's version (its package's). */
+export const METATOR_VERSION: string = pkg.version;
+
 const SHIPPED = [resolve(import.meta.dir, "../../.."), resolve(import.meta.dir, "..")];
 
 /**

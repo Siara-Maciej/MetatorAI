@@ -9,6 +9,8 @@ Look things up here: a command and its options, a configuration key, a file Meta
 | [Configuration](./configuration.md) | `metator.config.yml` and the options you set per user, repository or run |
 | [Documents and schemas](./documents.md) | every file MetatorAI reads or writes, where it lives and who writes it |
 | [Hooks protocol](./hooks.md) | what `metator guard` reads from the host and what it answers |
+| [Daemon HTTP API](./http.md) | the routes of `metator serve` that the app and scripts call |
+| [MCP server](./mcp.md) | MetatorAI's reading commands as MCP tools for other agents |
 | [Ports and plugins](./extending.md) | how a tool is connected, for contributors |
 | [Security](./security.md) | what is enforced by code, the audit trail, where data goes |
 | [Troubleshooting](./troubleshooting.md) | common errors and their fixes |
@@ -32,13 +34,13 @@ The CLI has more than two hundred commands. Most of them are called by agents, h
 
 | Command | What it does |
 |---|---|
-| [`metator run`](./commands.md#run) | starts a run in the terminal: you pick the workflow, the task and the host, then follow it |
+| [`metator quick start`](./commands.md#metator-quick-start) | a small change without a plan: build, the quick gate, one short review; it ends with a diff to look at |
+| [`metator run`](./commands.md#run) | starts a full run in the terminal: you pick the workflow, the task and the host, then follow it |
 | [`metator issue list`](./commands.md#metator-issue-list) | the backlog: proposals from agents that wait for you, then the open tasks |
 | [`metator issue start`](./commands.md#metator-issue-start) | starts a run on a task of the backlog, in a new worktree |
 | [`metator inbox`](./commands.md#metator-inbox) | every question that waits for you, across runs |
 | [`metator run answer`](./commands.md#metator-run-answer) | answers a question so the run continues |
 | [`metator status`](./commands.md#metator-status) | every run: its stage, who must act, open questions |
-| [`metator ui`](./commands.md#metator-ui) | the full-screen view of every session |
 | [`metator attach`](./commands.md#metator-attach) | puts your terminal on a session's pane; Ctrl-] detaches |
 
 ### Read and check a change
@@ -51,6 +53,14 @@ The CLI has more than two hundred commands. Most of them are called by agents, h
 | [`metator meta check-all`](./commands.md#metator-meta-check-all) | checks rules, knowledge, agents, skills, workflows and generated files in one pass |
 | [`metator ask`](./commands.md#ask) | answers a question about the code with `path:line` citations |
 
+### Many repositories
+
+| Command | What it does |
+|---|---|
+| [`metator repos init`](./commands.md#metator-repos-init) | writes `metator.repos.yml` in a folder from the repositories below it |
+| [`metator repos list`](./commands.md#metator-repos-list) | the folder's repositories, whether each is set up, and their worktrees |
+| [`metator system plan new`](./commands.md#metator-system-plan-new) | drafts a plan for a change across applications |
+
 ### Keep work coming in
 
 | Command | What it does |
@@ -59,4 +69,4 @@ The CLI has more than two hundred commands. Most of them are called by agents, h
 | [`metator intake scan`](./commands.md#metator-intake-scan) | turns new issues from GitHub, GitLab or Jira into tasks and runs, by your intake rules |
 | [`metator mrs list`](./commands.md#metator-mrs-list) | reviews of your open pull requests, with proposed replies |
 
-Each of these has a how-to page: [First run](../guide/first-run.md), [Start a task](../use/start.md), [Answer questions](../use/inbox.md).
+Each of these has a how-to page: [Start with one repository](../guide/first-run.md), [Start with many repositories](../guide/many.md), [Chats and the three ways](../use/start.md), [Home and the Board](../use/inbox.md).

@@ -140,6 +140,97 @@ W `RunRecord.latest`: `driver: "agent" | "human"`, `attachedAt`, `attachedBy`. Z
 
 ## 5. Zachowania wspólne
 
+### 5.0 Stan po konsolidacji (2026-11-13)
+
+Wzorem herdr powłoka ma jeden pasek boczny, który jest całym pulpitem; reszta okna to praca. Punkty 5.1 i 5.2 oraz podział na ekrany w §6 opisują pierwotny projekt; obowiązuje to, co niżej.
+
+- **Pasek u góry** jest cienki: logo, zakres (repozytorium albo folder), `?` (lista klawiszy), imię osoby, stan połączenia. Liczniki zniknęły z paska: liczby są w nagłówkach sekcji paska bocznego.
+- **Pasek boczny** (`Sidebar`) zastępuje szynę ikon, panel sesji i boczną kolumnę siatki terminali. Od góry: **Needs you · N** (pytania na kartach, pytania na terminalu, runy eskalowane; wiersz otwiera decyzję), **Runs · N** per repozytorium z pane'ami pod runem i krokami rozbitego runu pod rodzicem, **Finished · N** (zwinięte), miejsca niebędące runem (Terminals, Backlog, Reviews, Overview, Settings) i przycisk **+ New run** z drugim **Form…**. Poniżej 1000 px pasek jest szufladą pod przyciskiem **Runs · N**.
+- **Jeden wzór wiersza**: glif stanu, nazwa, słowo stanu po prawej, jedna wyciszona linia (etap · host · wiek). Bez chipów w wierszach.
+- **Stany runu**: `needs you`, `working`, `escalated`, `done`, `idle`. `done` to run zakończony, którego ta osoba jeszcze nie otworzyła; po otwarciu jest `idle`. Stan zwija się pane → run → repozytorium jedną czystą funkcją (`rollUp` w `src/model.ts`). Stany pane'a bez zmian: `working`, `asks`, `idle`, `exited`. „Otwarte” jest pamiętane w magazynie okna (`metator.seen`), bo `RunOverview` nie niesie czasu ostatniego obejrzenia; po dodaniu pola `seenAt` do `RunOverview` magazyn okna można usunąć.
+- **Jedna strona runu** (`#/run/<run>/<zakładka>`) z zakładkami Overview, Terminal, Plan, Changes, Activity (klawisze `o` `t` `p` `d` `l`). Overview to dawna Odprawa (§6.8), Terminal to dawna Sesja (§6.4) bez tabeli zdarzeń, Activity to dawne Events. Stare adresy (`#/session`, `#/plan`, `#/review`, `#/briefing`) prowadzą na właściwą zakładkę. Liczba zmienionych plików w Overview pochodzi z tego samego źródła co zakładka Changes (diff runu).
+- **Overview** (`#/overview`) łączy Supervisora (§6.7, zakładka Daemon) i Graf (§6.6, zakładka Dependencies); `#/supervisor` i `#/graph` nadal działają.
+- **Słownik**: jednostka pracy to „run” („+ New run”), „session” to tylko żywy proces agenta („Open a session”), „task” to pozycja backlogu, ekran wielu pane'ów to „Terminals”, ekran diffu to „Changes”.
+- **Pusty start**: bez żadnego runu obszar główny pokazuje pole „Describe a task” z „Start” i „Use the form”; pane agenta startowego czyta się `idle · ready for your task`, nigdy `asks`.
+- **Klawisze**: `?` z filtrem pisanym w polu; `j`/`k` i strzałki w każdej liście (kolejka decyzji, kroki, pliki, zadania); jedna litera ma jedno znaczenie na wszystkich ekranach.
+
+### 5.0a Plany w aplikacji (runda 3, 2026-11-15)
+
+- Zakładka **Plan** strony runu pokazuje plan implementacji z lintem przy kroku i polu (`GET /runs/:run/plan`) i pozwala go zmienić do bramki, na której człowiek go zatwierdza: **Edit plan** (pola, kroki dodawane, usuwane i przesuwane przyciskami albo Alt+strzałkami), **Edit as text** (JSON sprawdzany przez demona), **Check** (lint bez zapisu), **Save…** (najpierw lista zmian, potem zapis z `digest`; `CONFLICT` pokazuje wersję bieżącą: **Reload** albo **Keep my edits**). Po bramce plan jest tylko do odczytu z powodem (`readOnlyBecause`).
+- Run systemowy ma w zakładce Plan **plan systemowy**: kroki per repozytorium, fale wdrożenia, run potomny każdego kroku z jego stanem, zatwierdzenie (nieaktualne po zmianie), **Approve** zablokowane błędami lintu i ta sama edycja (krok z runem jest tylko do odczytu). **Overview → System** listuje plany systemowe i edytuje mapę systemu (aplikacje, kontrakty), `system.roots` i **Discover** (podgląd przed zapisem).
+- Każdy artefakt runu otwiera się tylko do odczytu; tekst agenta nigdy nie jest renderowany jako HTML.
+- Run, nad którym nic nie pracuje, ma **Open a session** (konduktor, `POST /runs/:run/start`, z wyborem hosta) i **Drive in background** (`POST /runs/:run/drive`), na stronie runu i w Inboxie, który mówi prawdę o otwartych runach.
+
+### 5.0b Runda 4 (2026-11-17)
+
+- Przebieg przerwany czyta się `aborted` (własny znak `⊘`, powód w podpowiedzi); linia pod skończonym przebiegiem mówi, jak się skończył, nie etap, na którym stanął.
+- Krok planu systemowego ma numer według swojego miejsca w kolejności wdrożenia (fale), tak samo w panelu bocznym i na karcie.
+- Pytanie agenta w terminalu jest kartą `TERMINAL` w jego słowach, z jego odpowiedziami; „Attach and answer in the pane" prowadzi na zakładkę Terminal z tym panelem, przejmuje klawiaturę, ustawia kursor w panelu i przewija do pytania.
+- Approve na karcie planu z błędami lintu jest zamknięty z powodem i linkiem „Fix the plan" (`#/run/<run>/plan/edit`); tak samo na karcie planu systemowego.
+- Nagłówek przebiegu systemowego pokazuje kroki zrobione z wszystkich i dziecko, które go blokuje (z linkiem).
+- `system.roots` edytowane jako lista z walidacją; Discover bez mapy pokazuje proponowaną mapę. Aplikacja nie wysyła żądania, o którym wie, że się nie uda.
+
+### 5.0c Przepływ zadania i tablica (2026-11-18)
+
+- Zadanie rozłożone planem systemowym rysujemy jako przepływ: kolumny = fale, tory = repozytoria, węzeł na każdy krok (także nierozpoczęty, przerywany, z „waits for”), strzałki = `dependsOn`, ścieżka krytyczna pogrubiona; w Overview → Dependencies i na zakładce Plan przebiegu systemowego.
+- Tablica (Board): kolumny To do · Planning · In progress · Review · Done. Faza przebiegu liczona raz w core (`workPhase`, z workflow i etapu) i wysyłana przez demona jako `phase`; aplikacja nie zgaduje z nazw etapów i nie pozwala przeciągać kart.
+- Dwa kroki jednego repozytorium w jednej fali dostają osobne worktree.
+
+### 5.0d Zadania nadrzędne i plan bez edytora (2026-11-18, ADR-0089)
+
+- Panel boczny pokazuje zadania nadrzędne (zadanie systemowe, run z runami potomnymi, samodzielny run): jedno słowo stanu, postęp („3/6”), liczba „needs you”; rozwinięte zadanie pokazuje swoje drzewo według repozytoriów (także kroki nierozpoczęte, z tym, na co czekają). Lista decyzji jest w Inboxie; panel tylko ją liczy.
+- Przepływ zadania jest w jednym miejscu: na stronie zadania (zakładka Plan runu systemowego). Overview → Dependencies i Overview → System mają tylko linię prowadzącą do tej strony. Zakładka Dependencies zostaje dla runów spoza planów i wiadomości/wspólnych plików (przycisk Notify both działa tylko tam).
+- Plan nie jest edytowany ręcznie: karta zatwierdzenia pokazuje go w całości, a „Ask for changes” wysyła Reject bramki z tekstem jako powodem; planner pisze nowy plan, a karta pokazuje zmiany od poprzedniej wersji (`previous`, `changes`).
+- Tablica ma dwa poziomy: zadania nadrzędne, a po kliknięciu tablicę zadania z jego krokami.
+
+### 5.0e Trzy poziomy: najpierw proste, szczegóły po wejściu głębiej (2026-11-19)
+
+Zasada właściciela: pierwszy poziom ma być prosty poznawczo, szczegóły dopiero po wejściu głębiej.
+
+1. **Zadania** (co się dzieje, czy coś czeka na mnie): panel boczny, Home i Tablica pokazują zadanie z nazwą, jednym słowem stanu, postępem i liczbą „needs you”.
+2. **Zadanie** (jak idzie to zadanie): strona zadania (run systemowy albo run z runami potomnymi) z przepływem, krokami według repozytoriów i jedną rzeczą do decyzji; zakładki tylko Overview · Changes · Activity.
+3. **Krok / run** (co dokładnie robi agent): strona kroku z zakładkami Overview · Terminal · Changes · Activity; zakładki Plan nie ma, plan kroku (tylko do odczytu), jego artefakty i pytanie są na Overview; okruszek „Zadanie › krok” prowadzi z powrotem. Samodzielny run jest zadaniem jednokrokowym: ma stronę kroku, bez okruszka.
+
+- Home pokazuje jedną decyzję naraz: dużą kartę z pytaniem albo planem i jego akcjami, licznik kolejki („3 waiting”) z poprzednią i następną (`j`/`k`, przyciski). Reszta karty (identyfikatory, dowody, „since you left”, skutki opcji, linia `writes: metator run answer…`, notatka) jest w zwiniętym „Details”. Lista wszystkich decyzji po lewej znika. Gdy nic nie czeka: zadania w skrócie ze stanami, runy, których nic nie prowadzi, i „Describe a task”.
+- Cztery słowa na pierwszym poziomie: needs you · working · blocked · done. Blocked obejmuje eskalację, czekanie na inny krok i brak czegokolwiek, co prowadzi run; powód stoi w jednej linii na poziomie 2 i 3 („escalated at build: …”, „waits for price-endpoint”, „nothing drives it: Open a session”). Mapowanie robi jedna czysta funkcja `firstLevel` w `model.ts` (przetestowana, z mutantem); na pierwszym poziomie są tylko cztery wyglądy (`LOOKS.first`). Drobniejsze słowa (asks, idle, exited, aborted, escalated, done nieobejrzany) są tylko w terminalu i w „Details” kroku.
+- Z pierwszego poziomu (wiersze panelu, karty Tablicy, twarz karty decyzji, nagłówki stron) znikają: identyfikatory runów, host, autonomia, czasy, pełny pasek etapów (zostaje nazwa bieżącego etapu). Wszystko to jest w zwiniętym „Details” nagłówka strony kroku i na jego Overview.
+- Panel boczny ma mniej miejsc: Board · Terminals · Backlog oraz Settings; Reviews i Overview (teraz System: Daemon, Dependencies, System map, hosty) są częściami Settings (`#/settings/system`, `#/settings/reviews`), a stare adresy (`#/overview`, `#/mrs`, `#/supervisor`, `#/graph`) do nich prowadzą.
+- Każda decyzja ma stały adres `#/inbox/<repo>/<run>/<pytanie>` (`decisionKey`): wiersz kroku, który pyta, w panelu bocznym, link „its card on Home” na stronie kroku i „on Home” na stronie zadania otwierają dokładnie tę kartę, a poprzednia/następna idą dalej od niej. Run, który pyta na karcie i nie ma sesji ani drive'a, nadal oferuje „Open a session” (dyrygent w terminalu; pytanie zostaje na karcie) i mówi, dlaczego nie ma czego prowadzić w tle (`asksWithoutSession`).
+- Na karcie planu akcje (Approve, Ask for changes) stoją nad planem, a tabele kroków planu systemowego są zwinięte pod przepływem. Decyzja ma jeden zestaw kontrolek wszędzie (Home, strona zadania, Overview kroku, zakładka Terminal): opcje to wybór, jeden przycisk wysyła wybraną, Reject i Other proszą o powód w miejscu.
+- Zakończone zadania są domyślnie ukryte: „Show finished (N)” w panelu bocznym i w kolumnie Done Tablicy (każda tablica zaczyna zwinięta).
+- Zostają: skróty klawiszowe (nakładka `?` zaktualizowana), panel bez demona, okno imienia, terminale i ekran Terminals, edytor mapy systemu.
+
+### 5.0f Terminale według zadania (2026-11-19, runda 8)
+
+- Terminals otwiera się na zadaniu (jedynym albo wybranym z listy „Tasks”). Widok zadania: terminal główny (czat, w którym osoba dała zadanie: panel z `startedRun`; inaczej dyrygent runu zadania) i po jednym kafelku na sesję repozytorium (dyrygent każdego runu potomnego, z repozytorium i krokiem), obok siebie: 2–3 w rzędzie, więcej się zawija. Workerów tu nie ma; kafelek sesji ma odznakę „2 sub-terminals · 1 finished”, która otwiera widok sesji: jej dyrygent i podterminale, z okruszkiem „Tasks › zadanie › repozytorium”.
+- Drzewo liczy czysta funkcja `terminalTasks` (`terminals.ts`, testy i mutanty): run potomny to ten z listy `children` albo z `parent`. Panele z różnych repozytoriów są w jednym widoku; każde wywołanie idzie do repozytorium panelu.
+- Zakończony panel (`ended`) zostaje tylko do odczytu, z banerem „Finished — <podsumowanie albo powód>” (ton gotowe) albo „Ended with code N — …” (ton błędu, z Retry) i przyciskiem Close; „Close finished (N)” zamyka zakończone panele widoku.
+- Paleta go-to pokazuje hierarchię „zadanie › repozytorium › worker”. Stary widok kart przestrzeni roboczych jest pod „Workspaces” (`#/grid/workspaces`): powłoki i czat runu jeszcze nie rozpoczętego.
+
+### 5.0g Sesje przeżywają demona; jedno „Continue” (2026-11-20, runda 11)
+
+- Panel wstrzymany (`paused`: demon zatrzymany albo proces utracony; praca nieskończona) to nie panel zakończony: baner „Paused — <dlaczego>” w neutralnym tonie, ostatni ekran tylko do odczytu, przycisk Continue (run panelu albo zadanie czatu, w którym je dano). Odznaka sesji liczy wstrzymane podterminale.
+- „Continue task” w pasku i na kafelku terminala głównego, gdy coś w zadaniu jest wstrzymane albo run nie ma nic, co go prowadzi (`toContinue`); woła `POST /runs/:run/continue` i mówi, co wznowiono, a co pominięto (`continueText`).
+- Pytanie hosta pokazuje POCZĄTEK polecenia (`command`, inaczej prompt), ucięty do dwóch linii z „…”; klik albo Enter pokazuje całe polecenie (`commandText`, `CommandText`), na karcie, w toaście i w polu pytania runu.
+- Przeładowanie aplikacji albo nowe okno niczego nie zmienia: ten sam widok zadania, panele, ekrany i karty (e2e).
+
+### 5.0h Agent rozmowy, etap 1 (2026-11-21, runda 13)
+
+- „+ New run” otwiera czat (etykieta „chat”) z agentem rozmowy repozytorium, gdy demon go nazywa (`/supervisor` `chatAgent`, `mt-chat`); inaczej z dotychczasowym agentem (`chatAgentOf`).
+- Karty quick to zwykłe pytania runu. „Open diff” na karcie „Quick change ready” nie jest odpowiedzią: otwiera zakładkę Changes runu, a karta zostaje do „Fine” (`opensDiff` w `useAnswer`). „This grew past quick” ma dwie zwykłe odpowiedzi.
+- Zgoda na commit/push: istniejąca karta pytania hosta; nagłówek to komenda, a pod nim linia „git commit needs your consent…”, gdy komenda to `git commit|push|merge|rebase` (`consentOf`), na karcie runu i na karcie panelu bez runu.
+- „Debug changes (N)” na Home i w pasku terminali zadania (dla repozytoriów zadania), gdy stan demona liczy zmiany debugowe (`scratch` w `/state`; bez tego pola aplikacja o nic nie pyta). Lista z `GET /scratch` dopiero po kliknięciu; „Remove” i „Remove debug changes” wołają `POST /scratch/drop`; jedna linia mówi, co usunięto, a czego się nie dało i dlaczego (`dropText`); nic nie jest wymuszane. Rekord znika tylko po usunięciu, po „Forget” (`POST /scratch/forget`, dla rekordu `changed`, który zostaje na liście z powodem i nadal się liczy) albo gdy żaden plik nie trzyma już jego linii, i o tym też mówi linia (`gone` z listy i z usuwania, `goneText`).
+- Listy wątków jeszcze nie ma (etap 2).
+
+### 5.0i Wątki w pasku bocznym (2026-11-22, runda 16, etap 2a, ADR-0095)
+
+- Pasek boczny to jedna hierarchia: wątek → jego zadania (wiersze zadań bez zmian) → repozytoria → kroki (`threadTree` w `src/threads.ts`, czyste, testowane). Zadanie należy do wątku, którego `runs` zawiera jego run nadrzędny (w folderze: w repozytorium wątku). Wiersz wątku: tytuł, jedno słowo (najpilniejsze zadanie: needs you, blocked, working, done; `needs you`, gdy pyta sam czat; `chat`, gdy zadań brak), liczba zadań. Kolejność: needs you, potem najnowsza zmiana wątku lub jego zadań.
+- „Without a chat” (tylko gdy niepusta) zbiera zadania bez wątku: formularz, reguły intake, `metator run new` w terminalu, CI. „Closed (N)” na dole, zwinięte; zamknięty wątek zachowuje swoje zadania.
+- „+ New chat” zastępuje „+ New run” (klawisz `n` i „Describe a task” na Home też): `POST /threads` z pierwszym zainstalowanym hostem; bez hosta nic się nie otwiera i aplikacja mówi dlaczego. Tytuł „New chat”, dopóki agent go nie nazwie; z Home tytuł to pierwsza linia słów osoby (`chatTitleOf`). „Form…” zostaje obok.
+- Klik w wątek otwiera `#/thread/<id>`: terminal czatu jako główny widok, pasek z tytułem, słowem i „Close chat” / „Reopen chat”, zadania wątku jako kafelki pod spodem. Zatrzymany czat otwartego wątku: „Continue chat” (`POST /threads/:id/reopen`). Zamknięcie kończy terminal czatu, nigdy runów. „⋯” w wierszu wątku: Open, Close, Reopen.
+- Wątki z `GET /threads` (otwarte i zamknięte), czytane co 2 s i od razu, gdy zmieni się znacznik `threads` w `/state` (`threadsStamp`). Nowy wątek otwarty z wątku na ekranie (`from.thread`, zmiana tematu przez agenta) aplikacja otwiera sama, raz (`followedThread`).
+- Home: zadanie z wątku ma tytuł wątku jako przygaszony prefiks.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

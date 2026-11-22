@@ -13,8 +13,9 @@ import {
 import { FindingSetDocument } from "../domain/finding.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { VerdictDocument } from "../domain/verdict.ts";
-import { parseJsonDocument, parseYamlDocument, serializeJsonDocument } from "../domain/versioned.ts";
+import { parseJsonDocument } from "../domain/versioned.ts";
 import type { BinResolver, FileSystem, ProcessRunner } from "../ports/index.ts";
+import { loadDocument, scanDocuments, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 
 /** The golden set: every `EvalCase` YAML under `paths.evals`. */
@@ -25,17 +26,13 @@ export class EvalCatalog {
   ) {}
 
   async scan(): Promise<Result<readonly EvalCase[], MetatorError>> {
-    const cases: EvalCase[] = [];
-    const problems: string[] = [];
-    for (const source of [
-      ...(await this.fs.glob([`${this.paths.evals}/*.yml`, `${this.paths.evals}/*.yaml`])),
-    ].sort()) {
-      const parsed = (await this.fs.read(source))
-        .andThen((t) => parseYamlDocument(t, source))
-        .andThen((raw) => EvalCaseDocument.parse(raw, source));
-      if (parsed.isOk()) cases.push(parsed.value);
-      else problems.push(parsed.error.message);
-    }
+    const scan = await scanDocuments(
+      this.fs,
+      [`${this.paths.evals}/*.yml`, `${this.paths.evals}/*.yaml`],
+      EvalCaseDocument,
+      { format: "yaml" },
+    );
+    const problems = scan.problems.map((p) => p.error.message);
     if (problems.length > 0) {
       return err(
         new MetatorError("INVALID_CONFIG", `${problems.length} invalid eval case(s)`, {
@@ -43,7 +40,7 @@ export class EvalCatalog {
         }),
       );
     }
-    return ok(cases);
+    return ok(scan.entries.map((e) => e.value));
   }
 }
 
@@ -107,7 +104,7 @@ export class ScoreEvals {
     }
     const report = { cases: cases.value.length, runs, totals: totals(scores), scores, missing };
     const output = `${dir}/report.json`;
-    const saved = await this.fs.write(output, serializeJsonDocument(EvalReportDocument.stamp(report)));
+    const saved = await writeDocument(this.fs, output, EvalReportDocument, report, "json");
     if (saved.isErr()) return err(saved.error);
     return ok({ ...report, output });
   }
@@ -137,10 +134,7 @@ export class CompareEvals {
       MetatorError
     >
   > {
-    const read = async (path: string) =>
-      (await this.fs.read(path))
-        .andThen((t) => parseJsonDocument(t, path))
-        .andThen((raw) => EvalReportDocument.parse(raw, path));
+    const read = async (path: string) => await loadDocument(this.fs, path, EvalReportDocument, "json");
     const before = await read(input.before);
     if (before.isErr()) return err(before.error);
     const after = await read(input.after);

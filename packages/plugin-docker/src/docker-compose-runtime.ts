@@ -4,14 +4,21 @@ import {
   err,
   MetatorError,
   ok,
+  type ProcessRunner,
   type Result,
 } from "@metator/core";
 
 const EXTERNAL_NETWORK = /network ([\w.-]+) declared as external, but could not be found/;
 
-/** ContainerRuntime on `docker compose` (ADR-0053): `up -d`, `stop` and `logs` of one service. */
+/**
+ * ContainerRuntime on `docker compose` (ADR-0053): `up -d`, `stop` and `logs` of one service,
+ * each one process through the ProcessRunner. No time limit: an `up` may pull images.
+ */
 export class DockerComposeRuntime implements ContainerRuntime {
-  constructor(private readonly bin: string = "docker") {}
+  constructor(
+    private readonly runner: ProcessRunner,
+    private readonly bin: string = "docker",
+  ) {}
 
   async up(s: ComposeService): Promise<Result<void, MetatorError>> {
     const first = await this.compose(s, ["up", "-d", s.service]);
@@ -37,34 +44,23 @@ export class DockerComposeRuntime implements ContainerRuntime {
   }
 
   private async run(s: ComposeService, argv: readonly string[]): Promise<Result<string, MetatorError>> {
-    let proc: ReturnType<typeof Bun.spawn>;
-    try {
-      proc = Bun.spawn([...argv], {
-        cwd: s.cwd,
-        env: { ...process.env, ...s.env },
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-    } catch (e) {
+    const r = await this.runner.run({ argv, cwd: s.cwd, env: s.env });
+    // The runner's exit code of a program that cannot be started.
+    if (r.exitCode === 127) {
       return err(
-        new MetatorError("BIN_NOT_FOUND", `${this.bin} is not available: ${(e as Error).message}`, {
+        new MetatorError("BIN_NOT_FOUND", `${this.bin} is not available: ${r.stderr.trim()}`, {
           hint: "Install Docker (with the compose plugin), or set METATOR_DOCKER_BIN.",
         }),
       );
     }
-    const [out, errText, code] = await Promise.all([
-      new Response(proc.stdout as ReadableStream<Uint8Array>).text(),
-      new Response(proc.stderr as ReadableStream<Uint8Array>).text(),
-      proc.exited,
-    ]);
-    if (code !== 0) {
+    if (r.exitCode !== 0) {
       return err(
         new MetatorError(
           "COMMAND_FAILED",
-          `\`${argv.join(" ")}\` exited ${code}: ${errText.trim().slice(-500)}`,
+          `\`${argv.join(" ")}\` exited ${r.exitCode}: ${r.stderr.trim().slice(-500)}`,
         ),
       );
     }
-    return ok(out);
+    return ok(r.stdout);
   }
 }

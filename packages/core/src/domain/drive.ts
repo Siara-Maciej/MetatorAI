@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { isMarkdownArtifact, runWriteLine } from "./agent.ts";
+import { MetatorError } from "./errors.ts";
+import type { RunRecord } from "./run-record.ts";
 import type { HostUsage } from "./telemetry.ts";
-import { defineDocument } from "./versioned.ts";
+import { defineDocument, parseJsonDocument } from "./versioned.ts";
 import type { StageSpec } from "./workflow-spec.ts";
 
 /**
@@ -99,20 +102,30 @@ const RunActivityV1Schema = z.strictObject({
  * ADR-0077) adds the driver lock, idleness, messages between runs and restarts, and where an
  * entry came from: a host hook, the PTY, a `metator` command, or the inbox.
  */
-export const RunActivitySchema = z.strictObject({
+const ACTIVITY_V2 = [...ACTIVITY_V1, "driver", "idle", "message", "restart"] as const;
+const RunActivityV2Schema = z.strictObject({
   at: z.iso.datetime(),
-  type: z.enum([...ACTIVITY_V1, "driver", "idle", "message", "restart"]),
+  type: z.enum(ACTIVITY_V2),
   stage: z.string().optional(),
   agent: z.string().optional(),
   text: z.string(),
   origin: z.enum(["hook", "pty", "run", "inbox"]).optional(),
 });
+
+/** v3 adds `plan-edited`: a person changed the run's plan in the app (ADR-0087). */
+export const RunActivitySchema = RunActivityV2Schema.extend({
+  type: z.enum([...ACTIVITY_V2, "plan-edited"]),
+});
 export type RunActivity = z.output<typeof RunActivitySchema>;
 
 export const RunActivityDocument = defineDocument("RunActivity", {
-  history: [{ schema: RunActivityV1Schema }],
+  history: [
+    { schema: RunActivityV1Schema },
+    // Every v1 type is a v2 type; `origin` is optional.
+    { schema: RunActivityV2Schema, fromPrevious: (previous) => previous },
+  ],
   latest: RunActivitySchema,
-  // Every v1 type is a v2 type; `origin` is optional.
+  // Every v2 type is a v3 type.
   upgrade: (previous) => previous,
   hint: "Written by MetatorAI as a run goes on (the drive, answers, messages, the terminals); one versioned JSON object per line.",
 });
@@ -189,11 +202,29 @@ const QuestionV2Schema = z.strictObject({
   card: DecisionCardV2Schema.optional(),
 });
 
-/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
-export const QuestionSchema = z.strictObject({
+const QuestionV3Schema = z.strictObject({
   ...QuestionV1Schema.shape,
   /** v2: the decision card; v3 widens it. A v1 question has none. */
   card: DecisionCardSchema.optional(),
+});
+
+const QuestionV4Schema = z.strictObject({
+  ...QuestionV3Schema.shape,
+  /**
+   * v4: a host's permission prompt names the command it asks to run, whole (its wrapped lines
+   * joined); `prompt` stays the one-line summary that starts with it.
+   */
+  command: z.string().min(1).optional(),
+});
+
+/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
+export const QuestionSchema = z.strictObject({
+  ...QuestionV4Schema.shape,
+  /**
+   * v5: why the host's prompt asks, when MetatorAI's guard is why (`this commit holds debug
+   * changes: …`): the guard's own reason, which the host's prompt does not show.
+   */
+  reason: z.string().min(1).optional(),
 });
 export type Question = z.output<typeof QuestionSchema>;
 export type QuestionAnswer = NonNullable<Question["answer"]>;
@@ -203,9 +234,13 @@ export const QuestionDocument = defineDocument("Question", {
     { schema: QuestionV1Schema },
     // `card` is optional: a v1 question is a v2 question asked without one.
     { schema: QuestionV2Schema, fromPrevious: (previous) => previous },
+    // Every v3 card field is optional: a v2 card is a v3 card that says less.
+    { schema: QuestionV3Schema, fromPrevious: (previous) => previous },
+    // `command` is optional: a v3 question is a v4 one that names no command.
+    { schema: QuestionV4Schema, fromPrevious: (previous) => previous },
   ],
   latest: QuestionSchema,
-  // Every v3 card field is optional: a v2 card is a v3 card that says less.
+  // `reason` is optional: a v4 question is a v5 one the guard gave no reason for.
   upgrade: (previous) => previous,
   hint: "Answer with `metator run answer <question> --choice <label> --by <name>`.",
 });
@@ -273,12 +308,23 @@ export interface StagePromptInput {
   readonly decisions?: readonly string[];
   /** The stage whose failure brought the run here: a later one when it was sent back. */
   readonly retryFrom?: string;
+  /** Who rejected at `retryFrom`, when it was a person's gate: the reason is their words. */
+  readonly rejectedBy?: string;
   /** A person resumed the escalated run and said this; no agent has worked since. */
   readonly resumed?: ResumeNote;
   /** What the agent must know about where it works (dependencies not installed). */
   readonly notes?: readonly string[];
   /** Messages other runs sent this run, already rendered as data (`messageLines`). */
   readonly messages?: readonly string[];
+}
+
+/**
+ * The task as an agent reads it: the run's task, then its `task.md` when the run has one (the
+ * body of the issue it started from, or intake's criteria and decisions).
+ */
+export function taskInFull(task: string, brief: string | undefined): string {
+  const more = brief?.trim();
+  return more ? `${task}\nThe task in full (task.md):\n${more}` : task;
 }
 
 /** The message a worker gets: one stage, its artifacts, and how to report back. */
@@ -296,11 +342,7 @@ export function stagePrompt(input: StagePromptInput): string {
             "Write only the artifact your own instructions name; the others are not yours.",
           ]
         : [`Write these artifacts into ${input.runDir}: ${produces.join(", ")}.`]),
-    ...(produces.length > 0
-      ? [
-          `Write an artifact with your Write tool at ${input.runDir}/<artifact> (it needs no approval there). Only without a Write tool, and never for JSON, use \`metator run write <artifact>\` with the text on stdin. \`metator run schema <artifact>\` prints a JSON artifact's format.`,
-        ]
-      : []),
+    ...artifactLines(produces, input.runDir, input.runId),
     ...(input.skills.length > 0 ? [`Skills you may use: ${input.skills.join(", ")}.`] : []),
     "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
     "Read and change files, JSON included, with Read, Edit and Write: never with an interpreter or a script (`python`, `node`, `jq`), which asks a person every time.",
@@ -320,6 +362,19 @@ export function stagePrompt(input: StagePromptInput): string {
     "STATUS: nothing to do: <the evidence>",
   ];
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * How a stage's artifacts are written, one line each: a Markdown artifact with exactly one quoted
+ * here-document of `metator run write` (it runs without asking), a JSON artifact with the Write
+ * tool (its format from `metator run schema`).
+ */
+export function artifactLines(produces: readonly string[], runDir: string, runId: string): string[] {
+  return produces.map((a) =>
+    isMarkdownArtifact(a)
+      ? runWriteLine(a, runId)
+      : `Write \`${a}\` with your Write tool at ${runDir}/${a} (it needs no approval there); \`metator run schema ${a}\` prints its format.`,
+  );
 }
 
 /**
@@ -377,8 +432,20 @@ function decisionLines(input: Pick<StagePromptInput, "decisions">): string[] {
  * Why the stage runs again. Sent back by a later stage, it is told that the work of the stages
  * since is already in the working tree: redoing it from the old plan would do it twice.
  */
-function retryLines(input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom">): string[] {
+function retryLines(
+  input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom" | "rejectedBy" | "runDir">,
+): string[] {
   if (!input.retry) return [];
+  // A person's Reject at a gate: revise against their words, do not start over.
+  if (input.rejectedBy && input.retryFrom && input.retryFrom !== input.stage.id) {
+    const produces = (input.stage.produces ?? []).filter((p) => !p.endsWith("-scope.json"));
+    const what = produces.length > 0 ? `${produces.join(", ")} in ${input.runDir}` : `in ${input.runDir}`;
+    const noun = produces.some((p) => p.includes("plan")) ? "the plan" : "your work";
+    return [
+      `${input.rejectedBy} rejected ${noun} at ${input.retryFrom} and asks for changes: "${input.retry}"`,
+      `Revise ${noun === "the plan" ? "the plan you wrote" : "what you did"} (${what}) against these words: keep what they did not object to, change what they asked for. Do not start over.`,
+    ];
+  }
   if (!input.retryFrom || input.retryFrom === input.stage.id)
     return [`The previous attempt failed its gate: ${input.retry}`];
   return [
@@ -488,4 +555,229 @@ function lastMarked(text: string, marker: string): string | undefined {
 export function nextQuestionId(existing: readonly string[]): string {
   const max = existing.reduce((m, id) => Math.max(m, Number(id.slice(1)) || 0), 0);
   return `q${String(max + 1).padStart(3, "0")}`;
+}
+
+/**
+ * A failed `metator gate` read for a person: each failing step and the first line of its output
+ * (a stack trace's tail says nothing). Undefined when the output is no gate result.
+ */
+export function failedSteps(stdout: string): string | undefined {
+  const parsed = parseJsonDocument(stdout.trim().split("\n").at(-1) ?? "", "gate output");
+  if (parsed.isErr()) return undefined;
+  const envelope = parsed.value;
+  const error = (envelope as { error?: { message?: unknown; details?: { steps?: unknown } } } | null)?.error;
+  const steps = error?.details?.steps;
+  if (!Array.isArray(steps)) return undefined;
+  const failed = steps
+    .filter((s): s is { id: string; detail?: string } => (s as { status?: unknown }).status === "fail")
+    .map((s) => {
+      const first = (s.detail ?? "").split("\n").find((l) => l.trim() !== "") ?? "";
+      return `${s.id}: ${first.trim().slice(0, 300)}`;
+    });
+  return [typeof error?.message === "string" ? error.message : "gate failed", ...failed].join("; ");
+}
+
+/**
+ * What a gate script of MetatorAI's own says by its exit code, besides pass (0) and fail (1): the
+ * work it waits on is not done yet (WAITING: look again later, no loop spent), or it stopped for
+ * good (BLOCKED: no retry passes it, the run escalates at once). Only a `metator` command means
+ * these; any other script's exit codes are pass or fail as ever.
+ */
+export const GATE_EXIT = { waiting: 4, blocked: 3 } as const;
+
+/**
+ * A failed `metator` command read for a person: the envelope's message and its hint, never its
+ * JSON. Undefined when the output is no failed envelope.
+ */
+export function envelopeError(stdout: string): string | undefined {
+  const parsed = parseJsonDocument(stdout.trim().split("\n").at(-1) ?? "", "command output");
+  if (parsed.isErr()) return undefined;
+  const error = (parsed.value as { error?: { message?: unknown; hint?: unknown } } | null)?.error;
+  if (typeof error?.message !== "string") return undefined;
+  return typeof error.hint === "string" && error.hint !== ""
+    ? `${error.message} (${error.hint})`
+    : error.message;
+}
+
+/**
+ * How often a run tried the stage it escalated at: the first try and the loops it spent, of the
+ * first try and the loops its workflow allows. "Tried 1 of 13 times" says it stopped at once.
+ */
+export function attemptsOf(
+  stages: readonly { readonly id: string; readonly onFail?: { readonly loop: string } | undefined }[],
+  stage: string,
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+): { readonly tried: number; readonly of: number } | undefined {
+  const spec = stages.find((s) => s.id === stage);
+  if (!spec) return undefined;
+  const loop = spec.onFail?.loop;
+  if (!loop) return { tried: 1, of: 1 };
+  return { tried: 1 + (loops[loop] ?? 0), of: 1 + (limits[loop] ?? 0) };
+}
+
+/** Why an escalated run stopped, as one sentence a person reads, and what kind of stop it was. */
+export interface RunStop {
+  /** rejected: a person's Reject at a gate; exhausted: every try spent; stopped: no try left to spend. */
+  readonly kind: "rejected" | "exhausted" | "stopped";
+  readonly text: string;
+  /** Who rejected (rejected). */
+  readonly by?: string;
+  readonly tried?: number;
+  readonly of?: number;
+}
+
+/**
+ * Why a run escalated at `stage`: a person's Reject at a human gate reads "stopped: ana rejected
+ * plan-approval: <reason>"; the tries wording only when the loop's tries are really spent ("tried
+ * build 3 of 3 times: <reason>"); anything else "stopped at <stage>: <reason>".
+ */
+export function stopOf(input: {
+  readonly stages: readonly {
+    readonly id: string;
+    readonly hitl?: boolean | undefined;
+    readonly onFail?: { readonly loop: string } | undefined;
+  }[];
+  readonly stage: string;
+  readonly reason?: string | undefined;
+  readonly loops: Readonly<Record<string, number>>;
+  readonly limits: Readonly<Record<string, number>>;
+  /** The run's questions: the gate's answer says who rejected. */
+  readonly questions?: readonly Pick<Question, "stage" | "source" | "answer">[];
+}): RunStop {
+  const spec = input.stages.find((s) => s.id === input.stage);
+  const reason = input.reason?.trim() || undefined;
+  if (spec?.hitl) {
+    const answer = [...(input.questions ?? [])]
+      .reverse()
+      .find(
+        (q) =>
+          q.stage === input.stage && q.source === "gate" && q.answer && !q.answer.choices.includes("Approve"),
+      )?.answer;
+    const named = /^rejected by (.+)$/.exec(reason ?? "")?.[1];
+    const by = answer?.by ?? named;
+    const why = named ? undefined : reason;
+    return {
+      kind: "rejected",
+      text: `stopped: ${by ?? "a person"} rejected ${input.stage}${why ? `: ${why}` : ""}`,
+      ...(by ? { by } : {}),
+    };
+  }
+  const at = attemptsOf(input.stages, input.stage, input.loops, input.limits);
+  if (at && at.of > 1 && at.tried >= at.of)
+    return {
+      kind: "exhausted",
+      text: `tried ${input.stage} ${at.tried} of ${at.of} times${reason ? `: ${reason}` : ""}`,
+      tried: at.tried,
+      of: at.of,
+    };
+  return {
+    kind: "stopped",
+    text: `stopped at ${input.stage}${reason ? `: ${reason}` : ""}`,
+    ...(at ? { tried: at.tried, of: at.of } : {}),
+  };
+}
+
+/**
+ * The host a drive takes when nobody names one: `$METATOR_HOST` when the runtime has it, else the
+ * first of the team's order (`supervisor.hostOrder`) that drives agents and can start here, else
+ * the first host the repository generates files for, else the first the runtime has.
+ */
+export function driveHostOf(input: {
+  readonly chosen?: string | undefined;
+  readonly order: readonly string[];
+  readonly targets: readonly string[];
+  readonly known: readonly string[];
+  readonly problem?: ((host: string) => string | undefined) | undefined;
+}): string {
+  if (input.chosen && input.known.includes(input.chosen)) return input.chosen;
+  const ordered = input.order.find((h) => input.known.includes(h) && !input.problem?.(h));
+  if (ordered) return ordered;
+  const target = input.targets.find((h) => input.known.includes(h));
+  return target ?? (input.known[0] as string);
+}
+
+/** Why a drive cannot use this host here (its program is not installed), with the hosts that can; undefined when it can. */
+export function hostRefusal(
+  host: string,
+  known: readonly string[],
+  problem: ((host: string) => string | undefined) | undefined,
+): MetatorError | undefined {
+  const why = problem?.(host);
+  if (!why) return undefined;
+  const others = known.filter((h) => h !== host && !problem?.(h));
+  return MetatorError.usage(
+    `AI host ${host} cannot start here: ${why}`,
+    others.length > 0
+      ? `Install it, or drive with a host that is here: --host ${others.join(" | ")}.`
+      : "Install it, then drive the run again.",
+  );
+}
+
+/**
+ * Why a drive does not start on this run: an escalated run waits for a person's resume, and a
+ * drive that "ran" it would report success having done nothing (F1). Undefined for any other run.
+ */
+export function notDrivable(record: RunRecord): MetatorError | undefined {
+  if (record.state.status !== "escalated") return undefined;
+  const last = record.state.context.history.at(-1);
+  return MetatorError.usage(
+    `run ${record.runId} escalated${last ? ` at ${last.stage}` : ""}${last?.detail ? `: ${last.detail.slice(0, 300)}` : ""}`,
+    `Remove the cause, then \`metator run resume --run ${record.runId} --by <name> --drive\`; or give it up: \`metator run close --run ${record.runId} --aborted --reason <why>\`.`,
+  );
+}
+
+/** The longest line a decision card carries of what happened; the run's log has the whole text. */
+const CARD_LINE = 240;
+/** A transition's text as one line of a card: its first non-empty line, at most CARD_LINE characters. */
+export function cardLine(text: string): string {
+  const first = (text.split("\n").find((l) => l.trim() !== "") ?? "").trim();
+  return first.length > CARD_LINE ? `${first.slice(0, CARD_LINE - 1)}…` : first;
+}
+
+/** Transitions and tool calls since a person last answered (the whole run before any answer). */
+export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
+  const last = activity.map((a) => a.type).lastIndexOf("answer");
+  const after = activity.slice(last + 1);
+  // One line each, for a card: the first line of a failure's reason, cut where a sentence still reads.
+  // A gate that waited (no agent's verdict, no pass) is a wait, in its place among the transitions.
+  const waits = (a: RunActivity) => a.type === "gate" && !a.agent && !a.text.endsWith(": pass");
+  const out = after
+    .filter((a) => a.type === "advance" || waits(a))
+    .map((a) => `${a.stage ?? "?"} ${waits(a) ? "waits: " : ""}${cardLine(a.text)}`);
+  const tools = after.filter((a) => a.type === "tool").length;
+  if (tools > 0) out.push(`${tools} tool call(s)`);
+  return out;
+}
+
+/**
+ * The loops already used, as costs of waiting on a card: one line each. The loop a gate's own
+ * Reject consequence counts (`stated`) is left out, so the card says that number once.
+ */
+export function loopCosts(
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+  stated?: string,
+): string[] {
+  return Object.entries(loops)
+    .filter(([loop, used]) => used > 0 && loop !== stated)
+    .map(([loop, used]) => `loop ${loop}: ${used} of ${limits[loop] ?? "?"} used`);
+}
+
+/** What each answer to a gate does, from the workflow: the next stage, or where a FAIL sends the run. */
+export function consequencesOf(
+  stage: StageSpec,
+  stages: readonly StageSpec[],
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+): Record<string, string> {
+  const at = stages.findIndex((s) => s.id === stage.id);
+  const next = stages[at + 1];
+  const out: Record<string, string> = { Approve: next ? `the run goes on to ${next.id}` : "the run is done" };
+  if (stage.onFail) {
+    const used = loops[stage.onFail.loop] ?? 0;
+    const limit = limits[stage.onFail.loop];
+    out.Reject = `back to ${stage.onFail.goto} with your reason (loop ${stage.onFail.loop}: ${used + 1}${limit ? ` of ${limit}` : ""}; past the limit the run escalates)`;
+  } else out.Reject = "the run escalates with your reason: it waits for a person to resume it";
+  return out;
 }

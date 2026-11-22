@@ -1,0 +1,31 @@
+{
+  "kind": "Question",
+  "schemaVersion": 3,
+  "id": "q001",
+  "runId": "20261027-mt-feature-add-discount",
+  "stage": "plan-approval",
+  "source": "gate",
+  "prompt": "The human approves the plan: approve to continue",
+  "options": [
+    {
+      "label": "Approve"
+    },
+    {
+      "label": "Reject"
+    },
+    {
+      "label": "Other"
+    }
+  ],
+  "multiSelect": false,
+  "askedAt": "2026-10-27T10:00:00.000Z",
+  "card": {
+    "task": "Add discount",
+    "done": ["setup", "plan"],
+    "artifacts": ["plan.json"],
+    "recommended": "Approve",
+    "reversible": true,
+    "soFar": ["plan PASS"],
+    "evidence": ["plan lint: 0 problems"]
+  }
+}

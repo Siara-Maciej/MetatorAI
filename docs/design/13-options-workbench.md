@@ -135,6 +135,8 @@ Model ekranu (zgodny z `Layout` v1 z R1, doprecyzowany):
 - **tab** = zadanie: własny worktree, gałąź i run (`Tab.worktree`, `Tab.runId`, oba opcjonalne; tab bez nich to zwykły shell). Pasek tabów pokazuje nazwę i gałąź. Nowy tab z menu: shell, zadanie w nowym worktree, zadanie z backlogu;
 - **pane** = terminal w tabie (agent albo shell), siatka z podziałem jak w herdr.
 
+Stan po konsolidacji (2026-11-13, [design/12 §5.0](12-desktop.md)): workbench nazywa się w aplikacji **Terminals** i nie ma własnego sidebara. Lista agentów ze stanem jest w jednym pasku bocznym aplikacji (pane'y pod runem); przełącznik workspace'ów, gdy jest ich więcej niż jeden, to lista wyboru na początku paska tabów. Ekrany Plan i Zmiany są zakładkami strony runu. GoTo, menu, zoom, podział i tryb kopiowania bez zmian; `prefix+?` i `?` otwierają listę klawiszy z filtrem.
+
 Pod paskiem tabów jest **pasek procesu aktywnego taba**: etapy workflow w jednej linii (`intake ✓ · context ✓ · plan ✓ · approval ✓ · build ▸ 2/4 · gates · review · delivery`), po prawej liczba pytań, ścieżka worktree i przycisk **VS Code** (widoczny, gdy tab ma worktree albo gałąź). Klik w etap otwiera ekran Plan. Dla taba bez runu pasek jest pusty poza ścieżką i VS Code.
 
 | Artboard | Co pokazuje |

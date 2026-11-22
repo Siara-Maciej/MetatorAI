@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const WORKFLOW =
@@ -38,6 +38,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await repo.dispose();
+  stopProcessesUnder(configDir);
   await rm(configDir, { recursive: true, force: true });
 });
 
@@ -107,7 +108,7 @@ describe("metator config (options, real CLI)", () => {
     const text = await repo.read("metator.config.yml");
     expect(text).toContain("# the person's editor");
     expect(parse(text)).toMatchObject({
-      schemaVersion: 12,
+      schemaVersion: 15,
       editor: "cursor",
       options: { "supervisor.wipLimit": 2 },
     });
@@ -121,7 +122,7 @@ describe("metator config (options, real CLI)", () => {
       source: "repo",
     });
     const record = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
-    expect(record).toMatchObject({ schemaVersion: 8, options: { "supervisor.wipLimit": 1 } });
+    expect(record).toMatchObject({ schemaVersion: 9, options: { "supervisor.wipLimit": 1 } });
     const schema = data(await mt("config", "schema", "--options")) as { properties: Record<string, unknown> };
     expect(Object.keys(schema.properties)).toContain("supervisor.wipLimit");
   }, 30_000);
@@ -230,10 +231,10 @@ describe("metator config (options, real CLI)", () => {
       expect(await moved.exists("state/runs")).toBe(false);
       // The run's own files are no part of its change.
       expect(data(await at("review", "changes", "--run", runId as string)).files).toEqual([]);
-      // A setting saved by the CLI writes the file at v12, without the key.
+      // A setting saved by the CLI writes the file at the current version, without the key.
       expect((await at("config", "set", "supervisor.wipLimit", "2", "--scope", "repo")).code).toBe(0);
       expect(parse(await moved.read("metator.config.yml"))).toMatchObject({
-        schemaVersion: 12,
+        schemaVersion: 15,
         paths: { adr: "decisions" },
       });
       expect(parse(await moved.read("metator.config.yml")).paths.runs).toBeUndefined();

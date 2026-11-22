@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { RunActivity } from "@metator/core";
-import { formatActivity, formatWatched, person } from "../src/live.ts";
+import { formatActivity, formatWatched } from "../src/live.ts";
 
 const at = "2026-10-27T10:00:00.000Z";
 const e = (entry: Omit<RunActivity, "at">): RunActivity => ({ at, ...entry });
@@ -41,13 +41,5 @@ describe("live view", () => {
       "  ? q001: approve? · answer in the app's Inbox, or from another terminal: metator run answer q001 --choice <label>",
     );
     expect(formatWatched(e({ type: "advance", stage: "build", text: "PASS" }))).toBe("  ✓ PASS");
-  });
-
-  test("who answers: METATOR_USER, else the login name", () => {
-    expect([person({ METATOR_USER: "alice", USER: "root" }), person({ USER: "bob" }), person({})]).toEqual([
-      "alice",
-      "bob",
-      "you",
-    ]);
   });
 });

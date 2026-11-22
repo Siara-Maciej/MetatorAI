@@ -12,9 +12,13 @@ import {
   systemPlanWaves,
 } from "@metator/core";
 import { type Command, InvalidArgumentError, Option } from "commander";
+import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { person } from "../live.ts";
+import { baseOption, byOption, defined, positiveInt } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
+import { renderPlanRun, renderPlanShow, renderPlanStatus } from "../render.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
+import { asPerson, who } from "../who.ts";
 
 /** `--min <score>`: a number from 0 to 1, or a usage error. */
 export const minScore = () =>
@@ -41,7 +45,7 @@ const analyzeInput = (task: string[], opts: AnalyzeOptions) => ({
 
 const withAnalyzeOptions = (c: Command) =>
   c
-    .option("--base <ref>", "the files changed since the merge base with this ref", "HEAD")
+    .addOption(baseOption("the files changed since the merge base with this ref", "HEAD"))
     .option("--files <files...>", "these files instead of git")
     .option("--contracts <ids...>", "contracts the task changes")
     .option("--breaking <ids...>", "contracts the task changes in a breaking way");
@@ -94,11 +98,13 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       .description("Draft a plan from the task's analysis, by the map's breaking and deploy policies")
       .argument("<task...>", "the task"),
   ).action(
-    action(async (task: string[], opts: AnalyzeOptions) => ({
-      result: await container()
-        .resolve("createSystemPlan")
-        .execute({ ...analyzeInput(task, opts), by: person(process.env) }),
-    })),
+    action(async (task: string[], opts: AnalyzeOptions) =>
+      asPerson(container(), undefined, async (by) => ({
+        result: await container()
+          .resolve("createSystemPlan")
+          .execute({ ...analyzeInput(task, opts), by }),
+      })),
+    ),
   );
 
   withAnalyzeOptions(
@@ -112,10 +118,12 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       const c = container();
       const root = c.resolve("root");
       const t = terminal;
+      const by = await who(c);
+      if (by.isErr()) return { result: by };
       const r = await c.resolve("proposeSystemPlan").execute({
         ...analyzeInput(task, opts),
         host: opts.host ?? defaultHost(c),
-        by: person(process.env),
+        by: by.value,
         cwd: root,
         projectRoot: root,
         ...(t
@@ -134,8 +142,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     }),
   );
 
-  plan
-    .command("list")
+  meta(plan.command("list"), { reads: true })
     .description("Every system plan with its status and steps")
     .action(
       action(async () => ({
@@ -151,8 +158,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       })),
     );
 
-  plan
-    .command("show")
+  meta(plan.command("show"), { reads: true, render: renderPlanShow })
     .description("One system plan with its waves and its analysis")
     .argument("<id>", "the plan id")
     .action(
@@ -172,8 +178,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       }),
     );
 
-  plan
-    .command("lint")
+  meta(plan.command("lint"), { reads: true })
     .description(
       "Check the plan: every consumer of a breaking change migrates, providers first, a strategy per policy",
     )
@@ -210,21 +215,57 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     .command("approve")
     .description("Approve the plan's steps as they are now (a person, never an agent)")
     .argument("<id>", "the plan id")
-    .option("--by <name>", "who approves (default METATOR_USER or the login)")
+    .addOption(byOption("who approves"))
     .action(
-      action(async (id: string, opts: { by?: string }) => ({
-        result: await container()
-          .resolve("approveSystemPlan")
-          .execute({ id, by: opts.by ?? person(process.env) }),
-      })),
+      action(async (id: string, opts: { by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await container().resolve("approveSystemPlan").execute({ id, by }),
+        })),
+      ),
     );
 
   plan
-    .command("run")
-    .description("Start the steps that can start: a child run (W1) in each application's repository")
+    .command("retry")
+    .description(
+      "Retry a step whose child run was aborted: the step is pending again, its old run kept in its history; the system run starts a new child for it (a person, never an agent)",
+    )
+    .argument("<id>", "the plan id")
+    .argument("<step>", "the step id")
+    .addOption(byOption("who retries the step"))
+    .action(
+      action(async (id: string, step: string, opts: { by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await container().resolve("retrySystemStep").execute({ id, step, by }),
+        })),
+      ),
+    );
+
+  meta(plan.command("step-plan"), { audience: "person" })
+    .description(
+      "Plan one step on its own: its child run in its application's repository stops once its plan is approved; the step's run later starts from that plan",
+    )
+    .argument("<id>", "the plan id")
+    .argument("<step>", "the step id")
+    .option(
+      "--run <run>",
+      "the system run the step belongs to (default: the latest one whose task is the plan's)",
+    )
+    .option("--host <id>", "the host of the step's conductor")
+    .action(
+      action(async (id: string, step: string, opts: { run?: string; host?: string }) => ({
+        result: await container()
+          .resolve("startSystemStep")
+          .execute({ id, step, plan: true, ...defined({ parent: opts.run, host: opts.host }) }),
+      })),
+    );
+
+  meta(plan.command("run"), { render: renderPlanRun })
+    .description(
+      "Start the steps that can start: a child run (W1) in each application's repository, each as a conductor session a person sees (else driven in the background)",
+    )
     .argument("[id]", "the plan id")
     .option("--run <run>", "the system run (W13) the child runs belong to; its plan when no id is given")
-    .option("--base <ref>", "start each child run in a new worktree branched from this ref")
+    .addOption(baseOption("start each child run in a new worktree branched from this ref"))
     .option("--workflow <id>", "the workflow of the child runs", STEP_WORKFLOW)
     .action(
       action(async (named: string | undefined, opts: { run?: string; base?: string; workflow: string }) => {
@@ -242,7 +283,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
           result: r,
           warnings:
             r.isOk() && r.value.started.length === 0 && r.value.plan.status !== "done"
-              ? ["no step can start yet: the steps before them are not done (`metator system status`)"]
+              ? ["no step can start yet: the steps before them are not done (`metator system plan status`)"]
               : [],
         };
       }),
@@ -258,31 +299,72 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       })),
     );
 
-  system
-    .command("status")
-    .description("Each step's child run read back from its repository; the plan done when every step is")
-    .argument("[id]", "the plan id")
-    .option("--run <run>", "the plan of this system run (an id or its run directory)")
-    .option("--check", "fail until every step is done (a W13 gate)", false)
-    .action(
-      action(async (named: string | undefined, opts: { run?: string; check: boolean }) => {
-        const which = await planOf(named, opts.run);
-        if (which.isErr()) return { result: which };
-        const r = await container().resolve("systemPlanStatus").execute(which.value.id);
-        if (r.isErr() || !opts.check || r.value.plan.status === "done") return { result: r };
-        const open = r.value.steps.filter((s) => s.status !== "done");
-        return {
-          result: err(
-            new MetatorError("CHECK_FAILED", `${open.length} step(s) of ${which.value.id} are not done`, {
-              hint: open.some((s) => s.status === "blocked")
-                ? "A child run escalated or was aborted: resolve it in its repository."
-                : "Start the next steps with `metator system plan run`, then check again.",
-              details: { steps: r.value.steps },
-            }),
-          ),
-        };
-      }),
-    );
+  // `system plan status`, beside the plan's other commands (as `arch plan status`); `system status` is its old name.
+  renamedCommand({ parent: system, name: "status" }, { parent: plan, name: "status" }, (cmd) =>
+    meta(cmd, { reads: true, render: renderPlanStatus })
+      .description("Each step's child run read back from its repository; the plan done when every step is")
+      .argument("[id]", "the plan id")
+      .option("--run <run>", "the plan of this system run (an id or its run directory)")
+      .option("--check", "fail until every step is done (a W13 gate)", false)
+      .option(
+        "--gate",
+        "as the system run's gate: children still working are not yet (exit 4, the drive looks again), a child that escalated or was aborted stops the run (exit 3), a step that can start sends it back to start it (exit 1)",
+        false,
+      )
+      .option(
+        "--timeout <ms>",
+        "with --gate: how long the run waits on its children before it escalates",
+        positiveInt,
+      )
+      .action(
+        action(
+          async (
+            named: string | undefined,
+            opts: { run?: string; check: boolean; gate: boolean; timeout?: number },
+          ) => {
+            const which = await planOf(named, opts.run);
+            if (which.isErr()) return { result: which };
+            if (opts.gate) {
+              const g = await container()
+                .resolve("systemRunGate")
+                .execute({
+                  id: which.value.id,
+                  ...(which.value.parent ? { run: which.value.parent } : {}),
+                  ...(opts.timeout ? { timeoutMs: opts.timeout } : {}),
+                });
+              if (g.isErr() || g.value.kind === "pass") return { result: g };
+              const code =
+                g.value.kind === "waiting"
+                  ? "WAITING"
+                  : g.value.kind === "blocked"
+                    ? "BLOCKED"
+                    : "CHECK_FAILED";
+              return {
+                result: err(
+                  new MetatorError(code, g.value.message, {
+                    ...("hint" in g.value && g.value.hint ? { hint: g.value.hint } : {}),
+                    details: { steps: g.value.steps },
+                  }),
+                ),
+              };
+            }
+            const r = await container().resolve("systemPlanStatus").execute(which.value.id);
+            if (r.isErr() || !opts.check || r.value.plan.status === "done") return { result: r };
+            const open = r.value.steps.filter((s) => s.status !== "done");
+            return {
+              result: err(
+                new MetatorError("CHECK_FAILED", `${open.length} step(s) of ${which.value.id} are not done`, {
+                  hint: open.some((s) => s.status === "blocked")
+                    ? "A child run escalated or was aborted: resolve it in its repository."
+                    : "Start the next steps with `metator system plan run`, then check again.",
+                  details: { steps: r.value.steps },
+                }),
+              ),
+            };
+          },
+        ),
+      ),
+  );
 
   const evals = () => container().resolve("runSystemEvals");
   const evalCmd = system.command("eval").description("Score system analysis and planning on the golden set");
@@ -314,8 +396,10 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     .addOption(minScore())
     .action(
       action(async (opts: { case?: string; host?: string; min?: number }) => {
+        const by = await who(container());
+        if (by.isErr()) return { result: by };
         const r = await evals().execute({
-          by: person(process.env),
+          by: by.value,
           ...(opts.host ? { host: opts.host } : {}),
           ...(opts.case ? { only: opts.case } : {}),
         });
@@ -329,8 +413,5 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
         };
       }),
     );
-  evalCmd
-    .command("schema")
-    .description("Print the JSON Schema of a golden case")
-    .action(action(async () => ({ result: ok(SystemEvalCaseDocument.jsonSchema("input")) })));
+  schemaCommand(evalCmd, ctx, "Print the JSON Schema of a golden case", SystemEvalCaseDocument);
 }

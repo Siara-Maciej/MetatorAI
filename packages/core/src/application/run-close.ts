@@ -9,8 +9,8 @@ import {
   renderHandoff,
   summarizeRun,
 } from "../domain/run-report.ts";
-import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
+import { writeDocument } from "./document-io.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { AdvanceRun, GetRunStatus } from "./runs.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
@@ -132,7 +132,7 @@ export class CloseRun {
       await artifactsOf(this.fs, this.repo, id.value),
     );
     const file = `${this.repo.runDir(id.value)}/summary.json`;
-    const written = await this.fs.write(file, serializeJsonDocument(RunSummaryDocument.stamp(summary)));
+    const written = await writeDocument(this.fs, file, RunSummaryDocument, summary, "json");
     if (written.isErr()) return err(written.error);
     const logged = await this.repo.appendLog(id.value, `${summary.closedAt} · closed · ${status}`);
     if (logged.isErr()) return err(logged.error);

@@ -18,6 +18,7 @@
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@metator/core": "workspace:*",
     "@tauri-apps/cli": "^2.9.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "^19.2.0",

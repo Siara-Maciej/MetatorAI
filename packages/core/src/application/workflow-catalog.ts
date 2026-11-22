@@ -61,7 +61,7 @@ export class WorkflowCatalog {
     const broken = problems.find((p) => p.source.includes(id));
     if (broken) return err(broken.error);
     return err(
-      new MetatorError("NOT_FOUND", `Workflow "${id}" not found`, {
+      MetatorError.notFound(`Workflow "${id}"`, {
         hint:
           workflows.length > 0
             ? `Known workflows: ${workflows.map((w) => w.spec.id).join(", ")}. Specs live in ${this.paths.workflows}/*.yml.`

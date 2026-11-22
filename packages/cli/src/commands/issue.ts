@@ -8,15 +8,19 @@ import {
   MetatorError,
 } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { BY_DEFAULT, who } from "../who.ts";
+import { byOption, defined } from "../options.ts";
+import { renderIssues } from "../render.ts";
+import { who } from "../who.ts";
 
 /**
  * `metator issue` (S4, design/13 §4): the repository's backlog. A person adds, edits, closes,
  * drops and starts tasks; an agent only proposes (`issue propose`), which puts a question in
  * the inbox; the answer there is the decision.
  */
-export function registerIssueCommands(program: Command, { action, runs }: CommandContext): void {
+export function registerIssueCommands(program: Command, ctx: CommandContext): void {
+  const { action, runs } = ctx;
   const issue = program
     .command("issue")
     .description(
@@ -39,8 +43,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       : undefined;
   const priority = new Option("--priority <level>", "how urgent").choices(ISSUE_PRIORITIES);
 
-  issue
-    .command("list")
+  meta(issue.command("list"), { audience: "person", reads: true, render: renderIssues })
     .description("The backlog, the most pressing first")
     .addOption(new Option("--status <status>", "only these").choices(ISSUE_STATUSES))
     .option("--run <id>", "only the tasks of this run (proposed from it, started as it, or pointing at it)")
@@ -48,7 +51,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       action(async (opts: { status?: IssueStatus; run?: string }) => ({
         result: (
           await runs()
-            .resolve("issues")
+            .resolve("backlogWork")
             .list({
               ...(opts.status ? { status: opts.status } : {}),
               ...(opts.run ? { runId: opts.run } : {}),
@@ -57,10 +60,78 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       })),
     );
 
+  meta(issue.command("show <id>"), { reads: true })
+    .description("One task with everything attached: its analysis, its plan, their freshness, its children")
+    .action(action(async (id: string) => ({ result: await runs().resolve("backlogWork").detail(id) })));
+
   issue
-    .command("show <id>")
-    .description("One task with everything attached")
-    .action(action(async (id: string) => ({ result: await runs().resolve("issues").show(id) })));
+    .command("analyze")
+    .description(
+      "Record an analysis (the agent's text with path:line citations): a new item, or --issue to replace one's analysis; MetatorAI adds the deterministic facts",
+    )
+    .requiredOption("--text <markdown>", "the analysis; `-` reads it from stdin (a here-doc)")
+    .option("--title <words>", "the new item's title (without --issue)")
+    .option("--issue <id>", "the item whose analysis this is (re-analyse)")
+    .option("--agent <id>", "the agent that wrote it", "mt-chat")
+    .addOption(byOption("who asked for it"))
+    .action(
+      action(async (opts: { text: string; title?: string; issue?: string; agent: string; by?: string }) => {
+        const by = await who(runs(), opts.by);
+        if (by.isErr()) return { result: by };
+        const text = opts.text === "-" ? await ctx.stdin() : opts.text;
+        // Recorded from a thread's chat: the item belongs to that thread.
+        const pane = process.env.METATOR_PANE_ID;
+        const thread = pane ? await runs().resolve("threads").ofPane(pane) : undefined;
+        return {
+          result: await runs()
+            .resolve("backlogWork")
+            .analyze({
+              text,
+              by: by.value,
+              agent: opts.agent,
+              ...defined({ title: opts.title, issue: opts.issue }),
+              ...(thread?.isOk() ? { threadId: thread.value.id } : {}),
+            }),
+        };
+      }),
+    );
+
+  meta(issue.command("plan <id>"), { audience: "person" })
+    .description(
+      "Make the item's plan only: a run of its workflow that stops once a person approves the plan (refused while its analysis is stale)",
+    )
+    .option("--workflow <id>", "the workflow (default: mt-feature, mt-bugfix for a bug)")
+    .option(
+      "--session",
+      "open the run's conductor where a person sees it (the daemon; without one it is driven in the background)",
+      false,
+    )
+    .option("--host <id>", "with --session: the host of the conductor")
+    .action(
+      action(async (id: string, opts: { workflow?: string; session: boolean; host?: string }) => ({
+        result: await runs()
+          .resolve("backlogWork")
+          .plan(id, {
+            ...defined({ workflow: opts.workflow }),
+            ...(opts.session ? { session: defined({ host: opts.host }) } : {}),
+          }),
+      })),
+    );
+
+  issue
+    .command("from-plan")
+    .description(
+      "Make Backlog items from a run's plan: one parent and, for a system plan, one child per step (dependencies kept)",
+    )
+    .requiredOption("--run <id>", "the plan run or the system run")
+    .addOption(byOption("who adds them"))
+    .action(
+      action(async (opts: { run: string; by?: string }) => {
+        const by = await who(runs(), opts.by);
+        if (by.isErr()) return { result: by };
+        return { result: await runs().resolve("backlogWork").fromPlan({ runId: opts.run, by: by.value }) };
+      }),
+    );
 
   issue
     .command("add <title>")
@@ -69,7 +140,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
     .option("--ref <ref...>", "what it points at: <file>[:line], run:<id>[/<step>]")
-    .option("--by <name>", `who adds it${BY_DEFAULT}`)
+    .addOption(byOption("who adds it"))
     .action(
       action(
         async (
@@ -138,7 +209,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
     .option("--drop", "drop it", false)
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
-    .option("--by <name>", `who decides${BY_DEFAULT}`)
+    .addOption(byOption("who decides"))
     .action(
       action(
         async (
@@ -193,7 +264,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
   issue
     .command("close <id>")
     .description("The task is done")
-    .option("--by <name>", `who closes it${BY_DEFAULT}`)
+    .addOption(byOption("who closes it"))
     .action(
       action(async (id: string, opts: { by?: string }) => {
         const by = await who(runs(), opts.by);
@@ -201,23 +272,32 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       }),
     );
 
-  issue
-    .command("drop <id>")
-    .description("The task is not going to be done")
-    .option("--by <name>", `who drops it${BY_DEFAULT}`)
-    .action(
-      action(async (id: string, opts: { by?: string }) => {
-        const by = await who(runs(), opts.by);
-        return { result: by.isErr() ? by : await runs().resolve("issues").drop(id, { by: by.value }) };
-      }),
-    );
+  // `issue rm`, as a worktree and a policy are removed; `issue drop` is its old name.
+  renamedCommand({ parent: issue, name: "drop" }, { parent: issue, name: "rm" }, (cmd) =>
+    cmd
+      .argument("<id>", "the task's id")
+      .description("The task is not going to be done: it stays in the backlog as dropped")
+      .addOption(byOption("who drops it"))
+      .action(
+        action(async (id: string, opts: { by?: string }) => {
+          const by = await who(runs(), opts.by);
+          return { result: by.isErr() ? by : await runs().resolve("issues").drop(id, { by: by.value }) };
+        }),
+      ),
+  );
 
-  issue
-    .command("start <id>")
+  meta(issue.command("start <id>"), { audience: "person" })
     .description(
-      "A run on the task (its title and body are the task), in its own worktree unless --no-worktree",
+      "A run on the task (its title and body are the task), in its own worktree unless --no-worktree: from its plan at build when the plan still holds, from the plan's review when it does not; a child only once what it waits for is done",
     )
-    .requiredOption("--workflow <id>", "the workflow to run")
+    .option("--workflow <id>", "the workflow to run (default: mt-feature, mt-bugfix for a bug)")
+    .option(
+      "--session",
+      "open the run's conductor where a person sees it (the daemon; without one it is driven in the background)",
+      false,
+    )
+    .option("--host <id>", "with --session: the host of the conductor")
+    .addOption(byOption("who starts it"))
     .option("--no-worktree", "work in the main checkout")
     .option(
       "--allow-dirty",
@@ -231,17 +311,30 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       action(
         async (
           id: string,
-          opts: { workflow: string; worktree: boolean; allowDirty: boolean; autonomy?: "L0" | "L1" | "L2" },
-        ) => ({
-          result: await runs()
-            .resolve("issues")
-            .start(id, {
-              workflow: opts.workflow,
-              worktree: opts.worktree,
-              ...(opts.allowDirty ? { allowDirty: true } : {}),
-              ...(opts.autonomy ? { autonomy: opts.autonomy } : {}),
-            }),
-        }),
+          opts: {
+            workflow?: string;
+            worktree: boolean;
+            allowDirty: boolean;
+            autonomy?: "L0" | "L1" | "L2";
+            session: boolean;
+            host?: string;
+            by?: string;
+          },
+        ) => {
+          const by = await who(runs(), opts.by);
+          if (by.isErr()) return { result: by };
+          return {
+            result: await runs()
+              .resolve("backlogWork")
+              .implement(id, {
+                by: by.value,
+                worktree: opts.worktree,
+                ...defined({ workflow: opts.workflow, autonomy: opts.autonomy }),
+                ...(opts.allowDirty ? { allowDirty: true } : {}),
+                ...(opts.session ? { session: defined({ host: opts.host }) } : {}),
+              }),
+          };
+        },
       ),
     );
 }

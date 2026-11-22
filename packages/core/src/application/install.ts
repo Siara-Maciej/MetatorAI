@@ -9,8 +9,8 @@ import {
   writesFile,
 } from "../domain/install.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem, ReadonlyFileSystem } from "../ports/index.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 import { DEFAULT_PATHS, type MetatorPaths } from "./paths.ts";
 
 export interface InstallInput {
@@ -147,19 +147,12 @@ export class InstallCanon {
       if (saved.isErr()) return err(saved.error);
     }
     const next: InstallLock = { version: source.version, workflows: report.workflows, files };
-    const saved = await this.fs.write(
-      this.paths.installLock,
-      serializeJsonDocument(InstallLockDocument.stamp(next)),
-    );
+    const saved = await writeDocument(this.fs, this.paths.installLock, InstallLockDocument, next, "json");
     if (saved.isErr()) return err(saved.error);
     return ok({ ...report, lock: this.paths.installLock });
   }
 
   private async readLock(): Promise<Result<InstallLock | undefined, MetatorError>> {
-    const file = this.paths.installLock;
-    if (!(await this.fs.exists(file))) return ok(undefined);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file).andThen((raw) => InstallLockDocument.parse(raw, file));
+    return readDocument(this.fs, this.paths.installLock, InstallLockDocument);
   }
 }

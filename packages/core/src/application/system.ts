@@ -11,8 +11,8 @@ import {
   type SystemProblem,
   specPath,
 } from "../domain/system-map.ts";
-import { parseYamlDocument } from "../domain/versioned.ts";
 import type { CheckoutReader, ReadonlyFileSystem } from "../ports/index.ts";
+import { readDocument } from "./document-io.ts";
 import type { SystemLocation, SystemSources } from "./system-sources.ts";
 
 /** Reads the system map (`docs/metator/system.yml` by default); no file means no map. */
@@ -27,10 +27,7 @@ export class SystemCatalog {
   }
 
   async load(): Promise<Result<SystemMap | undefined, MetatorError>> {
-    if (!(await this.fs.exists(this.file))) return ok(undefined);
-    const text = await this.fs.read(this.file);
-    if (text.isErr()) return err(text.error);
-    return parseYamlDocument(text.value, this.file).andThen((raw) => SystemMapDocument.parse(raw, this.file));
+    return readDocument(this.fs, this.file, SystemMapDocument, "yaml");
   }
 }
 

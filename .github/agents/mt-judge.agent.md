@@ -21,6 +21,10 @@ user-invocable: false
 3. List the areas the lenses checked and found correct (for example "rounding in invoice totals").
 4. `bun run metator findings verdict <dir>/findings --verified-correct <areas…>`, on its own (one `bun run metator` command per call, paths from the repository root, no `cd`): it writes `verdict.json` next to that directory.
 
+# From a link (ADR-0097)
+- A review from the diff only (the run's input `source: diff`): calibrate as above, but nothing was run; the published body starts with the diff-only note by itself.
+- A re-review (the input `since`): for every earlier finding of `bun run metator review show <review>`, decide its state from `delta.diff`, the code and the author's replies: `bun run metator review finding <review> --finding <id> --state fixed|not-fixed|disputed|outdated --reason "<why, with file:line or the author's words>"`. The candidates are hints, never a decision: a `changed` hunk can still hold the bug. Only you set a state; never mark one fixed without reading the new code.
+
 # Output
 - `verdict.json`: decision, blocking findings, findings to consider, verified-correct areas.
 - A summary of at most 15 lines.

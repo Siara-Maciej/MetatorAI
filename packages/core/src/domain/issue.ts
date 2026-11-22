@@ -55,18 +55,58 @@ const IssueV1Schema = z.strictObject({
  * v2 (T2) adds `source`: the outside item an intake rule made the issue from, by the key that
  * item has for good (`github:acme/shop#12`), so a later scan does not add it again.
  */
-export const IssueSchema = z.strictObject({
+const IssueV2Schema = z.strictObject({
   ...IssueV1Schema.shape,
   source: z
     .strictObject({ key: z.string().min(1), rule: z.string().min(1), url: z.string().optional() })
     .optional(),
 });
+
+/**
+ * What an analysis or a plan was made from (ADR-0096), so its freshness is decided without a
+ * model: the text's file, when, at which commit, every file it cites with its content hash, the
+ * workspace packages those files belong to, and the files of those packages that had already
+ * changed against the commit then (so only a later change counts).
+ */
+const FileHashSchema = z.strictObject({ path: z.string().min(1), sha256: z.string() });
+export const SnapshotSchema = z.strictObject({
+  /** Repository-relative: `.metator/issues/<id>/analysis.md`, `…/plan.json`, `…/system-plan.yml`. */
+  file: z.string().min(1),
+  at: z.iso.datetime(),
+  commit: z.string().min(1),
+  cites: z.array(FileHashSchema),
+  packages: z.array(z.string().min(1)),
+  dirty: z.array(FileHashSchema).optional(),
+});
+export type Snapshot = z.output<typeof SnapshotSchema>;
+
+/**
+ * v3 (ADR-0096) adds the item's analysis and plan (snapshots), the thread it was made in, its
+ * parent and the items it waits for, and the system plan step a child carries out.
+ */
+export const IssueSchema = z.strictObject({
+  ...IssueV2Schema.shape,
+  threadId: z.string().min(1).optional(),
+  parent: z.string().regex(ISSUE_ID).optional(),
+  dependsOn: z.array(z.string().regex(ISSUE_ID)).default([]),
+  analysis: SnapshotSchema.optional(),
+  plan: SnapshotSchema.extend({
+    /** The run that made the plan (stopped `planned`, or any run whose plan was approved). */
+    runId: z.string().min(1),
+    kind: z.enum(["plan", "system-plan"]),
+  }).optional(),
+  /** A child made from a system plan step: the system run, its plan and the step. */
+  step: z
+    .strictObject({ runId: z.string().min(1), plan: z.string().min(1), stepId: z.string().min(1) })
+    .optional(),
+});
 export type Issue = z.output<typeof IssueSchema>;
 
 export const IssueDocument = defineDocument("Issue", {
-  history: [{ schema: IssueV1Schema }],
+  history: [{ schema: IssueV1Schema }, { schema: IssueV2Schema, fromPrevious: (v1) => v1 }],
   latest: IssueSchema,
-  upgrade: (v1) => v1,
+  // Every v3 field is optional (`dependsOn` defaults to none): a v2 item is a v3 item without them.
+  upgrade: (v2) => v2,
   hint: "Written by `metator issue …`; do not edit by hand.",
 });
 
@@ -137,8 +177,12 @@ export function proposalDecision(
 }
 
 /** The task text a run on the issue gets: its title, then its body. */
-export const issueTask = (issue: Issue): string =>
-  issue.body.trim() ? `${issue.title}\n\n${issue.body.trim()}` : issue.title;
+/**
+ * A run's `task.md` from the issue it started from: the title, the body, and where it came from.
+ * The run's task is the title alone; the agents read the rest from here.
+ */
+export const issueBrief = (issue: Issue): string =>
+  `# ${issue.title}\n\n${issue.body.trim() ? `${issue.body.trim()}\n\n` : ""}From issue ${issue.id}.\n`;
 
 /** Open first by priority (high first), then in progress, then proposed, then done and dropped; ties by id. */
 const STATUS_RANK: Record<IssueStatus, number> = {

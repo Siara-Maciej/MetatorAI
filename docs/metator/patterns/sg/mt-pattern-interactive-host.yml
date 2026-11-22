@@ -8,4 +8,4 @@ rule:
   kind: class_declaration
   has:
     kind: class_heritage
-    regex: implements InteractiveHost
+    regex: implements InteractiveHost|extends PtyInteractiveHost

@@ -27,11 +27,23 @@ On failure:
 | `hint` | the next step, when there is one |
 | `details` | the full report, for example every violation or every failing step |
 
-Three kinds of command do not follow this. The hook commands (`metator guard ...`) answer in the host's [hooks protocol](./hooks.md). `metator ui` and `metator attach` take over the terminal.
+Two kinds of command do not follow this. The hook commands (`metator guard ...`) answer in the host's [hooks protocol](./hooks.md). `metator attach` takes over the terminal.
+
+## At a terminal
+
+A script, a pipe and an agent's tool always get the one JSON line on stdout. When you type a command at a terminal, the commands that have a text for people print only that text: `metator status`, `inbox`, `run status`, `doctor`, `run ask`, `system plan status`, `system plan show`, `issue list`, `help` and any `--help`. A failure prints its message and what to do, and still its JSON line. `--json` gives the JSON line alone, also at a terminal.
+
+```bash
+metator status            # at a terminal: the text, no JSON line
+metator status --json     # the JSON line alone, also at a terminal
+metator status | jq .data # a pipe gets the JSON line; nothing is rendered
+```
+
+`--json` works before or after the command.
 
 ## Help
 
-`metator help` lists every command. `metator help --verbs` lists the ones a person types, grouped by what you want to do. `metator <command> --help` (or `-h`) describes one command. A command group typed alone, such as `metator repos`, prints the group's help.
+`metator help` lists every command. `metator help --verbs` lists the ones a person types, grouped by what you want to do. `metator help --for person|agent|hook|ci` lists the commands of one audience: the ones you type, the ones an agent of a run calls, the hooks a host calls, and the checks a CI job runs. `metator <command> --help` (or `-h`) describes one command. A command group typed alone, such as `metator repos`, prints the group's help.
 
 ```bash
 metator run answer --help

@@ -1,12 +1,3 @@
-import { analyzeArchitecture } from "../domain/architecture.ts";
-import {
-  type ArchCaseScore,
-  type ArchEvalCase,
-  ArchEvalCaseDocument,
-  failedArchCase,
-  scoreArchCase,
-  summarizeArchEval,
-} from "../domain/architecture-eval.ts";
 import {
   describeMove,
   lintRefactorPlan,
@@ -18,18 +9,17 @@ import {
   type RefactorPlan,
   RefactorPlanDocument,
   type RefactorPlanProblem,
-  replayPlan,
   simulatePlan,
 } from "../domain/architecture-plan.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { planId } from "../domain/ids.ts";
-import { progressOf } from "../domain/plan-progress.ts";
+import { approvePlan, asDraft, progressOf, requireApproved, settled } from "../domain/plan-progress.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseYamlDocument } from "../domain/versioned.ts";
-import type { AgentHost, Clock, FileSystem, Sandbox } from "../ports/index.ts";
+import type { AgentHost, Clock, FileSystem } from "../ports/index.ts";
+import { hostNamed, runAgent } from "./agent-run.ts";
 import type { AnalyzeArchitecture, ArchitectureFacts } from "./architecture.ts";
-import { DocumentStore, runAgent } from "./document-store.ts";
+import { DocumentStore } from "./document-store.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { InitRun } from "./runs.ts";
 
@@ -141,30 +131,16 @@ export class ApproveRefactorPlan {
   }): Promise<Result<RefactorPlan, MetatorError>> {
     const linted = await this.lint.execute(input.id);
     if (linted.isErr()) return err(linted.error);
-    const errors = linted.value.problems.filter((p) => p.severity === "error");
-    const { plan } = linted.value;
-    // A stale approval is exactly what re-approving fixes; every other error blocks it.
-    const blocking = errors.filter((p) => p.code !== "stale-approval");
-    if (blocking.length > 0)
-      return err(
-        new MetatorError(
-          "CHECK_FAILED",
-          `${input.id}: ${blocking.length} lint error(s); fix them before approving`,
-          {
-            hint: "`metator arch plan lint` lists them.",
-            details: { problems: blocking },
-          },
-        ),
-      );
-    if (plan.status === "running" || plan.status === "done")
-      return err(MetatorError.usage(`${input.id} is ${plan.status}; it cannot be approved again`));
-    const approved: RefactorPlan = {
-      ...plan,
-      status: "approved",
-      approval: { by: input.by, at: this.clock.now().toISOString(), digest: planDigest(plan) },
-    };
-    const saved = await this.store.save(approved);
-    return saved.isErr() ? err(saved.error) : ok(approved);
+    const { plan, problems } = linted.value;
+    const approved = approvePlan(
+      plan,
+      problems,
+      { by: input.by, at: this.clock.now().toISOString(), digest: planDigest(plan) },
+      "`metator arch plan lint` lists them.",
+    );
+    if (approved.isErr()) return err(approved.error);
+    const saved = await this.store.save(approved.value);
+    return saved.isErr() ? err(saved.error) : ok(approved.value);
   }
 }
 
@@ -200,11 +176,8 @@ export class ProposeRefactorPlan {
   ) {}
 
   async execute(input: ProposeInput): Promise<Result<LintedPlan, MetatorError>> {
-    const host = this.hosts.get(input.host);
-    if (!host)
-      return err(
-        MetatorError.usage(`unknown host ${input.host}`, `Hosts: ${[...this.hosts.keys()].join(", ")}.`),
-      );
+    const host = hostNamed(this.hosts, input.host);
+    if (host.isErr()) return err(host.error);
     const analyzed = await this.analyze.execute();
     if (analyzed.isErr()) return err(analyzed.error);
     const id = planId(input.title);
@@ -213,7 +186,7 @@ export class ProposeRefactorPlan {
       if (created.isErr()) return err(created.error);
     }
     const planned = await runAgent({
-      host,
+      host: host.value,
       hostName: input.host,
       task: {
         agent: ARCH_PLANNER_AGENT,
@@ -234,9 +207,9 @@ export class ProposeRefactorPlan {
     if (planned.isErr()) return err(planned.error);
     const written = await this.store.load(id);
     if (written.isErr()) return err(written.error);
-    if (written.value.approval || written.value.status !== "draft") {
-      const { approval: _, ...draft } = written.value;
-      const kept = await this.store.save({ ...draft, status: "draft" });
+    const draft = asDraft(written.value);
+    if (draft !== written.value) {
+      const kept = await this.store.save(draft);
       if (kept.isErr()) return err(kept.error);
     }
     const simulated = await this.simulate.execute(id);
@@ -269,21 +242,14 @@ export class RunRefactorPlan {
   > {
     const loaded = await this.store.load(input.id);
     if (loaded.isErr()) return err(loaded.error);
-    let plan = loaded.value;
-    if (plan.status === "draft" || !plan.approval)
-      return err(
-        MetatorError.usage(
-          `${plan.id} is not approved`,
-          `A person approves it: \`metator arch plan approve ${plan.id} --by <name>\`.`,
-        ),
-      );
-    if (plan.approval.digest !== planDigest(plan))
-      return err(
-        MetatorError.usage(
-          `the moves of ${plan.id} changed after ${plan.approval.by} approved them`,
-          "Approve the plan again.",
-        ),
-      );
+    const approved = requireApproved(
+      loaded.value,
+      planDigest(loaded.value),
+      "moves",
+      `A person approves it: \`metator arch plan approve ${loaded.value.id} --by <name>\`.`,
+    );
+    if (approved.isErr()) return err(approved.error);
+    let plan: RefactorPlan = approved.value;
     const next = nextWave(plan);
     if (!next) return ok({ plan, wave: null, started: [] });
     if (next.moves.length === 0 && next.blocked.length > 0)
@@ -345,105 +311,9 @@ export class SyncRefactorPlan {
     const plan: RefactorPlan = {
       ...loaded.value,
       moves,
-      ...(moves.length > 0 && moves.every((m) => m.status === "done") ? { status: "done" as const } : {}),
+      ...(settled(moves) ? { status: "done" as const } : {}),
     };
     const saved = await this.store.save(plan);
     return saved.isErr() ? err(saved.error) : ok(plan);
-  }
-}
-
-/** The tools of one sandbox repository, built for its root (the CLI makes a container there). */
-export interface ArchEvalWorkspace {
-  readonly propose: Pick<ProposeRefactorPlan, "execute">;
-  readonly facts: Pick<ArchitectureFacts, "gather">;
-}
-
-/** `arch eval run` (H7): every golden case in a fresh repository, planned by the host, scored. */
-export class RunArchEvals {
-  constructor(
-    private readonly fs: FileSystem,
-    private readonly dir: string,
-    private readonly sandbox: Sandbox,
-    private readonly workspaceAt: (root: string) => ArchEvalWorkspace,
-    /** Files every sandbox gets besides the case's (the planner's host agent definitions). */
-    private readonly extraFiles: () => Promise<Readonly<Record<string, string>>> = async () => ({}),
-  ) {}
-
-  async cases(): Promise<Result<readonly ArchEvalCase[], MetatorError>> {
-    const out: ArchEvalCase[] = [];
-    for (const file of await this.fs.glob([`${this.dir}/*.yml`])) {
-      const text = await this.fs.read(file);
-      if (text.isErr()) return err(text.error);
-      const parsed = parseYamlDocument(text.value, file).andThen((raw) =>
-        ArchEvalCaseDocument.parse(raw, file),
-      );
-      if (parsed.isErr()) return err(parsed.error);
-      out.push(parsed.value);
-    }
-    return ok(out.sort((a, b) => a.id.localeCompare(b.id)));
-  }
-
-  async execute(input: {
-    readonly host: string;
-    readonly by: string;
-    readonly only?: string;
-  }): Promise<
-    Result<
-      { readonly summary: ReturnType<typeof summarizeArchEval>; readonly cases: readonly ArchCaseScore[] },
-      MetatorError
-    >
-  > {
-    const cases = await this.cases();
-    if (cases.isErr()) return err(cases.error);
-    const selected = cases.value.filter((c) => !input.only || c.id === input.only);
-    if (selected.length === 0)
-      return err(
-        MetatorError.notFound(input.only ? `arch eval case ${input.only}` : `arch eval cases in ${this.dir}`),
-      );
-    const scores: ArchCaseScore[] = [];
-    const extra = await this.extraFiles();
-    for (const c of selected) {
-      const box = await this.sandbox.create({ ...extra, ...c.files });
-      if (box.isErr()) return err(box.error);
-      try {
-        scores.push(await this.scoreCase(c, box.value.root, input));
-      } finally {
-        await box.value.dispose();
-      }
-    }
-    return ok({ summary: summarizeArchEval(scores), cases: scores });
-  }
-
-  private async scoreCase(
-    c: ArchEvalCase,
-    root: string,
-    input: { readonly host: string; readonly by: string },
-  ) {
-    const ws = this.workspaceAt(root);
-    const facts = await ws.facts.gather();
-    if (facts.isErr()) return failedArchCase(c.id, facts.error.message);
-    const proposed = await ws.propose.execute({
-      title: c.id,
-      goal: c.goal,
-      host: input.host,
-      by: input.by,
-      cwd: root,
-      projectRoot: root,
-    });
-    if (proposed.isErr()) return failedArchCase(c.id, proposed.error.message);
-    // A move that cannot run leaves nothing to score: its simulated result would be fiction.
-    const replayed = replayPlan(facts.value, proposed.value.plan);
-    if (replayed.problems.length > 0)
-      return failedArchCase(
-        c.id,
-        `impossible moves: ${replayed.problems.map((p) => `${p.move}: ${p.message}`).join("; ")}`,
-      );
-    return scoreArchCase({
-      case: c,
-      plan: proposed.value.plan,
-      problems: proposed.value.problems,
-      before: analyzeArchitecture(facts.value),
-      after: analyzeArchitecture(replayed.state),
-    });
   }
 }

@@ -1,0 +1,42 @@
+{
+  "kind": "ArchitectureReport",
+  "schemaVersion": 2,
+  "policy": null,
+  "summary": {
+    "packages": 0,
+    "apps": 0,
+    "edges": 0,
+    "cycles": 0,
+    "errors": 0,
+    "warnings": 0,
+    "excepted": 0,
+    "score": 100
+  },
+  "packages": [
+    {
+      "name": "(root)",
+      "dir": ".",
+      "kind": "root",
+      "tags": [],
+      "files": 2,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": []
+    }
+  ],
+  "boundaries": {
+    "split": [],
+    "merge": [],
+    "hubs": [],
+    "deadExports": [],
+    "deadPackages": []
+  },
+  "edges": [],
+  "cycles": [],
+  "violations": [],
+  "unresolved": {
+    "count": 0,
+    "sample": []
+  }
+}

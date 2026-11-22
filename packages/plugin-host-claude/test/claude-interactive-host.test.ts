@@ -33,7 +33,8 @@ interactiveHostContract("ClaudeInteractiveHost", async () => {
 describe("ClaudeInteractiveHost", () => {
   test("starts `claude <task> --session-id <uuid>` in the worktree with the run directory added", async () => {
     const terminal = new FakeTerminal();
-    const host = new ClaudeInteractiveHost(terminal, "claude", { PATH: "/bin" }, () => ID);
+    const guard = { never: ["git push --force*", "git reset --hard"], ask: [], allow: [] };
+    const host = new ClaudeInteractiveHost(terminal, "claude", { PATH: "/bin" }, () => ID, guard);
     const session = (await host.start(task("/work/wt", { dirs: ["/work/other"] }), size))._unsafeUnwrap();
     expect(session.sessionId).toBe(ID);
     expect(terminal.spawned[0]).toMatchObject({
@@ -48,6 +49,13 @@ describe("ClaudeInteractiveHost", () => {
         "/work/other",
         "--permission-mode",
         "default",
+        // The config's never commands, denied by the process as Copilot's --deny-tool are (ADR-0100).
+        "--disallowedTools",
+        "Bash(git push --force*)",
+        "--disallowedTools",
+        "Bash(git reset --hard)",
+        "--disallowedTools",
+        "Bash(git reset --hard *)",
       ],
       cwd: "/work/wt",
       env: {

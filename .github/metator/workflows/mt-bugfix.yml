@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 3
 id: mt-bugfix
-revision: 4
+revision: 5
 description: Reproduce, diagnose, fix behind a regression test, verify
 entry: { prompt: mt-bugfix }
 input:
@@ -37,6 +37,9 @@ stages:
     description: Regression test RED, fix, GREEN
     owner: [mt-test-author, mt-implementer]
     produces: [build-log.md]
+    # Each step's own tests passed (`metator plan done`): a bug stops its step, not the gates stage.
+    gate: { script: "metator plan progress {runDir}/plan.json --check" }
+    onFail: { goto: build, loop: build }
   - id: gates
     description: Gates plus no new import edges (graph diff)
     owner: mt-gatekeeper

@@ -20,7 +20,13 @@ agents:
       - say: "STATUS: done"
     - - say: "resumed session"
       - ask: { question: "Still there?", options: [yes] }
-`;
+
+  mt-orchestrator:
+    - - say: "first session"
+      - ask: { question: "Go on?", options: [yes, no] }
+      - say: "STATUS: done"
+    - - say: "resumed session"
+      - ask: { question: "Still there?", options: [yes] }`;
 
 let repo: ScratchRepo;
 let env: Record<string, string>;
@@ -175,7 +181,9 @@ describe("panes (real daemon, real PTYs)", () => {
     );
     const activity = (await get(`/runs/${runId}/activity`)).data as { entries: { text: string }[] };
     expect(
-      activity.entries.some((e) => e.text.startsWith("resumed session scenario-session-2 in pane w1:p1")),
+      activity.entries.some((e) =>
+        /^resumed session scenario-mt-orchestrator-\d+ in pane w1:p1/.test(e.text),
+      ),
     ).toBe(true);
   }, 60_000);
 
@@ -203,14 +211,53 @@ describe("panes (real daemon, real PTYs)", () => {
       panes: { closed: number };
       worktree: { id: string; path: string; removed: boolean };
     };
-    expect([closed.status, closed.panes.closed, closed.worktree]).toEqual([
+    expect([closed.status, closed.worktree]).toEqual([
       "done",
-      1,
       { id: wt.worktree.id, path: wt.worktree.path, removed: true },
     ]);
+    // The close closes the conductor's pane, unless the daemon's sweep of finished runs (it sees
+    // the run done the moment the close records it) got there first: either way it is gone.
+    expect([0, 1]).toContain(closed.panes.closed);
     const after = (await get("/layout")).data as { workspaces: { runId?: string }[] };
     expect(after.workspaces.some((w) => w.runId === wt.runId)).toBe(false);
     expect(existsSync(repo.path(wt.worktree.path))).toBe(false);
     expect((data(await mt("worktree", "list")) as { worktrees: unknown[] }).worktrees).toEqual([]);
   }, 60_000);
+
+  test("a run started from a pane (the chat where a person gave the task) is remembered on it: that task's main terminal", async () => {
+    // What the intake agent does in its pane: `metator run new`, with the pane's identity in its environment.
+    const chat = await post("/panes", {
+      label: "intake",
+      role: "shell",
+      argv: ["sh", "-c", `bun ${CLI_ENTRY} run new --workflow demo --task 'Started from the chat'; sleep 30`],
+    });
+    const paneId = (chat.data as { id: string }).id;
+    const started = await until("the pane to remember its run", async () => {
+      const pane = (await get(`/panes/${paneId}`)).data.pane as { startedRun?: string };
+      return pane.startedRun;
+    });
+    const status = data(await mt("run", "status", "--run", started)) as { task: string };
+    expect(status.task).toBe("Started from the chat");
+    // Another pane's token cannot say it for this one.
+    const other = await fetch(`${base}/panes/${paneId}/started-run`, {
+      method: "POST",
+      body: JSON.stringify({ runId: started }),
+      headers: { "x-metator-pane": "not-its-token" },
+    });
+    expect(other.status).toBe(403);
+    expect((await post(`/panes/${paneId}/close`, {})).ok).toBe(true);
+    await mt("run", "close", "--run", started, "--aborted", "--reason", "the test ends it");
+  }, 60_000);
+  test("a wait longer than the server's idle timeout (10 s) answers when it ends, not with a reset", async () => {
+    const shell = await post("/panes", {
+      runId,
+      role: "shell",
+      label: "long",
+      argv: ["sh", "-c", "sleep 60"],
+    });
+    const id = (shell.data as { id: string }).id;
+    const waited = data(await mt("pane", "wait", id, "--until", "exited", "--timeout", "12000"));
+    expect(waited).toEqual({ state: "timeout" });
+    expect((await post(`/panes/${id}/close`, {})).data).toEqual({ closed: true });
+  }, 30_000);
 });

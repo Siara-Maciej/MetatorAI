@@ -138,7 +138,7 @@ describe("a run that stands still (real CLI, scenario host)", () => {
       `metator run close --run ${runId} --aborted --reason <why>`,
     ];
     expect([escalated.escalated.stage, escalated.escalated.next]).toEqual(["check", next]);
-    expect(escalated.escalated.reason).toStartWith("gate `test -f {runDir}/fixed`");
+    expect(escalated.escalated.reason).toStartWith(`gate \`test -f .metator/runs/${runId}/fixed\``);
     const waiting = (await inbox()).escalated.find((e) => e.runId === runId);
     expect([waiting?.stage, waiting?.next]).toEqual(["check", next]);
     // The summary a drive writes at its end leaves the run escalated: it can still be resumed.
@@ -244,7 +244,7 @@ describe("a run that stands still (real CLI, scenario host)", () => {
       schemaVersion: number;
       resumes: { by: string; from: string; to: string; note: string }[];
     };
-    expect([record.schemaVersion, record.resumes.length]).toEqual([8, 1]);
+    expect([record.schemaVersion, record.resumes.length]).toEqual([9, 1]);
     expect(record.resumes[0]).toMatchObject({ by: "ola", from: "check", to: "plan", note });
     const line = `resumed at plan (escalated at check) · by ola · note: ${note}`;
     expect(await repo.read(`.metator/runs/${runId}/log.md`)).toContain(line);

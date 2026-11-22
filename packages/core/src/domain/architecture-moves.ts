@@ -1,14 +1,8 @@
 import { z } from "zod";
-import {
-  type ArchitectureInput,
-  type ArchitectureReport,
-  analyzeArchitecture,
-  DEPENDENCY_FIELDS,
-  type PackageManifest,
-  type ResolvedImport,
-  ROOT_PACKAGE,
-  type Violation,
-} from "./architecture.ts";
+import { analyzeArchitecture } from "./architecture.ts";
+import type { ArchitectureInput, ResolvedImport } from "./architecture-context.ts";
+import { DEPENDENCY_FIELDS, type PackageManifest, ROOT_PACKAGE } from "./architecture-manifests.ts";
+import type { ArchitectureReport, Violation } from "./architecture-report.ts";
 import { matchesAny } from "./glob.ts";
 import { packageOf } from "./import-index.ts";
 

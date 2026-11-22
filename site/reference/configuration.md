@@ -13,7 +13,7 @@ A file that does not match the schema stops every command with `INVALID_CONFIG` 
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 12
+schemaVersion: 15
 
 gates:
   quick:
@@ -47,21 +47,33 @@ mcp:
     args: [stdio]
     env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}" }
 
+codehost:
+  sources:
+    - { id: shop, kind: github, repo: acme/shop, via: "mcp:github", author: alice }
+  review: { autoPublish: false, watch: true, everyMs: 120000 }
+  mine: { analyse: false }
+
 intake:
   rules:
     - id: bugs
-      source: { kind: github, repo: acme/shop, labels: [bug] }
+      source: shop
+      labels: [bug]
       workflow: mt-bugfix
 
-reviews:
-  sources:
-    - { kind: github, repo: acme/shop, author: alice }
+guard:
+  commands:
+    never: [git push --force*, git reset --hard, git clean -f]
+    ask: [git commit, git push, git merge, git rebase]
+
+quick:
+  maxFiles: 5
+  maxLines: 150
 
 options:
   supervisor.wipLimit: 2
 ```
 
-The current `schemaVersion` is 11. A file with an older version still loads: MetatorAI upgrades it in memory and leaves the file as it is.
+The current `schemaVersion` is 15. A file with an older version still loads: MetatorAI upgrades it in memory and leaves the file as it is.
 
 ## Gates
 
@@ -126,7 +138,7 @@ Override any of these under `paths:`. Local state (runs, the index, gate reports
 
 ## System
 
-`system` connects this repository to a map of several applications. See [Systems of applications](../repo/systems.md).
+`system` connects this repository to a map of several applications. See [Systems of applications](../many/systems.md).
 
 | Field | Use |
 |---|---|
@@ -191,36 +203,48 @@ Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remov
 
 ## Intake
 
-`intake` holds the rules that turn issues from GitHub, GitLab or Jira into tasks and runs. `metator intake scan` applies them once, and the daemon applies them on a timer. See [Automatic intake](../use/intake.md).
+`intake` holds the rules that turn issues from GitHub, GitLab or Jira into tasks and runs. `metator intake scan` applies them once, and the daemon applies them on a timer. See [Automatic intake](../repo/intake.md).
 
 | Field | Default | Use |
 |---|---|---|
 | `intake.everyMs` | `120000` | how often the daemon scans |
 | `intake.maxActive` | `2` | runs started by intake that may be active at once; further items wait as open tasks |
 | `intake.rules[].id` | | the rule's name: lowercase letters, digits, dashes; unique |
-| `intake.rules[].source.kind` | | `github`, `gitlab` or `jira` |
-| `intake.rules[].source.repo` | | `owner/name` on GitHub, the project path on GitLab |
-| `intake.rules[].source.project` | | the Jira project key |
-| `intake.rules[].source.labels` | `[]` | only items with these labels |
-| `intake.rules[].source.type` | | the Jira issue type, for example `Bug` |
-| `intake.rules[].source.state` | `open` | only items in this state |
-| `intake.rules[].source.mcp` | the kind's name | the server under `mcp:` that reaches the source |
-| `intake.rules[].source.tool` | the kind's usual tool | the server's tool that lists the items |
+| `intake.rules[].source` | | the id of a source in `codehost.sources` |
+| `intake.rules[].labels` | `[]` | only items with these labels |
+| `intake.rules[].type` | | the Jira issue type, for example `Bug` |
+| `intake.rules[].state` | `open` | only items in this state |
+| `intake.rules[].tool` | the kind's usual tool | the server's tool that lists the items |
 | `intake.rules[].workflow` | | the workflow a new item starts, for example `mt-bugfix` |
 | `intake.rules[].autonomy` | `gated` | `gated`: every gate of the workflow asks a person. `full`: gates marked `skipAt` pass; a push still asks |
 | `intake.rules[].worktree` | `true` | each run works in its own worktree |
 
+## Code hosts
+
+`codehost` (version 15) is the one list of the code hosts MetatorAI reads, for intake and for reviews, with how each is read; what happens to a review of someone else's request; and whether a review of yours is analysed by itself. Tokens are never here: they stay in the MCP server's configuration or in `gh auth login`. See [Reviews](../use/reviews.md#review-a-pull-request-from-its-link).
+
+| Field | Default | Use |
+|---|---|---|
+| `codehost.sources[].id` | | the source's name: lowercase letters, digits, dashes; unique |
+| `codehost.sources[].kind` | | `github`, `gitlab` or `jira` |
+| `codehost.sources[].repo` | | `owner/name` on GitHub, the project path on GitLab |
+| `codehost.sources[].project` | | the Jira project key |
+| `codehost.sources[].via` | | `mcp:<server>` (a server under `mcp:`), or `gh` (GitHub only, with gh's own login) |
+| `codehost.sources[].author` | every open request | your requests are this author's (reviews of your own requests) |
+| `codehost.review.autoPublish` | `false` | publish a review without the card "Publish the review of MR #N?" (the approval gate is skipped) |
+| `codehost.review.watch` | `true` | follow reviewed requests and the ones you are asked to review for new commits and replies |
+| `codehost.review.everyMs` | `120000` | how often the daemon looks at the watched requests |
+| `codehost.mine.analyse` | `false` | a new review of your request starts `reviews.workflow` by itself; off, a card with **Analyse** waits |
+
+A version 14 file loads as version 15: `reviews.sources` and each `intake.rules[].source` move to `codehost.sources`, the rules name them by id, and an `ask` list you wrote gets `metator review approve`.
+
 ## Reviews
 
-`reviews` says where to look for reviews of your own pull requests. A new review starts a run that proposes replies and changes. See [Answer a review](../use/reviews.md).
+`reviews` says how reviews of your own pull requests are answered. Where they are is `codehost.sources`.
 
 | Field | Default | Use |
 |---|---|---|
 | `reviews.everyMs` | `120000` | how often the daemon looks |
-| `reviews.sources[].kind` | | `github` or `gitlab` |
-| `reviews.sources[].repo` | | `owner/name` on GitHub, the project path on GitLab |
-| `reviews.sources[].author` | every open request | only requests of this author |
-| `reviews.sources[].mcp` | the kind's name | the server under `mcp:` that reaches the host |
 | `reviews.workflow` | `mt-review-response` | the workflow a new review starts |
 
 ## Supervisor
@@ -235,6 +259,49 @@ Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remov
 | `idleThresholdMs` | `90000` | no terminal output for this long, with no open question, counts as idle |
 | `hostOrder` | `[copilot, claude, opencode]` | which interactive host a new session takes first |
 | `chatApprovals` | `attached-only` | an approval said in the chat counts only while a person is attached to the session (the only value) |
+
+## Guard
+
+`guard.commands` is the one list of dangerous shell commands, enforced the same way on Claude Code and Copilot CLI by the [`pre-tool` hook](./hooks.md), for every agent: the chat, a run's conductor and its workers. Only a person changes it, by editing this file; an agent cannot relax it.
+
+| Field | Default | Use |
+|---|---|---|
+| `guard.commands.never` | `git push --force*`, `git push -f`, `git reset --hard`, `git clean -f`, `git rebase -i`, `git rebase --interactive`, `git filter-branch`, `git filter-repo`, and `rm -r` of `/`, `/*`, `~`, `.`, `..`, `*` or `.git` | never run by an agent: the call is denied with the reason. You run such a command yourself |
+| `guard.commands.ask` | `git commit`, `git push`, `git merge`, `git rebase`, `metator review approve` | run only with your consent: a click on your host's own approval prompt, or your word in the chat ("commit", "push it", "zacommituj") |
+| `guard.commands.allow` | none | commands that `ask` would catch and that you allow anyway, for example `git commit --fixup` |
+| `guard.consentMinutes` | `10` | how long a consent you gave in words holds; it is used up by the first command of that kind |
+| `guard.prompts` | `metator` | who answers your host's approval prompt for what is known to be safe: `metator` lets the four kinds below run without a prompt; `host` keeps your host's own prompts for everything (the guard then only denies and asks) |
+
+A pattern is the command's words: the program, for `git` the subcommand, then the flags or words that must be among the arguments. `--force*` also matches `--force-with-lease`; `-f` also matches inside `-xdf`. `never` wins over `ask`, and `allow` lifts only `ask`.
+
+A consent in words comes from your own message only (the host's user-prompt hook hands it to `metator guard user-prompt`). A question ("should we commit?"), a refusal, the agent's own words and lines MetatorAI types (`[metator] …`) give none. In a run, the approval of the delivery gate (`metator run approve push`) counts as your consent to that run's commit and push. A session without a terminal (`metator run drive`) cannot ask you, so there a command on `ask` needs the run's approval.
+
+A `git commit` that would hold a recorded debug change (see [Debug changes](../use/quick.md#debug-changes)) is stopped with the files, even after "commit": say "commit anyway", or remove the changes first.
+
+### What runs without a prompt
+
+With `guard.prompts: metator` the `pre-tool` hook answers `allow`, with the reason, for four kinds of calls, on both hosts. Everything else keeps your host's own approval prompt, and `never` and `ask` are judged first and win.
+
+| Kind | What qualifies |
+|---|---|
+| MetatorAI's own commands | `metator …` as the repository runs it (`hosts.metatorCommand`, `npx metator`, `bun run metator`), any subcommand except the ones that are your decision: `run approve`, `run answer`, `run resume`, `run take`, `run close`, `system plan approve`, `system plan retry`, `arch plan approve`, `scratch forget`, `policy`, `config set`, `config unset`, `issue add`, `setup`, `init`, `generate`, `agents`, `serve`, `mcp`, `findings to-github`, `mrs send`, `mrs resolve`, `review approve`, and `quick start --override`. Those are asked about by name. `metator guard` is never an agent's command |
+| Commands that only read | `git status`, `git diff`, `git log`, `grep`, `rg`, `ls`, `cat`, `head`, `sed -n '1,80p' file` and the like, with paths inside the repository; no option that writes or runs something |
+| Edits inside the repository | a file edit or write whose every path is inside the repository (in a run: inside its plan's scope), except `.git/`, `metator.config.*`, `.claude/settings*.json`, `.github/hooks/`, and MetatorAI's own records under `.metator/` (a run's artifacts are fine). Secrets are denied as always |
+| The repository's own checks | the steps of `gates.quick` and `gates.full` (a script through `bun`, `npm`, `pnpm` or `yarn`; a binary with its arguments, also through `npx` or `bunx`), and the package's `test`, `typecheck`, `lint` and `build` scripts or the command such a script runs (`bunx tsc --noEmit`) |
+
+A chain or a pipeline passes only when every part of it qualifies (`git status --short && bun test`, `bun test 2>&1 | tail -20`). A command substitution, a redirection to a file, a path outside the repository, or one part that does not qualify (`git status && curl …`) leaves the whole call to your host's prompt.
+
+Copilot CLI takes an allow list when it starts, so its sessions are also started with `--allow-tool` for MetatorAI's commands that hold none of your decisions and for the repository's check scripts. Reads and edits are not on that list (a command prefix cannot say "inside the repository"); for those Copilot's own prompt asks unless it honours the hook's answer.
+
+## Quick
+
+`quick` holds the limits of a quick change (`metator quick check`, see [Quick](../use/quick.md)).
+
+| Field | Default | Use |
+|---|---|---|
+| `quick.maxFiles` | `5` | more changed files than this is not quick |
+| `quick.maxLines` | `150` | more changed lines (added plus removed) than this is not quick |
+| `quick.maxDependents` | `10` | more files that depend on the change (through imports, tests aside) than this is not quick |
 
 ## Options
 
@@ -266,6 +333,7 @@ metator config schema --options                        # the JSON Schema of the 
 | `editor` | user | `command` |
 | `supervisor` | repo | `wipLimit`, `respawn`, `respawnAttempts`, `idleThresholdMs`, `hostOrder` |
 | `issues` | repo | `requireConsent`, `proposeFromAgents` |
+| `backlog` | repo | `staleDays` (default 14): after how many days a task's analysis or plan reads `old`, a warning only |
 
 Every option on this list changes what MetatorAI does. `metator config list` prints the same list with each option's description and default.
 

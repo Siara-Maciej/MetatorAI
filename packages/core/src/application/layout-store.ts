@@ -1,41 +1,46 @@
 import type { MetatorError } from "../domain/errors.ts";
+import { InProcessLock } from "../domain/in-process-lock.ts";
 import { EMPTY_LAYOUT, type Layout, LayoutDocument } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
-import type { FileSystem } from "../ports/index.ts";
+import type { FileLock, FileSystem } from "../ports/index.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 
 export const LAYOUT_FILE = ".metator/layout.json";
 
-/** The layout on disk (R1): the daemon's only memory of its workspaces and panes across restarts. */
+/**
+ * The layout on disk (R1): the daemon's only memory of its workspaces and panes across restarts.
+ * The daemon is the layout's one writer process, so changes are put in line inside the process
+ * (two requests served at once never write over each other); a store shared by several processes
+ * is given the lock that holds across them.
+ */
 export class LayoutStore {
   constructor(
     private readonly fs: FileSystem,
     private readonly file: string = LAYOUT_FILE,
+    private readonly lock: FileLock = new InProcessLock(),
   ) {}
 
   async load(): Promise<Result<Layout, MetatorError>> {
-    if (!(await this.fs.exists(this.file))) return ok(EMPTY_LAYOUT);
-    const text = await this.fs.read(this.file);
-    if (text.isErr()) return err(text.error);
-    const raw = parseJsonDocument(text.value, this.file);
-    if (raw.isErr()) return err(raw.error);
-    return LayoutDocument.parse(raw.value, this.file);
+    const layout = await readDocument(this.fs, this.file, LayoutDocument, "json");
+    return layout.map((l) => l ?? EMPTY_LAYOUT);
   }
 
   save(layout: Layout): Promise<Result<void, MetatorError>> {
-    return this.fs.write(this.file, serializeJsonDocument(LayoutDocument.stamp(layout)));
+    return writeDocument(this.fs, this.file, LayoutDocument, layout, "json");
   }
 
-  /** Reads, changes, writes: `change` returns the new layout and what the caller wants back. */
+  /** Reads, changes, writes as one step: `change` returns the new layout and what the caller wants back. */
   async update<T>(
     change: (layout: Layout) => Result<{ readonly layout: Layout; readonly value: T }, MetatorError>,
   ): Promise<Result<T, MetatorError>> {
-    const current = await this.load();
-    if (current.isErr()) return err(current.error);
-    const changed = change(current.value);
-    if (changed.isErr()) return err(changed.error);
-    const saved = await this.save(changed.value.layout);
-    if (saved.isErr()) return err(saved.error);
-    return ok(changed.value.value);
+    return this.lock.hold(this.file, async () => {
+      const current = await this.load();
+      if (current.isErr()) return err(current.error);
+      const changed = change(current.value);
+      if (changed.isErr()) return err(changed.error);
+      const saved = await this.save(changed.value.layout);
+      if (saved.isErr()) return err(saved.error);
+      return ok(changed.value.value);
+    });
   }
 }

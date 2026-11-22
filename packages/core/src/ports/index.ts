@@ -4,18 +4,28 @@
  */
 
 import type { Agent } from "../domain/agent.ts";
-import type { ManifestSet } from "../domain/architecture.ts";
 import type { ToolBoundaries } from "../domain/architecture-check.ts";
+import type { ManifestSet } from "../domain/architecture-manifests.ts";
+import type { LabAction, LabView } from "../domain/conformance-lab.ts";
 import type { ContractComparison } from "../domain/contract-diff.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
+import type { GuardCommands } from "../domain/guard-commands.ts";
 import type { IntakeItem, IntakeSource } from "../domain/intake.ts";
 import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
-import type { HostPullRequest, HostThread, ReviewSource } from "../domain/review-thread.ts";
+import type {
+  HostPullRequest,
+  HostPullRequestDetail,
+  HostReview,
+  HostThread,
+  PostedReview,
+  ReviewSource,
+} from "../domain/review-thread.ts";
+import type { SandboxSettings } from "../domain/sandbox.ts";
 import type { Skill } from "../domain/skill.ts";
 import type { ModuleSymbols } from "../domain/symbols.ts";
 
@@ -24,6 +34,21 @@ export interface ReadonlyFileSystem {
   exists(path: string): Promise<boolean>;
   /** Repo-relative paths matching the glob patterns (supports `!` negation). */
   glob(patterns: readonly string[]): Promise<readonly string[]>;
+}
+
+/** What a file is beyond its text: how large, when it changed, and where it really is. */
+export interface FileStat {
+  readonly directory: boolean;
+  readonly size: number;
+  readonly modifiedAt: string;
+  /** Where it really is, every link followed: an absolute path, to compare with another's. */
+  readonly real: string;
+}
+
+/** Sizes, times and link targets of files (`GET /runs/:run/artifacts` lists what it may show). */
+export interface FileStats {
+  /** A repo-relative or absolute path; undefined when nothing is there. */
+  stat(path: string): Promise<FileStat | undefined>;
 }
 
 export interface FileSystem extends ReadonlyFileSystem {
@@ -139,6 +164,33 @@ export interface Terminal {
   ): Result<PtyHandle, MetatorError>;
 }
 
+/**
+ * The operating system's sandbox a host session starts in (ADR-0104): a command line that runs
+ * `argv`, and everything it starts, under the settings. The adapter owns how (the sandbox
+ * runtime's `srt`, its settings file); the settings are the domain's (`sandboxSettings`).
+ */
+export interface HostSandbox {
+  command(argv: readonly string[], settings: SandboxSettings): Result<string[], MetatorError>;
+}
+
+/**
+ * A terminal's screen as a person sees it, from the bytes a program wrote to it (ADR-0091): the
+ * last drawing of every cell, the cursor's moves, erasing, wrapping, scroll regions and wide
+ * glyphs done as a terminal does them. One per pane; the pane sensor reads prompts from it.
+ */
+export interface ScreenModel {
+  write(data: string): void;
+  resize(size: PtySize): void;
+  /** The rows kept (scrollback, then the screen), each without trailing blanks, the last blank rows left out; once all that was written is drawn. */
+  text(): Promise<string>;
+  dispose(): void;
+}
+
+/** Opens a screen model for a terminal of a size. */
+export interface ScreenRenderer {
+  open(size: PtySize & { readonly scrollback?: number }): ScreenModel;
+}
+
 export interface InteractiveSession {
   /** The host's own session id, to resume it later (`claude --resume`, `copilot --resume`). */
   readonly sessionId: string;
@@ -158,6 +210,31 @@ export interface InteractiveHost {
     task: AgentTask,
     size: PtySize,
   ): Promise<Result<InteractiveSession, MetatorError>>;
+}
+
+/**
+ * The throwaway repository the host conformance suite works in (ADR-0098): set up for one host,
+ * with a daemon of its own that drives the host's real CLI in its panes, as a person's sessions.
+ * Only the program a person started knows how to start the daemon and talk to it, so the driving
+ * adapter gives the implementation; core decides what is done and what it proves.
+ */
+export interface ConformanceLab {
+  /** A fresh git repository set up for the host (`metator setup --host <h> --yes`), its daemon started; reports go to `out`. */
+  open(input: {
+    readonly host: string;
+    readonly out: string;
+  }): Promise<Result<{ readonly repo: string; readonly os: string }, MetatorError>>;
+  /** Does one thing a person does there; a session opened names its pane, a file made its path. */
+  act(action: LabAction): Promise<Result<{ readonly pane?: string; readonly path?: string }, MetatorError>>;
+  /** What is there now: the pane (when named), its screen and questions, the guard's records, git, these files. */
+  look(input: {
+    readonly pane?: string;
+    readonly files: readonly string[];
+  }): Promise<Result<LabView, MetatorError>>;
+  /** Keeps a file of the run where the reports go; its path. */
+  save(name: string, text: string): Promise<Result<string, MetatorError>>;
+  /** Stops the daemon and every process of the repository, and deletes it unless `keep`. */
+  close(keep: boolean): Promise<Result<{ readonly kept?: string }, MetatorError>>;
 }
 
 /** Waiting without blocking (polling for answers); instant in tests. */
@@ -260,6 +337,12 @@ export interface Clock {
   now(): Date;
 }
 
+/** Content hashes (ADR-0096): what an analysis or a plan remembers of each file it cites. */
+export interface ContentHasher {
+  /** The SHA-256 of the text, as 64 lowercase hex digits. */
+  sha256(text: string): string;
+}
+
 export interface Vcs {
   /** Files changed between `base` and the working tree (repo-relative). */
   changedFiles(base: string): Promise<Result<readonly string[], MetatorError>>;
@@ -271,9 +354,67 @@ export interface Vcs {
   hasCommits?(): Promise<Result<boolean, MetatorError>>;
 }
 
+/** What a checkout's working tree looks like now: asked before a run starts and between worktrees. */
+export interface WorkingTree {
+  /**
+   * Files the worktree at the repo-relative `path` changed since it branched off the main
+   * checkout's HEAD: committed on its branch, in its working tree, or new and not ignored.
+   */
+  worktreeChanges(path: string): Promise<Result<readonly string[], MetatorError>>;
+  /** Tracked files with uncommitted changes, MetatorAI's own state aside; undefined when git cannot say. */
+  modifiedTracked(): Promise<readonly string[] | undefined>;
+  /** Whether HEAD is on no branch; undefined when git cannot say (not a repository). */
+  detachedHead(): Promise<boolean | undefined>;
+}
+
+/**
+ * The working tree as patches (ADR-0093): what a direct edit not meant for a commit is recorded
+ * with, and taken out with again. Nothing here moves HEAD, a branch or the stash.
+ */
+export interface WorkingPatches {
+  /**
+   * The working tree as it is now (tracked and new files; ignored ones aside) as an id two of
+   * which can be compared later. Touches neither the index nor the tree.
+   */
+  snapshot(): Promise<Result<string, MetatorError>>;
+  /** What changed from one snapshot to another: the files, and the patch that makes the change. */
+  between(
+    from: string,
+    to: string,
+  ): Promise<Result<{ readonly files: readonly string[]; readonly patch: string }, MetatorError>>;
+  /**
+   * The files of the patch whose change is there now: in the working tree (`tree`), staged
+   * (`index`), or in the working tree of a file git tracks (`tracked`: what `commit -a` takes).
+   */
+  holding(
+    patch: string,
+    where: "tree" | "index" | "tracked",
+  ): Promise<Result<readonly string[], MetatorError>>;
+  /**
+   * The files that still hold lines the patch added, whether or not the patch can still be taken
+   * out as it was (the lines around them may have changed): in the working tree (`tree`), staged
+   * (`index`), or in the working tree of a file git tracks (`tracked`).
+   */
+  remains(
+    patch: string,
+    where: "tree" | "index" | "tracked",
+  ): Promise<Result<readonly string[], MetatorError>>;
+  /**
+   * Takes the patch's change out of the working tree, and out of the index where it is staged:
+   * all of it, or only its part in the files named. An error when that no longer applies as a
+   * whole: nothing is forced and nothing is half done.
+   */
+  revert(patch: string, files?: readonly string[]): Promise<Result<void, MetatorError>>;
+}
+
 export interface BranchPublication {
   /** Asks `origin` itself (`git ls-remote`), not a remote-tracking ref a single-branch clone lacks. */
   published(): Promise<Result<PublishedBranch, MetatorError>>;
+  /**
+   * Fetches `ref` from `origin` into the local branch `branch`, replacing what it held (a review's
+   * own copy of someone else's request: `pull/45/head`, `merge-requests/7/head`).
+   */
+  fetchRef?(ref: string, branch: string): Promise<Result<void, MetatorError>>;
 }
 
 /** The change itself as a unified diff (`review diff`): what a reviewer reads besides the files. */
@@ -566,8 +707,15 @@ export interface HostGenerator {
   agent(agent: Agent, body: string, context: HostAgentContext): GeneratedFile;
   /** The host's hook configuration file (ADR-0038). */
   readonly hooksFile: string;
-  /** Hook configuration running `metator guard *`, merged into `existing` (the file as it is). */
-  hooks(metatorCommand: string, existing: string | undefined): Result<GeneratedFile, MetatorError>;
+  /**
+   * Hook configuration running `metator guard *`, merged into `existing` (the file as it is); a
+   * host whose settings take deny rules is given the config's `never` commands (ADR-0100).
+   */
+  hooks(
+    metatorCommand: string,
+    existing: string | undefined,
+    guard?: GuardCommands,
+  ): Result<GeneratedFile, MetatorError>;
 }
 
 /**
@@ -592,4 +740,31 @@ export interface ReviewHost {
     text: string,
   ): Promise<Result<void, MetatorError>>;
   resolve(source: ReviewSource, number: number, threadId: string): Promise<Result<void, MetatorError>>;
+  /**
+   * One request read whole from its link (ADR-0097): what it is, its head, its diff and its
+   * threads. `source` is the repository the link names, with the server that reads it.
+   */
+  openFromUrl(url: string, source: ReviewSource): Promise<Result<HostPullRequestDetail, MetatorError>>;
 }
+
+/**
+ * Reviewing someone else's request at its host (ADR-0097): the requests I am asked to review,
+ * posting a review in one go, approving. Posting and approving change the host and are called
+ * only after a person's decision.
+ */
+export interface ReviewerHost {
+  /** Open requests of the repository where I am a requested reviewer. */
+  requested(source: ReviewSource): Promise<Result<readonly HostPullRequest[], MetatorError>>;
+  /**
+   * The review's comments on lines and its general body, in one go. A host or tool that cannot
+   * comment on lines answers an error with `details.inline: false` and posts nothing.
+   */
+  publish(
+    source: ReviewSource,
+    number: number,
+    review: HostReview,
+  ): Promise<Result<PostedReview, MetatorError>>;
+  approve(source: ReviewSource, number: number, body?: string): Promise<Result<void, MetatorError>>;
+}
+
+export type * from "./run-drive.ts";

@@ -187,7 +187,7 @@ describe("metator run in a terminal", () => {
     const bare = await mt("run");
     expect([bare.code, (bare.json.error as { hint: string }).hint]).toEqual([
       64,
-      "Without one, use `metator run init` and `metator run drive`; `metator help` lists every command.",
+      "Without one, use `metator run new` and `metator run drive`; `metator help` lists every command.",
     ]);
     const init = await mt("run", "init", "--workflow", "demo", "--task", "Fourth change");
     const runId = (init.json.data as { runId: string }).runId;
@@ -227,15 +227,18 @@ describe("metator run in a terminal", () => {
     expect((r.json.data as Followed).status).toBe("escalated");
   }, 90_000);
 
-  test("a bare `metator` or `metator --help` at a terminal shows the verbs a person reaches for, and the one JSON line stays", async () => {
+  test("a bare `metator` or `metator --help` at a terminal shows the verbs a person reaches for, as text only", async () => {
     const asked = await inTerminal(["--help"], repo.root, [], 20_000);
-    expect([asked.code, asked.json.ok]).toEqual([0, true]);
+    expect([asked.code, asked.screen.includes('{"ok"')]).toEqual([0, false]);
     expect(asked.screen).toContain("Work on a task");
     const r = await inTerminal([], repo.root, [], 20_000);
     expect(r.code).toBe(0);
     expect(r.screen).toContain("MetatorAI 0.0.0: survey first, prove everything.");
     expect(r.screen).toContain("Work on a task");
-    expect(r.screen).toContain("metator run init");
-    expect((r.json.data as { verbs: unknown[] }).verbs.length).toBe(6);
+    expect(r.screen).toContain("metator run new");
+    expect(r.screen).not.toContain('{"ok"');
+    // --json: the line alone, with the six verbs.
+    const json = await inTerminal(["--help", "--json"], repo.root, [], 20_000);
+    expect((json.json.data as { verbs: unknown[] }).verbs.length).toBe(6);
   });
 });

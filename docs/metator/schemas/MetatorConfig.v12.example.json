@@ -1,0 +1,20 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 12,
+  "paths": {
+    "rules": "docs/rules"
+  },
+  "gates": {
+    "quick": [
+      {
+        "id": "test",
+        "run": {
+          "script": "test"
+        }
+      }
+    ]
+  },
+  "supervisor": {
+    "hostOrder": ["claude", "copilot"]
+  }
+}

@@ -5,7 +5,13 @@ import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, InitRun } from "../src/application/runs.ts";
 import { SystemCatalog } from "../src/application/system.ts";
 import { SystemPlanStore } from "../src/application/system-plans.ts";
-import { type RepositoryRuns, RunSystemPlan, SystemPlanStatus } from "../src/application/system-runs.ts";
+import {
+  type RepositoryRuns,
+  RetrySystemStep,
+  RunSystemPlan,
+  SystemPlanStatus,
+  SystemRunGate,
+} from "../src/application/system-runs.ts";
 import { CloneCache, LocalSystemLocation, SystemSources } from "../src/application/system-sources.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import { ok } from "../src/domain/result.ts";
@@ -73,9 +79,36 @@ function repository(root: string, shared: InMemoryFileSystem) {
   const clock = new FixedClock(new Date("2026-10-29T09:00:00.000Z"));
   const runs = new RunRepository(fs, paths);
   const catalog = new WorkflowCatalog(fs, paths);
+  const init = new InitRun(catalog, runs, clock);
+  /** The sessions asked for: each child run opens as a conductor session a person sees. */
+  const sessions: { runId: string; host?: string }[] = [];
+  /** Where each child was asked to work: in a worktree of its own, or in the checkout. */
+  const worktrees: { task: string; worktree: boolean }[] = [];
   return {
     runs,
-    init: new InitRun(catalog, runs, clock),
+    init,
+    sessions,
+    worktrees,
+    // StartRun as the runtime wires it, reduced to what a child run needs: the run, then its session.
+    start: {
+      execute: async (input: Parameters<RepositoryRuns["start"]["execute"]>[0]) => {
+        worktrees.push({ task: input.task, worktree: input.worktree !== undefined });
+        // The in-memory world has no git: the run is made where it is, its worktree only asked for.
+        const { worktree: _asked, session: _seen, drive: _driven, ...rest } = input;
+        return (await init.execute(rest as Parameters<InitRun["execute"]>[0])).map((run) => {
+          if (input.session)
+            sessions.push({ runId: run.runId, ...(input.session.host ? { host: input.session.host } : {}) });
+          return {
+            run,
+            warnings: [],
+            ...(input.session ? { session: { paneId: "w1:p1", host: input.session.host ?? "claude" } } : {}),
+            ...(input.drive
+              ? { drive: { stage: run.stage, started: true, host: input.drive.host ?? "claude" } }
+              : {}),
+          };
+        });
+      },
+    },
     advance: new AdvanceRun(catalog, runs, clock),
     clock,
   };
@@ -109,6 +142,8 @@ function world(steps: SystemPlan["steps"], roots: Record<string, string> = { web
     store,
     repos,
     platform,
+    sources,
+    at,
     run: new RunSystemPlan(store, sources, at, platform.clock, platform.runs),
     status: new SystemPlanStatus(store, sources, at),
     save: () => store.save(plan(steps)),
@@ -147,6 +182,12 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     )._unsafeUnwrap();
     const first = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
     expect(first.started.map((s) => [s.step, s.root])).toEqual([["billing-bump", "/src/platform"]]);
+    // Each child opens as a conductor session a person sees (ADR-0090): not a headless drive.
+    expect(w.platform.sessions).toEqual([{ runId: first.started[0]?.run as string }]);
+    expect([first.started[0]?.session, first.started[0]?.drive]).toEqual([
+      { paneId: "w1:p1", host: "claude" },
+      undefined,
+    ]);
     const child = (await w.platform.runs.load(first.started[0]?.run as string))._unsafeUnwrap();
     expect([child.parent, child.system]).toEqual([
       parent.runId,
@@ -179,6 +220,96 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     const blocked = (await w.status.execute("rename"))._unsafeUnwrap();
     expect([blocked.steps[1]?.status, blocked.plan.status]).toEqual(["blocked", "running"]);
     expect((await w.platform.runs.load(parent.runId))._unsafeUnwrap().children).toHaveLength(2);
+  });
+
+  test("the system run's gate starts the next wave itself and keeps waiting: a new wave is a wait, never a failure", async () => {
+    const w = world([step("billing-bump", "billing"), step("web-migrate", "web", ["billing-bump"])]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    const first = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    await w.platform.advance.execute({ runId: first.started[0]?.run as string, event: { type: "PASS" } });
+    const gate = new SystemRunGate(w.status, w.platform.runs, w.platform.clock, w.run);
+    const g = (await gate.execute({ id: "rename", run: parent.runId }))._unsafeUnwrap();
+    expect([g.kind, g.message]).toEqual([
+      "waiting",
+      "started the next wave: web-migrate in web (session in pane w1:p1 on claude)",
+    ]);
+    expect((await w.platform.runs.load(parent.runId))._unsafeUnwrap().children).toHaveLength(2);
+  });
+
+  test("every step works on a branch and in a worktree of its own, never on the checkout's branch", async () => {
+    const w = world([
+      step("billing-model", "billing"),
+      step("billing-endpoint", "billing"),
+      step("web-tag", "web"),
+      step("web-integration", "web", ["billing-model", "billing-endpoint", "web-tag"]),
+    ]);
+    await w.save();
+    const wave = (await w.run.execute({ id: "rename" }))._unsafeUnwrap();
+    // The owner's flow: two backend steps and one frontend step in parallel, three child runs.
+    expect(wave.started.map((s) => [s.step, s.root])).toEqual([
+      ["billing-model", "/src/platform"],
+      ["billing-endpoint", "/src/platform"],
+      ["web-tag", "/src/web"],
+    ]);
+    const web = w.repos.get("/src/web") as ReturnType<typeof repository>;
+    expect(w.platform.worktrees.map((t) => t.worktree)).toEqual([true, true]);
+    // A step alone in its repository too: its agents commit and publish on the run's own branch.
+    expect(web.worktrees.map((t) => t.worktree)).toEqual([true]);
+    // The last step waits for all three; while web-tag still runs, it is not started.
+    expect(wave.plan.steps.find((s) => s.id === "web-integration")?.status).toBe("pending");
+    expect((await w.run.execute({ id: "rename" }))._unsafeUnwrap().started).toEqual([]);
+  });
+
+  test("a step while another step of its application still runs gets a worktree too", async () => {
+    const w = world([step("billing-model", "billing"), step("billing-docs", "billing", ["billing-model"])]);
+    const running = plan([
+      { ...step("billing-model", "billing"), status: "running" as const, run: "r1" },
+      step("billing-late", "billing"),
+    ]);
+    (await w.store.save(running))._unsafeUnwrap();
+    const started = (await w.run.execute({ id: "rename" }))._unsafeUnwrap();
+    expect(started.started.map((s) => s.step)).toEqual(["billing-late"]);
+    expect(w.platform.worktrees.map((t) => t.worktree)).toEqual([true]);
+  });
+
+  test("a child run's session is on its parent's host; one with no session is driven, and says why; one that cannot be driven still starts", async () => {
+    const w = world([step("billing-bump", "billing")]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    const record = (await w.platform.runs.load(parent.runId))._unsafeUnwrap();
+    (await w.platform.runs.save({ ...record, host: "scenario" }))._unsafeUnwrap();
+    const started = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    expect(w.platform.sessions).toEqual([{ runId: started.started[0]?.run as string, host: "scenario" }]);
+
+    const failing = world([step("billing-bump", "billing")]);
+    await failing.save();
+    const at = (root: string): RepositoryRuns => ({
+      runs: failing.at(root).runs,
+      start: {
+        execute: async (input) =>
+          (await failing.at(root).start.execute({ ...input, session: undefined } as never)).map((v) => ({
+            ...v,
+            noSession: "no daemon runs for this repository",
+            driveError: { message: "AI host claude cannot start here" },
+          })),
+      },
+    });
+    const run = new RunSystemPlan(
+      failing.store,
+      failing.sources,
+      at,
+      failing.platform.clock,
+      failing.platform.runs,
+    );
+    const r = (await run.execute({ id: "rename" }))._unsafeUnwrap();
+    expect(r.started.map((s) => [s.step, s.session, s.noSession, s.driveError])).toEqual([
+      ["billing-bump", undefined, "no daemon runs for this repository", "AI host claude cannot start here"],
+    ]);
   });
 
   test("every step done finishes the plan", async () => {
@@ -219,5 +350,82 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
       "pending",
     ]);
     expect(await w.platform.runs.list()).toEqual([]);
+  });
+
+  test("a change another writer made to the parent run while a step started is kept (R5)", async () => {
+    const w = world([step("billing-bump", "billing"), step("web-migrate", "web")]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    // Another process changes the parent's record each time a child run starts.
+    let n = 0;
+    const at = (root: string): RepositoryRuns => ({
+      runs: w.at(root).runs,
+      start: {
+        execute: async (input) => {
+          n++;
+          const noted = await w.platform.runs.update(parent.runId, (r) =>
+            ok({ ...r, options: { ...(r.options ?? {}), [`note.${n}`]: true } }),
+          );
+          expect(noted.isOk()).toBe(true);
+          return w.at(root).start.execute(input);
+        },
+      },
+    });
+    const run = new RunSystemPlan(w.store, w.sources, at, w.platform.clock, w.platform.runs);
+    const started = (await run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    expect(started.started).toHaveLength(2);
+    const record = (await w.platform.runs.load(parent.runId))._unsafeUnwrap();
+    expect(record.options).toEqual({ "note.1": true, "note.2": true });
+    expect(record.children).toEqual(started.started.map((s) => s.run));
+  });
+});
+
+describe("RetrySystemStep: a person re-opens a step whose child run was aborted", () => {
+  test("the step is pending again with the old run in its history; the next wave starts a new child for it", async () => {
+    const w = world([step("billing-bump", "billing")]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    const first = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    const old = first.started[0]?.run as string;
+    await w.platform.advance.execute({ runId: old, event: { type: "ABORT", reason: "nothing to do" } });
+    expect((await w.status.execute("rename"))._unsafeUnwrap().steps[0]?.status).toBe("blocked");
+    const retry = new RetrySystemStep(w.store, w.sources, w.at, w.platform.clock);
+    // Who retries is named.
+    expect(
+      (await retry.execute({ id: "rename", step: "billing-bump", by: " " }))._unsafeUnwrapErr().code,
+    ).toBe("USAGE");
+    const plan = (await retry.execute({ id: "rename", step: "billing-bump", by: "ana" }))._unsafeUnwrap();
+    const again = plan.steps[0];
+    expect([again?.status, again?.run]).toEqual(["pending", undefined]);
+    expect(again?.previousRuns).toEqual([
+      { run: old, status: "aborted", retriedBy: "ana", at: "2026-10-29T09:00:00.000Z" },
+    ]);
+    // The approval still holds (progress is not what a person approved): a new child starts.
+    const second = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    expect(second.started.map((s) => s.step)).toEqual(["billing-bump"]);
+    expect(second.started[0]?.run).not.toBe(old);
+    expect((await w.status.execute("rename"))._unsafeUnwrap().steps[0]?.status).toBe("running");
+  });
+
+  test("only a step whose run ended aborted is retried; one still running, done or escalated is not", async () => {
+    const w = world([step("billing-bump", "billing")]);
+    await w.save();
+    const retry = new RetrySystemStep(w.store, w.sources, w.at, w.platform.clock);
+    expect(
+      (await retry.execute({ id: "rename", step: "billing-bump", by: "ana" }))._unsafeUnwrapErr().message,
+    ).toBe("step billing-bump has no run to retry: it is pending");
+    const first = (await w.run.execute({ id: "rename" }))._unsafeUnwrap();
+    expect(
+      (await retry.execute({ id: "rename", step: "billing-bump", by: "ana" }))._unsafeUnwrapErr().message,
+    ).toBe(
+      `step billing-bump's run ${first.started[0]?.run} is active: only an aborted run's step is retried`,
+    );
+    expect((await retry.execute({ id: "rename", step: "nope", by: "ana" }))._unsafeUnwrapErr().code).toBe(
+      "NOT_FOUND",
+    );
   });
 });

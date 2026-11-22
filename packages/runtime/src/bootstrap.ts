@@ -1,15 +1,18 @@
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { randomInt } from "node:crypto";
+import { readFileSync, realpathSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, join, sep } from "node:path";
+import { basename, isAbsolute, join, sep } from "node:path";
 import {
   AddLesson,
   AdvanceRun,
   AgentCatalog,
   type AgentHost,
+  AllGateApprovals,
   AnalyzeArchitecture,
   AnalyzeEnvironment,
   AnalyzeSystem,
   AnswerPolicyStore,
+  AnswerQuestion,
   ApiSnapshots,
   ApproveRefactorPlan,
   ApproveRun,
@@ -17,17 +20,24 @@ import {
   ArchitectureBaselineStore,
   ArchitectureFacts,
   ArchitecturePolicyCatalog,
+  AskInRun,
   AskQuestion,
   AuditAgents,
+  agentDefinitionFiles,
+  allowToolsOf,
+  BacklogWork,
   BaseArchitectureFacts,
+  BriefRun,
   BuildImportGraph,
   BuildModuleCards,
   BuildReport,
   CalibrateFinding,
+  ChatNotices,
   CheckArchitecture,
   CheckDebugTags,
   CheckFlaky,
   CheckMemory,
+  CheckPlanStep,
   CheckPublished,
   CheckpointRun,
   CheckQuote,
@@ -39,14 +49,25 @@ import {
   CompareEvals,
   ComputeAffected,
   Conductor,
+  type ConductorSessions,
+  ConformanceHistory,
+  type ConformanceLab,
+  ContinueTask,
+  type ContractDiffer,
   ConversationRepository,
   CreateRefactorPlan,
   CreateSystemPlan,
   CreateWorktree,
+  chatAgentIn,
+  checkoutRoots,
+  cliVersionOf,
+  DAEMON_FILE,
+  DaemonInfoDocument,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
   DescribeReviewedChange,
+  type DetachedDrive,
   DiffContracts,
   DiffCoverage,
   DiffImportGraph,
@@ -58,30 +79,45 @@ import {
   DocsLinks,
   DriveRun,
   DriverLock,
-  declaresDependencies,
+  daemonAddress,
+  driveHostOf,
+  driveHostProblem,
+  EndRun,
+  EnsureDriven,
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
   err,
-  type FileSystem,
   FindMemoryDupes,
   FindOwners,
   FindSimilar,
   FormatReviewComments,
   GateChecks,
+  GateQuestions,
   GenerateHosts,
   GenerateRuleAdapters,
   GenerateSkills,
   GetRunStatus,
   GraphQueries,
+  GuardAsked,
+  GuardConsents,
   GuardPostEdit,
   GuardPreTool,
   GuardSessionStart,
   GuardStop,
   GuardSubagentOutput,
+  GuardUserPrompt,
   HandoffRun,
+  HOST_TARGETS,
+  type HostBins,
+  type HostDescriptor,
+  type HostGuard,
   HostManifestCatalog,
   HostPrompts,
+  type HostSandbox,
+  hostBins,
+  hostCommand,
+  hostStatus,
   IndexedImportGraphReader,
   InitArchitecturePolicy,
   InitEnvironment,
@@ -90,10 +126,13 @@ import {
   InstallCanon,
   type InteractiveHost,
   InventoryMemory,
+  IssueSnapshots,
   Issues,
   JudgeFindings,
   KnowledgeFiles,
+  LayoutPaneIdentity,
   LayoutStore,
+  LINUX_SANDBOX_PROGRAMS,
   LintAdrs,
   LintAgents,
   LintPlan,
@@ -111,6 +150,7 @@ import {
   MemoryBudget,
   MemoryMapReader,
   MergeFindingSets,
+  type MetatorConfig,
   MetatorError,
   type MetatorPaths,
   MyReviews,
@@ -119,19 +159,30 @@ import {
   OptionStore,
   ok,
   PackRules,
+  PaneMail,
+  PaneQuestions,
   PaneSensor,
   Panes,
+  PaneTyped,
   PatternCatalog,
   PinnedSystemLocation,
   PlanBoard,
   PlannedBreakingChanges,
+  PlanProgress,
   PlanReview,
-  type ProcessRunner,
+  PlanRevisions,
   ProposeRefactorPlan,
   ProposeSystemPlan,
   ProvideWorktree,
   PruneWorktrees,
   PtyBroker,
+  parseJsonDocument,
+  QuickCheck,
+  QuickFit,
+  QuickOverrides,
+  QuickReady,
+  QuickReviewed,
+  QuickStart,
   ReadRunArtifact,
   RecordArchitectureBaseline,
   RefactorPlanStore,
@@ -139,30 +190,45 @@ import {
   RenderReport,
   RepositoryDiscoverySource,
   type RepositoryRuns,
-  type Result,
+  ResumeNotices,
   ResumeRun,
+  RetrySystemStep,
   ReviewFeedback,
   ReviewNotes,
+  ReviveRuns,
+  RoutedReviewHost,
   RuleCatalog,
   RunAffectedTests,
   RunArchEvals,
+  RunArtifacts,
   RunChanges,
   RunDrivers,
   RunEvals,
   RunGate,
+  RunHostConformance,
   RunJournal,
   RunMessages,
+  type RunPanes,
+  RunPlanApprovals,
+  RunPlans,
   RunQuarterlyReview,
   RunRefactorPlan,
   RunRepository,
   RunSystemEvals,
   RunSystemPlan,
+  realHostRefusal,
+  resolveIntake,
+  reviewSourcesOf,
+  type SandboxLaunch,
   ScaffoldRule,
   ScanIntake,
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  Scratch,
   SeedGoldenSet,
+  SessionSteering,
+  SetupRepository,
   SetupWorktree,
   ShowChangeDiff,
   ShowSystem,
@@ -170,6 +236,9 @@ import {
   SimulateRefactorPlan,
   SkillCatalog,
   SourceFiles,
+  StartDrive,
+  StartRun,
+  StartSystemStep,
   StyleImports,
   Supervisor,
   type SupervisorDependencies,
@@ -177,24 +246,39 @@ import {
   SyncRefactorPlan,
   SystemCatalog,
   SystemImpactQuery,
+  SystemMaps,
+  SystemPlanApprovals,
   SystemPlanStatus,
   SystemPlanStore,
+  SystemPlans,
+  SystemRunGate,
   SystemSources,
+  sandboxLaunch,
+  sandboxPolicy,
+  sandboxUnavailable,
+  type TaskRepository,
+  ThreadStore,
+  Threads,
   UpdateConfig,
   ValidateCitations,
   ValidateFindings,
   WarmPool,
+  WatchedReviews,
   WorkflowCatalog,
   WorkOverview,
   type WorkspacePackage,
   WorktreeConflicts,
+  type WorktreeEntry,
   WorktreeRegistry,
   WriteRunArtifact,
+  withoutRealHosts,
+  workNotes,
 } from "@metator/core";
 import {
   BunBackgroundProcess,
   BunCheckoutReader,
   BunFileLock,
+  BunFileStats,
   BunFileSystem,
   BunLauncher,
   BunMachineState,
@@ -202,46 +286,58 @@ import {
   BunSqlDataIsolator,
   BunTestEngine,
   BunTimer,
+  commandExists,
   NodeBinResolver,
   NodeTreeCopier,
+  onPath,
+  pathExists,
   TempGitSandbox,
 } from "@metator/plugin-bun";
 
-export { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "@metator/plugin-bun";
+export {
+  findChildRepos,
+  findFolderRepos,
+  findFolderRoot,
+  findRepoRoot,
+  readCheckout,
+  runsRootOf,
+} from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
+import { GhReviewHost } from "@metator/plugin-codehost-gh";
 import { McpCodeHost, McpReviewHost, SdkToolCaller } from "@metator/plugin-codehost-mcp";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
-import { excludeLocally, GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import {
-  ClaudeAgentHost,
-  ClaudeGenerator,
-  ClaudeInteractiveHost,
-  ClaudeSkillGenerator,
-} from "@metator/plugin-host-claude";
-import {
-  CopilotAgentHost,
-  CopilotGenerator,
-  CopilotInteractiveHost,
-  CopilotSkillGenerator,
-} from "@metator/plugin-host-copilot";
-import { OpencodeInteractiveHost } from "@metator/plugin-host-opencode";
-import { ScenarioAgentHost, ScenarioInteractiveHost } from "@metator/plugin-host-scenario";
+  excludeLocally,
+  GitRepositoryCloner,
+  GitVcs,
+  GitWorkingPatches,
+  GitWorkingTree,
+  GitWorktreeManager,
+} from "@metator/plugin-git";
+import { claudeHost } from "@metator/plugin-host-claude";
+import { copilotHost } from "@metator/plugin-host-copilot";
+import { opencodeHost } from "@metator/plugin-host-opencode";
+import { scenarioHost } from "@metator/plugin-host-scenario";
 import {
   GetPortProbe,
   JsonToolBoundariesReader,
   LcovCoverageReader,
   ManypkgManifestReader,
   ManypkgWorkspaceReader,
+  NodeContentHasher,
   NodePackageManager,
   NodePtyTerminal,
+  SandboxedTerminal,
+  SrtSandbox,
   WaitOnHealthProbe,
+  XtermScreenRenderer,
 } from "@metator/plugin-node";
 import { OpenApiContractDetector, OpenApiContractDiffer } from "@metator/plugin-openapi";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
-import { resolveCanon } from "./canon.ts";
+import { METATOR_VERSION, resolveCanon } from "./canon.ts";
 import { type LoadedConfig, loadConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
 
@@ -263,18 +359,42 @@ export interface BootstrapOptions {
   readonly canon?: string;
   /** The AgentScenario file the scenario host plays (METATOR_AGENT_SCENARIO). */
   readonly agentScenario?: string;
-  /** The Copilot CLI binary (METATOR_COPILOT_BIN); default `copilot` on PATH. */
-  readonly copilotBin?: string;
-  /** The Claude Code binary (METATOR_CLAUDE_BIN); default `claude` on PATH. */
-  readonly claudeBin?: string;
-  /** The OpenCode binary (METATOR_OPENCODE_BIN); default `opencode` on PATH. */
-  readonly opencodeBin?: string;
+  /** The program of a host, by host id, where its default name on PATH is not the one (`hostBinsOf`). */
+  readonly bins?: HostBins;
+  /** No real AI host may start (`METATOR_NO_REAL_HOSTS`, which the test suites set): they say why instead. */
+  readonly noRealHosts?: boolean;
+  /** GitHub's CLI (METATOR_GH_BIN); default `gh` on PATH. Under `noRealHosts` only a stand-in that says so in its version is used. */
+  readonly ghBin?: string;
   /** The Docker CLI (METATOR_DOCKER_BIN); default `docker` on PATH. */
   readonly dockerBin?: string;
-  /** Machine-wide state shared by every repository (`machineStateDir`); default from the process env. */
+  /** Machine-wide state shared by every repository (`machineStateDir`, which the driving adapter asks with its environment); under the home directory when omitted. */
   readonly stateDir?: string;
-  /** The person's own MetatorAI files (`userConfigDir`); default from the process env. */
+  /** The person's own MetatorAI files (`userConfigDir`, likewise); under the home directory when omitted. */
   readonly userConfigDir?: string;
+  /**
+   * How this program starts a run's drive as a background process (its own command line): given
+   * by the driving adapter. Without it nothing here can start a drive.
+   */
+  readonly detachedDrive?: (deps: {
+    readonly runDrivers: RunDrivers;
+    readonly root: string;
+  }) => DetachedDrive;
+  /** The panes of a run as this process reaches them (a command: through the daemon); default: this process's own. */
+  readonly runPanes?: (deps: { readonly panes: RunPanes; readonly root: string }) => RunPanes;
+  /**
+   * Where a new run's conductor session opens so a person sees it (ADR-0090): the daemon that
+   * serves the repository, which only the driving adapter reaches. Without it, a run asked to be
+   * seen (a system plan's child) is driven in the background.
+   */
+  readonly conductorSessions?: (deps: { readonly root: string }) => ConductorSessions;
+  /**
+   * The throwaway repository the host conformance suite drives a real host in (ADR-0098): its
+   * daemon is started and reached the way only the driving adapter knows. Without it the suite
+   * cannot run here.
+   */
+  readonly conformanceLab?: (deps: { readonly root: string }) => ConformanceLab;
+  /** The host a new drive uses when nothing names one (METATOR_HOST), when the runtime holds it. */
+  readonly defaultHost?: string;
 }
 
 /**
@@ -310,24 +430,82 @@ export function orderedHosts<H extends { readonly id: string }>(
 }
 
 const systemClock: Clock = { now: () => new Date() };
+
+/** A lowercase word of random syllables: what a conformance check gives a session and expects back in uppercase. */
+function conformanceWord(): string {
+  const [c, v] = ["bdfgklmnprstvz", "aeiou"];
+  let word = "";
+  for (let i = 0; i < 4; i++) word += `${c[randomInt(c.length)]}${v[randomInt(v.length)]}`;
+  return word;
+}
+
+/** Where no driving adapter gives a lab, the suite cannot run: each call says so. */
+const NO_LAB: ConformanceLab = (() => {
+  const no = async () =>
+    err(
+      MetatorError.usage(
+        "the conformance suite runs from the metator command line only",
+        "Run `metator host conformance`.",
+      ),
+    );
+  return { open: no, act: no, look: no, save: no, kept: async () => undefined, close: async () => ok({}) };
+})();
 /** `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it. */
 const OWN_STATE: readonly string[] = [".metator/"];
 
-/** The host files of shipped agents in this repository (as `agents install` writes them), for sandboxes. */
-async function agentDefinitionFiles(fs: FileSystem, ids: readonly string[]): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
-  for (const id of ids)
-    for (const file of [`.claude/agents/${id}.md`, `.github/agents/${id}.agent.md`]) {
-      const text = await fs.read(file);
-      if (text.isOk()) out[file] = text.value;
-    }
-  return out;
-}
+/**
+ * The AI hosts this installation knows, in the order a session takes them when the repository
+ * names none (`supervisor.hostOrder`) and in which their files are generated. Everything about
+ * hosts below is built from this list; a new host is one entry here.
+ */
+export const HOSTS: readonly HostDescriptor[] = [copilotHost, claudeHost, opencodeHost];
+
+/** Which host drives agents when none is asked for: the first of these that can start. */
+const DRIVE_ORDER: readonly string[] = [claudeHost.id, copilotHost.id];
+
+/** The programs the environment names for the hosts (`METATOR_<HOST>_BIN`), for `BootstrapOptions.bins`. */
+export const hostBinsOf = (env: Readonly<Record<string, string | undefined>>): HostBins =>
+  hostBins(HOSTS, env);
 
 /**
  * Composition root: the only place that knows concrete adapters. Use cases keep plain
  * constructors (framework-agnostic); awilix wires them through factories.
  */
+/** The guard as a host adapter takes it: the command lists, and the allow list where MetatorAI answers for what is safe. */
+function hostGuard(config: MetatorConfig): HostGuard {
+  return {
+    ...config.guard.commands,
+    ...(config.guard.prompts === "metator"
+      ? {
+          unprompted: allowToolsOf({
+            metatorCommand: config.hosts.metatorCommand,
+            gates: [...config.gates.quick, ...config.gates.full].map((s) => s.run),
+          }),
+        }
+      : {}),
+  };
+}
+
+/**
+ * The repository's config as it is now (a session reads its sandbox when it starts): the file,
+ * or the config the container was given when there is none (a test's).
+ */
+function currentConfig(root: string, given: LoadedConfig): LoadedConfig {
+  const now = loadConfig(root);
+  return now.isOk() && now.value.source !== undefined ? now.value : given;
+}
+
+/** The address of the daemon `.metator/daemon.json` names, as the sandbox allows it (`host:port`). */
+function daemonAddressAt(root: string): string | undefined {
+  try {
+    const raw = parseJsonDocument(readFileSync(join(root, DAEMON_FILE), "utf8"), DAEMON_FILE);
+    const info = raw.andThen((r) => DaemonInfoDocument.parse(r, DAEMON_FILE));
+    return info.isOk() ? daemonAddress(info.value.url) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function bootstrap(options: BootstrapOptions): MetatorContainer {
   const c = createMetatorContainer();
   /** The container of another repository root, with that repository's own config. */
@@ -361,9 +539,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     timer: asFunction(() => new BunTimer()).singleton(),
     launcher: asFunction(() => new BunLauncher()).singleton(),
     updateConfig: asFunction(({ fileSystem }) => new UpdateConfig(fileSystem)),
-    userConfig: asFunction(
-      () => new BunMachineState(options.userConfigDir ?? userConfigDir(process.env)),
-    ).singleton(),
+    userConfig: asFunction(() => new BunMachineState(options.userConfigDir ?? userConfigDir({}))).singleton(),
     optionStore: asFunction(
       ({ fileSystem, userConfig, config: loaded, runRepository }) =>
         new OptionStore({
@@ -374,7 +550,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           runs: runRepository,
         }),
     ),
-    containerRuntime: asFunction(() => new DockerComposeRuntime(options.dockerBin)).singleton(),
+    containerRuntime: asFunction(
+      ({ processRunner }) => new DockerComposeRuntime(processRunner, options.dockerBin),
+    ).singleton(),
     healthProbe: asFunction(() => new WaitOnHealthProbe()).singleton(),
     environmentCatalog: asFunction(({ fileSystem, paths }) => new EnvironmentCatalog(fileSystem, paths)),
     discoverEnvironment: asFunction(
@@ -440,11 +618,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new RenderReport(buildReport, reviewFeedback, fileSystem, clock),
     ),
     worktreeConflicts: asFunction(
-      ({ runRepository, worktreeRegistry, processRunner, runMessages, root }) =>
+      ({ runRepository, worktreeRegistry, workingTree, runMessages }) =>
         new WorktreeConflicts(
           runRepository,
           worktreeRegistry,
-          (entry) => worktreeChanges(processRunner, root, entry.path),
+          (entry) => workingTree.worktreeChanges(entry.path),
           runMessages,
         ),
     ),
@@ -460,9 +638,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         environmentServices,
         optionStore,
         runRepository,
-        processRunner,
         driveHostProblem,
         runGate,
+        checkoutReader,
+        workingTree,
+        conformanceHistory,
       }) =>
         new CheckReadiness(
           fileSystem,
@@ -470,17 +650,19 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           config,
           workflowCatalog,
           vcs,
-          async (p) => isDirectory(join(root, p)),
+          (p) => checkoutReader.isDirectory(join(root, p)),
           worktreeRegistry,
           environmentServices,
-          { servers: () => optionStore.mcp(), hasCommand: async (bin) => Bun.which(bin) !== null },
+          { servers: () => optionStore.mcp(), hasCommand: async (bin) => onPath(bin) },
           runRepository,
           {
             hosts: () =>
               config.config.hosts.targets.map((id: string) => ({ id, problem: driveHostProblem(id) })),
-            modified: () => modifiedTracked(processRunner, root),
-            detached: () => detachedHead(processRunner, root),
+            modified: () => workingTree.modifiedTracked(),
+            detached: () => workingTree.detachedHead(),
+            platform: () => process.platform,
             quickGate: () => runGate.execute({ gate: "quick" }),
+            conformance: () => conformanceHistory.seen(),
           },
         ),
     ),
@@ -495,6 +677,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         environmentServices,
         workspaceReader,
         root,
+        checkoutReader,
       }) =>
         new SetupWorktree(
           fileSystem,
@@ -506,7 +689,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           environmentServices,
           {
             root,
-            isDirectory: async (p) => isDirectory(join(root, p)),
+            isDirectory: (p) => checkoutReader.isDirectory(join(root, p)),
             workspaces: async () => {
               const packages = await workspaceReader.packages();
               return packages.isOk()
@@ -547,68 +730,164 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     askQuestion: asFunction(
       ({ agentHosts, conversationRepository, clock }) =>
         new AskQuestion(agentHosts, conversationRepository, clock, async (cwd: string, path: string) =>
-          existsSync(join(cwd, path)),
+          pathExists(join(cwd, path)),
         ),
     ),
-    agentHosts: asFunction(() => {
-      const hosts = new Map<string, AgentHost>([
-        ["claude", new ClaudeAgentHost()],
-        ["copilot", new CopilotAgentHost(options.copilotBin)],
-      ]);
-      if (options.agentScenario) hosts.set("scenario", new ScenarioAgentHost(options.agentScenario));
+    // The scenario a test plays is a host only while one is given.
+    played: asValue(options.agentScenario ? [scenarioHost(options.agentScenario)] : []),
+    hostBins: asValue(options.bins ?? {}),
+    // The hosts this process may use: every one, or with the real AI hosts refused (the suites' guard).
+    knownHosts: asValue(options.noRealHosts ? withoutRealHosts(HOSTS, options.bins ?? {}) : HOSTS),
+    // Every host session this repository starts goes through its host's launch: in the
+    // operating system's sandbox while `sandbox.enabled` is on (ADR-0104), read at each start.
+    hostSandbox: asFunction(() => new SrtSandbox()).singleton(),
+    sandboxLaunches: asFunction(({ hostSandbox, root }: { hostSandbox: HostSandbox; root: string }) => {
+      const launches = new Map<string, SandboxLaunch>();
+      const policy = () => sandboxPolicy(currentConfig(root, config).config);
+      return (h: HostDescriptor): SandboxLaunch => {
+        const known = launches.get(h.id);
+        if (known) return known;
+        const made = sandboxLaunch({
+          policy,
+          // MetatorAI's own commands inside the session keep the machine's state where they always do.
+          needs: {
+            domains: h.sandbox?.domains ?? [],
+            writable: [...(h.sandbox?.writable ?? []), machineStateDir(process.env)],
+          },
+          root,
+          temp: tmpdir(),
+          daemon: () => daemonAddressAt(root),
+          sandbox: hostSandbox,
+        });
+        launches.set(h.id, made);
+        return made;
+      };
+    }).singleton(),
+    agentHosts: asFunction(({ played, hostBins: bins, knownHosts, sandboxLaunches }) => {
+      const hosts = new Map<string, AgentHost>();
+      for (const h of [...orderedHosts(DRIVE_ORDER, knownHosts), ...played])
+        if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id], hostGuard(config.config), sandboxLaunches(h)));
       return hosts;
     }).singleton(),
     terminal: asFunction(() => new NodePtyTerminal()).singleton(),
-    interactiveHosts: asFunction(({ terminal, config }) => {
+    // A pane's screen as a person sees it (@xterm/headless, ADR-0091): prompts are read from it.
+    screenRenderer: asFunction(() => new XtermScreenRenderer()).singleton(),
+    // The first host is the default of a new session: the scenario when a test plays one, else
+    // the first of `supervisor.hostOrder`.
+    sessionHosts: asFunction(({ played, config, knownHosts }) => [
+      ...played,
+      ...orderedHosts(config.config.supervisor.hostOrder, knownHosts),
+    ]).singleton(),
+    interactiveHosts: asFunction(({ terminal, sessionHosts, hostBins: bins, sandboxLaunches }) => {
       const hosts = new Map<string, InteractiveHost>();
-      // The first host is the default of a new session: the scenario when a test plays one, else
-      // the first of `supervisor.hostOrder`.
-      if (options.agentScenario)
-        hosts.set("scenario", new ScenarioInteractiveHost(terminal, options.agentScenario));
-      for (const host of orderedHosts(config.config.supervisor.hostOrder, [
-        new CopilotInteractiveHost(terminal, options.copilotBin),
-        new ClaudeInteractiveHost(terminal, options.claudeBin),
-        new OpencodeInteractiveHost(terminal, options.opencodeBin),
-      ]))
-        hosts.set(host.id, host);
+      for (const h of sessionHosts)
+        if (h.interactive)
+          hosts.set(
+            h.id,
+            h.interactive(
+              new SandboxedTerminal(terminal, sandboxLaunches(h)),
+              bins[h.id],
+              hostGuard(config.config),
+            ),
+          );
       return hosts;
     }).singleton(),
+    // Why a host that drives agents cannot start here (its program is not installed).
+    driveHostProblem: asFunction(({ played, hostBins: bins, knownHosts }) =>
+      driveHostProblem([...knownHosts, ...played], bins, commandExists),
+    ).singleton(),
     // Which interactive hosts can start here: the program each one runs, looked up when asked
     // (a host installed while the daemon runs is found without a restart).
-    // Why a host that drives agents cannot start here. Claude runs through its SDK and the scenario
-    // host is played by a test: only Copilot needs its program on the PATH.
-    driveHostProblem: asFunction(() => (host: string): string | undefined => {
-      if (host !== "copilot") return undefined;
-      const command = options.copilotBin ?? "copilot";
-      return commandExists(command) ? undefined : `\`${command}\` is not installed`;
+    hostStatus: asFunction(
+      ({ sessionHosts, hostBins: bins }) =>
+        () =>
+          hostStatus(
+            sessionHosts.filter((h: HostDescriptor) => h.interactive),
+            bins,
+            commandExists,
+          ),
+    ).singleton(),
+    // The agent a new chat opens with: the conversation agent where the repository has it (ADR-0093).
+    chatAgent: asFunction(
+      ({ fileSystem }) =>
+        () =>
+          chatAgentIn(fileSystem, HOSTS),
+    ).singleton(),
+    // What the daemon types into panes, kept for the hosts' user-prompt hooks (ADR-0093, ADR-0094).
+    paneTyped: asFunction(({ fileSystem, clock }) => new PaneTyped(fileSystem, clock)).singleton(),
+    // What a host's CLI says its version is (`claude --version`): never a real host's where none may start.
+    hostVersion: asFunction(({ processRunner, hostBins: bins, root }) => async (host: string) => {
+      const descriptor = HOSTS.find((h) => h.id === host);
+      if (!descriptor?.program) return undefined;
+      if (options.noRealHosts && realHostRefusal(descriptor, bins, "interactive")) return undefined;
+      const command = hostCommand(descriptor, bins);
+      if (command === undefined || !commandExists(command)) return undefined;
+      const ran = await processRunner.run({ argv: [command, "--version"], cwd: root }, { timeoutMs: 15_000 });
+      return ran.exitCode === 0 ? cliVersionOf(`${ran.stdout}\n${ran.stderr}`) : undefined;
     }).singleton(),
-    hostStatus: asFunction(({ interactiveHosts }) => () => {
-      const commands: Readonly<Record<string, string>> = {
-        copilot: options.copilotBin ?? "copilot",
-        claude: options.claudeBin ?? "claude",
-        opencode: options.opencodeBin ?? "opencode",
-      };
-      return [...interactiveHosts.keys()].map((id) => {
-        const command = commands[id];
-        // A host with no program of its own (the scenario a test plays) is always there.
-        return command === undefined
-          ? { id, installed: true }
-          : { id, command, installed: commandExists(command) };
-      });
-    }).singleton(),
+    // The host conformance suite (ADR-0098): its kept runs for `doctor`, and a run of it.
+    conformanceHistory: asFunction(
+      ({ fileSystem, hostVersion }) => new ConformanceHistory(fileSystem, hostVersion),
+    ).singleton(),
+    runHostConformance: asFunction(
+      ({ clock, timer, sessionHosts, hostBins: bins, hostVersion, root }) =>
+        new RunHostConformance({
+          lab: options.conformanceLab?.({ root }) ?? NO_LAB,
+          clock,
+          timer,
+          nonce: conformanceWord,
+          metatorVersion: METATOR_VERSION,
+          hosts: sessionHosts.filter((h: HostDescriptor) => h.interactive).map((h: HostDescriptor) => h.id),
+          refusal: (host) => {
+            const descriptor = HOSTS.find((h) => h.id === host);
+            return options.noRealHosts && descriptor
+              ? realHostRefusal(descriptor, bins, "interactive")
+              : undefined;
+          },
+          version: hostVersion,
+          // The same answer `metator doctor` gives (isolation): what this machine lacks for a sandbox.
+          sandboxUnavailable: async () =>
+            sandboxUnavailable(
+              process.platform,
+              LINUX_SANDBOX_PROGRAMS.filter((program) => !onPath(program)),
+            ),
+          // The last report of the same host and version, which a run with --only keeps whole.
+          kept: async (out, name) => {
+            try {
+              return readFileSync(join(isAbsolute(out) ? out : join(root, out), name), "utf8");
+            } catch {
+              return undefined;
+            }
+          },
+        }),
+    ),
+    // Why the guard asked about a pane's command: the hook writes it, the daemon's cards read it.
+    guardAsked: asFunction(({ fileSystem, clock }) => new GuardAsked(fileSystem, clock)).singleton(),
     ptyBroker: asFunction(
-      ({ runRepository, runJournal, config, clock }) =>
+      ({ runRepository, runJournal, config, clock, screenRenderer, paneTyped }) =>
         new PtyBroker({
+          typed: (paneId, text, by) => paneTyped.record(paneId, text, by),
           repo: runRepository,
           journal: runJournal,
           idleMs: config.config.supervisor.idleThresholdMs,
           clock,
+          screens: screenRenderer,
         }),
     ).singleton(),
     hostManifests: asFunction(({ fileSystem }) => new HostManifestCatalog(fileSystem)).singleton(),
+    // Who each pane is in its run: a worker's question is the worker's, never the conductor's.
+    paneIdentity: asFunction(
+      ({ layoutStore, runRepository }) => new LayoutPaneIdentity(layoutStore, runRepository),
+    ).singleton(),
     paneSensor: asFunction(
-      ({ ptyBroker, hostManifests, runJournal, clock }) =>
-        new PaneSensor({ broker: ptyBroker, manifests: hostManifests, journal: runJournal, clock }),
+      ({ ptyBroker, hostManifests, runJournal, clock, paneIdentity }) =>
+        new PaneSensor({
+          broker: ptyBroker,
+          manifests: hostManifests,
+          journal: runJournal,
+          clock,
+          identity: paneIdentity,
+        }),
     ).singleton(),
     notifier: asFunction(
       ({ runJournal, processRunner, root, config }) =>
@@ -619,13 +898,55 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           ...(config.config.notify ? { command: config.config.notify.command } : {}),
         }),
     ).singleton(),
+    // One per daemon: the panes' open prompts are the same for its check and for an answer.
+    openPrompts: asFunction(() => new Map()).singleton(),
+    // The questions of panes without a run (the intake chat), while the daemon runs (ADR-0091).
+    paneQuestions: asFunction(({ clock }) => new PaneQuestions(clock)).singleton(),
     hostPrompts: asFunction(
-      ({ paneSensor, runJournal, driverLock, notifier }) =>
-        new HostPrompts({ sensor: paneSensor, journal: runJournal, lock: driverLock, notify: notifier }),
+      ({
+        paneSensor,
+        runJournal,
+        driverLock,
+        notifier,
+        paneIdentity,
+        ptyBroker,
+        runRepository,
+        openPrompts,
+        paneQuestions,
+        guardAsked,
+      }) =>
+        new HostPrompts({
+          panes: paneQuestions,
+          guardReason: async (paneId, command) => (await guardAsked.reasonFor(paneId, command))?.reason,
+          rendered: (paneId) => ptyBroker.screen(paneId),
+          sensor: paneSensor,
+          journal: runJournal,
+          lock: driverLock,
+          notify: notifier,
+          identity: paneIdentity,
+          open: openPrompts,
+          // A person's answer to an agent's terminal question, typed for them (never over a person).
+          // As the person who holds the run's keyboard when it is theirs (their own keystrokes).
+          type: async (paneId, text, by) => {
+            // Typed by the daemon for the person: their words for the session (a consent when
+            // they say so), and not them talking to the session directly.
+            if (by) await ptyBroker.typedFor(paneId, text);
+            return by
+              ? ptyBroker.write({ paneId, data: `${text}\r`, by })
+              : (await ptyBroker.nudge(paneId, text, "answer")).map(() => undefined);
+          },
+          screen: (paneId) => ptyBroker.backlog(paneId),
+          holder: async (runId) => {
+            const record = await runRepository.load(runId);
+            return record.isOk() && record.value.driver?.by === "human"
+              ? record.value.driver.attachedBy
+              : undefined;
+          },
+        }),
     ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
     issues: asFunction(
-      ({ fileSystem, paths, clock, runJournal, runRepository, initRun, optionStore, fileLock }) =>
+      ({ fileSystem, paths, clock, runJournal, runRepository, initRun, startRun, optionStore, fileLock }) =>
         new Issues({
           lock: fileLock,
           fs: fileSystem,
@@ -634,23 +955,131 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           journal: runJournal,
           repo: runRepository,
           initRun,
+          startRun,
           proposalsAllowed: async () => {
             const o = await optionStore.get("issues.proposeFromAgents");
             return o.isOk() ? o.value.value !== false : true;
           },
         }),
     ),
+    // Analysis and plan in the Backlog (ADR-0096): snapshots judged from file hashes and the commit.
+    contentHasher: asFunction(() => new NodeContentHasher()).singleton(),
+    issueSnapshots: asFunction(
+      ({ fileSystem, contentHasher, git, workspaceReader, clock, optionStore }) =>
+        new IssueSnapshots({
+          fs: fileSystem,
+          hasher: contentHasher,
+          vcs: git,
+          head: async () =>
+            (await git.branch("HEAD")).map((b: { readonly head: string | null }) => b.head ?? undefined),
+          workspace: workspaceReader,
+          clock,
+          staleDays: async () => {
+            const o = await optionStore.get("backlog.staleDays");
+            return o.isOk() && typeof o.value.value === "number" ? o.value.value : 14;
+          },
+        }),
+    ),
+    backlogWork: asFunction(
+      ({
+        issues,
+        issueSnapshots,
+        fileSystem,
+        paths,
+        runRepository,
+        systemPlanStore,
+        startSystemStep,
+        threads,
+        graphQueries,
+        findSimilar,
+        panes,
+        clock,
+      }) =>
+        new BacklogWork({
+          issues,
+          snapshots: issueSnapshots,
+          fs: fileSystem,
+          dir: paths.issues,
+          runs: runRepository,
+          systemPlans: systemPlanStore,
+          steps: startSystemStep,
+          threads,
+          facts: {
+            dependents: (file) => graphQueries.dependents(file, true),
+            similar: (file) => findSimilar.execute({ target: file, top: 1 }),
+          },
+          panes,
+          clock,
+        }),
+    ),
+    mcpToolCaller: asFunction(({ root }) => new SdkToolCaller(root)),
     codeHost: asFunction(
-      ({ optionStore, root }) => new McpCodeHost(() => optionStore.mcp(), new SdkToolCaller(root)),
+      ({ optionStore, mcpToolCaller }) => new McpCodeHost(() => optionStore.mcp(), mcpToolCaller),
+    ),
+    mcpReviewHost: asFunction(
+      ({ optionStore, mcpToolCaller }) => new McpReviewHost(() => optionStore.mcp(), mcpToolCaller),
+    ),
+    // GitHub through `gh` and its own login (ADR-0097); never a real one while real hosts are refused.
+    ghReviewHost: asFunction(
+      ({ processRunner, root }) =>
+        new GhReviewHost(processRunner, { command: options.ghBin ?? "gh", cwd: root }),
+    ).singleton(),
+    ghReady: asFunction(
+      ({ ghReviewHost }) =>
+        async () =>
+          (await ghReviewHost.status({ standIn: options.noRealHosts === true })).ready,
     ),
     reviewHost: asFunction(
-      ({ optionStore, root }) => new McpReviewHost(() => optionStore.mcp(), new SdkToolCaller(root)),
+      ({ config, mcpReviewHost, ghReviewHost }) =>
+        new RoutedReviewHost(config.config.codehost.sources, { mcp: mcpReviewHost, gh: ghReviewHost }),
+    ),
+    watchedReviews: asFunction(
+      ({
+        config,
+        fileSystem,
+        paths,
+        clock,
+        mcpReviewHost,
+        ghReviewHost,
+        optionStore,
+        ghReady,
+        git,
+        startRun,
+        runRepository,
+        threads,
+        fileLock,
+      }) =>
+        new WatchedReviews({
+          // The CLI and the daemon both write a review's file: one writer at a time, across processes.
+          lock: fileLock,
+          fs: fileSystem,
+          dir: paths.reviews,
+          clock,
+          codehost: config.config.codehost,
+          hosts: { mcp: mcpReviewHost, gh: ghReviewHost },
+          servers: async () => {
+            const servers = await optionStore.mcp();
+            return servers.isOk() ? Object.keys(servers.value) : [];
+          },
+          ghReady,
+          remote: async () => {
+            const url = await git.remoteUrl();
+            return url.isOk() ? url.value : undefined;
+          },
+          fetchRef: (ref, branch) => git.fetchRef(ref, branch),
+          start: startRun,
+          runs: runRepository,
+          threads,
+        }),
     ),
     myReviews: asFunction(
-      ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository, notifier }) =>
+      ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository, notifier, panes, threads }) =>
         new MyReviews({
           notifier,
-          config: config.config.reviews,
+          config: { ...config.config.reviews, sources: reviewSourcesOf(config.config.codehost) },
+          analyse: config.config.codehost.mine.analyse,
+          panes,
+          threads,
           fs: fileSystem,
           paths,
           clock,
@@ -670,7 +1099,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ config, issues, codeHost, runRepository, fileLock, paths }) =>
         new ScanIntake({
           exclusive: (work) => fileLock.hold(`${paths.issues}/intake`, work),
-          config: config.config.intake,
+          config: resolveIntake(config.config.intake, config.config.codehost.sources),
           issues,
           codeHost,
           // Runs intake started that are still active: its issues in progress whose run goes on.
@@ -688,7 +1117,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ),
     planBoard: asFunction(
-      ({ fileSystem, runRepository, runJournal, workflowCatalog, conductor, paths }) =>
+      ({ fileSystem, runRepository, runJournal, workflowCatalog, conductor, paths, systemPlans }) =>
         new PlanBoard({
           fs: fileSystem,
           repo: runRepository,
@@ -696,6 +1125,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           catalog: workflowCatalog,
           conductor,
           paths,
+          systemPlans,
         }),
     ),
     openEditor: asFunction(
@@ -722,6 +1152,83 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           runner: processRunner,
         }),
     ),
+    // This repository as "Continue" of a task reaches it (ADR-0092): the daemon puts every served
+    // repository's together and continues the task across them.
+    taskRepository: asFunction(
+      ({ panes, runRepository, runDrivers, ensureDriven, conductor, runJournal }): TaskRepository => ({
+        runs: runRepository,
+        panes,
+        drivers: runDrivers,
+        ensureDriven,
+        conductor,
+        journal: runJournal,
+      }),
+    ),
+    // The chat a task was given in learns when it is done, stops, or waits for an approval (ADR-0092).
+    chatNotices: asFunction(
+      ({ panes, runRepository, runJournal, paneSensor, ptyBroker }) =>
+        new ChatNotices({
+          panes,
+          repo: runRepository,
+          journal: runJournal,
+          sensor: paneSensor,
+          // The supervisor's nudge: the words, then Enter as its own write.
+          nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
+        }),
+    ),
+    // Lines for agents' sessions that wait until the agent is idle, and steering a task's
+    // sessions from its main chat (ADR-0093). One mail per repository: its file has one writer.
+    paneMail: asFunction(
+      ({ fileSystem, clock, panes, paneSensor, paneQuestions, ptyBroker, runJournal }) =>
+        new PaneMail({
+          fs: fileSystem,
+          clock,
+          panes,
+          sensor: paneSensor,
+          asksInPane: (paneId) => paneQuestions.waiting(paneId),
+          nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
+          journal: runJournal,
+        }),
+    ).singleton(),
+    // Threads (ADR-0095): one per topic with its chat terminal; one per repository, kept with its layout.
+    threads: asFunction(
+      ({ fileSystem, fileLock, panes, runRepository, runJournal, paneMail, chatAgent, clock }) =>
+        new Threads({
+          store: new ThreadStore(fileSystem, fileLock),
+          panes,
+          runs: runRepository,
+          journal: runJournal,
+          mail: paneMail,
+          chatAgent,
+          clock,
+        }),
+    ).singleton(),
+    sessionSteering: asFunction(
+      ({ panes, runRepository, paneMail, ptyBroker, runJournal, root, paneSensor, paneTyped }) =>
+        new SessionSteering({
+          panes,
+          repo: runRepository,
+          mail: paneMail,
+          interrupt: (paneId, text) => ptyBroker.interrupt(paneId, text),
+          journal: runJournal,
+          repoName: basename(root),
+          typedByDaemon: async (paneId, text) => (await paneTyped.by(paneId, text)) !== undefined,
+          sensor: paneSensor,
+        }),
+    ),
+    // A session the daemon resumed is told, once, to go on (ADR-0092).
+    resumeNotices: asFunction(
+      ({ panes, runRepository, runJournal, paneSensor, ptyBroker, paneQuestions }) =>
+        new ResumeNotices({
+          asksInPane: (paneId) => paneQuestions.waiting(paneId),
+          panes,
+          sensor: paneSensor,
+          repo: runRepository,
+          journal: runJournal,
+          nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
+        }),
+    ),
+    continueTask: asValue((repos: () => readonly TaskRepository[]) => new ContinueTask(repos)),
     conductor: asFunction(
       ({ panes, runRepository, runJournal, workflowCatalog, fileSystem, clock, timer, root }) =>
         new Conductor({
@@ -747,6 +1254,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         timer,
         root,
         paneSensor,
+        fileSystem,
       }) =>
         new Panes({
           layout: layoutStore,
@@ -759,14 +1267,26 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           timer,
           root,
           sensor: paneSensor,
+          fs: fileSystem,
         }),
     ).singleton(),
     // The supervisor needs a way to start a drive again, which only the CLI process knows (its own
     // argv). Not a singleton (its drivers are not): the caller keeps the one instance it ticks.
     supervisor: asFunction(
-      ({ config, runRepository, runDrivers, runJournal, ptyBroker, workOverview, hostPrompts, panes }) =>
+      ({
+        config,
+        runRepository,
+        runDrivers,
+        runJournal,
+        ptyBroker,
+        workOverview,
+        hostPrompts,
+        panes,
+        paneQuestions,
+      }) =>
         (restart: SupervisorDependencies["restart"]) =>
           new Supervisor({
+            asksInPane: (paneId) => paneQuestions.waiting(paneId),
             policy: config.config.supervisor,
             repo: runRepository,
             drivers: runDrivers,
@@ -805,6 +1325,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         paths,
         worktreeRegistry,
         driveHostProblem,
+        checkoutReader,
       }) =>
         new DriveRun({
           catalog: workflowCatalog,
@@ -819,7 +1340,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           timer,
           root,
           metatorCommand: config.config.hosts.metatorCommand,
-          notes: async (cwd) => workNotes(cwd),
+          notes: (cwd) => workNotes(checkoutReader, cwd),
           policies: () => answerPolicyStore.list(),
           messages: (runId) => runMessages.list(runId),
           gatesDir: paths.gates,
@@ -830,6 +1351,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     // One GitVcs behind every git port, so they all agree on what a change is.
     git: asFunction(({ root }) => new GitVcs(root, OWN_STATE)).singleton(),
+    workingTree: asFunction(
+      ({ processRunner, root }) => new GitWorkingTree(processRunner, root, OWN_STATE),
+    ).singleton(),
+    // Scratch (ADR-0093): direct edits not meant for a commit, as patches that can be taken out again.
+    workingPatches: asFunction(
+      ({ processRunner, root }) => new GitWorkingPatches(processRunner, root, OWN_STATE),
+    ).singleton(),
+    scratch: asFunction(
+      ({ fileSystem, clock, workingPatches }) =>
+        new Scratch({ fs: fileSystem, clock, patches: workingPatches }),
+    ),
     vcs: asFunction(({ git }) => git).singleton(),
     // The same reading of a change in another checkout (a worktree).
     vcsAt: asFunction(() => (dir: string) => new GitVcs(dir, OWN_STATE)).singleton(),
@@ -842,13 +1374,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     binResolver: asFunction(({ root }) => new NodeBinResolver(root)).singleton(),
+    // Rule engines and the declaration emitter run a tool from PATH where a project's dependencies
+    // are not installed (a fresh worktree still checks its rules); gate steps do not (`binResolver`).
+    toolBins: asFunction(({ root }) => new NodeBinResolver(root, "path")).singleton(),
     workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
     toolBoundariesReader: asFunction(({ root }) => new JsonToolBoundariesReader(root)).singleton(),
     manifestReader: asFunction(
       ({ root, workspaceReader }) => new ManypkgManifestReader(root, workspaceReader),
     ).singleton(),
-    importAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
-    symbolAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
+    // One oxc analyzer behind both ports: one set of resolvers and tsconfig lookups.
+    oxc: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
+    importAnalyzer: asFunction(({ oxc }) => oxc).singleton(),
+    symbolAnalyzer: asFunction(({ oxc }) => oxc).singleton(),
     sourceFiles: asFunction(
       ({ vcs, fileSystem, sourceIgnores }) => new SourceFiles(vcs, fileSystem, sourceIgnores),
     ).singleton(),
@@ -865,10 +1402,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     importGraphReader: asFunction(({ buildImportGraph }) => new IndexedImportGraphReader(buildImportGraph)),
     graphQueries: asFunction(({ buildImportGraph }) => new GraphQueries(buildImportGraph)),
-    ruleEngines: asFunction(({ processRunner, root }) => [
-      new AstGrepEngine(processRunner, root),
-      new BiomeEngine(processRunner, root),
-      new TscEngine(processRunner, root),
+    ruleEngines: asFunction(({ processRunner, root, toolBins }) => [
+      new AstGrepEngine(processRunner, root, toolBins),
+      new BiomeEngine(processRunner, root, toolBins),
+      new TscEngine(processRunner, root, toolBins),
       new BunTestEngine(processRunner, root),
     ]).singleton(),
     ruleScaffolders: asFunction(({ root }) => [new AstGrepScaffolder(root)]).singleton(),
@@ -930,13 +1467,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ScanPatterns(patternCatalog, ruleCatalog, ruleEngines, workspaceReader, fileSystem, paths),
     ),
     findSimilar: asFunction(({ scanPatterns }) => new FindSimilar(scanPatterns)),
+    declarationEmitter: asFunction(
+      ({ processRunner, root, toolBins }) => new TscDeclarationEmitter(processRunner, root, toolBins),
+    ).singleton(),
     apiSnapshots: asFunction(
-      ({ processRunner, root, workspaceReader, fileSystem, paths }) =>
-        new ApiSnapshots(new TscDeclarationEmitter(processRunner, root), workspaceReader, fileSystem, paths),
+      ({ declarationEmitter, workspaceReader, fileSystem, paths }) =>
+        new ApiSnapshots(declarationEmitter, workspaceReader, fileSystem, paths),
     ),
+    coverageReader: asFunction(({ root }) => new LcovCoverageReader(root)).singleton(),
     diffCoverage: asFunction(
-      ({ revisionReader, root, testGlobs }) =>
-        new DiffCoverage(revisionReader, new LcovCoverageReader(root), testGlobs),
+      ({ revisionReader, coverageReader, testGlobs }) =>
+        new DiffCoverage(revisionReader, coverageReader, testGlobs),
     ),
     checkFlaky: asFunction(
       ({ packageManager, processRunner }) => new CheckFlaky(packageManager, processRunner),
@@ -946,8 +1487,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     checkQuote: asFunction(({ fileSystem }) => new CheckQuote(fileSystem)),
     findOwners: asFunction(({ fileSystem }) => new FindOwners(fileSystem)),
-    // Contract kinds the installed plugins provide (ADR-0047). MVP: OpenAPI only.
-    contractKinds: asValue(["openapi"]),
+    // Contract kinds the installed plugins provide (ADR-0047): the ones a differ compares.
+    contractKinds: asFunction(({ contractDiffers }) =>
+      contractDiffers.map((d: ContractDiffer) => d.kind),
+    ).singleton(),
     systemCatalog: asFunction(({ fileSystem, paths, config }) => {
       const map = config.config.system?.map;
       return new SystemCatalog(
@@ -968,8 +1511,20 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         : new LocalSystemLocation(systemCatalog, root);
     }),
     systemSources: asFunction(
-      ({ config, root, systemLocation, cloneCache, checkoutReader, vcs }) =>
-        new SystemSources(config.config.system, root, systemLocation, cloneCache, checkoutReader, vcs),
+      ({ config, root, systemLocation, cloneCache, checkoutReader, vcs, optionStore }) =>
+        new SystemSources(
+          config.config.system,
+          root,
+          systemLocation,
+          cloneCache,
+          checkoutReader,
+          vcs,
+          // The directories the person set where the applications' checkouts are (`system.roots`).
+          async () => {
+            const o = await optionStore.get("system.roots");
+            return o.isOk() && Array.isArray(o.value.value) ? (o.value.value as string[]) : [];
+          },
+        ),
     ),
     systemImpactQuery: asFunction(
       ({ systemSources, vcs, importGraphReader }) =>
@@ -982,15 +1537,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     showSystem: asFunction(({ systemLocation }) => new ShowSystem(systemLocation)),
     contractDetectors: asFunction(() => [new OpenApiContractDetector()]).singleton(),
     contractDiffers: asFunction(() => [new OpenApiContractDiffer()]).singleton(),
+    plannedBreakingChanges: asFunction(({ systemPlanStore }) => new PlannedBreakingChanges(systemPlanStore)),
     diffContracts: asFunction(
-      ({ systemSources, revisionReader, fileSystem, contractDiffers, systemPlanStore }) =>
-        new DiffContracts(
-          systemSources,
-          revisionReader,
-          fileSystem,
-          contractDiffers,
-          new PlannedBreakingChanges(systemPlanStore),
-        ),
+      ({ systemSources, revisionReader, fileSystem, contractDiffers, plannedBreakingChanges }) =>
+        new DiffContracts(systemSources, revisionReader, fileSystem, contractDiffers, plannedBreakingChanges),
     ),
     systemPlanStore: asFunction(
       ({ fileSystem, paths }) => new SystemPlanStore(fileSystem, paths.systemPlans),
@@ -1024,7 +1574,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // Run tools of another repository on this machine: its own container, with its own config.
     repositoryRuns: asValue((root: string): RepositoryRuns => {
       const there = root === options.root ? c : elsewhere(root);
-      return { init: there.resolve("initRun"), runs: there.resolve("runRepository") };
+      return { start: there.resolve("startRun"), runs: there.resolve("runRepository") };
     }),
     runSystemPlan: asFunction(
       ({ systemPlanStore, systemSources, repositoryRuns, clock, runRepository }) =>
@@ -1033,6 +1583,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     systemPlanStatus: asFunction(
       ({ systemPlanStore, systemSources, repositoryRuns }) =>
         new SystemPlanStatus(systemPlanStore, systemSources, repositoryRuns),
+    ),
+    retrySystemStep: asFunction(
+      ({ systemPlanStore, systemSources, repositoryRuns, clock }) =>
+        new RetrySystemStep(systemPlanStore, systemSources, repositoryRuns, clock),
+    ),
+    startSystemStep: asFunction(
+      ({ systemPlanStore, systemSources, repositoryRuns, clock, runRepository }) =>
+        new StartSystemStep(systemPlanStore, systemSources, repositoryRuns, clock, runRepository),
+    ),
+    systemRunGate: asFunction(
+      ({ systemPlanStatus, runRepository, clock, runSystemPlan }) =>
+        new SystemRunGate(systemPlanStatus, runRepository, clock, runSystemPlan),
     ),
     runSystemEvals: asFunction(
       ({ fileSystem, paths, sandbox }) =>
@@ -1049,7 +1611,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
               store: there.resolve("systemPlanStore"),
             };
           },
-          () => agentDefinitionFiles(fileSystem, ["mt-system-scout", "mt-system-planner"]),
+          () => agentDefinitionFiles(fileSystem, HOSTS, ["mt-system-scout", "mt-system-planner"]),
         ),
     ),
     discoverySource: asFunction(
@@ -1076,16 +1638,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         symbolQueries,
         changeHistory,
         findOwners,
-        sourceFiles,
-        fileSystem,
+        styleImports,
       }) =>
         new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock, {
           symbols: symbolQueries,
           history: changeHistory,
           owners: findOwners,
-          styles: new StyleImports(sourceFiles, fileSystem),
+          styles: styleImports,
         }),
     ),
+    styleImports: asFunction(({ sourceFiles, fileSystem }) => new StyleImports(sourceFiles, fileSystem)),
     architectureBaselineStore: asFunction(
       ({ fileSystem, paths }) => new ArchitectureBaselineStore(fileSystem, paths.archBaseline),
     ),
@@ -1161,7 +1723,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
               facts: there.resolve("architectureFacts"),
             };
           },
-          () => agentDefinitionFiles(fileSystem, ["mt-arch-planner"]),
+          () => agentDefinitionFiles(fileSystem, HOSTS, ["mt-arch-planner"]),
         ),
     ),
     syncRefactorPlan: asFunction(
@@ -1191,6 +1753,71 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new LintPlan(fileSystem, scanPatterns, ruleCatalog, buildImportGraph, testGlobs),
     ),
     scopePlan: asFunction(({ fileSystem, buildImportGraph }) => new ScopePlan(fileSystem, buildImportGraph)),
+    // A person edits plans in the app (ADR-0087): the run's plan, system plans, the map; reads run files.
+    runPlans: asFunction(
+      ({ fileSystem, runRepository, runJournal, workflowCatalog, lintPlan, scopePlan }) =>
+        new RunPlans({
+          fs: fileSystem,
+          repo: runRepository,
+          journal: runJournal,
+          catalog: workflowCatalog,
+          lint: lintPlan,
+          scope: scopePlan,
+        }),
+    ),
+    systemPlans: asFunction(
+      ({
+        fileSystem,
+        systemPlanStore,
+        lintSystemPlan,
+        approveSystemPlan,
+        systemSources,
+        repositoryRuns,
+        clock,
+      }) =>
+        new SystemPlans({
+          fs: fileSystem,
+          store: systemPlanStore,
+          lint: lintSystemPlan,
+          approve: approveSystemPlan,
+          sources: systemSources,
+          at: repositoryRuns,
+          clock,
+        }),
+    ),
+    systemMaps: asFunction(
+      ({
+        fileSystem,
+        systemLocation,
+        contractKinds,
+        systemSources,
+        discoverSystem,
+        discoverySource,
+        root,
+        clock,
+      }) =>
+        new SystemMaps({
+          fs: fileSystem,
+          location: systemLocation,
+          kinds: contractKinds,
+          roots: () => checkoutRoots(systemSources),
+          discover: discoverSystem,
+          here: discoverySource,
+          sourceAt: (at: string) =>
+            at === root ? discoverySource : elsewhere(at).resolve("discoverySource"),
+          system: basename(root),
+          clock,
+        }),
+    ),
+    fileStats: asFunction(({ root }: { root: string }) => new BunFileStats(root)).singleton(),
+    runArtifacts: asFunction(
+      ({ fileSystem, fileStats, runRepository, workflowCatalog }) =>
+        new RunArtifacts({ fs: fileSystem, stats: fileStats, repo: runRepository, catalog: workflowCatalog }),
+    ),
+    checkPlanStep: asFunction(
+      ({ fileSystem, runAffectedTests, clock }) => new CheckPlanStep(fileSystem, runAffectedTests, clock),
+    ),
+    planProgress: asFunction(({ fileSystem }) => new PlanProgress(fileSystem)),
     lintAdrs: asFunction(
       ({ fileSystem, paths, ruleCatalog }) => new LintAdrs(fileSystem, paths, ruleCatalog),
     ),
@@ -1249,8 +1876,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     initProject: asFunction(
       ({ discover, fileSystem, paths }) => new InitProject(discover, fileSystem, paths),
     ),
-    hostGenerators: asValue([new CopilotGenerator(), new ClaudeGenerator()]),
-    skillGenerators: asValue([new CopilotSkillGenerator(), new ClaudeSkillGenerator()]),
+    hostGenerators: asValue(HOSTS.flatMap((h) => (h.files ? [h.files.generator()] : []))),
+    skillGenerators: asValue(HOSTS.flatMap((h) => (h.files ? [h.files.skills()] : []))),
     auditAgents: asFunction(
       ({ agentCatalog, skillCatalog, fileSystem }) => new AuditAgents(agentCatalog, skillCatalog, fileSystem),
     ),
@@ -1335,9 +1962,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     worktreeRegistry: asFunction(
       ({ fileSystem, paths, fileLock }) => new WorktreeRegistry(fileSystem, paths, fileLock),
     ).singleton(),
-    machineState: asFunction(
-      () => new BunMachineState(options.stateDir ?? machineStateDir(process.env)),
-    ).singleton(),
+    machineState: asFunction(() => new BunMachineState(options.stateDir ?? machineStateDir({}))).singleton(),
     machineLeases: asFunction(({ machineState, root }) => new MachineLeases(machineState, root)),
     createWorktree: asFunction(
       ({ worktreeRegistry, worktreeManager, portProbe, clock, paths, machineLeases, root }) =>
@@ -1388,17 +2013,101 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock }) =>
         new PruneWorktrees(worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock),
     ),
+    // A run moved into a human gate gets its question, whoever moved it (a drive, a conductor, a person).
+    gateQuestions: asFunction(
+      ({ workflowCatalog, runRepository, runJournal, fileSystem, paths }) =>
+        new GateQuestions({
+          catalog: workflowCatalog,
+          repo: runRepository,
+          journal: runJournal,
+          fs: fileSystem,
+          gatesDir: paths.gates,
+        }),
+    ),
+    // The plan a planner is sent back to revise is kept as its previous version (shown with what changed).
+    planRevisions: asFunction(
+      ({ fileSystem, runRepository, workflowCatalog, clock, systemPlanStore }) =>
+        new PlanRevisions({
+          fs: fileSystem,
+          repo: runRepository,
+          catalog: workflowCatalog,
+          clock,
+          systemPlans: {
+            file: (id: string) => systemPlanStore.file(id),
+            load: async (id: string) =>
+              (await systemPlanStore.exists(id)) ? systemPlanStore.load(id) : ok(undefined),
+          },
+        }),
+    ),
     advanceRun: asFunction(
-      ({ workflowCatalog, runRepository, clock, runJournal }) =>
-        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal),
+      ({ workflowCatalog, runRepository, clock, runJournal, gateQuestions, planRevisions }) =>
+        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal, gateQuestions, planRevisions, {
+          // Resolved when a run stops planned: the Backlog it hands its plan to is built then (ADR-0096).
+          planned: (runId) => c.resolve("backlogWork").planned(runId),
+        }),
+    ),
+    // A system run's plan-approval approves its system plan too (F7.5); a plan with lint errors
+    // refuses the approval, at a terminal (`run approve`) as on a card.
+    systemPlanApprovals: asFunction(
+      ({ runRepository, workflowCatalog, systemPlanStore, lintSystemPlan, approveSystemPlan }) =>
+        new SystemPlanApprovals(
+          runRepository,
+          workflowCatalog,
+          systemPlanStore,
+          lintSystemPlan,
+          approveSystemPlan,
+        ),
+    ),
+    // What a gate's card and answer refuse: the system plan's rule, and the gate of a run's own
+    // plan while the plan has lint errors (a person at a terminal can still `run approve` it).
+    gateApprovals: asFunction(
+      ({ systemPlanApprovals, runRepository, workflowCatalog, fileSystem, lintPlan }) =>
+        new AllGateApprovals([
+          systemPlanApprovals,
+          new RunPlanApprovals({
+            fs: fileSystem,
+            repo: runRepository,
+            catalog: workflowCatalog,
+            lint: lintPlan,
+          }),
+        ]),
     ),
     approveRun: asFunction(
-      ({ advanceRun, runRepository, clock, workflowCatalog }) =>
-        new ApproveRun(advanceRun, runRepository, clock, workflowCatalog),
+      ({ advanceRun, runRepository, clock, workflowCatalog, systemPlanApprovals }) =>
+        new ApproveRun(advanceRun, runRepository, clock, workflowCatalog, systemPlanApprovals),
     ),
+    // The person's consents to guarded commands (ADR-0094): written by their words, used once.
+    guardConsents: asFunction(({ fileSystem, clock }) => new GuardConsents(fileSystem, clock)),
     guardPreTool: asFunction(
-      ({ getRunStatus, runRepository, agentCatalog, fileSystem, root, role }) =>
-        new GuardPreTool(getRunStatus, runRepository, agentCatalog, fileSystem, root, role),
+      ({
+        getRunStatus,
+        runRepository,
+        agentCatalog,
+        fileSystem,
+        root,
+        role,
+        config,
+        guardConsents,
+        scratch,
+      }) =>
+        new GuardPreTool(getRunStatus, runRepository, agentCatalog, fileSystem, root, role, {
+          guard: config.config.guard,
+          consents: guardConsents,
+          // A commit that would hold debug changes is stopped; when git cannot say, nothing is claimed.
+          debugFiles: async (reach) => {
+            const files = await scratch.inCommit(reach);
+            return files.isOk() ? files.value : [];
+          },
+          // What needs no approval prompt (`guard.prompts: metator`) is judged from the same
+          // config: how the repository runs MetatorAI, and what its gates run.
+          prompts: {
+            metatorCommand: config.config.hosts.metatorCommand,
+            gates: [...config.config.gates.quick, ...config.config.gates.full].map((s) => s.run),
+          },
+        }),
+    ),
+    guardUserPrompt: asFunction(
+      ({ guardConsents, config }) => new GuardUserPrompt(guardConsents, config.config.guard),
     ),
     guardPostEdit: asFunction(
       ({ checkRules, fileSystem, root }) => new GuardPostEdit(checkRules, fileSystem, root),
@@ -1412,23 +2121,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ getRunStatus, fileSystem, paths }) => new GuardSessionStart(getRunStatus, fileSystem, paths),
     ),
     resumeRun: asFunction(
-      ({ workflowCatalog, runRepository, clock, runJournal }) =>
-        new ResumeRun(workflowCatalog, runRepository, clock, runJournal),
+      ({ workflowCatalog, runRepository, clock, gateQuestions, runJournal }) =>
+        new ResumeRun(workflowCatalog, runRepository, clock, gateQuestions, runJournal),
     ),
     writeRunArtifact: asFunction(
       ({ workflowCatalog, runRepository, fileSystem }) =>
         new WriteRunArtifact(workflowCatalog, runRepository, fileSystem),
     ),
     readRunArtifact: asFunction(
-      ({
-        runRepository,
-        fileSystem,
-        root,
-      }: {
-        runRepository: RunRepository;
-        fileSystem: FileSystem;
-        root: string;
-      }) =>
+      ({ runRepository, fileSystem, root }) =>
         new ReadRunArtifact(runRepository, fileSystem, (dir, file) => {
           // Links followed: a link in the run directory that points elsewhere is not inside it.
           try {
@@ -1451,99 +2152,209 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ advanceRun, runRepository, fileSystem, clock, runDrivers, workflowCatalog }) =>
         new CloseRun(advanceRun, runRepository, fileSystem, clock, runDrivers, workflowCatalog),
     ),
+    // What a person does to a run, once for every front (the commands, the daemon).
+    detachedDrive: asFunction(
+      ({ runDrivers, root }): DetachedDrive =>
+        options.detachedDrive?.({ runDrivers, root }) ?? {
+          start: async () =>
+            err(new MetatorError("COMMAND_FAILED", "this program cannot start a drive in the background")),
+        },
+    ),
+    runPanes: asFunction(({ panes, root }): RunPanes => options.runPanes?.({ panes, root }) ?? panes),
+    // The team's order first (`supervisor.hostOrder`): a run nobody chose a host for (intake, a
+    // system run's child) takes the host the team works with.
+    defaultDriveHost: asFunction(
+      ({ agentHosts, config, driveHostProblem }) =>
+        () =>
+          driveHostOf({
+            chosen: options.defaultHost,
+            order: config.config.supervisor.hostOrder,
+            targets: config.config.hosts.targets,
+            known: [...agentHosts.keys()],
+            problem: driveHostProblem,
+          }),
+    ),
+    startDrive: asFunction(
+      ({ runRepository, agentHosts, driveHostProblem, detachedDrive }) =>
+        new StartDrive(runRepository, agentHosts, driveHostProblem, detachedDrive),
+    ),
+    ensureDriven: asFunction(
+      ({ runRepository, runDrivers, agentHosts, defaultDriveHost, startDrive }) =>
+        new EnsureDriven(runRepository, runDrivers, agentHosts, defaultDriveHost, startDrive),
+    ),
+    startRun: asFunction(
+      ({
+        initRun,
+        setupWorktree,
+        checkReadiness,
+        workOverview,
+        ensureDriven,
+        config,
+        root,
+        hostStatus,
+        runJournal,
+      }) =>
+        new StartRun(
+          initRun,
+          setupWorktree,
+          checkReadiness,
+          workOverview,
+          ensureDriven,
+          config.config.supervisor.wipLimit,
+          options.conductorSessions
+            ? { sessions: options.conductorSessions({ root }), hosts: hostStatus, journal: runJournal }
+            : undefined,
+        ),
+    ),
+    // The quick way (ADR-0093): is a change small enough, and the run that carries it.
+    quickCheck: asFunction(
+      ({
+        config,
+        testGlobs,
+        vcs,
+        changePatch,
+        workspaceReader,
+        graphQueries,
+        systemImpactQuery,
+        fileSystem,
+        apiSnapshots,
+      }) =>
+        new QuickCheck({
+          limits: config.config.quick,
+          testGlobs,
+          vcs,
+          patch: changePatch,
+          workspace: workspaceReader,
+          graph: graphQueries,
+          impact: systemImpactQuery,
+          exists: (file) => fileSystem.exists(file),
+          // Only a package with a snapshot is compared (`metator api snapshot`): without one, its entry module says it.
+          apiChanged: async (pkg) => {
+            const diff = await apiSnapshots.diff({ package: pkg });
+            return diff.isOk() ? diff.value.changed : undefined;
+          },
+        }),
+    ),
+    quickOverrides: asFunction(
+      ({ fileSystem, runRepository, runJournal, clock }) =>
+        new QuickOverrides(fileSystem, runRepository, runJournal, clock),
+    ),
+    quickStart: asFunction(
+      ({ startRun, runRepository, runJournal, quickOverrides, workingTree, config }) =>
+        new QuickStart({
+          quickGate: { steps: config.config.gates.quick.length, source: config.source },
+          start: startRun,
+          repo: runRepository,
+          journal: runJournal,
+          overrides: quickOverrides,
+          tree: workingTree,
+        }),
+    ),
+    quickFit: asFunction(
+      ({ startRun, runRepository, runJournal, quickOverrides, workingTree, closeRun, worktreeRegistry }) =>
+        new QuickFit({
+          adopted: (worktree, run) =>
+            worktreeRegistry.update((all: readonly WorktreeEntry[]) =>
+              all.map((e) => (e.id === worktree ? { ...e, run } : e)),
+            ),
+          start: startRun,
+          repo: runRepository,
+          journal: runJournal,
+          overrides: quickOverrides,
+          tree: workingTree,
+          close: closeRun,
+        }),
+    ),
+    quickReviewed: asFunction(
+      ({ runRepository, fileSystem }) => new QuickReviewed({ repo: runRepository, fs: fileSystem }),
+    ),
+    quickReady: asFunction(
+      ({ runRepository, runJournal, advanceRun, runDrivers }) =>
+        new QuickReady({
+          repo: runRepository,
+          journal: runJournal,
+          advance: advanceRun,
+          driven: async (runId) => {
+            const driver = await runDrivers.status(runId);
+            return driver.isOk() && driver.value?.alive === true;
+          },
+        }),
+    ),
+    answerQuestion: asFunction(
+      ({
+        runRepository,
+        runJournal,
+        answerPolicyStore,
+        runDrivers,
+        ensureDriven,
+        clock,
+        ptyBroker,
+        approveRun,
+        advanceRun,
+        gateApprovals,
+        hostPrompts,
+      }) =>
+        new AnswerQuestion(
+          runRepository,
+          runJournal,
+          answerPolicyStore,
+          runDrivers,
+          ensureDriven,
+          clock,
+          (runId) => ptyBroker.byRun(runId).some((s: { readonly alive: boolean }) => s.alive),
+          // A human gate's question decides the gate, whoever drives the run.
+          {
+            approve: approveRun,
+            advance: advanceRun,
+            refusal: (runId: string, stage: string) => gateApprovals.refusal(runId, stage),
+          },
+          hostPrompts,
+        ),
+    ),
+    askInRun: asFunction(
+      ({ runRepository, runJournal, timer }) => new AskInRun(runRepository, runJournal, timer),
+    ),
+    briefRun: asFunction(({ runRepository, runJournal }) => new BriefRun(runRepository, runJournal)),
+    reviveRuns: asFunction(
+      ({ runRepository, runDrivers, runJournal, ensureDriven }) =>
+        new ReviveRuns(runRepository, runDrivers, runJournal, ensureDriven),
+    ),
+    // `metator setup` as typed calls; the steps after the config is written read it again.
+    setupRepository: asFunction(
+      ({ config, paths, fileSystem, launcher, installCanon, initProject, updateConfig }) =>
+        new SetupRepository({
+          config: { source: config.source, hosts: config.config.hosts.targets },
+          installLock: paths.installLock,
+          fs: fileSystem,
+          hostsOnPath: () => {
+            const found = launcher.available(HOST_TARGETS);
+            return HOST_TARGETS.filter((h) => found.includes(h));
+          },
+          installCanon,
+          initProject,
+          updateConfig,
+          configured: () =>
+            loadConfig(options.root).map((now) => {
+              const fresh = bootstrap({ ...options, config: now });
+              return {
+                installCanon: fresh.resolve("installCanon"),
+                generateHosts: fresh.resolve("generateHosts"),
+                generateSkills: fresh.resolve("generateSkills"),
+                lintAgents: fresh.resolve("lintAgents"),
+                lintSkills: fresh.resolve("lintSkills"),
+                lintWorkflows: fresh.resolve("lintWorkflows"),
+              };
+            }),
+        }),
+    ),
+    endRun: asFunction(
+      ({ closeRun, runRepository, runPanes, removeWorktree }) =>
+        new EndRun(closeRun, runRepository, runPanes, removeWorktree),
+    ),
     getRunStatus: asFunction(
       ({ workflowCatalog, runRepository }) => new GetRunStatus(workflowCatalog, runRepository),
     ),
     listRuns: asFunction(({ runRepository }) => new ListRuns(runRepository)),
   });
   return c;
-}
-
-/** Where the map's applications' code already is on this machine (never a clone fetched for this). */
-export async function checkoutRoots(
-  sources: Pick<SystemSources, "locate" | "location">,
-): Promise<readonly string[]> {
-  const map = await sources.location.require();
-  if (map.isErr()) return [];
-  const roots: string[] = [];
-  for (const app of map.value.applications) {
-    const located = await sources.locate(app);
-    if (located.isOk() && located.value) roots.push(located.value.root);
-  }
-  return roots;
-}
-
-/**
- * Files a worktree changed since it branched off the main checkout's HEAD: committed on its
- * branch, in its working tree, or new and not ignored; repo-relative.
- */
-async function worktreeChanges(
-  runner: ProcessRunner,
-  root: string,
-  path: string,
-): Promise<Result<readonly string[], MetatorError>> {
-  const dir = join(root, path);
-  const git = (argv: string[], cwd: string) => runner.run({ argv: ["git", ...argv], cwd });
-  const head = (await git(["rev-parse", "HEAD"], root)).stdout.trim();
-  const fork = await git(["merge-base", "HEAD", head], dir);
-  if (fork.exitCode !== 0)
-    return err(new MetatorError("COMMAND_FAILED", `git merge-base in ${dir}: ${fork.stderr.trim()}`));
-  const committed = await git(["diff", "--name-only", fork.stdout.trim()], dir);
-  const untracked = await git(["ls-files", "--others", "--exclude-standard"], dir);
-  const files = `${committed.stdout}\n${untracked.stdout}`
-    .split("\n")
-    .map((f) => f.trim())
-    .filter(Boolean);
-  return ok([...new Set(files)].sort());
-}
-
-/** Tracked files with uncommitted changes, MetatorAI's own state aside; undefined when git cannot say. */
-async function modifiedTracked(runner: ProcessRunner, root: string): Promise<readonly string[] | undefined> {
-  const status = await runner.run({
-    argv: ["git", "-c", "core.quotepath=false", "status", "--porcelain", "--untracked-files=no"],
-    cwd: root,
-  });
-  if (status.exitCode !== 0) return undefined;
-  return status.stdout
-    .split("\n")
-    .filter((l) => l.length > 3)
-    .map((l) => l.slice(3))
-    .filter((f) => !f.startsWith(".metator/"));
-}
-
-/** Whether HEAD is on no branch; undefined when git cannot say (not a repository). */
-async function detachedHead(runner: ProcessRunner, root: string): Promise<boolean | undefined> {
-  const head = await runner.run({ argv: ["git", "symbolic-ref", "-q", "HEAD"], cwd: root });
-  if (head.exitCode === 0) return false;
-  return head.exitCode === 1 ? true : undefined;
-}
-
-/** Whether a program can be started: a path that exists, or a name found on PATH. */
-const commandExists = (command: string): boolean =>
-  command.includes("/") ? existsSync(command) : Bun.which(command) !== null;
-
-const isDirectory = (path: string): boolean => {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-};
-
-/**
- * What an agent must know about the directory it works in. A Node project without node_modules
- * cannot run its tests, type checker or linters there, and installing is not the agent's call.
- */
-export function workNotes(cwd: string): string[] {
-  const manifest = join(cwd, "package.json");
-  // A package.json that lists nothing to install has no node_modules and misses nothing (F5).
-  if (
-    existsSync(manifest) &&
-    !existsSync(join(cwd, "node_modules")) &&
-    declaresDependencies(readFileSync(manifest, "utf8"))
-  )
-    return [
-      "The project's dependencies are not installed here (no node_modules): its tests, type checker and linters cannot run. Do not install anything or try to run them; write the code and tests, and say plainly that they were not run.",
-    ];
-  return [];
 }

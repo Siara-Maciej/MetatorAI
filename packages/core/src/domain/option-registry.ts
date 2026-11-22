@@ -249,6 +249,73 @@ const issues: OptionDefinition[] = [
   }),
 ];
 
+const backlog: OptionDefinition[] = [
+  new NumberOption(
+    {
+      key: "backlog.staleDays",
+      scope: "repo",
+      title: "Old after",
+      description:
+        "Days after which an item's analysis or plan is marked old (a warning only; a change to a file it cites makes it stale at once).",
+      defaultValue: 14,
+      since: "ADR-0096",
+    },
+    { min: 1, max: 365, unit: "days" },
+  ),
+];
+
+const system: OptionDefinition[] = [
+  new ListOption({
+    key: "system.roots",
+    scope: "repo",
+    title: "Where the code is",
+    description:
+      "Directories on this machine that hold checkouts of the system's applications: an application is found in <directory>/<its id> or <directory>/<its repository's name>.",
+    defaultValue: [],
+    since: "F7",
+  }),
+];
+
+const E2 = "E2";
+const sandboxList = (
+  name: string,
+  title: string,
+  description: string,
+  defaultValue: readonly string[] = [],
+) => new ListOption({ key: `sandbox.${name}`, scope: "repo", title, description, defaultValue, since: E2 });
+
+/**
+ * The sandbox every host session MetatorAI starts runs in (ADR-0102, ADR-0104): read when a
+ * session starts, so a change holds from the next one.
+ */
+const sandbox: OptionDefinition[] = [
+  new BooleanOption({
+    key: "sandbox.enabled",
+    scope: "repo",
+    title: "Sandbox",
+    description:
+      "Start every agent's host session (Claude Code and Copilot CLI), and everything it runs, in the operating system's sandbox.",
+    defaultValue: false,
+    since: E2,
+  }),
+  sandboxList(
+    "denyRead",
+    "Unreadable paths",
+    "Paths no sandboxed process reads, beside the repository's secret files.",
+    ["~/.ssh", "~/.aws", "~/.netrc"],
+  ),
+  sandboxList(
+    "allowWrite",
+    "Writable paths",
+    "Paths a sandboxed process may write beside the repository, the host's own files and the temporary directory.",
+  ),
+  sandboxList(
+    "allowedDomains",
+    "Reachable hosts",
+    "Hosts a sandboxed process may connect to, beside the host's own API.",
+  ),
+];
+
 export const OPTIONS: readonly OptionDefinition[] = [
   ...ui,
   ...keys,
@@ -257,6 +324,9 @@ export const OPTIONS: readonly OptionDefinition[] = [
   ...editor,
   ...supervisor,
   ...issues,
+  ...backlog,
+  ...system,
+  ...sandbox,
 ];
 
 export const optionByKey = (key: string): OptionDefinition | undefined => OPTIONS.find((o) => o.key === key);

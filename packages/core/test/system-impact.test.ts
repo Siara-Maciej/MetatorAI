@@ -337,6 +337,38 @@ describe("where the map and the applications are", () => {
     ]);
   });
 
+  test("the directories of `system.roots` (the option): an application is found in one by its id or its repository's name", async () => {
+    const map = SystemMapSchema.parse({
+      system: "s",
+      applications: [
+        { id: "shop-web", source: { repo: "https://github.com/acme/web-app" } },
+        { id: "billing", source: { repo: "git@x:acme/billing.git" } },
+        { id: "pinned", source: { repo: "git@x:acme/pinned.git", ref: "v1" } },
+      ],
+    });
+    const app = (id: string) =>
+      map.applications.find((a) => a.id === id) as (typeof map.applications)[number];
+    const location = new LocalSystemLocation({ source: "m.yml", load: async () => ok(map) }, "/src/platform");
+    const sources = new SystemSources(
+      undefined,
+      "/src/platform",
+      location,
+      new CloneCache(new FakeCloner(), CACHE),
+      new FakeReader({}, ["/work/shop-web", "/other/billing", "/work/pinned"]),
+      noRemote,
+      async () => ["/nowhere", "/work", "/other/"],
+    );
+    expect((await sources.locate(app("shop-web")))._unsafeUnwrap()).toEqual({
+      app: "shop-web",
+      root: "/work/shop-web",
+      dir: ".",
+      via: "local",
+    });
+    expect((await sources.locate(app("billing")))._unsafeUnwrap()?.root).toBe("/other/billing");
+    // A pinned commit is no working tree: still cloned, never a directory found here.
+    expect((await sources.locate(app("pinned")))._unsafeUnwrap()).toBeUndefined();
+  });
+
   test("impact query: changed files from git or given, named contracts checked, no map is NOT_FOUND", async () => {
     const fs = new InMemoryFileSystem({
       "docs/metator/system.yml": YAML.replace("repo: ../billing, ref: main", "path: ."),

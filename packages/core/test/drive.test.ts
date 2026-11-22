@@ -8,43 +8,40 @@ import {
   InstantTimer,
   ScriptedProcessRunner,
 } from "@metator/testing";
-import {
-  CLOSE_RUN,
-  cardLine,
-  consequencesOf,
-  DO_IT,
-  DriveRun,
-  failedSteps,
-  hostRefusal,
-  loopCosts,
-  notDrivable,
-  OTHER,
-  RunJournal,
-  sinceLastAnswer,
-} from "../src/application/drive.ts";
+import { DO_IT, DriveRun, FINISH_STAGE } from "../src/application/drive.ts";
 import { Notifier } from "../src/application/notifier.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
+import { OTHER, RunJournal } from "../src/application/run-journal.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
-import { AdvanceRun, ApproveRun, InitRun, ResumeRun } from "../src/application/runs.ts";
+import { AdvanceRun, ApproveRun, GetRunStatus, InitRun, ResumeRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
+  type AgentEvent,
   blockedPrompt,
+  cardLine,
+  consequencesOf,
+  failedSteps,
   gatePrompt,
   gateQuestion,
   hostLimit,
+  hostRefusal,
   labelFor,
+  loopCosts,
   nextQuestionId,
+  notDrivable,
   parseCriticVerdict,
   parseStatus,
   type Question,
   resumeLines,
+  sinceLastAnswer,
   stagePrompt,
   stageWork,
 } from "../src/domain/drive.ts";
 import { ok } from "../src/domain/result.ts";
 import type { StageSpec } from "../src/domain/workflow-spec.ts";
+import type { AgentHost } from "../src/ports/index.ts";
 
 describe("drive domain", () => {
   test("a gate asks in plain words what is approved and for which run's task", () => {
@@ -141,6 +138,25 @@ describe("drive domain", () => {
     const [line] = sinceLastAnswer([{ at, type: "advance" as const, stage: "gates", text: dump }]);
     expect([line?.length, line?.endsWith("…"), line?.includes("{")]).toEqual([246, true, false]);
     expect(cardLine("\n\n  FAIL: lint  \nmore")).toBe("FAIL: lint");
+    // A gate that waits (a system run's next wave, its children working) is a wait, not a FAIL.
+    expect(
+      sinceLastAnswer([
+        {
+          at,
+          type: "gate" as const,
+          stage: "status",
+          text: "started the next wave: web-integration in shop-web",
+        },
+        {
+          at,
+          type: "gate" as const,
+          stage: "status",
+          text: "metator system plan status --run .metator/runs/r --gate: pass",
+        },
+        { at, type: "gate" as const, stage: "review", agent: "mt-judge", text: "PASS" },
+        { at, type: "advance" as const, stage: "status", text: "PASS" },
+      ]),
+    ).toEqual(["status waits: started the next wave: web-integration in shop-web", "status PASS"]);
     const stages = [
       { id: "plan" },
       { id: "plan-approval", hitl: true, onFail: { goto: "plan", loop: "plan" } },
@@ -234,7 +250,18 @@ describe("drive domain", () => {
     });
     expect(mine).toContain("Write only the artifact your own instructions name");
     expect(mine).not.toContain("Write these artifacts into");
-    expect(p).toContain("Write an artifact with your Write tool at /repo/.metator/runs/r/<artifact>");
+    // plan.json: the Write tool; a Markdown artifact: one quoted here-document of `metator run write`.
+    expect(p).toContain("Write `plan.json` with your Write tool at /repo/.metator/runs/r/plan.json");
+    const log = stagePrompt({
+      runId: "r",
+      task: "t",
+      stage: { id: "build", produces: ["build-log.md"] } as StageSpec,
+      agent: "mt-implementer",
+      skills: [],
+      runDir: "/repo/.metator/runs/r",
+    });
+    expect(log).toContain("`metator run write build-log.md --run r <<'EOF'`");
+    expect(log).not.toContain("Write tool");
   });
 
   test("notes about where the agent works go into its prompt", () => {
@@ -1053,30 +1080,43 @@ loops:
     expect(critic).toContain("- build: which currency? → EUR");
   });
 
-  test("a worker that finds nothing to do asks one decision; closing ends the run with the evidence", async () => {
+  test("a worker that finds nothing to do asks one decision; finishing the stage lets the gate judge it, never ends the run", async () => {
     const w = world(
       {
         "mt-planner": [
-          { text: "discount() exists\nSTATUS: nothing to do: src/discount.ts:3 already applies it" },
+          // The plan is already there (in the worktree): nothing to do, the stage's checks see it.
+          {
+            ...writesPlan,
+            text: "discount() exists\nSTATUS: nothing to do: src/discount.ts:3 already applies it",
+          },
         ],
+        "mt-implementer": [{ text: "STATUS: done" }],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
       },
-      (q) => (q.source === "gate" ? { choices: ["Approve"] } : { choices: [CLOSE_RUN] }),
+      (q) => (q.source === "gate" ? { choices: ["Approve"] } : { choices: [FINISH_STAGE] }),
       okScripts(),
     );
     w0 = w;
     const runId = await w.start();
-    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("aborted");
+    // The stage passed; the run went on (and its gates judged the work), it did not abort.
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).not.toBe("aborted");
     const q = w.asked.find((a) => a.source === "agent");
-    expect(q?.options.map((o) => o.label)).toEqual([CLOSE_RUN, DO_IT, OTHER]);
-    expect([q?.card?.recommended, q?.card?.reversible, q?.card?.done]).toEqual([CLOSE_RUN, false, ["setup"]]);
+    expect(q?.options.map((o) => o.label)).toEqual([FINISH_STAGE, DO_IT, OTHER]);
+    expect(q?.options.map((o) => o.label)).not.toContain("Close the run");
+    expect([q?.card?.recommended, q?.card?.reversible, q?.card?.done]).toEqual([
+      FINISH_STAGE,
+      true,
+      ["setup"],
+    ]);
     expect(q?.prompt).toBe(
       "discount() exists\n\nmt-planner found nothing to do: src/discount.ts:3 already applies it",
     );
-    const log = (await w.fs.read(`.metator/runs/${runId}/log.md`))._unsafeUnwrap();
-    expect(log).toContain("nothing to do: src/discount.ts:3 already applies it");
+    const history = (await w.repo.load(runId))._unsafeUnwrap().state.context.history;
+    expect(history.find((h) => h.stage === "plan")?.event).toBe("PASS");
+    expect(history.some((h) => h.event === "ABORT")).toBe(false);
   });
 
-  test("do it anyway: the worker goes on with the person's words; headless (L2) closes without asking", async () => {
+  test("do it anyway: the worker goes on with the person's words; headless (L2) finishes the stage without asking", async () => {
     const w = world(
       {
         "mt-planner": [{ text: "STATUS: nothing to do: done in a.ts:1" }, writesPlan],
@@ -1094,13 +1134,15 @@ loops:
     expect(planner[1]?.prompt).toContain("A person answered your question: a.ts:1 is the old API");
 
     const h = world(
-      { "mt-planner": [{ text: "STATUS: nothing to do: done in a.ts:1" }] },
+      { "mt-planner": [{ ...writesPlan, text: "STATUS: nothing to do: done in a.ts:1" }] },
       () => undefined,
       okScripts(),
     );
     w0 = h;
     const headless = await h.start(undefined, "demo", "L2");
-    expect((await h.drive.execute({ runId: headless, host: "fake" }))._unsafeUnwrap().status).toBe("aborted");
+    await h.drive.execute({ runId: headless, host: "fake", maxSteps: 2 });
+    const headlessHistory = (await h.repo.load(headless))._unsafeUnwrap().state.context.history;
+    expect(headlessHistory.find((x) => x.stage === "plan")?.event).toBe("PASS");
     expect(h.asked).toEqual([]);
   });
 
@@ -1179,7 +1221,7 @@ loops:
     const fail = (await w.journal.activity(runId))._unsafeUnwrap().find((a) => a.type === "advance");
     expect([r.status, fail?.text]).toEqual([
       "escalated",
-      "FAIL: `metator index build --base {base|HEAD}` failed: index: parse error in a.ts",
+      "FAIL: `metator index build --base HEAD` failed: index: parse error in a.ts",
     ]);
 
     const w2 = world({ "mt-planner": [{ ok: false, text: "tool crashed" }] }, () => undefined, okScripts());
@@ -1591,5 +1633,155 @@ describe("RunDrivers", () => {
     expect((await d.status("r"))._unsafeUnwrap()?.pid).toBe(1);
     await d.release("r", 1);
     expect((await d.status("r"))._unsafeUnwrap()).toBeNull();
+  });
+});
+
+describe("a drive whose run's directory goes away", () => {
+  test("the agent at work is stopped and the drive ends with the reason; nothing outlives the directory", async () => {
+    const w = world({}, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    let stopped = false;
+    const hanging: AgentHost = {
+      id: "hang",
+      run: () => {
+        let release: () => void = () => {};
+        const forever = new Promise<IteratorResult<AgentEvent>>((resolve) => {
+          release = () => resolve({ done: true, value: undefined });
+        });
+        const events: AsyncIterableIterator<AgentEvent> = {
+          [Symbol.asyncIterator]() {
+            return events;
+          },
+          next: () => forever,
+          return: async () => {
+            stopped = true;
+            release();
+            return { done: true, value: undefined };
+          },
+        };
+        return events;
+      },
+    };
+    const drive = new DriveRun({ ...driveDeps(w), hosts: new Map([["hang", hanging]]), goneWatchMs: 5 });
+    const driving = drive.execute({ runId, host: "hang" });
+    await Bun.sleep(20);
+    // The checkout is deleted under the working agent.
+    (await w.fs.remove(`.metator/runs/${runId}/state.json`))._unsafeUnwrap();
+    const r = (await driving)._unsafeUnwrapErr();
+    expect(r.message).toBe("the run's directory is gone (/repo): the drive stops");
+    expect(stopped).toBe(true);
+  });
+});
+
+describe("the host a drive works with", () => {
+  test("is the run's from the drive's first step: `run status` names it even when the host keeps no session", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.repo.load(runId))._unsafeUnwrap().host).toBeUndefined();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 1 });
+    expect((await w.repo.load(runId))._unsafeUnwrap().host).toBe("fake");
+    const status = (await new GetRunStatus(w.catalog, w.repo).execute({ runId }))._unsafeUnwrap();
+    expect(status.host).toBe("fake");
+  });
+});
+
+describe("the task the agents read", () => {
+  test("is the run's task with its task.md (an issue's body, intake's criteria) when the run has one", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    await w.fs.write(`.metator/runs/${runId}/task.md`, "# Add discount\n\nCap it at 100 PLN.\n");
+    await w.drive.execute({ runId, host: "fake", maxSteps: 2 });
+    const prompt = w.host.tasks.at(-1)?.prompt ?? "";
+    expect(prompt).toContain("Task: Add discount");
+    expect(prompt).toContain("Cap it at 100 PLN.");
+  });
+});
+
+describe("a plan a person sent back", () => {
+  test("the planner hears the person's words and revises its plan, keeping what they did not object to", () => {
+    const prompt = stagePrompt({
+      runId: "r1",
+      task: "Add discount",
+      stage: { id: "plan", owner: "mt-planner", produces: ["plan.json"] } as StageSpec,
+      agent: "mt-planner",
+      skills: [],
+      runDir: "/repo/.metator/runs/r1",
+      retry: "the cap must be in cents",
+      retryFrom: "plan-approval",
+      rejectedBy: "ana",
+    });
+    expect(prompt).toContain(
+      'ana rejected the plan at plan-approval and asks for changes: "the cap must be in cents"',
+    );
+    expect(prompt).toContain(
+      "Revise the plan you wrote (plan.json in /repo/.metator/runs/r1) against these words: keep what they did not object to, change what they asked for. Do not start over.",
+    );
+    expect(prompt).not.toContain("failed and sent the run back here");
+  });
+});
+
+describe("a Reject at the plan's gate (a drive waits on it)", () => {
+  test("sends the run back to its planner, whose prompt carries the person's words and asks for a revision", async () => {
+    let asked = 0;
+    const w = world(
+      { "mt-planner": [writesPlan, writesPlan], "mt-implementer": [{}], "mt-scout": [{}] },
+      (q) =>
+        q.source === "gate"
+          ? asked++ === 0
+            ? { choices: ["Reject"], text: "the cap must be in cents" }
+            : { choices: ["Approve"] }
+          : undefined,
+      okScripts(),
+    );
+    w0 = w;
+    await w.fs.write(
+      ".github/metator/workflows/demo.yml",
+      WORKFLOW.replace(
+        "  - id: approval\n    hitl: true\n",
+        "  - id: approval\n    hitl: true\n    onFail: { goto: plan, loop: plan }\n",
+      ),
+    );
+    const runId = await w.start();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 5 });
+    const planners = w.host.tasks.filter((t) => t.agent === "mt-planner").map((t) => t.prompt);
+    expect(planners).toHaveLength(2);
+    expect(planners[1]).toContain(
+      'maciej rejected the plan at approval and asks for changes: "the cap must be in cents"',
+    );
+    expect(planners[1]).toContain("Do not start over.");
+  });
+});
+
+describe("a drive started after the plan was sent back (a card's Reject, no drive alive)", () => {
+  test("its planner still hears who asked for what", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => ({ choices: ["Approve"] }), okScripts());
+    w0 = w;
+    await w.fs.write(
+      ".github/metator/workflows/demo.yml",
+      WORKFLOW.replace(
+        "  - id: approval\n    hitl: true\n",
+        "  - id: approval\n    hitl: true\n    onFail: { goto: plan, loop: plan }\n",
+      ),
+    );
+    const runId = await w.start();
+    (await w.advance.execute({ runId, event: { type: "PASS" } }))._unsafeUnwrap();
+    (await w.advance.execute({ runId, event: { type: "PASS" } }))._unsafeUnwrap();
+    const q = (
+      await w.journal.ask(runId, {
+        stage: "approval",
+        source: "gate",
+        prompt: "approval: approve to continue",
+        options: [{ label: "Approve" }, { label: "Reject" }],
+        multiSelect: false,
+      })
+    )._unsafeUnwrap();
+    await w.journal.answer(runId, q.id, { choices: ["Reject"], text: "cents, not zloty", by: "ola" });
+    (await w.advance.execute({ runId, event: { type: "FAIL", reason: "cents, not zloty" } }))._unsafeUnwrap();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 1 });
+    const planner = w.host.tasks.find((t) => t.agent === "mt-planner")?.prompt ?? "";
+    expect(planner).toContain('ola rejected the plan at approval and asks for changes: "cents, not zloty"');
   });
 });

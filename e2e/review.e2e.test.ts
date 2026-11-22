@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const WORKFLOW =
@@ -49,6 +49,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await repo.dispose();
+  stopProcessesUnder(configDir);
   await rm(configDir, { recursive: true, force: true });
 });
 
@@ -98,7 +99,14 @@ describe("metator review changes|notes and open (real CLI)", () => {
       kind: "ReviewNotes",
       schemaVersion: 1,
     });
-    const nobody = { ...env, METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const nobody = {
+      ...env,
+      METATOR_USER: "",
+      USER: "",
+      USERNAME: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     const refused = await metator(["review", "notes", "send", "--run", runId], repo.root, nobody);
     expect([refused.code, (refused.json.error as { message: string }).message]).toEqual([
       64,

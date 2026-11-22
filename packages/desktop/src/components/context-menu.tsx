@@ -27,7 +27,11 @@ export function ContextMenu({
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // The key is the menu's: the terminal under it must not get it.
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
     };
     // Capture: a focused terminal stops the propagation of the keys it handles, Escape included.
     window.addEventListener("mousedown", onDown, true);

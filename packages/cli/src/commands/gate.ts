@@ -1,16 +1,17 @@
 import { emptyGateHint, err, MetatorError, normalizePath, ok } from "@metator/core";
 import { Argument, type Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { baseOption } from "../options.ts";
 
 export function registerGateCommands(program: Command, { action, container }: CommandContext): void {
-  program
-    .command("gate")
+  meta(program.command("gate"), { audience: "person" })
     .description(
       "Run a gate's steps from metator.config (quick: before every commit, full or all: before a PR)",
     )
     .addArgument(new Argument("<gate>", "which gate (all is full)").choices(["quick", "full", "all"]))
     .option("--files <files...>", "scope file-appending steps to these files")
-    .option("--base <ref>", "scope file-appending steps to files changed against this ref")
+    .addOption(baseOption("scope file-appending steps to files changed against this ref"))
     .action(
       action(async (name: "quick" | "full" | "all", opts: { files?: string[]; base?: string }) => {
         const gate = name === "all" ? "full" : name;

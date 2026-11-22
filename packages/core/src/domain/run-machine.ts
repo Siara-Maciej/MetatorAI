@@ -25,7 +25,11 @@ export type RunEventType = RunEvent["type"];
 
 export type RunEvent =
   | { readonly type: "PASS" }
-  | { readonly type: "FAIL"; readonly reason?: string }
+  /**
+   * `final`: no retry can fix it (what the stage waits on stopped: a child run escalated), so the
+   * run escalates at once instead of going back while loops are left.
+   */
+  | { readonly type: "FAIL"; readonly reason?: string; readonly final?: boolean }
   | { readonly type: "APPROVE"; readonly by: string; readonly choice?: string }
   | { readonly type: "ABORT"; readonly reason: string };
 
@@ -71,9 +75,10 @@ function compile(spec: WorkflowSpec) {
       ? [
           {
             target: stage.onFail.goto,
-            guard: ({ context }: { context: RunContext }) =>
+            guard: ({ context, event }: { context: RunContext; event: RunEvent }) =>
+              !(event.type === "FAIL" && event.final === true) &&
               (context.loops[(stage.onFail as NonNullable<StageSpec["onFail"]>).loop] ?? 0) <
-              (limits[(stage.onFail as NonNullable<StageSpec["onFail"]>).loop] ?? 0),
+                (limits[(stage.onFail as NonNullable<StageSpec["onFail"]>).loop] ?? 0),
             actions: [
               log,
               assign(({ context }: { context: RunContext }) => {

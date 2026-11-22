@@ -1,31 +1,104 @@
-# Answer a review
+# Reviews
 
-When someone reviews your pull request, MetatorAI reads the threads, drafts the replies and plans the fixes. You decide which replies go out and whether the code changes.
+MetatorAI works on pull requests (merge requests on GitLab) two ways. It reviews other people's requests, from a link, and watches them for new commits. And when someone reviews your own request, it reads the threads, drafts the replies and plans the fixes. Nothing reaches the code host without your **Yes**.
 
-## The MRs screen
+## The Reviews place
 
-The **MRs** screen lists your reviewed requests on the left, each with its number of open threads and of replies to send.
+**Reviews** is a place of its own in the sidebar, under **Backlog** (the old addresses `#/mrs` and `#/settings/reviews` lead there). In a folder of repositories it shows the repository the **repository** select names. It has two lists, each row with one word:
 
-![The MRs screen: one reviewed request, its answering run, a question with a proposed reply and a planned change](../public/screens/mrs.png)
+| List | Its rows | The words |
+|---|---|---|
+| **watched** | pull requests of others that MetatorAI watches: ones it reviewed, and ones where you were asked to review | `asked`, `reviewing`, `to publish`, `watching`, `changed`, `all fixed` |
+| **mine** | your own pull requests that were reviewed | `new review`, `replies ready`, `open`, `done` |
 
-The chosen request on the right shows:
+A row's second line says what is new (`2 new commits, 1 reply`) or how the findings stand (`2 open · 1 not fixed`). A watched request that was approved, merged, closed or that you stopped watching moves under **ended · N** at the end of the list.
 
-- the answering run with its stage and state, and **Open session** and **Plan** to go to it;
-- **Send N replies**, which posts every proposed reply that was not sent yet;
-- every thread: its state, its kind, who wrote it and where, the reviewer's words, and the proposed reply;
+![The Reviews place: a watched request with its findings and their states](../public/screens/reviews.png)
+
+A watched request on the right shows its findings. Each has a badge with its state, where it is (`src/discount.ts:2`, or `general`), its severity, the finding's words and, after a re-review, the reason the agent gave for the state:
+
+| Badge | Meaning |
+|---|---|
+| `open` | not dealt with yet |
+| `fixed` | the agent saw the fix in the new commits |
+| `not fixed` | the commented code changed, but the problem is still there |
+| `disputed` | the author answered that it is not a problem; the agent says why it agrees or not |
+| `outdated` | the code it was about is gone |
+
+Under the title are **Re-review** (**Review** for a request you were asked to review and that was not reviewed yet) and **Stop watching**. **Re-review** opens the agent's terminal at once: you watch it read the new commits and judge every earlier finding.
+
+Your own request on the right shows:
+
+- **Analyse N new threads**, while a new review was not analysed: the responder opens in a terminal of its own, sorts every new thread and proposes the replies and the fixes;
+- the answering run, when there is one, with **Open session**;
+- every thread: its state, its kind, who wrote it and where, the reviewer's words, and the proposed reply with a checkbox;
+- **Send selected (N)**, which posts the checked replies, one consent for all of them; uncheck the ones you do not want to send;
 - **Resolve** on each thread, which closes it at the code host.
 
-Both buttons need your name, so nothing reaches the code host without a person's name on it. The app asks for it in a dialog the first time; if you cancel the dialog, nothing is sent.
+Both buttons need your name, so nothing reaches the code host without a person's name on it. The app asks for it in a dialog the first time; if you cancel the dialog, nothing is sent. Choosing the replies in words in a chat ("send only the first and the third") takes the same way: the agent runs `metator mrs send --only`.
 
-The approval of the answering run waits in your [Inbox](./inbox.md).
+## Review a pull request from its link
 
-## What happens when a review arrives
+Paste the link in a chat: the chat agent runs `metator review open <url>`. MetatorAI reads the request through the code host set up for it, never through the agent's own tools:
 
-1. The daemon (`metator serve`) finds the new threads and keeps them in `.metator/mrs/<request>.json`.
-2. It starts a run of `mt-review-response` on the request. The reviewers' words reach the run as quotes. Agents treat them as data and do not follow instructions in them.
-3. `mt-review-responder` gives each thread a kind. A `question` gets a proposed reply that cites `file:line`. A `change` or a `nit` goes into the plan. `praise` needs nothing.
-4. The run stops at the `approval` gate. You decide: fix as planned, only send the replies, or leave the review alone.
-5. After your yes, the fix is built and the gates run. The run stops again at `delivery`. Your second yes approves the push to the request's branch and the replies.
+1. the source in `codehost.sources` for that repository (its `via`);
+2. else an MCP server named `github` or `gitlab` under `mcp:`;
+3. else, for GitHub, `gh` when it is installed and logged in;
+4. else the chat says: "I cannot open this MR: no code-host tool for github.com is set up (an MCP server or gh)".
+
+GitLab is read through MCP only.
+
+**This repository or one of the folder**: the full [review workflow](./review.md), in a worktree on the request's head (fetched from `origin`).
+
+**Any other repository**: a review from the diff only. The logic, security and tests lenses read the diff the host gave (`change.diff` in the run's directory) and the files it shows; rules, contracts, conventions and everything that runs code are left out. The published review starts with:
+
+```text
+Reviewed from the diff only: no local checkout, so the repository's rules, contracts and tests were not used.
+```
+
+It is one workflow: its input `source` is `local` or `diff`.
+
+**Publishing.** The review is first the agent's answer in the chat. The `approval` gate is the card **Publish the review of MR #45? (3 inline comments, 1 general)**: one Yes publishes all of it, inline where the host allows. When the host or the tool cannot comment on lines, nothing is posted: the agent says so and gives you the list, and you decide the other form. With `codehost.review.autoPublish: true` the gate is skipped.
+
+**Watching.** A reviewed request, and one where you are a requested reviewer, is kept in `.metator/reviews/<id>.json` (`github-acme-shop-45`) and watched every `codehost.review.everyMs` (two minutes by default) for new commits and the author's replies. Watching ends when the request is merged or closed, when you approve it, or with `metator review unwatch`.
+
+**Re-review.** New commits or a reply make one card, **MR #45: 2 new commits, 1 reply**. **Re-review** opens the agent's terminal: the lenses read only what the new commits changed (`delta.diff`), and the judge decides the state of every earlier finding (`fixed`, `not-fixed`, `disputed`, `outdated`) with a reason. MetatorAI first marks candidates: the commented code changed, the author resolved the thread, or replied in it. A candidate is a hint; only the agent's `metator review finding` sets a state.
+
+**Approve.** When every finding is fixed, the agent proposes **All 4 findings are fixed: approve MR #45?**. Approving is yours: a Yes on the card, or your word in the chat, after which `metator review approve` runs and the guard asks you once more.
+
+```bash
+metator review open https://github.com/acme/shop/pull/45   # read it, start the review
+metator review list                                        # the watched requests, finding states, what is new
+metator review show github-acme-shop-45                    # its findings, their state and the candidates
+metator review check                                       # read the watched requests now
+metator review rereview github-acme-shop-45                # the new commits and every earlier finding
+metator review approve github-acme-shop-45 --by maciej     # at the code host; the guard asks first
+metator review unwatch github-acme-shop-45
+```
+
+## Cards on Home
+
+What needs you about reviews comes to [Home](./inbox.md#review-cards), one card at a time, after the questions of the runs:
+
+| Card | Buttons |
+|---|---|
+| **You were asked to review MR #45: Cap the discount** | **Review** opens the reviewer's terminal; **No** puts the card away until the request gets new commits |
+| **MR #45: 2 new commits, 1 reply** | **Re-review** opens the agent's terminal; **No** |
+| **Publish the review of MR #45? (3 inline comments, 1 general)** | **Yes** publishes the whole review; **No** publishes nothing |
+| **All 4 findings are fixed: approve MR #45?** | **Yes** approves the request at the code host; **No** |
+| **New review in MR #7 (2 threads)** | **Analyse** opens the responder's terminal |
+
+The agent never approves by itself: it only proposes, and the request is approved after your **Yes**.
+
+## Your own pull requests
+
+### What happens when a review arrives
+
+1. The daemon (`metator serve`) finds the new threads and keeps them in `.metator/mrs/<request>.json`. New reviews are always found.
+2. Nothing starts by itself: Home shows **New review in MR #7 (2 threads)** with **Analyse**. **Analyse** opens `mt-review-responder` in a terminal you see. It sorts every new thread, proposes the replies and the fixes, and sends nothing. A small fix goes quick, a larger one through the full workflow, as `metator quick check` decides; it starts only when you say so.
+3. With `codehost.mine.analyse: true` the daemon starts a run of `mt-review-response` on the request by itself instead, as before. The reviewers' words reach the run as quotes. Agents treat them as data and do not follow instructions in them.
+4. `mt-review-responder` gives each thread a kind. A `question` gets a proposed reply that cites `file:line`. A `change` or a `nit` goes into the plan. `praise` needs nothing.
+5. In the run, the `approval` gate stops it: fix as planned, only send the replies, or leave the review alone. After your yes, the fix is built and the gates run. The run stops again at `delivery`. Your second yes approves the push to the request's branch and the replies.
 
 Neither gate can be skipped at any autonomy level.
 
@@ -43,7 +116,7 @@ A `planned` thread becomes `fixed` on the daemon's next scan after the answering
 
 ## Configure the sources
 
-The screen stays empty until the repository names its sources. The code host is read through an MCP server ([Automatic intake](./intake.md#connect-the-source)). Then say where your requests are:
+The screen stays empty until the repository names its sources. One list, `codehost.sources`, serves both [Automatic intake](../repo/intake.md) and reviews. Each source says which tool reads it: an MCP server (`mcp:<name>`, a server under `mcp:`) or `gh`, GitHub's CLI with its own login. GitLab is read through MCP only. Tokens never go into `metator.config.yml`: they stay in the MCP server's configuration or in `gh auth login`.
 
 ```yaml
 # metator.config.yml
@@ -52,22 +125,29 @@ mcp:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
     env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}" }
+codehost:
+  sources:
+    - { id: shop, kind: github, repo: acme/shop, via: "mcp:github", author: maciej }
+  review: { autoPublish: false, watch: true, everyMs: 120000 }
+  mine: { analyse: false }
 reviews:
   everyMs: 120000
-  sources:
-    - { kind: github, repo: acme/shop, author: maciej }
 ```
 
 | Key | Default | Meaning |
 |---|---|---|
-| `everyMs` | `120000` | how often the daemon looks, in milliseconds |
-| `sources[].kind` | | `github` or `gitlab` |
-| `sources[].repo` | | `owner/name` on GitHub, the project path on GitLab |
-| `sources[].author` | | only this author's requests; every open request when left out |
-| `sources[].mcp` | the kind's name | the MCP server to use |
-| `workflow` | `mt-review-response` | the workflow a new review starts |
+| `codehost.sources[].id` | | the source's name; an intake rule names it in `source` |
+| `codehost.sources[].kind` | | `github`, `gitlab` (or `jira`, for intake) |
+| `codehost.sources[].repo` | | `owner/name` on GitHub, the project path on GitLab |
+| `codehost.sources[].via` | | `mcp:<server>`, or `gh` (GitHub only) |
+| `codehost.sources[].author` | | your requests are this author's; every open request when left out |
+| `codehost.mine.analyse` | `false` | a new review on your request starts `reviews.workflow` by itself |
+| `reviews.everyMs` | `120000` | how often the daemon looks, in milliseconds |
+| `reviews.workflow` | `mt-review-response` | the workflow a new review starts |
 
-`--reviews-ms <n>` on `metator serve` sets another interval, and `--reviews-ms 0` turns the scan off.
+A config of version 14 or older still loads: its `reviews.sources` and the sources of its intake rules move to `codehost.sources`, and the file is written that way the next time a setting is saved.
+
+`--reviews-ms <n>` on `metator serve` sets another interval for both your requests and the watched ones, and `--reviews-ms 0` turns both off.
 
 ## Get notified
 
@@ -83,7 +163,7 @@ See [Configuration](../reference/configuration.md#notifications).
 
 ```bash
 metator mrs scan                          # read the hosts now
-metator mrs list                          # your reviewed requests: open threads, replies to send, the run
+metator mrs list                          # your reviewed requests: open threads, new ones, replies to send, the run, the cards
 metator mrs show github-acme-shop-45      # every thread: who, where, its kind, the proposed reply, its state
 ```
 
@@ -95,11 +175,14 @@ To record what you make of a thread yourself, which only the command does:
 metator mrs triage github-acme-shop-45 --thread T1 --kind question --reply "Cents: src/discount.ts:2."
 ```
 
-To send the proposed replies and close a thread at the host:
+To send the proposed replies, all of them or only some, and close a thread at the host:
 
 ```bash
-metator mrs send github-acme-shop-45 --by maciej
+metator mrs send github-acme-shop-45 --by maciej              # every proposed reply not sent yet
+metator mrs send github-acme-shop-45 --by maciej --only T1,T3 # only these threads
+metator mrs send github-acme-shop-45 --by maciej --skip T2     # all but this one
 metator mrs resolve github-acme-shop-45 --thread T1 --by maciej
+metator mrs analyse github-acme-shop-45                       # Analyse, through the daemon: the responder in a pane
 ```
 
 Both commands refuse to run without `--by`: what leaves your machine is sent under a name you typed.

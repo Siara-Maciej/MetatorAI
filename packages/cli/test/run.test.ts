@@ -49,6 +49,32 @@ describe("metator CLI", () => {
     expect((JSON.parse(lines[0] as string).data as { verbs: unknown[] }).verbs.length).toBeGreaterThan(0);
   });
 
+  test("at a terminal (stdout a TTY) a command with a text for people prints only that text; piped, or with --json, the JSON line", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "metator-tty-"));
+    Bun.spawnSync(["git", "init", "-q"], { cwd: dir });
+    try {
+      const at = async (argv: string[], stdoutTty: boolean) => {
+        const shown: string[] = [];
+        const lines: string[] = [];
+        const terminal = { raw: (text: string) => shown.push(text) } as unknown as Terminal;
+        const code = await run(argv, { out: (t) => lines.push(t) }, { terminal, stdoutTty, cwd: dir });
+        return { code, shown: shown.join(""), lines };
+      };
+      const tty = await at(["issue", "list"], true);
+      expect([tty.code, tty.lines, tty.shown]).toEqual([0, [], "The backlog is empty.\n"]);
+      expect((await at(["--help"], true)).lines).toEqual([]);
+      // Piped: the JSON line, as always; --json: only the JSON line, nothing for people.
+      const piped = await at(["issue", "list"], false);
+      expect(JSON.parse(piped.lines[0] as string)).toEqual({ ok: true, data: { issues: [] } });
+      const json = await at(["issue", "list", "--json"], true);
+      expect([json.lines.length, json.shown]).toEqual([1, ""]);
+      // A failure keeps its JSON line at a terminal too: its text and its envelope.
+      expect((await at(["issue", "show", "i404"], true)).lines).toHaveLength(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("a group's help names each of its commands with the group in the usage", async () => {
     const group = (await invoke("worktree", "--help")).json.data as {
       commands: { name: string; usage: string }[];

@@ -6,16 +6,13 @@ import {
   ArchitecturePolicyCatalog,
 } from "../src/application/architecture.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
-import {
-  type ArchitectureInput,
-  analyzeArchitecture,
-  type ExternalImport,
-  manifestOf,
-  matchesId,
-  type PackageManifest,
-  type ResolvedImport,
-  ROOT_PACKAGE,
-} from "../src/domain/architecture.ts";
+import { analyzeArchitecture, matchesId } from "../src/domain/architecture.ts";
+import type {
+  ArchitectureInput,
+  ExternalImport,
+  ResolvedImport,
+} from "../src/domain/architecture-context.ts";
+import { manifestOf, type PackageManifest, ROOT_PACKAGE } from "../src/domain/architecture-manifests.ts";
 import {
   ArchitecturePolicySchema,
   brokenTagRules,
@@ -336,6 +333,24 @@ describe("analyzeArchitecture: declarations", () => {
       });
       expect([file, ids(typeTest)]).toEqual([file, []]);
     }
+  });
+
+  test("a type-only import may come from devDependencies: `import type` is erased at build (ADR-0085)", () => {
+    const dev = m("packages/ui", "@x/ui", { main: "x", devDependencies: { "@x/core": "*" } });
+    const typesOnly = input({
+      manifests: { packages: [WEB, dev, CORE] },
+      imports: [imp("packages/ui/src/api.ts", "packages/core/src/money.ts", "@x/core", true)],
+    });
+    expect(ids(typesOnly)).toEqual([]);
+    // One runtime import among type-only ones ships the package: it is a dependency again.
+    const mixed = input({
+      manifests: { packages: [WEB, dev, CORE] },
+      imports: [
+        imp("packages/ui/src/api.ts", "packages/core/src/money.ts", "@x/core", true),
+        imp("packages/ui/src/button.ts", "packages/core/src/money.ts", "@x/core"),
+      ],
+    });
+    expect(ids(mixed)).toEqual(["dev-in-prod:@x/ui→@x/core"]);
   });
 
   test("tool configuration may use devDependencies: it runs at build or check time", () => {

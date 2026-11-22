@@ -159,7 +159,8 @@ describe("Supervisor", () => {
     await w.idle();
     const first = (await w.supervisor.tick())._unsafeUnwrap();
     expect([first.nudged, first.asked]).toEqual([[run.runId], []]);
-    expect(pty?.typed).toEqual([`${NUDGE}\r`]);
+    // The words; their Enter follows as its own write (pty-broker.test.ts pins that).
+    expect(pty?.typed).toEqual([NUDGE]);
     expect(w.broker.status("w1:p1")?.idle).toBe(false);
     // Idle again after the nudge: the person is asked, once.
     await w.idle();
@@ -182,6 +183,60 @@ describe("Supervisor", () => {
     expect(pty?.killed).toBe(true);
     const idle = (await w.journal.activity(run.runId))._unsafeUnwrap().filter((a) => a.type === "idle");
     expect(idle.map((a) => a.origin)).toEqual(["pty", "run", "pty", "pty"]);
+  });
+
+  test("a session the daemon just resumed is left to its own line: the supervisor does not nudge it as well", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.open(run.runId);
+    let pending = true;
+    const supervisor = new Supervisor({
+      ...(w.supervisor as unknown as { d: ConstructorParameters<typeof Supervisor>[0] }).d,
+      panes: {
+        view: async () => ok({ workspaces: [], panes: [] }),
+        openRun: async () => ok({} as never),
+        resumeNoticePending: () => pending,
+      },
+    });
+    await w.idle();
+    expect((await supervisor.tick())._unsafeUnwrap().nudged).toEqual([]);
+    pending = false;
+    expect((await supervisor.tick())._unsafeUnwrap().nudged).toEqual([run.runId]);
+  });
+
+  test("an agent that asked the person in words is never nudged while the question is open: the activity has no nudge", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.open(run.runId);
+    let open = true;
+    const supervisor = new Supervisor({
+      ...(w.supervisor as unknown as { d: ConstructorParameters<typeof Supervisor>[0] }).d,
+      asksInPane: (paneId) => open && paneId === "w1:p1",
+    });
+    await w.idle();
+    for (let i = 0; i < 3; i++) expect((await supervisor.tick())._unsafeUnwrap().nudged).toEqual([]);
+    const nudges = (await w.journal.activity(run.runId))
+      ._unsafeUnwrap()
+      .filter((a) => a.text.startsWith("nudged"));
+    expect(nudges).toEqual([]);
+    open = false;
+    expect((await supervisor.tick())._unsafeUnwrap().nudged).toEqual([run.runId]);
+  });
+
+  test("an idle conductor whose last message asks the person is not nudged, even before its question reaches the inbox", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.open(run.runId);
+    const pty = w.host.started[0]?.pty;
+    const supervisor = new Supervisor({
+      ...(w.supervisor as unknown as { d: ConstructorParameters<typeof Supervisor>[0] }).d,
+      broker: Object.assign(Object.create(w.broker), {
+        screen: async () => "● Which rounding should the totals use: per line or per invoice?\n\n❯",
+      }),
+    });
+    await w.idle();
+    expect((await supervisor.tick())._unsafeUnwrap().nudged).toEqual([]);
+    expect(pty?.typed).toEqual([]);
   });
 
   test("a person at the keyboard is never nudged over; output ends the episode", async () => {

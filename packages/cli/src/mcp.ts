@@ -1,5 +1,6 @@
 import { err, MetatorError, ok, type Result } from "@metator/core";
 import type { Command } from "commander";
+import { everyCommand, metaOf, reads } from "./command-meta.ts";
 import { describeCommands } from "./commands/meta.ts";
 
 /**
@@ -7,112 +8,32 @@ import { describeCommands } from "./commands/meta.ts";
  * agent in any MCP host (an IDE, a chat, another agent) asks the repository the same questions
  * `metator` answers in a terminal. Nothing that writes, runs the project's scripts, drives a run
  * or talks to an AI host is a tool: those stay with the person and the run's own hooks.
+ *
+ * Which commands read is what each says of itself where it is registered (`meta(cmd, { reads })`,
+ * a group for all of its commands); nothing is a tool unless it says so.
+ * This is not core's `METATOR_QUERIES` (what an agent's shell may run without asking): that list
+ * answers another question and is kept apart on purpose; `test/command-meta.test.ts` pins where
+ * the two differ.
  */
-const READING: readonly string[] = [
-  "version",
-  "help",
-  "changed",
-  "graph",
-  "workspace list",
-  "symbols find",
-  "api diff",
-  "owners",
-  "system show",
-  "system lint",
-  "system impact",
-  "system sources",
-  "system status",
-  "system plan list",
-  "system plan show",
-  "system plan lint",
-  "arch analyze",
-  "arch check",
-  "arch cycles",
-  "arch declared",
-  "arch plan list",
-  "arch plan show",
-  "arch plan lint",
-  "arch plan status",
-  "rules lint",
-  "rules pack",
-  "rules show",
-  "rules check",
-  "rules coverage",
-  "memory inventory",
-  "memory budget",
-  "memory validate",
-  "memory check",
-  "memory dupes",
-  "memory matrix",
-  "docs inventory",
-  "docs links",
-  "issue list",
-  "issue show",
-  "docs drift",
-  "similar",
-  "adr lint",
-  "config show",
-  "findings check-quote",
-  "review metadata",
-  "review diff",
-  "review plan",
-  "plan lint",
-  "plan scope",
-  "debug-tags check",
-  "workflow list",
-  "workflow lint",
-  "workflow validate",
-  "run status",
-  "run list",
-  "run questions",
-  "run activity",
-  "run brief",
-  "run published",
-  "run messages",
-  "run workers",
-  "policy list",
-  "worktree list",
-  "worktree conflicts",
-  "env status",
-  "repos list",
-  "repos status",
-  "ask list",
-  "status",
-  "doctor",
-  "inbox",
-  "report",
-  "pane list",
-  "pane read",
-];
+const tagged = (program: Command, key: "writesWith" | "readsWith"): Record<string, readonly string[]> =>
+  Object.fromEntries(
+    everyCommand(program)
+      .filter((c) => !c.meta.renamedFrom)
+      .flatMap((c) => (c.meta[key] ? [[c.name, c.meta[key]] as const] : [])),
+  );
 
 /**
  * The options of a reading command that write a file, change files, clone a repository, send a
- * message or run the project's scripts: a tool call that carries one is refused, so a tool marked read-only stays read-only.
+ * message or run the project's scripts (`writesWith`): a tool call that carries one is refused,
+ * so a tool marked read-only stays read-only.
  */
-export const REFUSED: Readonly<Record<string, readonly string[]>> = {
-  "system lint": ["--fetch"],
-  "system sources": ["--fetch"],
-  "arch check": ["--sarif"],
-  "memory validate": ["--fix"],
-  "docs drift": ["--fix"],
-  "review metadata": ["--out"],
-  "review diff": ["--out"],
-  "review plan": ["--out"],
-  "worktree conflicts": ["--notify"],
-  "plan scope": ["--out"],
-  // The quick gate runs the project's scripts.
-  doctor: ["--gates"],
-  report: ["--html"],
-};
+export const refusedOptions = (program: Command) => tagged(program, "writesWith");
 
 /**
- * Options a tool always passes, so the command leaves no trace (`run brief` marks the run as read,
- * `plan scope` writes plan-scope.json).
+ * Options a tool always passes (`readsWith`), so the command leaves no trace (`run brief` marks
+ * the run as read, `plan scope` writes plan-scope.json).
  */
-export const ALWAYS: Readonly<Record<string, readonly string[]>> = {
-  "run brief": ["--peek"],
-  "plan scope": ["--dry-run"],
-};
+export const alwaysOptions = (program: Command) => tagged(program, "readsWith");
 
 /** How a tool's typed fields become a command line: positionals in order, then flags. */
 export interface ToolShape {
@@ -121,22 +42,40 @@ export interface ToolShape {
 }
 
 /**
- * The tools an agent reaches for most, with typed fields besides the raw `args`, so a host shows
- * a form instead of a command line. Every other tool takes `args` alone.
+ * The typed fields of a tool, from the command itself: its required arguments in order, and its
+ * options (a flag is a boolean, `<values...>` a list, one with a parser a number, any other a
+ * string). An option the tool refuses (`writesWith`) or always passes (`readsWith`) is no field.
  */
-export const TYPED: Readonly<Record<string, ToolShape>> = {
-  "graph affected": { positionals: [], flags: { base: "string", files: "list" } },
-  "graph dependents": { positionals: ["file"], flags: { transitive: "boolean" } },
-  "graph deps": { positionals: ["file"], flags: { transitive: "boolean" } },
-  "graph path": { positionals: ["from", "to"], flags: {} },
-  "graph callers": { positionals: ["symbol"], flags: { file: "string" } },
-  "symbols find": { positionals: ["name"], flags: {} },
-  "rules show": { positionals: ["id"], flags: {} },
-  "rules pack": { positionals: [], flags: { files: "list", base: "string", budget: "number" } },
-  "plan scope": { positionals: ["file"], flags: {} },
-  "run status": { positionals: [], flags: { run: "string" } },
-  "pane read": { positionals: ["pane"], flags: { lines: "number" } },
-};
+export function toolShape(cmd: Command): ToolShape {
+  const { writesWith = [], readsWith = [] } = metaOf(cmd);
+  const flags: Record<string, "string" | "boolean" | "number" | "list"> = {};
+  for (const o of cmd.options) {
+    if (o.hidden || !o.long || writesWith.includes(o.long) || readsWith.includes(o.long)) continue;
+    flags[o.attributeName()] = o.isBoolean()
+      ? "boolean"
+      : o.variadic
+        ? "list"
+        : o.parseArg || typeof o.defaultValue === "number"
+          ? "number"
+          : "string";
+  }
+  return {
+    positionals: cmd.registeredArguments.filter((a) => a.required).map((a) => a.name()),
+    flags,
+  };
+}
+
+/**
+ * The tools an agent reaches for most (`typed` where they are registered), with typed fields
+ * besides the raw `args`, so a host shows a form instead of a command line. Every other tool
+ * takes `args` alone.
+ */
+export const typedShapes = (program: Command): Record<string, ToolShape> =>
+  Object.fromEntries(
+    everyCommand(program)
+      .filter((c) => c.meta.typed && !c.meta.renamedFrom)
+      .map((c) => [c.name, toolShape(c.cmd)]),
+  );
 
 export interface McpTool {
   /** `metator_graph_affected`: the command's words joined, as MCP names tools. */
@@ -146,23 +85,36 @@ export interface McpTool {
   readonly description: string;
   /** Typed fields, for the tools that have them. */
   readonly shape?: ToolShape;
+  /** Options a call may not carry: they write. */
+  readonly refused?: readonly string[];
+  /** Options every call carries, so the command leaves no trace. */
+  readonly always?: readonly string[];
 }
 
 /** A tool call's fields: typed ones per its shape, and `args` as on the command line. */
 export type ToolInput = Readonly<Record<string, unknown>> & { readonly args?: readonly string[] };
 
-/** The reading commands of the tree as tools, in the tree's order; a prefix in the list takes its whole group. */
+/**
+ * The reading commands of the tree as tools, in the tree's order. A tool keeps the name it has:
+ * a renamed command is a tool under its old words, never twice.
+ */
 export function mcpTools(program: Command): McpTool[] {
-  return describeCommands(program)
-    .commands.filter((c) => READING.some((r) => c.name === r || c.name.startsWith(`${r} `)))
+  const said = new Map(everyCommand(program).map((c) => [c.name, c]));
+  return describeCommands(program, { renamed: true })
+    .commands.filter((c) => {
+      const cmd = said.get(c.name);
+      return cmd !== undefined && reads(cmd.cmd) && !cmd.meta.renamedFrom;
+    })
     .map((c) => {
-      const shape = TYPED[c.name];
-      const refused = REFUSED[c.name];
+      const shape = said.get(c.name)?.meta.typed ? toolShape(said.get(c.name)?.cmd as Command) : undefined;
+      const { writesWith: refused, readsWith: always } = said.get(c.name)?.meta ?? {};
       return {
         name: `metator_${c.name.replaceAll(" ", "_").replaceAll("-", "_")}`,
         command: c.name,
         description: `${c.summary}. Usage: ${c.usage}; ${shape ? "the typed fields are the command's own arguments and options; anything else goes" : "pass the command's own options and arguments"} in \`args\` (\`metator ${c.name} --help\` lists them). The result is MetatorAI's JSON envelope.${refused ? ` The tool only reads: ${refused.join(", ")} is refused.` : ""}`,
         ...(shape ? { shape } : {}),
+        ...(refused ? { refused } : {}),
+        ...(always ? { always } : {}),
       };
     });
 }
@@ -191,7 +143,7 @@ export function toolArgv(tool: McpTool, input: ToolInput): string[] {
     } else if (kind === "list") argv.push(`--${flag}`, ...(Array.isArray(v) ? v.map(String) : [String(v)]));
     else argv.push(`--${flag}`, String(v));
   }
-  const always = (ALWAYS[tool.command] ?? []).filter((f) => !(input.args ?? []).includes(f));
+  const always = (tool.always ?? []).filter((f) => !(input.args ?? []).includes(f));
   return [...argv, ...always, ...(input.args ?? [])];
 }
 
@@ -203,7 +155,7 @@ export function toolCall(tool: McpTool, input: ToolInput): Result<string[], Meta
   const argv = toolArgv(tool, input);
   const end = argv.indexOf("--");
   const options = (end === -1 ? argv : argv.slice(0, end)).map((a) => a.split("=")[0] as string);
-  const refused = (REFUSED[tool.command] ?? []).find((f) => options.includes(f));
+  const refused = (tool.refused ?? []).find((f) => options.includes(f));
   if (refused)
     return err(
       MetatorError.usage(

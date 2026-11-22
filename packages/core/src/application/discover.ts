@@ -11,8 +11,9 @@ import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { manifestPath } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
+import { parseJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem, PackageManagerDetector, Vcs, WorkspaceReader } from "../ports/index.ts";
+import { writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";
 
@@ -119,10 +120,7 @@ export class Discover {
       })).filter((a) => a.files.length > 0),
       warnings,
     };
-    const saved = await this.fs.write(
-      this.paths.discovery,
-      serializeJsonDocument(DiscoveryDocument.stamp(discovery)),
-    );
+    const saved = await writeDocument(this.fs, this.paths.discovery, DiscoveryDocument, discovery, "json");
     if (saved.isErr()) return err(saved.error);
     return ok(discovery);
   }

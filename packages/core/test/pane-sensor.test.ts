@@ -17,6 +17,7 @@ import {
   WorkflowCatalog,
 } from "@metator/core";
 import { FakePty, FixedClock, InMemoryFileSystem, ScriptedProcessRunner } from "@metator/testing";
+import { ok } from "../src/domain/result.ts";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -176,5 +177,227 @@ describe("HostPrompts", () => {
     await prompts.tick();
     const q3 = (await w.journal.questions(run.runId))._unsafeUnwrap().find((x) => x.id === "q003");
     expect(q3?.answer).toMatchObject({ choices: ["Other"], text: ANSWERED_IN_PANE, by: "pane:w1:p1" });
+  });
+});
+
+describe("whose question a pane reads (a conductor and its workers)", () => {
+  /** The layout as the panes know themselves: the conductor, and a worker of stage build. */
+  const identity = {
+    of: async (paneId: string) =>
+      paneId === "w1:p1"
+        ? { role: "conductor" as const, agent: "mt-orchestrator", stage: "build" }
+        : paneId === "w1:p2"
+          ? { role: "worker" as const, agent: "mt-implementer-1", stage: "build" }
+          : undefined,
+  };
+
+  test("a worker's own question makes the worker wait, never the conductor; a question for nobody in particular is the conductor's", async () => {
+    const w = world();
+    const sensor = new PaneSensor({
+      broker: w.broker,
+      manifests: w.manifests,
+      journal: w.journal,
+      clock: w.clock,
+      identity,
+    });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.start("w1:p1", run.runId, "copilot").print("ok\n".repeat(6));
+    w.start("w1:p2", run.runId, "copilot", 1002).print("ok\n".repeat(6));
+    const ask = (agent?: string) =>
+      w.journal.ask(run.runId, {
+        stage: "build",
+        source: "agent",
+        ...(agent ? { agent } : {}),
+        prompt: `Round half up? (${agent ?? "nobody"})`,
+        options: [{ label: "yes" }],
+        multiSelect: false,
+      });
+    const q = (await ask("mt-implementer-1"))._unsafeUnwrap();
+    expect((await sensor.state("w1:p2"))._unsafeUnwrap().state).toBe("waiting");
+    expect((await sensor.state("w1:p1"))._unsafeUnwrap().state).not.toBe("waiting");
+    await w.journal.answer(run.runId, q.id, { choices: ["yes"], by: "ana" });
+    await ask();
+    expect((await sensor.state("w1:p1"))._unsafeUnwrap().state).toBe("waiting");
+    expect((await sensor.state("w1:p2"))._unsafeUnwrap().state).not.toBe("waiting");
+  });
+
+  test("a worker's host prompt is the worker's question at the run's stage, not the host's at stage session", async () => {
+    const w = world();
+    const sensor = new PaneSensor({
+      broker: w.broker,
+      manifests: w.manifests,
+      journal: w.journal,
+      clock: w.clock,
+      identity,
+    });
+    const prompts = new HostPrompts({ sensor, journal: w.journal, lock: w.lock, identity });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.start("w1:p2", run.runId, "copilot", 1002).print("Allow copilot to run `bun test`? (y/n) ");
+    const asked = (await prompts.tick())._unsafeUnwrap().asked;
+    const q = (await w.journal.questions(run.runId))
+      ._unsafeUnwrap()
+      .find((x) => x.id === asked[0]?.questionId);
+    expect([q?.agent, q?.stage, q?.prompt]).toEqual([
+      "mt-implementer-1",
+      "build",
+      "mt-implementer-1 waits for your answer in pane w1:p2: Allow copilot to run `bun test`? (y/n)",
+    ]);
+  });
+
+  test("a worker's question with options in its terminal is a question (its words, its options), and the person's choice is typed into the pane", async () => {
+    const w = world();
+    const sensor = new PaneSensor({
+      broker: w.broker,
+      manifests: w.manifests,
+      journal: w.journal,
+      clock: w.clock,
+      identity,
+    });
+    const typed: string[] = [];
+    const prompts = new HostPrompts({
+      sensor,
+      journal: w.journal,
+      lock: w.lock,
+      identity,
+      type: async (paneId, text) => {
+        typed.push(`${paneId} ${text}`);
+        return ok(undefined);
+      },
+    });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pty = w.start("w1:p2", run.runId, "scenario", 1002);
+    pty.print("\u001b[1mWhich currency does a product without one get? [PLN / EUR]\u001b[0m\n");
+    const asked = (await prompts.tick())._unsafeUnwrap().asked;
+    const q = (await w.journal.questions(run.runId))
+      ._unsafeUnwrap()
+      .find((x) => x.id === asked[0]?.questionId) as Question;
+    expect([q.source, q.agent, q.stage, q.prompt]).toEqual([
+      "agent",
+      "mt-implementer-1",
+      "build",
+      "Which currency does a product without one get?",
+    ]);
+    expect(q.options.map((o) => o.label)).toEqual(["PLN", "EUR", ATTACH_PANE, "Other"]);
+    await w.journal.answer(run.runId, q.id, { choices: ["EUR"], by: "ana" });
+    await prompts.tick();
+    expect(typed).toEqual(["w1:p2 EUR"]);
+    // Asked once; typed once.
+    await prompts.tick();
+    expect(typed).toEqual(["w1:p2 EUR"]);
+  });
+
+  const terminal = async (holder?: string) => {
+    const w = world();
+    const sensor = new PaneSensor({
+      broker: w.broker,
+      manifests: w.manifests,
+      journal: w.journal,
+      clock: w.clock,
+      identity,
+    });
+    const typed: string[] = [];
+    const prompts = new HostPrompts({
+      sensor,
+      journal: w.journal,
+      lock: w.lock,
+      identity,
+      type: async (paneId, text, by) => {
+        typed.push(`${paneId} ${text}${by ? ` as ${by}` : ""}`);
+        return ok(undefined);
+      },
+      screen: (paneId) => w.broker.backlog(paneId),
+      holder: async () => holder,
+    });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pty = w.start("w1:p2", run.runId, "scenario", 1002);
+    const questions = async () => (await w.journal.questions(run.runId))._unsafeUnwrap();
+    return { w, prompts, run, pty, typed, questions };
+  };
+
+  test("each question the pane asks gets its card: a new prompt closes the old one as answered there and opens its own", async () => {
+    const t = await terminal("bob");
+    t.pty.print("Which rounding? [half-up / half-even]\n");
+    await t.prompts.tick();
+    // Answered in the pane (bob is attached); the next question follows at once, still blocked.
+    t.pty.print("half-even\nanswer: half-even\nWhich currency? [PLN / EUR]\n");
+    const second = (await t.prompts.tick())._unsafeUnwrap();
+    const qs = await t.questions();
+    expect(qs.map((q) => [q.prompt, q.answer?.choices, q.answer?.by])).toEqual([
+      ["Which rounding?", ["half-even"], "bob"],
+      ["Which currency?", undefined, undefined],
+    ]);
+    expect(second.asked.map((a) => a.questionId)).toEqual(["q002"]);
+    expect(qs[1]?.options.map((o) => o.label)).toEqual(["PLN", "EUR", ATTACH_PANE, "Other"]);
+  });
+
+  test("an answer typed in the pane is recorded like a card answer: the words after the prompt, by the attached person, else the pane", async () => {
+    const t = await terminal();
+    t.pty.print("Which currency? [PLN / EUR]\n");
+    await t.prompts.tick();
+    t.pty.print("zloty, please\nanswer: zloty, please\ndone\n");
+    await t.prompts.tick();
+    const [q] = await t.questions();
+    expect(q?.answer).toMatchObject({ choices: ["Other"], text: "zloty, please", by: "pane:w1:p2" });
+    const said = (await t.w.journal.activity(t.run.runId))._unsafeUnwrap().map((a) => a.text);
+    expect(said.some((x) => x.startsWith("q001: Other"))).toBe(true);
+  });
+
+  test("a card answer is typed into the pane at once (deliver), not on the next check; once", async () => {
+    const t = await terminal();
+    t.pty.print("Which currency? [PLN / EUR]\n");
+    await t.prompts.tick();
+    (await t.prompts.settle(t.run.runId, "q001"))._unsafeUnwrap();
+    await t.w.journal.answer(t.run.runId, "q001", { choices: ["EUR"], by: "ana" });
+    (await t.prompts.deliver(t.run.runId, "q001"))._unsafeUnwrap();
+    expect(t.typed).toEqual(["w1:p2 EUR"]);
+    await t.prompts.tick();
+    expect(t.typed).toEqual(["w1:p2 EUR"]);
+  });
+
+  test("the pane answered first: the card's answer is not typed, the pane's answer is recorded and the card is told", async () => {
+    const t = await terminal();
+    t.pty.print("Which locale? [pl-PL / en-US]\n");
+    await t.prompts.tick();
+    // en-US typed in the pane; the card's pl-PL arrives before the next check.
+    t.pty.print("en-US\nanswer: en-US\nok\n");
+    (await t.prompts.settle(t.run.runId, "q001"))._unsafeUnwrap();
+    const [q] = await t.questions();
+    expect(q?.answer?.choices).toEqual(["en-US"]);
+    const late = await t.w.journal.answer(t.run.runId, "q001", { choices: ["pl-PL"], by: "ana" });
+    expect(late._unsafeUnwrapErr().message).toBe("question q001 is already answered");
+    (await t.prompts.deliver(t.run.runId, "q001"))._unsafeUnwrap();
+    expect(t.typed).toEqual([]);
+  });
+
+  test("a person at the keyboard of the pane: a card answer is refused, never typed over them", async () => {
+    const t = await terminal("bob");
+    t.pty.print("Which locale? [pl-PL / en-US]\n");
+    await t.prompts.tick();
+    const refused = (await t.prompts.settle(t.run.runId, "q001", "ana"))._unsafeUnwrapErr();
+    expect([refused.code, refused.message]).toEqual([
+      "CONFLICT",
+      "bob is answering in pane w1:p2: answer there, or wait until they release it",
+    ]);
+  });
+
+  test("a question answered in the pane is not asked again while its line is still on the screen", async () => {
+    const t = await terminal();
+    t.pty.print("Which currency? [PLN / EUR]\n");
+    await t.prompts.tick();
+    t.pty.print("EUR\nanswer: EUR\n");
+    await t.prompts.tick();
+    await t.prompts.tick();
+    await t.prompts.tick();
+    expect((await t.questions()).map((q) => [q.id, q.answer?.choices])).toEqual([["q001", ["EUR"]]]);
+  });
+
+  test("the person who holds the run's keyboard answers on the card: no conflict, typed under their name", async () => {
+    const t = await terminal("ana");
+    t.pty.print("Anything else before the plan? [no / yes]\n");
+    await t.prompts.tick();
+    (await t.prompts.settle(t.run.runId, "q001", "ana"))._unsafeUnwrap();
+    await t.w.journal.answer(t.run.runId, "q001", { choices: ["no"], by: "ana" });
+    (await t.prompts.deliver(t.run.runId, "q001"))._unsafeUnwrap();
+    expect(t.typed).toEqual(["w1:p2 no as ana"]);
   });
 });

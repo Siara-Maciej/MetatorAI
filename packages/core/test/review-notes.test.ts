@@ -278,4 +278,33 @@ describe("OpenEditor and RunChanges", () => {
     ]);
     expect(asked.map((a) => a.dir)).toEqual(["/repo", "/repo/.metator/worktrees/wt1"]);
   });
+
+  test("a step of a system plan, in the checkout its system run works in: the parent's plan files are not its change", async () => {
+    const w = world();
+    const run = (
+      await w.initRun.execute({ workflow: "demo", task: "Add the currency field" })
+    )._unsafeUnwrap();
+    const PLANS = `diff --git a/metator/system/plans/add-currency.yml b/metator/system/plans/add-currency.yml
+new file mode 100644
+--- /dev/null
++++ b/metator/system/plans/add-currency.yml
+@@ -0,0 +1 @@
++kind: SystemPlan
+`;
+    const changes = new RunChanges({
+      root: "/repo",
+      repo: w.repo,
+      changesAt: () => ({ patch: async () => ok(PATCH + PLANS), changedFiles: async () => ok([]) }),
+      runner: { run: async () => ({ exitCode: 0, stdout: "", stderr: "", durationMs: 1 }) },
+    });
+    const paths = async () =>
+      (await changes.execute({ runId: run.runId }))._unsafeUnwrap().files.map((f) => f.path);
+    // A run of its own: the plan file is a change like any other.
+    expect(await paths()).toContain("metator/system/plans/add-currency.yml");
+    const record = (await w.repo.load(run.runId))._unsafeUnwrap();
+    (
+      await w.repo.save({ ...record, system: { plan: "add-currency", step: "api", app: "shop-api" } })
+    )._unsafeUnwrap();
+    expect(await paths()).toEqual(["src/invoice.ts", "src/new.ts"]);
+  });
 });

@@ -5,7 +5,7 @@ import {
   type DiscoverySource,
   RepositoryDiscoverySource,
 } from "../src/application/system-discovery.ts";
-import { manifestOf } from "../src/domain/architecture.ts";
+import { manifestOf } from "../src/domain/architecture-manifests.ts";
 import { EMPTY_POLICY } from "../src/domain/architecture-policy.ts";
 import { ok } from "../src/domain/result.ts";
 import {
@@ -393,6 +393,26 @@ describe("DiscoverSystem", () => {
       ["tools-web", { repo: "tools", path: "apps/web" }, []],
     ]);
     expect(r.evidence.find((e) => e.subject === "consumes:web→billing-api")?.file).toBe("web/package.json");
+    // Written into one of the repositories (`home`): that one is the map's own checkout, the
+    // others without a remote are named from there.
+    const home = (
+      await new DiscoverSystem(detectors).execute({
+        system: "landscape",
+        home: "web",
+        sources: [
+          source("billing", { remote: "git@github.com:acme/billing.git", specs: [SPEC] }),
+          source("web", { texts: [{ path: "package.json", text: "../billing/openapi.yaml" }] }),
+          source("tools", {
+            apps: [{ name: "web", dir: "apps/web", deps: [], signals: ["s"], docker: false, bin: false }],
+          }),
+        ],
+      })
+    )._unsafeUnwrap();
+    expect(home.proposal.applications.map((a) => [a.id, a.source])).toEqual([
+      ["billing", { repo: "git@github.com:acme/billing.git" }],
+      ["web", { path: "." }],
+      ["tools-web", { repo: "../tools", path: "apps/web" }],
+    ]);
   });
 
   test("a hand-written HTTP client consumes the API whose routes it calls, two routes at least", async () => {
