@@ -25,7 +25,7 @@ Composition root: the awilix container, the typed Cradle and the JSON envelope. 
 
 ## Invariants
 
-- The container is strict, so lifetime mistakes fail fast [[cite: packages/runtime/src/container.ts:606 | "createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true })"]].
+- The container is strict, so lifetime mistakes fail fast [[cite: packages/runtime/src/container.ts:615 | "createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true })"]].
 
 - One adapter instance stands behind the ports it implements (git, the package manager, the oxc analyzer), so they agree with each other.
 - Every host session goes through its host's launch (`sandboxLaunches`, ADR-0104): interactive hosts get a `SandboxedTerminal`, agent hosts the launch itself. The policy is read from the repository's config at each start, so `sandbox.enabled` holds from the next session without a restart.

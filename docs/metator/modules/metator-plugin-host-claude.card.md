@@ -25,7 +25,7 @@ dir: packages/plugin-host-claude
 
 ## Invariants
 
-- Without general Bash, each `metator` group is allowed on its own [[cite: packages/plugin-host-claude/src/claude-generator.ts:78 | "for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);"]].
+- Without general Bash, each `metator` group is allowed on its own [[cite: packages/plugin-host-claude/src/claude-generator.ts:98 | "for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);"]].
 - Claude Code tool names and model aliases live in one table each, pinned by a snapshot test.
 - The never commands reach Claude Code as Copilot gets them: from `claudeDenyRules`, as settings and as `--disallowedTools` at start. A merge is never a deny rule: it asks (ADR-0094).
 - With a launch, the Agent SDK starts `claude` through it (`spawnClaudeCodeProcess`), so a drive's agent is in the sandbox too.
