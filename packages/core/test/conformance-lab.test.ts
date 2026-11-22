@@ -171,6 +171,29 @@ describe("the host's first-run question and its approvals", () => {
     expect(firstRunTrust(view({ screen: remember }), "conformance-ab12")).toBeUndefined();
   });
 
+  test("Claude Code 2.1.330: an unnumbered menu with the cursor on No is moved down to Yes", () => {
+    const screen = [
+      "────────────────────────────────────────",
+      " Accessing workspace:",
+      " /tmp/metator-conformance-claude-XdiNxu/conformance-gavgp9",
+      " Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source",
+      " project, or work from your team). If not, take a moment to review what's in this folder first.",
+      " Claude Code'll be able to read, edit, and execute files here.",
+      " ⚠ This folder configures hooks that can run commands without asking, declared in .claude/settings.json",
+      " Trusting this folder loads .claude/settings.json (runs commands).",
+      " Security guide",
+      " ❯ No, exit",
+      "   Yes, I trust this folder",
+      " Enter to confirm · Esc to cancel",
+    ].join("\n");
+    expect(firstRunTrust(view({ screen }), "conformance-gavgp9")).toEqual({ key: "\u001b[B" });
+    // The cursor already on Yes: Enter alone.
+    const onYes = screen.replace(" ❯ No, exit", "   No, exit").replace("   Yes, I trust", " ❯ Yes, I trust");
+    expect(firstRunTrust(view({ screen: onYes }), "conformance-gavgp9")).toEqual({ key: "" });
+    // Not the suite's folder: nothing.
+    expect(firstRunTrust(view({ screen }), "conformance-zz99")).toBeUndefined();
+  });
+
   test("an approval no check waits for is answered No; options are matched case aside", () => {
     const q = {
       id: "p002",

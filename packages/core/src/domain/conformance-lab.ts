@@ -268,7 +268,23 @@ export function firstRunTrust(
   const question = seen.questions.find((q) => q.source === "permission" && q.options.some(yes));
   if (question) return { question, choice: question.options.find(yes) as string };
   const key = /(\d)[.)]\s*Yes\b(?![^\n]*(?:don.?t ask|always|auto mode|remember))/i.exec(screen)?.[1];
-  return key ? { key } : undefined;
+  if (key) return { key };
+  return cursorTo(screen, yes);
+}
+
+/**
+ * An unnumbered menu (Claude Code 2.1.330's trust question: `❯ No, exit` over `Yes, I trust this
+ * folder`): the arrow presses that move the cursor from its line to the option `wanted` takes,
+ * Enter typed after them; undefined when the menu has no such option.
+ */
+function cursorTo(screen: string, wanted: (label: string) => boolean): { readonly key: string } | undefined {
+  const lines = screen.split("\n").map((l) => l.trim());
+  const cursor = lines.findIndex((l) => l.startsWith("❯"));
+  if (cursor < 0) return undefined;
+  const target = lines.findIndex((l) => wanted(l.replace(/^❯\s*/, "")));
+  if (target < 0 || Math.abs(target - cursor) > 5) return undefined;
+  const step = target > cursor ? "\u001b[B" : "\u001b[A";
+  return { key: step.repeat(Math.abs(target - cursor)) };
 }
 
 /** The option of a question this pattern matches (case aside), if one does. */

@@ -9204,4 +9204,10 @@ export const MUTANTS: readonly Mutant[] = [
     to: 'idle > 0 ? "No decision waits for you"',
     why: "Home never says nothing waits above a blocked task",
   },
+  {
+    file: "packages/core/src/domain/conformance-lab.ts",
+    from: 'const step = target > cursor ? "\\u001b[B" : "\\u001b[A";',
+    to: 'const step = "\\u001b[A";',
+    why: "an unnumbered trust menu is walked down to Yes, not up past it",
+  },
 ];
