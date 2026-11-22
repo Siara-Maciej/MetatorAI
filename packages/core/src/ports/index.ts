@@ -24,6 +24,7 @@ import type {
   PostedReview,
   ReviewSource,
 } from "../domain/review-thread.ts";
+import type { SandboxPolicy } from "../domain/sandbox.ts";
 import type { Skill } from "../domain/skill.ts";
 import type { ModuleSymbols } from "../domain/symbols.ts";
 
@@ -696,8 +697,15 @@ export interface HostGenerator {
   agent(agent: Agent, body: string, context: HostAgentContext): GeneratedFile;
   /** The host's hook configuration file (ADR-0038). */
   readonly hooksFile: string;
-  /** Hook configuration running `metator guard *`, merged into `existing` (the file as it is). */
-  hooks(metatorCommand: string, existing: string | undefined): Result<GeneratedFile, MetatorError>;
+  /**
+   * Hook configuration running `metator guard *`, merged into `existing` (the file as it is); with
+   * a sandbox policy, a host that has a sandbox is told to hold shell commands in it (ADR-0088).
+   */
+  hooks(
+    metatorCommand: string,
+    existing: string | undefined,
+    sandbox?: SandboxPolicy,
+  ): Result<GeneratedFile, MetatorError>;
 }
 
 /**

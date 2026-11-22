@@ -2555,3 +2555,21 @@ export function commandText(
     ? { short: flat, full, cut: full !== flat }
     : { short: `${flat.slice(0, max - 1).trimEnd()}…`, full, cut: true };
 }
+
+/**
+ * Whether the app starts the daemon itself now (ADR-0087): only in its shell, only while nothing
+ * answers, once per folder until the person asks again; without a remembered folder it asks.
+ */
+export function autostart(a: {
+  readonly shell: boolean;
+  readonly down: boolean;
+  readonly folder: string | undefined;
+  /** The folder the last start was for, while the daemon has not answered since. */
+  readonly tried: string | undefined;
+  readonly starting: boolean;
+}): "start" | "ask" | "none" {
+  if (!a.shell || !a.down || a.starting) return "none";
+  const folder = a.folder?.trim() ?? "";
+  if (folder === "") return "ask";
+  return a.tried === folder ? "none" : "start";
+}

@@ -38,6 +38,7 @@ import type {
   CheckFlaky,
   CheckMemory,
   CheckoutReader,
+  CheckPlanStep,
   CheckPublished,
   CheckpointRun,
   CheckQuote,
@@ -161,6 +162,7 @@ import type {
   PatternCatalog,
   PlanBoard,
   PlannedBreakingChanges,
+  PlanProgress,
   PlanReview,
   PlanRevisions,
   PortProbe,
@@ -564,6 +566,8 @@ export interface Cradle {
   systemMaps: SystemMaps;
   fileStats: FileStats;
   runArtifacts: RunArtifacts;
+  checkPlanStep: CheckPlanStep;
+  planProgress: PlanProgress;
   lintAdrs: LintAdrs;
   measureRuleCoverage: MeasureRuleCoverage;
   scaffoldRule: ScaffoldRule;

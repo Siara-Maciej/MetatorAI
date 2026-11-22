@@ -53,7 +53,7 @@ Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot 
 metator serve
 ```
 
-The daemon listens on `http://127.0.0.1:4310`. Leave it running and open the app. The top bar reads **connected**, and Home offers **Describe a task**.
+The installed desktop app starts the daemon itself once you named the repository's folder in it ([The app](../use/index.md#the-app-starts-the-daemon-itself)), so this step is for the browser and for scripts. The daemon listens on `http://127.0.0.1:4310`. Leave it running and open the app. The top bar reads **connected**, and Home offers **Describe a task**.
 
 ## Open a chat
 

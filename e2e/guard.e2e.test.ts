@@ -319,6 +319,21 @@ describe("metator guard (real hook processes)", () => {
     const commit = { tool_name: "Bash", tool_input: { command: "git commit -m x" } };
     expect((await hook(["guard", "pre-tool"], commit, repo.root, { METATOR_DRIVEN: "1" })).json).toBeNull();
 
+    // The push approval opens the run's branch and a request, never a merge into the head branch
+    // (ADR-0085): by the code host's CLI, its MCP tool, or a push straight to the branch.
+    for (const call of [
+      { tool_name: "Bash", tool_input: { command: "gh pr merge 12 --squash" } },
+      { tool_name: "Bash", tool_input: { command: "glab mr merge 7" } },
+      { tool_name: "Bash", tool_input: { command: "git push origin HEAD:main" } },
+      { tool_name: "mcp__github__merge_pull_request", tool_input: { pullNumber: 12 } },
+    ]) {
+      const merged = decision(await hook(["guard", "pre-tool"], call, repo.root));
+      expect([call, merged?.permissionDecision]).toEqual([call, "deny"]);
+      expect(merged?.permissionDecisionReason).toContain("a person");
+    }
+    const request = { tool_name: "Bash", tool_input: { command: "gh pr create --fill" } };
+    expect((await hook(["guard", "pre-tool"], request, repo.root)).json).toBeNull();
+
     const stop = await hook(["guard", "stop"], { stop_hook_active: false }, repo.root);
     expect(stop.json).toMatchObject({ decision: "block" });
     // In a session `metator run drive` started, the drive moves the run: the agent may stop, and
@@ -405,10 +420,47 @@ describe("metator generate --hooks writes both hosts' hook configuration", () =>
       permissions: unknown;
       hooks: Record<string, { hooks: { command: string }[] }[]>;
     };
-    expect(claude.permissions).toEqual({ allow: ["Bash(ls)"] });
+    // The person's rules stay; what cannot be taken back is denied before any hook or classifier.
+    const permissions = claude.permissions as { allow: string[]; deny: string[] };
+    expect(permissions.allow).toEqual(["Bash(ls)"]);
+    expect(permissions.deny).toEqual(
+      expect.arrayContaining(["Read(.env)", "Bash(gh pr merge *)", "mcp__*__merge_pull_request"]),
+    );
     expect(claude.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe("npx metator guard pre-tool");
     // Both hosts hand the person's own message to the same guard (the consent in words).
     expect(claude.hooks.UserPromptSubmit?.[0]?.hooks[0]?.command).toBe("npx metator guard user-prompt");
+    // The sandbox is the repository's choice: off, nothing about it is written; on, the host
+    // gets it with the configured lists, and doctor says whether this machine can hold it.
+    expect((claude as { sandbox?: unknown }).sandbox).toBeUndefined();
+    expect(
+      (await metator(["config", "set", "sandbox.enabled", "true", "--scope", "repo"], repo.root)).code,
+    ).toBe(0);
+    expect(
+      (
+        await metator(
+          ["config", "set", "sandbox.allowedDomains", "registry.npmjs.org", "--scope", "repo"],
+          repo.root,
+        )
+      ).code,
+    ).toBe(0);
+    expect((await metator(["generate", "--hooks"], repo.root)).code).toBe(0);
+    const sandboxed = JSON.parse(await repo.read(".claude/settings.json")) as {
+      sandbox: { enabled: boolean; allowUnsandboxedCommands: boolean; network: { allowedDomains: string[] } };
+    };
+    expect([sandboxed.sandbox.enabled, sandboxed.sandbox.allowUnsandboxedCommands]).toEqual([true, false]);
+    expect(sandboxed.sandbox.network.allowedDomains).toEqual(["registry.npmjs.org"]);
+    const doctor = await metator(["doctor"], repo.root);
+    const isolation = (doctor.json.data as { checks: { id: string; message: string }[] }).checks.find(
+      (c) => c.id === "isolation",
+    );
+    expect(isolation?.message).toMatch(/sandbox/);
+    expect((await metator(["config", "unset", "sandbox.enabled", "--scope", "repo"], repo.root)).code).toBe(
+      0,
+    );
+    expect(
+      (await metator(["config", "unset", "sandbox.allowedDomains", "--scope", "repo"], repo.root)).code,
+    ).toBe(0);
+    expect((await metator(["generate", "--hooks"], repo.root)).code).toBe(0);
     const copilot = JSON.parse(await repo.read(".github/hooks/metator.json")) as {
       hooks: Record<string, unknown[]>;
     };

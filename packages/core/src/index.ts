@@ -213,6 +213,7 @@ export * from "./domain/run-machine.ts";
 export * from "./domain/run-message.ts";
 export * from "./domain/run-record.ts";
 export * from "./domain/run-report.ts";
+export * from "./domain/sandbox.ts";
 export * from "./domain/sarif.ts";
 export * from "./domain/shell-words.ts";
 export * from "./domain/skill.ts";

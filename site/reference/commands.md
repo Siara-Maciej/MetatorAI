@@ -1791,6 +1791,34 @@ metator plan scope [options] <file>
 | `--out <file>` | where to write the PlanScope document |  |
 | `--dry-run` | print the scope without writing it |  |
 
+### `metator plan done`
+
+Check one step: run the tests its file and its tests-first reach, and record the result in build-progress.json
+
+```bash
+metator plan done [options] <file> <step>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<file>` | plan JSON, e.g. .metator/runs/&lt;id&gt;/plan.json | |
+| `<step>` | the step id, e.g. S3 | |
+| `--script <name>` | package.json script that runs tests (files are appended) | `"test"` |
+| `--timeout <ms>` | time limit for the test run | `600000` |
+
+### `metator plan progress`
+
+Every step's checkpoint: passed, failed or pending (build-progress.json)
+
+```bash
+metator plan progress [options] <file>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<file>` | plan JSON | |
+| `--check` | fail unless every step passed (the build stage's gate) |  |
+
 ### `metator plan schema`
 
 Print the JSON Schema of a plan
@@ -3005,6 +3033,8 @@ metator serve [options]
 | `--no-restore` | leave the agents' sessions of the last daemon paused (continue them with `metator run continue`) |  |
 | `--screens-ms <n>` | how often every pane's screen is kept on disk (0: only when it stops) | `5000` |
 | `--reviews-ms <n>` | how often reviews of my requests and the watched MRs are read (0: never; default: the config's `reviews.everyMs` and `codehost.review.everyMs`) |  |
+| `--ensure` | answer with the daemon that serves this repository, starting one in the background when none does |  |
+| `--timeout <ms>` | with --ensure: how long to wait for a started daemon | `20000` |
 
 ## pane
 

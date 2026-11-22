@@ -37,6 +37,7 @@ import {
   CheckDebugTags,
   CheckFlaky,
   CheckMemory,
+  CheckPlanStep,
   CheckPublished,
   CheckpointRun,
   CheckQuote,
@@ -162,6 +163,7 @@ import {
   PinnedSystemLocation,
   PlanBoard,
   PlannedBreakingChanges,
+  PlanProgress,
   PlanReview,
   PlanRevisions,
   ProposeRefactorPlan,
@@ -626,6 +628,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
               config.config.hosts.targets.map((id: string) => ({ id, problem: driveHostProblem(id) })),
             modified: () => workingTree.modifiedTracked(),
             detached: () => workingTree.detachedHead(),
+            platform: () => process.platform,
             quickGate: () => runGate.execute({ gate: "quick" }),
             conformance: () => conformanceHistory.seen(),
           },
@@ -1732,6 +1735,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ fileSystem, fileStats, runRepository, workflowCatalog }) =>
         new RunArtifacts({ fs: fileSystem, stats: fileStats, repo: runRepository, catalog: workflowCatalog }),
     ),
+    checkPlanStep: asFunction(
+      ({ fileSystem, runAffectedTests, clock }) => new CheckPlanStep(fileSystem, runAffectedTests, clock),
+    ),
+    planProgress: asFunction(({ fileSystem }) => new PlanProgress(fileSystem)),
     lintAdrs: asFunction(
       ({ fileSystem, paths, ruleCatalog }) => new LintAdrs(fileSystem, paths, ruleCatalog),
     ),

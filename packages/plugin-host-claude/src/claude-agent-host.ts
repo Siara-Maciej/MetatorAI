@@ -13,6 +13,8 @@ import {
   declaredWithDocument,
   deliveryCommand,
   type HostUsage,
+  MERGE_IS_A_PERSONS,
+  mergeAttempt,
   permissionResponse,
   RunRecordDocument,
   readOnlyCommand,
@@ -251,6 +253,9 @@ export class ClaudeAgentHost implements AgentHost {
           decision: "deny",
           reason: `${file} may hold secrets; agents do not read it.`,
         });
+      // The head branch moves only by a person's merge (ADR-0085), whatever a person allowed here.
+      const merging = mergeAttempt(hook);
+      if (merging) return permissionResponse({ decision: "deny", reason: MERGE_IS_A_PERSONS(merging) });
       // The drive moves a run it carries: an agent that advances it makes the drive's own event
       // land on the next stage, which is then skipped.
       const control = task.driven ? runControlCommand(hook) : undefined;

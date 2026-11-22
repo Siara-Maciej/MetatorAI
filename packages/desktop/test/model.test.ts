@@ -6,6 +6,7 @@ import {
   answeredText,
   autonomyLabel,
   autonomyLevels,
+  autostart,
   byPanelOrder,
   byStage,
   canAnswer,
@@ -1307,5 +1308,24 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
     const letters = SHELL_KEYS.flatMap((k) => k.keys.split(/[\s/]+/)).filter((k) => /^[a-z?]$/.test(k));
     expect(new Set(letters).size).toBe(letters.length);
     for (const t of RUN_TABS) expect(letters).toContain(t.key);
+  });
+});
+
+describe("autostart (ADR-0087): the app starts the daemon itself", () => {
+  const base = { shell: true, down: true, folder: "/work/shop", tried: undefined, starting: false } as const;
+
+  test("in the shell, with a remembered folder and no daemon, the app starts one, once per folder", () => {
+    expect(autostart(base)).toBe("start");
+    expect(autostart({ ...base, tried: "/work/shop" })).toBe("none");
+    expect(autostart({ ...base, tried: "/work/other" })).toBe("start");
+    expect(autostart({ ...base, starting: true })).toBe("none");
+  });
+
+  test("without a folder it asks for one; in a browser or with a daemon it does nothing", () => {
+    expect(autostart({ ...base, folder: undefined })).toBe("ask");
+    expect(autostart({ ...base, folder: "  " })).toBe("ask");
+    expect(autostart({ ...base, shell: false })).toBe("none");
+    expect(autostart({ ...base, shell: false, folder: undefined })).toBe("none");
+    expect(autostart({ ...base, down: false })).toBe("none");
   });
 });

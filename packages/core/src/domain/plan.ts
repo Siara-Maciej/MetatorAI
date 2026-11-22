@@ -213,6 +213,32 @@ export type PlanScope = z.output<typeof PlanScopeSchema>;
 
 export const PlanScopeDocument = defineDocument("PlanScope", { latest: PlanScopeSchema });
 
+/**
+ * The build's checkpoints (Etap 3): per plan step, whether its own tests passed the last time it
+ * was checked (`metator plan done`), with the command and the end of its output, so a person who
+ * was not there sees what ran. A step is done only when its tests passed.
+ */
+export const BuildProgressSchema = z.strictObject({
+  plan: z.string().min(1),
+  steps: z.record(
+    z.string(),
+    z.strictObject({
+      passed: z.boolean(),
+      at: z.iso.datetime(),
+      tests: z.array(z.string()),
+      command: z.array(z.string()).nullable(),
+      exitCode: z.number().int().nullable(),
+      output: z.string().optional(),
+    }),
+  ),
+});
+export type BuildProgress = z.output<typeof BuildProgressSchema>;
+
+export const BuildProgressDocument = defineDocument("BuildProgress", {
+  latest: BuildProgressSchema,
+  hint: "Written by `metator plan done`; delete it to check every step again.",
+});
+
 export function planScope(
   plan: Plan,
   source: string,

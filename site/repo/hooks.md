@@ -10,10 +10,36 @@ metator generate --hooks
 
 This writes the hook configuration for both hosts:
 
-- `.claude/settings.json` for Claude Code. Your other settings and your own hooks stay.
+- `.claude/settings.json` for Claude Code. Your other settings and your own hooks stay. The same file gets deny rules under `permissions.deny` for what cannot be taken back: reading files that may hold secrets, merging a pull (merge) request, `git push --force`, `git reset --hard` and `git clean -f`. Claude Code applies a deny rule before any hook, prompt or auto mode, so these hold even when a hook does not run. Your own deny rules stay first.
 - `.github/hooks/metator.json` for Copilot.
 
 Review the diff and commit it. The hooks call `metator`, so it must be on your `PATH` (see [Install](../guide/install.md)). If you run it another way, set that command in `hosts.metatorCommand` in `metator.config.yml` before you generate.
+
+## Hold commands in a sandbox
+
+A hook and a deny rule decide whether a command runs. They do not limit what the command can reach once it runs: `npm test` is an ordinary command, and the dependencies it starts can open `.env` or your SSH keys and send them anywhere. Only the operating system can stop that. Claude Code has a sandbox for its shell commands, and MetatorAI turns it on for the repository:
+
+```bash
+metator config set sandbox.enabled true --scope repo
+metator generate --hooks
+metator doctor            # the check `isolation` says whether this machine can hold it
+```
+
+`generate --hooks` then writes a `sandbox` block into `.claude/settings.json`: the sandbox is on and a command that fails in it is not retried outside. Your own keys in that block stay. What a sandboxed command, and everything it starts, can do:
+
+| It can | It cannot |
+|---|---|
+| read the repository and most of the machine | read the files the deny rules name (`.env`, keys) or the paths in `sandbox.denyRead` (default `~/.ssh`, `~/.aws`, `~/.netrc`) |
+| write inside the repository and in `sandbox.allowWrite` | write anywhere else |
+| connect to the hosts in `sandbox.allowedDomains` | connect to any other host |
+
+Set the lists the same way, with commas between values: `metator config set sandbox.allowedDomains "registry.npmjs.org, api.example.com" --scope repo`. A tool that cannot run inside a sandbox goes in `sandbox.excludedCommands` (for example `docker compose *`); it then runs outside.
+
+What you need to know before you turn it on:
+
+- Linux and WSL2 need the packages `bubblewrap` and `socat`; macOS needs nothing; native Windows has no sandbox. `metator doctor` says which case you are in.
+- With `~/.ssh` unreadable, `git push` over SSH from a sandboxed command works only through an SSH agent. Take `~/.ssh` out of `sandbox.denyRead` if you push with a key file.
+- The sandbox holds the shell commands of Claude Code. Its hooks, its MCP servers and its own file tools run outside it, and so does everything Copilot runs. The hooks and deny rules above still apply to those.
 
 ## What each hook does
 

@@ -2,7 +2,9 @@ import { err, ok } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { liveDaemonAt } from "../daemon-client.ts";
 import { nonNegativeInt, positiveInt } from "../options.ts";
+import { ensureDaemon } from "../serve/ensure.ts";
 import { daemonInTheWay, servedRoots, startServer } from "../serve/server.ts";
 import { resume } from "../sessions.ts";
 
@@ -40,9 +42,17 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
       "how often reviews of my requests and the watched MRs are read (0: never; default: the config's `reviews.everyMs` and `codehost.review.everyMs`)",
       nonNegativeInt,
     )
+    .option(
+      "--ensure",
+      "answer with the daemon that serves this repository, starting one in the background when none does",
+      false,
+    )
+    .option("--timeout <ms>", "with --ensure: how long to wait for a started daemon", positiveInt, 20_000)
     .action(
       ctx.action(
         async (opts: {
+          ensure: boolean;
+          timeout: number;
           port: number;
           hostname: string;
           pollMs: number;
@@ -52,6 +62,44 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           restore: boolean;
           screensMs: number;
         }) => {
+          const root = () => (program.opts() as { root?: string }).root;
+          if (opts.ensure) {
+            // The same program and options, without --ensure: the daemon itself, in the foreground
+            // of its own process (ADR-0087).
+            const given = root();
+            const argv = [
+              process.argv[0] as string,
+              process.argv[1] as string,
+              ...(given ? ["--root", given] : []),
+              "serve",
+              "--port",
+              String(opts.port),
+              "--hostname",
+              opts.hostname,
+              "--poll-ms",
+              String(opts.pollMs),
+              "--supervise-ms",
+              String(opts.superviseMs),
+              ...(opts.intakeMs === undefined ? [] : ["--intake-ms", String(opts.intakeMs)]),
+              ...(opts.reviewsMs === undefined ? [] : ["--reviews-ms", String(opts.reviewsMs)]),
+              "--screens-ms",
+              String(opts.screensMs),
+              ...(opts.restore ? [] : ["--no-restore"]),
+            ];
+            const background = ctx.container().resolve("backgroundProcess");
+            const ensured = await ensureDaemon(
+              { roots: servedRoots(ctx), argv, timeoutMs: opts.timeout },
+              {
+                live: liveDaemonAt,
+                start: async (command, cwd, logFile) =>
+                  (await background.start(command, cwd, logFile)).unwrapOr(undefined),
+                alive: (pid) => background.isAlive(pid),
+                sleep: (ms) => Bun.sleep(ms),
+                log: (logFile) => background.readLog(logFile, 20),
+              },
+            );
+            return { result: ensured };
+          }
           const taken = daemonInTheWay(servedRoots(ctx));
           if (taken) return { result: err(taken) };
           // The signals are heard before daemon.json is written: one that comes while the daemon

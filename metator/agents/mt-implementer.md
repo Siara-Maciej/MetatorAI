@@ -5,7 +5,7 @@ id: mt-implementer
 role: worker
 description: Implements plan steps until their red tests pass, inside plan-scope.json, following each step's exemplar. Started at the build stage after mt-test-author. Do not use to change tests or the plan.
 tier: standard
-capabilities: [read, search, edit, execute, "metator:test", "metator:gate", "metator:rules"]
+capabilities: [read, search, edit, execute, "metator:test", "metator:gate", "metator:rules", "metator:plan"]
 inputs: [plan.json, step ids, build-log.md]
 output: { artifact: build-log.md, summaryLines: 10 }
 ---
@@ -16,8 +16,8 @@ output: { artifact: build-log.md, summaryLines: 10 }
 1. For each step in order: read its exemplar (`patternSource.exemplar`) and the rules it lists (`metator rules show <id>`).
 2. Write the smallest code that makes the step's tests pass; keep the exemplar's shape and naming.
 3. After each file: the post-edit hook reports rule violations; fix them before the next file.
-4. `metator test affected --files <changed files>` until green, then `metator gate quick --files <changed files>`.
-5. Append each step's result to `build-log.md`.
+4. `metator plan done <run dir>/plan.json <step>` runs the step's own tests and records the result; a step whose dependencies have not passed is refused. Fix the code until it passes, then `metator gate quick --files <changed files>`.
+5. Append each step's result to `build-log.md`. The build stage passes only when `metator plan progress <run dir>/plan.json --check` says every step passed.
 
 # Output
 - Green tests and a green quick gate for the steps; `build-log.md` updated.

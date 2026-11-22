@@ -102,3 +102,8 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0096](0096-analysis-and-plan-in-backlog.md) | Analiza i plan w Backlogu: na żądanie, ze świeżością według cytowanych plików | Proposed |
 | [0097](0097-review-from-link-watch-rereview.md) | Review: cudzy MR z linku, publikacja po jednej zgodzie, obserwowanie i ponowne review; moje MR analizowane na kliknięcie | Proposed |
 | [0098](0098-hosts-parity-conformance-suite.md) | Hosty: Copilot CLI na równi z Claude Code, wspólny zestaw zgodności | Proposed |
+| [0085](0085-merge-is-a-persons.md) | Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR | Accepted |
+| [0086](0086-host-deny-rules.md) | Nieodwracalne działania jako reguły deny hosta, nie tylko hook | Accepted |
+| [0087](0087-app-starts-the-daemon.md) | Aplikacja sama uruchamia demona (`metator serve --ensure`) | Accepted |
+| [0088](0088-local-sandbox.md) | Sandbox lokalny: środowisko ogranicza zasięg komend agenta | Accepted |
+| [0089](0089-build-checkpoints.md) | Punkty kontrolne w buildzie: krok jest zrobiony, gdy jego testy przeszły | Proposed |

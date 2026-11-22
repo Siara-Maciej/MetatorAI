@@ -12,11 +12,19 @@ The repository must be set up once with `metator setup` ([Start with one reposit
 metator serve
 ```
 
-It listens on `http://127.0.0.1:4310` and runs until you stop it. `--port <n>` picks another port. One repository has one daemon: a second `metator serve` there is refused and names the address and the process id of the first. A daemon for another repository needs its own port (`metator serve --port <other>`).
+To start it in the background and get its address back at once, add `--ensure`: `metator serve --ensure` starts the daemon when none serves the repository and answers `{"url": …, "pid": …, "started": true}`; when one already runs, it answers with that one and `"started": false`. Its output goes to `.metator/daemon.log`.
+
+Without `--ensure` it listens on `http://127.0.0.1:4310` and runs until you stop it. `--port <n>` picks another port. One repository has one daemon: a second `metator serve` there is refused and names the address and the process id of the first. A daemon for another repository needs its own port (`metator serve --port <other>`).
 
 Then open the app ([Get the desktop app](../guide/desktop-app.md)). The app looks for the daemon at the default address. The word on the right of the top bar reads **connected** when it found it.
 
-When nothing answers at that address, it reads **no daemon** and the main area shows one panel on every screen: what is wrong, the command `metator serve`, a field with the daemon's address, and **Retry**. If your daemon listens elsewhere, type its address in the field and click **Retry**; the app remembers it. The app also tries again by itself every two seconds, and the screen you were on returns as soon as the daemon answers. The same address is in **Settings**, group **app**, as **daemon url** ([Your settings](./settings.md#daemon-address-and-your-name)).
+When nothing answers at that address, it reads **no daemon** and the main area shows one panel on every screen: what is wrong, how to start the daemon (in the installed app a field for the folder, below; in a browser the command `metator serve`), a field with the daemon's address, and **Retry**. If your daemon listens elsewhere, type its address in the field and click **Retry**; the app remembers it. The app also tries again by itself every two seconds, and the screen you were on returns as soon as the daemon answers. The same address is in **Settings**, group **app**, as **daemon url** ([Your settings](./settings.md#daemon-address-and-your-name)).
+
+### The app starts the daemon itself
+
+You do not have to run `metator serve` before you open the installed app. The first time, the app shows a panel with a field **folder to serve**: type the path of your repository, or of a folder that holds several, and click **Start the daemon**. The app runs `metator serve --ensure` for that folder, connects to the daemon it started (or to the one that already ran there), and remembers the folder. From then on it starts the daemon for that folder every time it opens, and again by itself when the daemon went away.
+
+The daemon keeps running after you close the app, because the agents' terminals live in it; stop it with `kill <pid>` (the pid is in `.metator/daemon.json`). The app needs the `metator` program: it uses `METATOR_BIN` when that is set, and otherwise `metator` from your `PATH` (on macOS and Linux as your login shell sees it). When the start does not work, the panel says why under the field.
 
 ![The app before the first chat: Home offers Describe a task](../public/screens/home-empty.png)
 

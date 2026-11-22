@@ -214,6 +214,75 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await page.locator("main.content").textContent()).toContain("Describe a task");
   }, 90_000);
 
+  test("in the app's shell the daemon starts itself: for the remembered folder, or the one the person names (ADR-0087)", async () => {
+    await stop();
+    const fresh = await ScratchRepo.create();
+    await fresh.write(".gitignore", ".metator/\n");
+    await fresh.commit("init");
+    const started: number[] = [];
+    const b = await browser();
+    // The shell's one command, done by the real CLI: what `ensure_daemon` runs in the Tauri window.
+    const shell = await b.newPage({ viewport: { width: 1440, height: 900 } });
+    await shell.exposeFunction("ensureDaemonForTest", async (dir: string) => {
+      const r = await metator(["-C", dir, "serve", "--ensure", "--port", "0"], dir, {
+        METATOR_CONFIG_DIR: configDir,
+      });
+      if (r.code !== 0) throw new Error((r.json.error as { message: string }).message);
+      const data = r.json.data as { url: string; pid: number };
+      started.push(data.pid);
+      return data.url;
+    });
+    await shell.addInitScript(() => {
+      const w = window as unknown as {
+        __TAURI__: unknown;
+        ensureDaemonForTest(dir: string): Promise<string>;
+      };
+      w.__TAURI__ = {
+        core: { invoke: (_cmd: string, args: { folder: string }) => w.ensureDaemonForTest(args.folder) },
+      };
+    });
+    try {
+      // First start: no folder is remembered, so the panel asks for one and offers to start.
+      await shell.goto(app("inbox"));
+      const panel = shell.getByTestId("no-daemon");
+      await panel.waitFor({ timeout: 20_000 });
+      expect(await panel.textContent()).not.toContain("In a terminal");
+      await panel.getByLabel("folder to serve").fill("/nowhere/at/all");
+      await panel.getByRole("button", { name: "Start the daemon" }).click();
+      await panel.getByTestId("start-error").waitFor({ timeout: 30_000 });
+      await panel.getByLabel("folder to serve").fill(fresh.root);
+      await panel.getByRole("button", { name: "Start the daemon" }).click();
+      await shell.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 40_000 });
+      expect(await panel.count()).toBe(0);
+      expect(started).toHaveLength(1);
+
+      // The daemon goes away while the app is open: the app starts one again for the same folder,
+      // with nothing typed and nothing clicked.
+      process.kill(started[0] as number, "SIGTERM");
+      await until("a second daemon", async () => (new Set(started).size > 1 ? true : undefined), 60_000);
+      await shell.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 40_000 });
+
+      // The app is opened again (its address still names the old port): the remembered folder's
+      // daemon is found, not started a third time.
+      await shell.goto(app("inbox"));
+      await shell.reload();
+      await shell.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 40_000 });
+      expect(new Set(started).size).toBe(2);
+    } finally {
+      await shell.close();
+      for (const pid of started) {
+        try {
+          process.kill(pid, "SIGTERM");
+        } catch {
+          // already gone
+        }
+      }
+      await fresh.dispose();
+      // The next tests look at the daemon of the shared repository again.
+      await serve(repo.root, NOWHERE);
+    }
+  }, 180_000);
+
   test("with no AI host installed + New chat says so and opens nothing; the form offers no host (D1)", async () => {
     await page.getByRole("button", { name: "+ New chat" }).click();
     const notice = page.locator("main.content > .notice");
