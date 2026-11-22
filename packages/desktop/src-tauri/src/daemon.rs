@@ -1,4 +1,4 @@
-//! The one thing the shell does besides showing the window (ADR-0087): it asks the `metator`
+//! The one thing the shell does besides showing the window (ADR-0101): it asks the `metator`
 //! program for the daemon of a folder. `metator serve --ensure` finds the daemon that serves the
 //! folder or starts one in the background, and prints its address; nothing about runs lives here.
 

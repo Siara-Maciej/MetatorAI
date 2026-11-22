@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { MetatorConfigSchema } from "../src/domain/config.ts";
 import { sandboxIsolation, sandboxPolicy } from "../src/domain/sandbox.ts";
 
-describe("sandboxPolicy (ADR-0088): the repository's sandbox options as one policy", () => {
+describe("sandboxPolicy (ADR-0102): the repository's sandbox options as one policy", () => {
   test("off by default: no policy, nothing is generated", () => {
     expect(sandboxPolicy(MetatorConfigSchema.parse({}))).toBeUndefined();
     expect(

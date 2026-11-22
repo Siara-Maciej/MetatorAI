@@ -97,7 +97,7 @@ describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {
     expect(settings.hooks.PostToolUse?.[0]?.matcher?.split("|")).toContain("Write");
   });
 
-  test("what cannot be taken back is a deny rule too: secrets, merges and lost work (ADR-0086)", () => {
+  test("what cannot be taken back is a deny rule too: secrets, merges and lost work (ADR-0100)", () => {
     type Denied = { permissions: { allow?: string[]; deny: string[] } };
     const deny = (existing?: string) =>
       (JSON.parse(new ClaudeGenerator().hooks("bun run metator", existing)._unsafeUnwrap().content) as Denied)
@@ -133,7 +133,7 @@ describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {
     expect(again.deny).toEqual(merged.deny);
   });
 
-  test("a sandbox policy becomes the host's sandbox: on, no way out, the lists merged with the person's (ADR-0088)", () => {
+  test("a sandbox policy becomes the host's sandbox: on, no way out, the lists merged with the person's (ADR-0102)", () => {
     type Sandboxed = { sandbox?: Record<string, unknown> };
     const policy = {
       denyRead: ["~/.ssh", "~/.aws"],

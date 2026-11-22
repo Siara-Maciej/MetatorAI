@@ -1,5 +1,5 @@
 /**
- * The app's shell (ADR-0087): what the Tauri window can do that a browser tab cannot. Today one
+ * The app's shell (ADR-0101): what the Tauri window can do that a browser tab cannot. Today one
  * thing: ask the `metator` program for the daemon of a folder, starting it when none runs. In a
  * browser there is no shell, and the app only looks for a daemon somebody started.
  */

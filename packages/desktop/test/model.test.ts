@@ -1311,7 +1311,7 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
   });
 });
 
-describe("autostart (ADR-0087): the app starts the daemon itself", () => {
+describe("autostart (ADR-0101): the app starts the daemon itself", () => {
   const base = { shell: true, down: true, folder: "/work/shop", tried: undefined, starting: false } as const;
 
   test("in the shell, with a remembered folder and no daemon, the app starts one, once per folder", () => {

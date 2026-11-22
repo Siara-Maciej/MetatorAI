@@ -65,7 +65,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           const root = () => (program.opts() as { root?: string }).root;
           if (opts.ensure) {
             // The same program and options, without --ensure: the daemon itself, in the foreground
-            // of its own process (ADR-0087).
+            // of its own process (ADR-0101).
             const given = root();
             const argv = [
               process.argv[0] as string,

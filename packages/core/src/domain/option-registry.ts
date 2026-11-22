@@ -284,7 +284,7 @@ const sandboxList = (
   defaultValue: readonly string[] = [],
 ) => new ListOption({ key: `sandbox.${name}`, scope: "repo", title, description, defaultValue, since: E2 });
 
-/** The sandbox of agents' shell commands (ADR-0088); written to the host by `metator generate --hooks`. */
+/** The sandbox of agents' shell commands (ADR-0102); written to the host by `metator generate --hooks`. */
 const sandbox: OptionDefinition[] = [
   new BooleanOption({
     key: "sandbox.enabled",

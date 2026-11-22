@@ -1,7 +1,8 @@
-# ADR-0085: Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR
+# ADR-0099: Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR
 
 - Status: Accepted
 - Data: 2026-11-15
+- Numer: na gałęzi `claude/determined-galileo-4hfn27` ten ADR miał numer 0085, zajęty już w głównej linii; przenumerowany decyzją właściciela z 2026-11-22.
 
 ## Kontekst
 Decyzja właściciela z 2026-11-15: scalenie do gałęzi głównej (head) nigdy nie może nastąpić z ręki agenta ani automatu MetatorAI. Najdalej idąca autonomia to samodzielne utworzenie merge requestu (GitLab) lub pull requestu (GitHub).

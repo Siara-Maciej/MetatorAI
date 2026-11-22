@@ -112,7 +112,7 @@ export interface Daemon {
   readonly me: string;
   setMe(name: string): void;
   setUrl(url: string): void;
-  /** The app's shell can start the daemon itself (ADR-0087); false in a browser. */
+  /** The app's shell can start the daemon itself (ADR-0101); false in a browser. */
   readonly startable: boolean;
   /** The folder the app starts the daemon for: the last one it was started for ("" when none). */
   readonly folder: string;

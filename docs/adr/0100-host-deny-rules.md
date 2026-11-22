@@ -1,10 +1,11 @@
-# ADR-0086: Nieodwracalne działania jako reguły deny hosta, nie tylko hook
+# ADR-0100: Nieodwracalne działania jako reguły deny hosta, nie tylko hook
 
 - Status: Accepted
 - Data: 2026-11-15
+- Numer: na gałęzi `claude/determined-galileo-4hfn27` ten ADR miał numer 0086, zajęty już w głównej linii; przenumerowany decyzją właściciela z 2026-11-22.
 
 ## Kontekst
-Guard `pre-tool` (ADR-0038) odmawia czytania sekretów, komend niszczących pracę i scaleń (ADR-0085). Hook jest jednak procesem, który musi się uruchomić: gdy `metator` nie jest zainstalowany, gdy hook przekroczy limit czasu albo gdy sesja działa tam, gdzie ustawienia projektu nie obowiązują, odmowa nie pada. Claude Code ma własną warstwę reguł `permissions.deny`, czytaną przed hookami, przed pytaniem o zgodę i przed klasyfikatorem trybu auto; wywołanie pasujące do reguły deny nie trafia do żadnej z tych warstw.
+Guard `pre-tool` (ADR-0038) odmawia czytania sekretów, komend niszczących pracę i scaleń (ADR-0099). Hook jest jednak procesem, który musi się uruchomić: gdy `metator` nie jest zainstalowany, gdy hook przekroczy limit czasu albo gdy sesja działa tam, gdzie ustawienia projektu nie obowiązują, odmowa nie pada. Claude Code ma własną warstwę reguł `permissions.deny`, czytaną przed hookami, przed pytaniem o zgodę i przed klasyfikatorem trybu auto; wywołanie pasujące do reguły deny nie trafia do żadnej z tych warstw.
 
 Kryterium, co ma być twardą regułą: „jeśli agent pomyli się raz, czy da się to cofnąć?". Zły kod się cofa; sekret w transkrypcie, utracona niezacommitowana praca i scalenie do gałęzi głównej nie.
 

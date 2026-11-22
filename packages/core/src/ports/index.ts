@@ -699,7 +699,7 @@ export interface HostGenerator {
   readonly hooksFile: string;
   /**
    * Hook configuration running `metator guard *`, merged into `existing` (the file as it is); with
-   * a sandbox policy, a host that has a sandbox is told to hold shell commands in it (ADR-0088).
+   * a sandbox policy, a host that has a sandbox is told to hold shell commands in it (ADR-0102).
    */
   hooks(
     metatorCommand: string,

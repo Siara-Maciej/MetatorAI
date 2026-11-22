@@ -2,7 +2,7 @@ import type { MetatorConfig } from "./config.ts";
 import { optionByKey } from "./option-registry.ts";
 
 /**
- * What the shell commands of an agent may reach (ADR-0088), for a host that can hold them in an
+ * What the shell commands of an agent may reach (ADR-0102), for a host that can hold them in an
  * operating-system sandbox. A permission decides whether a command runs; only the sandbox limits
  * what the command, and everything it starts (a test's dependencies, a script the agent wrote),
  * can read, write and connect to.

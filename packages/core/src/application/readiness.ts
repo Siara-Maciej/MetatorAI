@@ -355,7 +355,7 @@ export class CheckReadiness {
   }
 
   /** Every configured MCP server starts from a command on the PATH or a URL (design/14 §2). */
-  /** Whether agents' shell commands are held in a sandbox here, and what that needs (ADR-0088). */
+  /** Whether agents' shell commands are held in a sandbox here, and what that needs (ADR-0102). */
   private async isolation(): Promise<ReadinessCheck> {
     const missing: string[] = [];
     for (const program of LINUX_SANDBOX_PROGRAMS)

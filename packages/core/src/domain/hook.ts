@@ -193,7 +193,7 @@ function mcpAction(tool: string): "push" | "comment" | undefined {
 /** Branches a change reaches only through a person's merge of a pull (merge) request. */
 export const HEAD_BRANCHES: readonly string[] = ["main", "master"];
 
-/** What agents hear when they try to merge: no approval and no autonomy level changes it (ADR-0085). */
+/** What agents hear when they try to merge: no approval and no autonomy level changes it (ADR-0099). */
 export const MERGE_IS_A_PERSONS = (what: string) =>
   `${what} is blocked: merging into the head branch is a person's, whatever was approved. Open a pull (merge) request and stop there.`;
 
@@ -241,7 +241,7 @@ export const MERGE_MCP_TOOLS: readonly string[] = [
 const MCP_MERGE = new RegExp(`(${MERGE_MCP_TOOLS.join("|")})$`);
 
 /**
- * Commands no agent runs, as the words they start with (ADR-0086): what a host that has deny rules
+ * Commands no agent runs, as the words they start with (ADR-0100): what a host that has deny rules
  * of its own is told, so the call is refused before a hook or a classifier sees it. The guard
  * stays the precise judge (composite commands, push targets, `rm -r` of a root); this list holds
  * only what a prefix can say.
@@ -404,7 +404,7 @@ function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
     if (!chatApproval(hook)) return deny(DRIVEN_RUN_CONTROL(control));
     if (ctx.run?.driver !== "human") return deny(CHAT_APPROVAL_NEEDS_DRIVER);
   }
-  // The head branch moves only by a person's merge, with or without a run (ADR-0085).
+  // The head branch moves only by a person's merge, with or without a run (ADR-0099).
   const merging = mergeAttempt(hook);
   if (merging) return deny(MERGE_IS_A_PERSONS(merging));
   // The person's consents are theirs to give: no agent calls a guard or writes where they are kept.

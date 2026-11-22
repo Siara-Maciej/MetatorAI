@@ -1,7 +1,7 @@
 //! The desktop window (D7, ADR-0078): it shows the Vite bundle, which talks to the local daemon
 //! over HTTP and WebSockets; the plugins give it system notifications and a way to open the
 //! editor or a shell. No domain logic lives here. The one command the window can call starts the
-//! daemon through the `metator` program when none runs (ADR-0087).
+//! daemon through the `metator` program when none runs (ADR-0101).
 
 mod daemon;
 

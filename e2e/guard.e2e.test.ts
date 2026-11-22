@@ -320,7 +320,7 @@ describe("metator guard (real hook processes)", () => {
     expect((await hook(["guard", "pre-tool"], commit, repo.root, { METATOR_DRIVEN: "1" })).json).toBeNull();
 
     // The push approval opens the run's branch and a request, never a merge into the head branch
-    // (ADR-0085): by the code host's CLI, its MCP tool, or a push straight to the branch.
+    // (ADR-0099): by the code host's CLI, its MCP tool, or a push straight to the branch.
     for (const call of [
       { tool_name: "Bash", tool_input: { command: "gh pr merge 12 --squash" } },
       { tool_name: "Bash", tool_input: { command: "glab mr merge 7" } },

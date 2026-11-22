@@ -1,5 +1,5 @@
 /**
- * `metator serve --ensure` end to end (ADR-0087): the command the desktop app runs when it opens.
+ * `metator serve --ensure` end to end (ADR-0101): the command the desktop app runs when it opens.
  * It starts the daemon for the repository in the background when none serves it, answers with the
  * address of the one that does, and never starts a second one.
  */

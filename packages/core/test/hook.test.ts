@@ -120,7 +120,7 @@ describe("preToolPolicy", () => {
     );
   });
 
-  test("a merge into the head branch is never an agent's, with any approval (ADR-0085)", () => {
+  test("a merge into the head branch is never an agent's, with any approval (ADR-0099)", () => {
     const by = { by: "maciej", at: AT };
     const approved = run({ push: by, comment: by, delivery: by });
     for (const command of [

@@ -69,7 +69,7 @@ export class ClaudeGenerator implements HostGenerator {
       };
       hooks[b.event] = [...theirs, ours];
     }
-    // What cannot be taken back is a deny rule as well (ADR-0086): Claude Code reads those before
+    // What cannot be taken back is a deny rule as well (ADR-0100): Claude Code reads those before
     // any hook, prompt or classifier. The person's rules stay first; ours are added once.
     const permissions = { ...((settings.permissions as Record<string, unknown> | undefined) ?? {}) };
     const theirs = Array.isArray(permissions.deny) ? (permissions.deny as unknown[]) : [];
@@ -104,7 +104,7 @@ export class ClaudeGenerator implements HostGenerator {
 }
 
 /**
- * Claude Code's `sandbox` settings for a policy (ADR-0088): on, with no unsandboxed retry, the
+ * Claude Code's `sandbox` settings for a policy (ADR-0102): on, with no unsandboxed retry, the
  * policy's lists added to the person's own. Their other keys stay. The repository's secret files
  * need no entry here: the host adds its Read deny rules to the sandbox itself.
  */

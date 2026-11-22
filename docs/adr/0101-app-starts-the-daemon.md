@@ -1,7 +1,8 @@
-# ADR-0087: Aplikacja sama uruchamia demona (`metator serve --ensure`)
+# ADR-0101: Aplikacja sama uruchamia demona (`metator serve --ensure`)
 
 - Status: Accepted
 - Data: 2026-11-15
+- Numer: na gałęzi `claude/determined-galileo-4hfn27` ten ADR miał numer 0087, zajęty już w głównej linii; przenumerowany decyzją właściciela z 2026-11-22.
 
 ## Kontekst
 [ADR-0078](0078-desktop-app-tauri-xterm.md) zrobił z aplikacji cienkiego klienta nad `metator serve`: aplikacja tylko rysuje, a demona startuje osoba w terminalu. Gdy demon nie działa, każdy ekran pokazuje panel „no daemon" z komendą do wpisania. Decyzja właściciela z 2026-11-15: włączam samą aplikację i działa, bez `metator serve` z ręki.

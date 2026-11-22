@@ -1,20 +1,21 @@
-# ADR-0088: Sandbox lokalny: środowisko ogranicza zasięg komend agenta
+# ADR-0102: Sandbox lokalny: środowisko ogranicza zasięg komend agenta
 
 - Status: Accepted
 - Data: 2026-11-15
+- Numer: na gałęzi `claude/determined-galileo-4hfn27` ten ADR miał numer 0088, zajęty już w głównej linii; przenumerowany decyzją właściciela z 2026-11-22.
 
 ## Kontekst
-Hook i reguła deny (ADR-0038, ADR-0086) decydują, **czy** wywołanie narzędzia ruszy. Nie ograniczają tego, do czego sięgnie proces, który już działa. `npm test` to zwykła komenda, ale uruchamia cudzy kod: zależności, skrypty napisane przed chwilą przez agenta. Taki proces potomny może otworzyć `.env` albo klucze SSH i wysłać je na dowolny host, a hook zobaczył tylko `npm test`. Człowiek zatwierdzający ręcznie też by to przepuścił. Zatrzymać to może tylko system operacyjny.
+Hook i reguła deny (ADR-0038, ADR-0100) decydują, **czy** wywołanie narzędzia ruszy. Nie ograniczają tego, do czego sięgnie proces, który już działa. `npm test` to zwykła komenda, ale uruchamia cudzy kod: zależności, skrypty napisane przed chwilą przez agenta. Taki proces potomny może otworzyć `.env` albo klucze SSH i wysłać je na dowolny host, a hook zobaczył tylko `npm test`. Człowiek zatwierdzający ręcznie też by to przepuścił. Zatrzymać to może tylko system operacyjny.
 
 Decyzja właściciela (2026-11-15): pierwszym celem jest sandbox lokalny; profil sesji w chmurze później.
 
-Claude Code ma sandbox komend powłoki (Seatbelt na macOS, bubblewrap na Linuksie i WSL2) konfigurowany w `settings.json#sandbox`. Jego konfiguracja łączy się z regułami uprawnień: reguły deny `Read`/`Edit` (ADR-0086) stają się zakazami dla procesów w sandboxie.
+Claude Code ma sandbox komend powłoki (Seatbelt na macOS, bubblewrap na Linuksie i WSL2) konfigurowany w `settings.json#sandbox`. Jego konfiguracja łączy się z regułami uprawnień: reguły deny `Read`/`Edit` (ADR-0100) stają się zakazami dla procesów w sandboxie.
 
 ## Decyzja
 - **Opcje repozytorium** (rejestr opcji, bez nowej wersji `MetatorConfig`): `sandbox.enabled` (domyślnie wyłączone), `sandbox.denyRead` (domyślnie `~/.ssh`, `~/.aws`, `~/.netrc`), `sandbox.allowWrite`, `sandbox.allowedDomains`, `sandbox.excludedCommands`.
 - **Polityka w domenie:** `sandboxPolicy(config)` (`packages/core/src/domain/sandbox.ts`) składa opcje w jeden `SandboxPolicy`; `undefined`, gdy sandbox jest wyłączony.
 - **Generator hosta:** `HostGenerator.hooks(…, sandbox?)`. Host Claude zapisuje blok `sandbox`: `enabled: true`, `allowUnsandboxedCommands: false` (komenda, która nie działa w sandboxie, nie jest ponawiana poza nim), listy polityki dopisane do list użytkownika; jego pozostałe klucze zostają. Bez polityki blok nie jest ruszany.
-- **Sekrety repozytorium** nie są powtarzane w bloku `sandbox`: host sam przenosi do sandboxa reguły deny `Read` z ADR-0086.
+- **Sekrety repozytorium** nie są powtarzane w bloku `sandbox`: host sam przenosi do sandboxa reguły deny `Read` z ADR-0100.
 - **`metator doctor`**: nowe sprawdzenie `isolation` mówi, czy sandbox jest włączony i czy ta maszyna go utrzyma (Linux: `bwrap` i `socat`; Windows natywnie: brak sandboxa), oraz czego sandbox nie obejmuje. Nie należy do ostrzeżeń pokazywanych przy każdym starcie runu.
 - **Copilot** nie ma odpowiednika; tam obowiązują same hooki.
 

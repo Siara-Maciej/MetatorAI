@@ -363,7 +363,7 @@ describe("ClaudeAgentHost", () => {
     expect(await decision("Read", { file_path: "/folder/backend/.env.example" })).toBeUndefined();
   });
 
-  test("a merge into the head branch is denied in-process, by shell and by MCP (ADR-0085)", async () => {
+  test("a merge into the head branch is denied in-process, by shell and by MCP (ADR-0099)", async () => {
     const { query, calls } = fakeQuery(async () => [init, success]);
     await collect(new ClaudeAgentHost(query), { ...task, cwd: "/folder" });
     type Hook = (input: unknown) => Promise<{

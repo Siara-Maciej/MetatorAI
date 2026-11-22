@@ -214,7 +214,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await page.locator("main.content").textContent()).toContain("Describe a task");
   }, 90_000);
 
-  test("in the app's shell the daemon starts itself: for the remembered folder, or the one the person names (ADR-0087)", async () => {
+  test("in the app's shell the daemon starts itself: for the remembered folder, or the one the person names (ADR-0101)", async () => {
     await stop();
     const fresh = await ScratchRepo.create();
     await fresh.write(".gitignore", ".metator/\n");

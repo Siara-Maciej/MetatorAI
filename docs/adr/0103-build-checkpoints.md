@@ -1,7 +1,8 @@
-# ADR-0089: Punkty kontrolne w buildzie: krok jest zrobiony, gdy jego testy przeszły
+# ADR-0103: Punkty kontrolne w buildzie: krok jest zrobiony, gdy jego testy przeszły
 
 - Status: Proposed
 - Data: 2026-11-15
+- Numer: na gałęzi `claude/determined-galileo-4hfn27` ten ADR miał numer 0089, zajęty już w głównej linii; przenumerowany decyzją właściciela z 2026-11-22.
 
 ## Kontekst
 Etap build (mt-test-author, potem mt-implementer) miał jedną twardą bramkę: etap `gates` po całym buildzie (`metator gate full`). To, czy pojedynczy krok planu działa, było zdaniem w prompcie implementera („`metator test affected` until green") i notatką w `build-log.md`, którego nic nie czyta. Błąd wprowadzony w kroku S2 wychodził dopiero po wszystkich krokach, w pełnej bramce, a przy kilkugodzinnych sesjach bez nadzoru oznacza to przegląd całości zamiast krótkiego punktu kontrolnego. Zasada: weryfikacja to punkty kontrolne pass/fail po drodze, egzekwowane przez harness, nie prośba w prompcie.

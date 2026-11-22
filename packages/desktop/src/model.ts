@@ -2557,7 +2557,7 @@ export function commandText(
 }
 
 /**
- * Whether the app starts the daemon itself now (ADR-0087): only in its shell, only while nothing
+ * Whether the app starts the daemon itself now (ADR-0101): only in its shell, only while nothing
  * answers, once per folder until the person asks again; without a remembered folder it asks.
  */
 export function autostart(a: {

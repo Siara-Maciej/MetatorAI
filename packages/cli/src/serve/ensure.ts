@@ -26,7 +26,7 @@ export type Ensured = DaemonInfo & { readonly started: boolean };
 const STEP_MS = 100;
 
 /**
- * `metator serve --ensure` (ADR-0087): the address of the daemon that serves these directories,
+ * `metator serve --ensure` (ADR-0101): the address of the daemon that serves these directories,
  * starting one in the background when none does. What the desktop app runs when it opens, so a
  * person never starts `metator serve` by hand; a second call never starts a second daemon.
  */
