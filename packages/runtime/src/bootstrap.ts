@@ -887,8 +887,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         startRun,
         runRepository,
         threads,
+        fileLock,
       }) =>
         new WatchedReviews({
+          // The CLI and the daemon both write a review's file: one writer at a time, across processes.
+          lock: fileLock,
           fs: fileSystem,
           dir: paths.reviews,
           clock,

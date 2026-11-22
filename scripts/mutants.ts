@@ -5601,6 +5601,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   // Round 18 (ADR-0097): review from a link, watching, re-review, my MRs' cards.
   {
+    file: "packages/core/src/application/watched-reviews.ts",
+    from: "        const current = loaded;",
+    to: "        const current = review;",
+    why: "the watcher computes from the file read again under the lock: a finding's state written meanwhile survives",
+  },
+  {
     file: "packages/core/src/domain/unprompted.ts",
     from: '  ["review", "approve"],\n',
     to: "",
@@ -5776,8 +5782,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/watched-reviews.ts",
-    from: "if (known.has(id) || !pr.url) continue;",
-    to: "if (!pr.url) continue;",
+    from: "created = current === undefined;",
+    to: "created = true;",
     why: "a request asking me is carded once",
   },
   {

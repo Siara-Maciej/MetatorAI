@@ -178,6 +178,8 @@ export type ReviewView = WatchedReview & {
     readonly outdated: number;
   };
   readonly run?: { readonly runId: string; readonly status: string; readonly stage: string } | undefined;
+  /** In a folder: the repository whose `.metator/reviews/` holds it (`repo` stays the code host's). */
+  readonly localRepo?: string | undefined;
 };
 
 /**

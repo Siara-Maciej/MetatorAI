@@ -9,6 +9,7 @@ import {
 } from "../domain/codehost.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
+import { InProcessLock } from "../domain/in-process-lock.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type ReviewMetadata, ReviewMetadataDocument } from "../domain/review-metadata.ts";
 import { parseUnifiedDiff } from "../domain/review-note.ts";
@@ -35,7 +36,7 @@ import {
   WatchedReviewDocument,
   watchedCard,
 } from "../domain/watched-review.ts";
-import type { Clock, FileSystem, ReviewerHost, ReviewHost } from "../ports/index.ts";
+import type { Clock, FileLock, FileSystem, ReviewerHost, ReviewHost } from "../ports/index.ts";
 import type { ConductorSession } from "../ports/run-drive.ts";
 import { loadDocument, writeDocument } from "./document-io.ts";
 import type { StartRun } from "./run-operations.ts";
@@ -63,6 +64,11 @@ export interface WatchedReviewsDependencies {
   readonly start: Pick<StartRun, "execute">;
   readonly runs: Pick<RunRepository, "load" | "runDir">;
   readonly threads?: Pick<Threads, "addMr" | "addRun">;
+  /**
+   * One writer at a time for a review's file: the CLI (an agent's `review finding`) and the
+   * daemon (the watcher) both change it. The runtime gives the lock across processes.
+   */
+  readonly lock?: FileLock;
 }
 
 export type ReviewView = WatchedReview & {
@@ -102,7 +108,11 @@ const headRef = (ref: Pick<MrRef, "kind" | "number">) =>
  * Approving at the host is the person's. The MR's text is data, never instructions.
  */
 export class WatchedReviews {
-  constructor(private readonly d: WatchedReviewsDependencies) {}
+  private readonly lock: FileLock;
+
+  constructor(private readonly d: WatchedReviewsDependencies) {
+    this.lock = d.lock ?? new InProcessLock();
+  }
 
   /** The tool that reads the MR, or the sentence the chat says when there is none. */
   async route(
@@ -157,22 +167,22 @@ export class WatchedReviews {
     if (read.isErr()) return err(read.error);
     const { detail } = read.value;
     const id = reviewId(ref.value, ref.value.number);
-    const kept = await this.load(id);
     const local = await this.isLocal(input.url);
     const now = this.now();
-    let review: WatchedReview = {
-      ...(kept ?? this.fresh(id, ref.value, detail, "reviewed", now)),
-      ...this.facts(detail, ref.value),
-      // The head this review reads: what is new is counted from it.
-      reviewedSha: detail.headSha,
-      mode: local ? "local" : "diff",
-      ...(input.threadId ? { threadId: input.threadId } : kept?.threadId ? { threadId: kept.threadId } : {}),
-      watch: { active: this.d.codehost.review.watch },
-      updatedAt: now,
+    // Laid over the file as it is when the run is recorded (another process may have changed it).
+    const shape = (kept: WatchedReview | undefined): WatchedReview => {
+      const { news: _n, ...base } = kept ?? this.fresh(id, ref.value, detail, "reviewed", now);
+      return {
+        ...base,
+        ...this.facts(detail, ref.value),
+        // The head this review reads: what is new is counted from it.
+        reviewedSha: detail.headSha,
+        mode: local ? "local" : "diff",
+        ...(input.threadId ? { threadId: input.threadId } : {}),
+        watch: { active: this.d.codehost.review.watch },
+      };
     };
-    const { news: _n, ...withoutNews } = review;
-    review = withoutNews;
-    const started = await this.startRun(review, detail, { host: input.host, session: input.session });
+    const started = await this.startRun(id, shape, detail, { host: input.host, session: input.session });
     if (started.isErr()) return err(started.error);
     return ok({ ...started.value, mode: local ? "local" : "diff" });
   }
@@ -198,18 +208,21 @@ export class WatchedReviews {
     const { detail } = read.value;
     const before = await this.runDiff(review.value);
     const { status: _s, counts: _c, run: _r, news, ...kept } = review.value;
-    const next: WatchedReview = {
-      ...kept,
-      ...this.facts(detail, review.value),
-      findings: prePass(kept, detail),
-      // What this re-review reads is no longer new, whether or not it publishes anything.
-      reviewedSha: detail.headSha,
-      comments: kept.comments.map((c) =>
-        c.threadId ? { ...c, replies: Math.max(c.replies, authorReplies(detail, c.threadId)) } : c,
-      ),
-      updatedAt: this.now(),
+    const shape = (current: WatchedReview | undefined): WatchedReview => {
+      const source: WatchedReview = current ?? kept;
+      const { news: _n, ...base } = source;
+      return {
+        ...base,
+        ...this.facts(detail, base),
+        findings: prePass(base, detail),
+        // What this re-review reads is no longer new, whether or not it publishes anything.
+        reviewedSha: detail.headSha,
+        comments: base.comments.map((c) =>
+          c.threadId ? { ...c, replies: Math.max(c.replies, authorReplies(detail, c.threadId)) } : c,
+        ),
+      };
     };
-    const started = await this.startRun(next, detail, {
+    const started = await this.startRun(kept.id, shape, detail, {
       host: input.host,
       session: input.session,
       since: kept.reviewedSha ?? kept.headSha,
@@ -217,7 +230,7 @@ export class WatchedReviews {
       delta: deltaDiff(before ?? "", detail.diff),
     });
     if (started.isErr()) return err(started.error);
-    return ok({ ...started.value, mode: next.mode ?? "diff" });
+    return ok({ ...started.value, mode: started.value.review.mode ?? "diff" });
   }
 
   /**
@@ -293,44 +306,46 @@ export class WatchedReviews {
     }
     const diff = (await this.runDiff(review.value, runId)) ?? "";
     const now = this.now();
-    const taken = review.value.findings.length;
     const verdictFindings = [...verdict.value.blocking, ...verdict.value.consider];
-    const findings = verdictFindings.map((f, i) => {
-      const hunk = hunkAt(diff, f.location.file, f.location.line);
-      return {
-        id: `f${taken + i + 1}`,
-        file: f.location.file,
-        line: f.location.line,
-        text: f.claim,
-        severity: f.severity,
-        state: "open" as const,
-        ...(hunk !== undefined ? { hunk } : {}),
-        at: now,
-      };
-    });
-    const published = posted.value.comments.map((c, i) => {
-      const finding = findings[i];
-      return {
-        hostId: c.hostId,
-        ...(c.threadId ? { threadId: c.threadId } : {}),
-        ...(finding ? { findingId: finding.id, file: finding.file, line: finding.line } : {}),
-        replies: 0,
-        at: now,
-      };
-    });
     const { status: _s, counts: _c, run: _r, ...kept } = review.value;
-    const next: WatchedReview = {
-      ...kept,
-      comments: [...kept.comments, ...published],
-      findings: [...kept.findings, ...findings],
-      watch: { active: this.d.codehost.review.watch },
-      updatedAt: now,
-    };
-    const saved = await this.save(next);
+    // What was posted is recorded on the file as it is now: a decision written meanwhile stays.
+    const saved = await this.locked(kept.id, (current) => {
+      const base = current ?? kept;
+      const taken = base.findings.length;
+      const findings = verdictFindings.map((f, i) => {
+        const hunk = hunkAt(diff, f.location.file, f.location.line);
+        return {
+          id: `f${taken + i + 1}`,
+          file: f.location.file,
+          line: f.location.line,
+          text: f.claim,
+          severity: f.severity,
+          state: "open" as const,
+          ...(hunk !== undefined ? { hunk } : {}),
+          at: now,
+        };
+      });
+      const published = posted.value.comments.map((c, i) => {
+        const finding = findings[i];
+        return {
+          hostId: c.hostId,
+          ...(c.threadId ? { threadId: c.threadId } : {}),
+          ...(finding ? { findingId: finding.id, file: finding.file, line: finding.line } : {}),
+          replies: 0,
+          at: now,
+        };
+      });
+      return ok({
+        ...base,
+        comments: [...base.comments, ...published],
+        findings: [...base.findings, ...findings],
+        watch: { active: this.d.codehost.review.watch },
+      });
+    });
     if (saved.isErr()) return err(saved.error);
     return ok({
       published: true,
-      review: await this.view(next),
+      review: await this.view(saved.value as WatchedReview),
       inline: comments.length,
       general: verdict.value.consider.length,
     });
@@ -402,17 +417,19 @@ export class WatchedReviews {
     if (ref.isErr()) return err(known.error);
     const read = await this.read(ref.value);
     if (read.isErr()) return err(read.error);
-    const review = this.fresh(
+    const made = this.fresh(
       reviewId(ref.value, ref.value.number),
       ref.value,
       read.value.detail,
       "watched",
       this.now(),
     );
-    const saved = await this.save(review);
+    const saved = await this.locked(made.id, (current) =>
+      ok(current ? { ...current, watch: { active: true } } : made),
+    );
     if (saved.isErr()) return err(saved.error);
     void input;
-    return ok(await this.view(review));
+    return ok(await this.view(saved.value as WatchedReview));
   }
 
   /** The person waves a card away; it stays away until the MR's head moves. */
@@ -462,38 +479,43 @@ export class WatchedReviews {
       const { detail } = read.value;
       checked.push(review.id);
       const now = this.now();
-      let next: WatchedReview = { ...review, ...this.facts(detail, review) };
-      const facts = this.facts(detail, review);
-      let dirty = (Object.keys(facts) as (keyof typeof facts)[]).some((k) => facts[k] !== review[k]);
-      if (detail.state !== "open") {
-        next = { ...next, watch: { active: false, ended: { why: detail.state, at: now } } };
-        ended.push(review.id);
-        dirty = true;
-      } else if (review.runs.length > 0) {
-        const found = newsOf(review, detail);
-        const before = review.news;
-        if (found.commits > 0 || found.replies > 0) {
-          next = {
-            ...next,
-            news: {
-              ...found,
-              headSha: detail.headSha,
-              at: before && before.headSha === detail.headSha ? before.at : now,
-            },
-            findings: prePass(review, detail),
-          };
-          if (!before || before.commits !== found.commits || before.replies !== found.replies) {
-            news.push(review.id);
-            dirty = true;
+      // The host was read outside the lock; what is recorded is computed from the file as it is
+      // now, so a finding's state the agent wrote meanwhile is kept.
+      const saved = await this.locked(review.id, (loaded) => {
+        const current = loaded;
+        if (!current?.watch.active) return ok(undefined);
+        const facts = this.facts(detail, current);
+        let next: WatchedReview = { ...current, ...facts };
+        let dirty = (Object.keys(facts) as (keyof typeof facts)[]).some((k) => facts[k] !== current[k]);
+        if (detail.state !== "open") {
+          next = { ...next, watch: { active: false, ended: { why: detail.state, at: now } } };
+          ended.push(current.id);
+          dirty = true;
+        } else if (current.runs.length > 0) {
+          const found = newsOf(current, detail);
+          const before = current.news;
+          if (found.commits > 0 || found.replies > 0) {
+            next = {
+              ...next,
+              news: {
+                ...found,
+                headSha: detail.headSha,
+                at: before && before.headSha === detail.headSha ? before.at : now,
+              },
+              findings: prePass(current, detail),
+            };
+            if (!before || before.commits !== found.commits || before.replies !== found.replies) {
+              news.push(current.id);
+              dirty = true;
+            }
+            const hints = (r: WatchedReview) =>
+              r.findings.map((f) => (f.candidates ?? []).join(",")).join(";");
+            if (hints(next) !== hints(current)) dirty = true;
           }
-          const hints = (r: WatchedReview) => r.findings.map((f) => (f.candidates ?? []).join(",")).join(";");
-          if (hints(next) !== hints(review)) dirty = true;
         }
-      }
-      if (dirty) {
-        const saved = await this.save({ ...next, updatedAt: now });
-        if (saved.isErr()) return err(saved.error);
-      }
+        return ok(dirty ? next : undefined);
+      });
+      if (saved.isErr()) return err(saved.error);
     }
     if (this.d.codehost.review.watch) {
       const known = new Set(all.map((r) => r.id));
@@ -518,10 +540,16 @@ export class WatchedReviews {
             errors.push(`${id}: ${detail.error.message}`);
             continue;
           }
-          const saved = await this.save(this.fresh(id, ref.value, detail.value, "requested", this.now()));
+          const made = this.fresh(id, ref.value, detail.value, "requested", this.now());
+          let created = false;
+          // Made only when no one made it meanwhile (a `review open` of the same link).
+          const saved = await this.locked(id, (current) => {
+            created = current === undefined;
+            return ok(current ? undefined : made);
+          });
           if (saved.isErr()) return err(saved.error);
           known.add(id);
-          requested.push(id);
+          if (created) requested.push(id);
         }
       }
     }
@@ -598,7 +626,9 @@ export class WatchedReviews {
   }
 
   private async startRun(
-    review: WatchedReview,
+    id: string,
+    /** The review as this run records it, laid over the file as it is (absent: a new one). */
+    shape: (current: WatchedReview | undefined) => WatchedReview,
     detail: HostPullRequestDetail,
     extra: {
       readonly host?: string | undefined;
@@ -608,6 +638,7 @@ export class WatchedReviews {
       readonly delta?: string;
     },
   ): Promise<Result<Omit<StartedReview, "mode">, MetatorError>> {
+    const review = shape(await this.load(id));
     const local = review.mode === "local";
     if (local && this.d.fetchRef) {
       const fetched = await this.d.fetchRef(headRef(refOf(review)), reviewBranch(review.id));
@@ -638,10 +669,12 @@ export class WatchedReviews {
       const delta = await this.d.fs.write(`${dir}/delta.diff`, extra.delta);
       if (delta.isErr()) return err(delta.error);
     }
-    const { news: _n, ...rest } = review;
-    const next: WatchedReview = { ...rest, runs: [...review.runs, runId], updatedAt: this.now() };
-    const saved = await this.save(next);
+    const saved = await this.locked(id, (current) => {
+      const base = shape(current);
+      return ok({ ...base, runs: [...base.runs, runId] });
+    });
     if (saved.isErr()) return err(saved.error);
+    const next = saved.value as WatchedReview;
     if (next.threadId && this.d.threads) {
       await this.d.threads.addMr(next.threadId, next.id, `MR #${next.number} ${next.title}`);
       await this.d.threads.addRun(
@@ -735,13 +768,31 @@ export class WatchedReviews {
   ): Promise<Result<ReviewView, MetatorError>> {
     const shown = await this.show(idOrUrl);
     if (shown.isErr()) return err(shown.error);
-    const { status: _s, counts: _c, run: _r, ...review } = shown.value;
-    const next = edit(review);
-    if (next.isErr()) return err(next.error);
-    const updated = { ...next.value, updatedAt: this.now() };
-    const saved = await this.save(updated);
+    const saved = await this.locked(shown.value.id, (current) =>
+      current ? edit(current) : err(MetatorError.notFound(`review ${shown.value.id}`)),
+    );
     if (saved.isErr()) return err(saved.error);
-    return ok(await this.view(updated));
+    return ok(await this.view(saved.value as WatchedReview));
+  }
+
+  /**
+   * The one way a review's file is changed: under the lock, `edit` gets the file as it is now
+   * (undefined: there is none) and answers the review to write, or undefined to leave it. The
+   * answer is what the file holds afterwards.
+   */
+  private locked(
+    id: string,
+    edit: (current: WatchedReview | undefined) => Result<WatchedReview | undefined, MetatorError>,
+  ): Promise<Result<WatchedReview | undefined, MetatorError>> {
+    return this.lock.hold(`${this.d.dir}/${id}.json`, async () => {
+      const current = await this.load(id);
+      const next = edit(current);
+      if (next.isErr()) return err(next.error);
+      if (!next.value) return ok(current);
+      const updated = { ...next.value, updatedAt: this.now() };
+      const saved = await this.save(updated);
+      return saved.map(() => updated);
+    });
   }
 
   private async all(): Promise<WatchedReview[]> {

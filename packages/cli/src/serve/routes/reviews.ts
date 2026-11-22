@@ -81,7 +81,7 @@ export const REVIEW_ROUTES: readonly Route[] = [
         ...(b.host ? { host: b.host } : {}),
         ...(threadId ? { threadId } : {}),
       });
-      return opened.map((o) => ({ ...o, ...(target.name ? { repo: target.name } : {}) }));
+      return opened.map((o) => ({ ...o, ...(target.name ? { localRepo: target.name } : {}) }));
     },
   }),
   route({
@@ -94,7 +94,8 @@ export const REVIEW_ROUTES: readonly Route[] = [
       for (const r of served(daemon)) {
         const listed = await r.c.resolve("watchedReviews").list();
         if (listed.isErr()) return err(listed.error);
-        reviews.push(...listed.value.reviews.map((v) => (r.name ? { ...v, repo: r.name } : v)));
+        // `repo` is the code host's owner/name; the folder's repository that holds it is `localRepo`.
+        reviews.push(...listed.value.reviews.map((v) => (r.name ? { ...v, localRepo: r.name } : v)));
         cards.push(...listed.value.cards.map((c) => inRepo(c, r.name)));
       }
       return ok({ reviews, cards });

@@ -49,6 +49,7 @@ function world(
     threads: [],
   };
   const posted: HostReview[] = [];
+  const hooks: { whileReading?: (() => Promise<unknown>) | undefined; url?: string | undefined } = {};
   const adapter = (name: string): CodeHostAdapter => ({
     listPullRequests: async () => ok([]),
     listThreads: async () => ok(pr.threads),
@@ -56,7 +57,12 @@ function world(
     resolve: async () => ok(undefined),
     openFromUrl: async (url, source) => {
       calls.push(`${name} open ${url} ${source.mcp ?? "-"}`);
-      return ok(pr);
+      // What happens elsewhere while the host answers (another process writes the file).
+      const meanwhile = !hooks.url || hooks.url === url ? hooks.whileReading : undefined;
+      if (meanwhile) hooks.whileReading = undefined;
+      const answer = pr;
+      if (meanwhile) await meanwhile();
+      return ok(answer);
     },
     requested: async (source) => {
       calls.push(`${name} requested ${source.repo}`);
@@ -170,6 +176,7 @@ function world(
     posted,
     records,
     verdict,
+    hooks,
     set: (change: Partial<HostPullRequestDetail>) => {
       pr = { ...pr, ...change };
     },
@@ -389,6 +396,32 @@ describe("watching and re-review", () => {
       reviewedSha: "h2",
       status: "published",
     });
+  });
+
+  test("a finding's state written while the watcher reads the host survives its save (the file is read again under the lock)", async () => {
+    const w = await published();
+    w.set({ headSha: "h2", commits: ["h1", "h2"], diff: DIFF.replace("max = 100", "max = 1000") });
+    // The agent's `review finding` lands between the watcher's read of the host and its save.
+    w.hooks.whileReading = () =>
+      w.reviews.finding(ID, { finding: "f1", state: "fixed", reason: "the unit is in the name now" });
+    expect((await w.reviews.check())._unsafeUnwrap().news).toEqual([ID]);
+    const kept = (await w.reviews.show(ID))._unsafeUnwrap();
+    expect(kept.findings[0]).toMatchObject({
+      state: "fixed",
+      reason: "the unit is in the name now",
+      candidates: ["changed"],
+    });
+    expect(kept.news).toMatchObject({ commits: 1, headSha: "h2" });
+  });
+
+  test("a request asking me that another process recorded meanwhile is not recorded or carded again", async () => {
+    const w = await published();
+    const url46 = "https://github.com/acme/shop/pull/46";
+    // While the watcher reads #46 from the host, the person starts watching it from the CLI.
+    w.hooks.url = url46;
+    w.hooks.whileReading = () => w.reviews.watch(url46, { by: "ann" });
+    expect((await w.reviews.check())._unsafeUnwrap().requested).toEqual([]);
+    expect((await w.reviews.show("github-acme-shop-46"))._unsafeUnwrap().why).toBe("watched");
   });
 
   test("approve goes through the port only with a person's name and ends the watch; merged ends it too", async () => {
