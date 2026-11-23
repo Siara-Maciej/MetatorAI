@@ -49,7 +49,14 @@ export interface Inspection {
   readonly path: string;
   readonly kind: "missing" | "not-git" | "repo" | "folder";
   /** What the app offers next. */
-  readonly next: "choose-another" | "install-git" | "git-init" | "setup" | "add" | "setup-repos" | "update-app";
+  readonly next:
+    | "choose-another"
+    | "install-git"
+    | "git-init"
+    | "setup"
+    | "add"
+    | "setup-repos"
+    | "update-app";
   readonly git: {
     readonly installed: boolean;
     readonly version: string | null;
