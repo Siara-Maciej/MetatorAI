@@ -319,6 +319,13 @@ describe("metator CLI (process e2e)", () => {
       "attach",
       "mcp",
       "supervise",
+      "devcontainer list",
+      "devcontainer start",
+      "devcontainer install",
+      "devcontainer run",
+      "devcontainer exec",
+      "devcontainer serve",
+      "tunnel",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });
@@ -337,6 +344,7 @@ describe("metator CLI (process e2e)", () => {
       "Understand the code",
       "Check and review",
       "Many repositories",
+      "Dev containers",
       "Keep it running",
     ]);
     for (const v of data.verbs)

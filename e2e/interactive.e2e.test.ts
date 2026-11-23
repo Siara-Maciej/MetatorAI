@@ -237,8 +237,8 @@ describe("metator run in a terminal", () => {
     expect(r.screen).toContain("Work on a task");
     expect(r.screen).toContain("metator run new");
     expect(r.screen).not.toContain('{"ok"');
-    // --json: the line alone, with the six verbs.
+    // --json: the line alone, with the seven verbs.
     const json = await inTerminal(["--help", "--json"], repo.root, [], 20_000);
-    expect((json.json.data as { verbs: unknown[] }).verbs.length).toBe(6);
+    expect((json.json.data as { verbs: unknown[] }).verbs.length).toBe(7);
   });
 });

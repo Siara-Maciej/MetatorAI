@@ -83,7 +83,7 @@ describe("the npm package metator-ai (bun run pack)", () => {
     const version = await packed(["version"], repo.root);
     expect([version.code, version.json.data]).toEqual([0, { name: "metator-ai", version: "0.0.0" }]);
     const verbs = await packed(["help", "--verbs"], repo.root);
-    expect((verbs.json.data as { verbs: unknown[] }).verbs.length).toBe(6);
+    expect((verbs.json.data as { verbs: unknown[] }).verbs.length).toBe(7);
     const setup = await packed(["setup", "--host", "copilot", "--yes"], repo.root);
     expect(setup.json.ok).toBe(true);
     const data = setup.json.data as { canon: { mode: string; steps: { create: number } }; hosts: string[] };
