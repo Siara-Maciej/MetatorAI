@@ -29,9 +29,40 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-liberation fonts-freefont-ttf
           bunx playwright install --with-deps chromium
+      # The three test steps keep their output for the README's badges. `shell: bash` runs them with
+      # `-o pipefail`, so the step fails exactly when the test command fails, as without the tee.
       - name: Unit tests
-        run: bun run test:unit
+        id: unit
+        shell: bash
+        run: bun run test:unit 2>&1 | tee "$RUNNER_TEMP/unit.log"
       - name: E2E tests (CLI process, the site and the desktop app in Chromium)
-        run: bun run test:e2e
+        id: e2e
+        shell: bash
+        run: bun run test:e2e 2>&1 | tee "$RUNNER_TEMP/e2e.log"
       - name: Mutation smoke (tests must catch injected bugs)
-        run: bun run test:mutation
+        id: mutation
+        shell: bash
+        run: bun run test:mutation 2>&1 | tee "$RUNNER_TEMP/mutation.log"
+
+      # Badges (scripts/badges.ts), on a push to main only; pages.yml publishes them. They run after a
+      # failure too, so a badge shows it, and they never change the job's result: a failed check
+      # above keeps the job red. Only a broken badge script would fail it.
+      - name: Unit test coverage (for the badge)
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        continue-on-error: true # the unit tests were judged above; this run only measures
+        run: bun test packages --coverage --coverage-reporter=lcov --coverage-dir "$RUNNER_TEMP/coverage"
+      - name: Badges
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: >-
+          bun scripts/badges.ts --out "$RUNNER_TEMP/badges"
+          --lcov "$RUNNER_TEMP/coverage/lcov.info"
+          --unit "$RUNNER_TEMP/unit.log" --unit-outcome "${{ steps.unit.outcome }}"
+          --e2e "$RUNNER_TEMP/e2e.log" --e2e-outcome "${{ steps.e2e.outcome }}"
+          --mutation "$RUNNER_TEMP/mutation.log" --mutation-outcome "${{ steps.mutation.outcome }}"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: badges
+          path: ${{ runner.temp }}/badges
+          if-no-files-found: error
+          retention-days: 90

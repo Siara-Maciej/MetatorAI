@@ -16,6 +16,7 @@ import { lstatSync, readdirSync, readlinkSync } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { mutationTotalLine } from "./badges.ts";
 import { MUTANTS, type Mutant } from "./mutants.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -27,11 +28,13 @@ const filter = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--job
 const selected = filter ? MUTANTS.filter((m) => m.file.includes(filter)) : MUTANTS;
 
 let failures = 0;
+const count = { killed: 0, survived: 0, stale: 0 };
 const queue: Mutant[] = [];
 for (const m of selected) {
   if (!(await Bun.file(join(ROOT, m.file)).text()).includes(m.from)) {
     console.error(`STALE   ${m.file}: pattern not found (${m.why})`);
     failures++;
+    count.stale++;
   } else queue.push(m);
 }
 
@@ -127,6 +130,7 @@ try {
         const killed = await killedIn(dir, m);
         await Bun.write(path, original);
         console.log(`${killed ? "KILLED " : "SURVIVED"} ${m.file}: ${m.why}`);
+        count[killed ? "killed" : "survived"]++;
         if (!killed) failures++;
       }
     }),
@@ -135,8 +139,12 @@ try {
   await cleanup();
 }
 
+// The last line is the total the README's badge reads (scripts/badges.ts).
+const total = mutationTotalLine({ ...count, total: selected.length });
 if (failures > 0) {
   console.error(`\n${failures} mutant(s) survived or are stale: strengthen the tests or update the list.`);
+  console.log(total);
   process.exit(1);
 }
 console.log(`\nAll ${selected.length} mutants killed.`);
+console.log(total);
