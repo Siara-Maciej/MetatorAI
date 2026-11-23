@@ -22,6 +22,7 @@ import {
 } from "@metator/core";
 import { BunLauncher, BunProcessRunner, findFolderRepos, readCheckout } from "@metator/plugin-bun";
 import { GitCliRepository } from "@metator/plugin-git";
+import { JavaBuildFiles } from "@metator/plugin-java";
 import { type BootstrapOptions, bootstrap, HOSTS } from "./bootstrap.ts";
 import { METATOR_VERSION } from "./canon.ts";
 
@@ -112,6 +113,10 @@ export function folderInspector(
     },
     git: new GitCliRepository(new BunProcessRunner()),
     files: { kind: kindOf, read: readText },
+    javaBuild: async (root) => {
+      const read = await new JavaBuildFiles(root).read();
+      return read.isOk() ? read.value : undefined;
+    },
     folder: folderAt,
     previewSetup: (host, root) => previewSetup(options, host, root),
   });

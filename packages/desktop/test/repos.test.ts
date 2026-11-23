@@ -66,6 +66,27 @@ describe("an inspection in plain words, with one next action (round 20)", () => 
     expect(r.action).toBe("Set up");
   });
 
+  test("a Java repository says what it is in one line, first; set up or not (round 22)", () => {
+    const stack = {
+      languages: ["Java"],
+      builds: [{ tool: "maven", wrapper: false, modules: 14, label: "Maven" }],
+      line: "Java · Maven, 14 modules",
+    };
+    const java = (setUp: "yes" | "no") =>
+      readInspection(
+        fakeInspection(world({ folders: { [SHOP]: { kind: "repo", setUp, writes: FILES, stack } } }), SHOP),
+      );
+    expect(java("no").lines).toEqual([
+      "Java · Maven, 14 modules",
+      "Setup will write 3 files. Nothing is committed unless you say so.",
+    ]);
+    expect(java("yes").lines[0]).toBe("Java · Maven, 14 modules");
+    // Nothing found (an older CLI, an empty repository): no line.
+    expect(readInspection(inspect(SHOP)).lines[0]).toBe(
+      "Setup will write 3 files. Nothing is committed unless you say so.",
+    );
+  });
+
   test("uncommitted changes are said, and stay", () => {
     const r = readInspection(
       fakeInspection(world({ folders: { [SHOP]: { kind: "repo", uncommitted: ["a.ts"] } } }), SHOP),

@@ -9,6 +9,8 @@ export type ErrorCode =
   | "TRANSITION_DENIED"
   | "PARSE_FAILED"
   | "CHECK_FAILED"
+  /** A name that means several things (a simple type name of several types): `details.candidates` lists them (exit 64). */
+  | "AMBIGUOUS"
   /** A write based on a stale `digest`: someone changed the document since; `details.current` is it now. */
   | "CONFLICT"
   /** A gate that waits on other work (a system run's children): not yet, look again later (exit 4). */

@@ -1,0 +1,29 @@
+{
+  "kind": "Discovery",
+  "schemaVersion": 1,
+  "packageManager": { "name": "bun", "lockfiles": ["bun.lock"] },
+  "workspaces": [],
+  "scripts": [
+    {
+      "package": "shop",
+      "dir": ".",
+      "name": "test",
+      "command": "bun test",
+      "candidates": [
+        {
+          "capability": "test",
+          "confidence": 0.95,
+          "evidence": ["package.json#scripts.test"],
+          "fileScopable": true,
+          "reason": "no fixed target: appended files narrow the run"
+        }
+      ]
+    }
+  ],
+  "tools": [{ "id": "bun-test", "evidence": ["package.json#devDependencies.@types/bun"] }],
+  "ci": [],
+  "codeHost": null,
+  "docs": { "adr": null, "codeowners": null },
+  "ai": [],
+  "warnings": []
+}

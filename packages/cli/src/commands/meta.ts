@@ -171,6 +171,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["graph affected", "the files and tests a change touches"],
       ["graph dependents", "who imports a file, directly or through others"],
       ["symbols find", "where an exported name is defined and re-exported"],
+      ["java overview", "a Java repository: modules, endpoints, entities, beans; then `metator java <fact>`"],
       ["cards build", "one card per package: facts from the code plus your notes"],
       ["owners", "who owns a path (CODEOWNERS)"],
     ],

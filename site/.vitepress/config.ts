@@ -21,6 +21,7 @@ export const sections = [
       { text: "Dev Containers", link: "devcontainers" },
       { text: "Start with one repository", link: "first-run" },
       { text: "Start with many repositories", link: "many" },
+      { text: "Java repositories", link: "java" },
       { text: "Copilot and Claude Code", link: "hosts" },
       { text: "Host conformance", link: "conformance" },
       { text: "FAQ", link: "faq" },

@@ -411,6 +411,11 @@ function Inspected({
           {children.map((c) => (
             <li key={c.root}>
               <span className="name">{c.name}</span>
+              {c.stack?.line ? (
+                <span className="dim" data-testid="child-stack">
+                  {c.stack.line}
+                </span>
+              ) : null}
               <span className="dim">{CHILD_WORDS[c.setUp]}</span>
               {c.setUp !== "no" ? null : (
                 <button

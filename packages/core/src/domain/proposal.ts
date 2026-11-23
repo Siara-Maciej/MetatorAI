@@ -1,5 +1,6 @@
 import type { GateStep } from "./config.ts";
 import { type Capability, commandsOf, type Discovery, runnerTasks } from "./discovery.ts";
+import { buildProgram, JVM_FILES, jvmGateSteps, wrapperOf } from "./jvm-build.ts";
 
 /**
  * Config proposal from discovery (`metator init`, ARCHITECTURE §10.1 B7). Deterministic: the
@@ -179,6 +180,33 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
       gate: "quick",
       reason: `the quick gate ${capability === "test" ? "runs the tests" : "checks types"} as the full gate does: a quick change (mt-quick) ends at this gate`,
     });
+  }
+
+  // A Java build at the root (round 22): compile, test, and the linters it configures, through
+  // its wrapper when there is one. The quick gate builds only the modules of the changed files.
+  for (const build of discovery.builds) {
+    for (const js of jvmGateSteps(build)) {
+      const taken = (id: string) => full.some((s) => s.id === id) || quick.some((s) => s.id === id);
+      const id = taken(js.id) ? `${build.tool}:${js.id}` : js.id;
+      const run = { build: build.tool, args: [...js.args] };
+      // The config names only the tool: the wrapper (or the tool) fitting each machine runs it.
+      const program = build.wrapper
+        ? `${wrapperOf(build.tool)} ${js.args.join(" ")} (${wrapperOf(build.tool, "win32")} on Windows)`
+        : `${buildProgram(build.tool, false)} ${js.args.join(" ")}`;
+      full.push({ ...step(id, run), files: "none" });
+      quick.push({ ...step(id, run), files: "modules", match: [...JVM_FILES] });
+      const evidence = [...js.evidence, ...(build.wrapper ? [build.wrapper] : [])];
+      decisions.push(
+        { capability: js.id, gate: "full", step: program, evidence, reason: js.reason },
+        {
+          capability: js.id,
+          gate: "quick",
+          step: `${program}, only the changed files' modules`,
+          evidence,
+          reason: `${js.reason}; the quick gate builds only the modules the change touches`,
+        },
+      );
+    }
   }
 
   if (options.ruleCanon) {

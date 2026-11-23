@@ -277,6 +277,24 @@ describe("what a command says of itself (meta)", () => {
     // Round 20 (ADR-0105): `inspect`, what a folder is before setup (the desktop app's Add repository).
     const tools = [...BEFORE.tools];
     tools.splice(tools.indexOf("config show") + 1, 0, "inspect");
+    // Round 22 (ADR-0107): `metator java`, the reading of a Java repository, reads only.
+    tools.splice(
+      tools.indexOf("symbols find") + 1,
+      0,
+      ...[
+        "overview",
+        "modules",
+        "types",
+        "show",
+        "endpoints",
+        "entities",
+        "repositories",
+        "beans",
+        "config",
+        "entrypoints",
+        "index",
+      ].map((c) => `java ${c}`),
+    );
     expect(mcpTools(program).map((t) => t.command)).toEqual(tools);
     expect(refusedOptions(program)).toEqual(BEFORE.refused);
     expect(alwaysOptions(program)).toEqual(BEFORE.always);
@@ -290,6 +308,23 @@ describe("what a command says of itself (meta)", () => {
       "graph dependents": { positionals: ["file"], flags: { transitive: "boolean" } },
       "graph path": { positionals: ["from", "to"], flags: {} },
       "symbols find": { positionals: ["name"], flags: {} },
+      "java overview": { positionals: [], flags: {} },
+      "java types": {
+        positionals: [],
+        flags: {
+          module: "string",
+          package: "string",
+          kind: "string",
+          annotated: "string",
+          implements: "string",
+        },
+      },
+      "java show": { positionals: ["type"], flags: {} },
+      "java endpoints": {
+        positionals: [],
+        flags: { module: "string", package: "string", framework: "string" },
+      },
+      "java beans": { positionals: [], flags: { module: "string", package: "string", injects: "string" } },
       "rules pack": { positionals: [], flags: { files: "list", base: "string", budget: "number" } },
       "rules show": { positionals: ["id"], flags: {} },
       "plan scope": { positionals: ["file"], flags: {} },
@@ -332,12 +367,15 @@ describe("what a command says of itself (meta)", () => {
       "host conformance diff",
       ...before.slice(at),
     ];
+    // Round 22 (ADR-0107): reading a Java repository, after finding a symbol.
+    const symbols = withHosts.indexOf("symbols find") + 1;
+    const withJava = [...withHosts.slice(0, symbols), "java overview", ...withHosts.slice(symbols)];
     // Round 21 (ADR-0106): the dev containers, before keeping it running.
-    const keep = withHosts.indexOf("serve");
+    const keep = withJava.indexOf("serve");
     expect(verbs).toEqual([
-      ...withHosts.slice(0, keep),
+      ...withJava.slice(0, keep),
       ...["list", "start", "install", "run", "exec", "serve"].map((c) => `devcontainer ${c}`),
-      ...withHosts.slice(keep),
+      ...withJava.slice(keep),
     ]);
   });
 

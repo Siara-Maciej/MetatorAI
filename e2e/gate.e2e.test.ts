@@ -69,7 +69,7 @@ describe("metator init", () => {
       await bare.commit("init");
       const dry = await metator(["init", "--dry-run"], bare.root);
       expect(dry.json.warnings).toEqual([
-        "nothing found for the quick gate (no lint, typecheck or test script): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
+        "nothing found for the quick gate (no lint, typecheck or test script, no Maven or Gradle build): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
       ]);
       expect(Object.keys(data(dry)).sort()).toEqual(["config", "decisions", "written"]);
     } finally {

@@ -126,7 +126,7 @@ export class BuildImportGraph {
     for (const file of files.value) {
       const content = await this.fs.read(file);
       if (content.isErr()) continue; // deleted between listing and reading
-      const fingerprint = this.analyzer.fingerprint(content.value);
+      const fingerprint = this.analyzer.fingerprint(content.value, file);
       const cached = previous?.files[file];
       if (cached && cached.fingerprint === fingerprint) {
         next.files[file] = cached;

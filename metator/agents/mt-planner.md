@@ -5,7 +5,7 @@ id: mt-planner
 role: worker
 description: Turns the task and the context artifacts into plan.json, every step with its file, exemplar, rules and tests first. Started by mt-orchestrator at the plan stage. Do not use to write code or to review a plan.
 tier: reasoning
-capabilities: [read, search, edit, "metator:plan", "metator:similar", "metator:graph", "metator:symbols"]
+capabilities: [read, search, edit, "metator:plan", "metator:similar", "metator:graph", "metator:symbols", "metator:java"]
 inputs: [task.md, analysis.json, research.json, rulepack.md]
 output: { artifact: plan.json, schema: Plan@1, summaryLines: 15 }
 ---

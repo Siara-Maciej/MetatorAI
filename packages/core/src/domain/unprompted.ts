@@ -26,6 +26,8 @@ export interface Unprompted {
     readonly args?: readonly string[];
     readonly workspaces?: string;
     readonly metator?: string;
+    /** A Java build (`maven`, `gradle`) with its goals or tasks in `args`. */
+    readonly build?: string;
   }[];
   /** The root package's scripts (`package.json`), by name. */
   readonly scripts: Readonly<Record<string, string>>;
@@ -144,6 +146,9 @@ function ownCheck(argv: readonly string[], u: Unprompted, base: string, dirs: re
     const words = parse(script);
     if (words.every((w): w is string => typeof w === "string") && starts(words)) return true;
   }
+  // A Java build gate as the gate runs it, by its wrapper or the tool from PATH (`./mvnw -B test`).
+  for (const gate of u.gates)
+    if (gate.build !== undefined && buildCommands(gate.build, gate.args ?? []).some(starts)) return true;
   // A gate's binary with its arguments, alone or through the package manager's runner.
   for (const gate of u.gates) {
     if (gate.bin === undefined) continue;
@@ -258,6 +263,8 @@ export const UNPROMPTED_METATOR: readonly string[] = [
   "symbols",
   "cards",
   "similar",
+  // Reading a Java repository (round 22): every `metator java` command only reads (its index is a cache).
+  "java",
   "rules",
   "workflow",
   "ask",
@@ -334,9 +341,31 @@ export function allowToolsOf(u: Pick<Unprompted, "metatorCommand" | "gates">): s
       ...u.gates.flatMap((g) => [g.script, g.workspaces].filter((s): s is string => s !== undefined)),
     ]),
   ];
+  const builds = u.gates.flatMap((g) =>
+    g.build === undefined ? [] : buildCommands(g.build, g.args ?? []).map((c) => `shell(${c.join(" ")})`),
+  );
   return [
     ...UNPROMPTED_METATOR.map((prefix) => `shell(${u.metatorCommand} ${prefix})`),
     ...[...PACKAGE_MANAGERS].flatMap((pm) => scripts.map((s) => `shell(${pm} run ${s})`)),
     ...[...PACKAGE_MANAGERS].map((pm) => `shell(${pm} test)`),
+    ...new Set(builds),
   ];
+}
+
+/** How a person or an agent types a Java build gate: through the wrapper, or the tool from PATH. */
+function buildCommands(build: string, args: readonly string[]): string[][] {
+  // On Windows the wrapper is `mvnw.cmd` (`gradlew.bat`), found in the folder the shell stands in.
+  if (build === "maven")
+    return [
+      ["./mvnw", ...args],
+      ["mvnw.cmd", ...args],
+      ["mvn", ...args],
+    ];
+  if (build === "gradle")
+    return [
+      ["./gradlew", ...args],
+      ["gradlew.bat", ...args],
+      ["gradle", ...args],
+    ];
+  return [];
 }

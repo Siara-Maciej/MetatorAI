@@ -28,6 +28,7 @@ A skill is a reusable procedure, optionally with scripts. The host loads a skill
 | `mt-review-rubric` | a review agent decides whether something is a finding and how severe it is | to find problems in the first place |
 | `mt-grill` | a task is ambiguous at intake and the run must not guess | once the plan is approved, or when the code can answer |
 | `mt-diagnose` | a test, a gate or a reported bug fails and the cause is not obvious | to write the fix |
+| `mt-read-java` | a question or a task needs facts about Java code (types, endpoints, entities, beans, configuration, entry points, modules): which `metator java` command measures it, and how to cite it ([Java repositories](../guide/java.md#read-a-java-repository)) | for TypeScript code, or to change Java code |
 | `mt-run-without-asking` | an agent is about to run a shell or `metator` command in a run and needs the form that runs without asking a person | to decide what the task needs |
 
 ## Source files and generated files

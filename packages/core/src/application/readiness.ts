@@ -2,6 +2,14 @@ import type { MetatorConfig } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { GateReport } from "../domain/gate.ts";
 import { type ConformanceSeen, conformanceLine } from "../domain/host-conformance.ts";
+import {
+  buildProgram,
+  type JvmBuild,
+  type JvmBuildTool,
+  jdkMajor,
+  jdkVerdict,
+  wrapperOf,
+} from "../domain/jvm-build.ts";
 import type { McpServers } from "../domain/mcp.ts";
 import { isPrecondition, PRECONDITIONS, preconditionKinds } from "../domain/preconditions.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -36,7 +44,10 @@ export interface ReadinessCheck {
     | "mcp"
     | "runs"
     | "isolation"
-    | "conformance";
+    | "conformance"
+    | "jdk"
+    | "build"
+    | "build-dependencies";
   readonly status: ReadinessStatus;
   /** What this means for a run, in one sentence. */
   readonly message: string;
@@ -111,6 +122,12 @@ export class CheckReadiness {
       readonly conformance?: () => Promise<readonly ConformanceSeen[]>;
       /** Why the sandbox runtime cannot start from this installation; undefined when it can (ADR-0105). */
       readonly sandboxRuntime?: () => string | undefined;
+      /** The repository's Java builds at the root (round 22); none: not a Java repository. */
+      readonly builds?: () => Promise<readonly JvmBuild[]>;
+      /** What `java -version` printed, or undefined when no JDK answered. */
+      readonly java?: () => Promise<string | undefined>;
+      /** Whether the build tool's local dependency cache is on this machine (`~/.m2/repository`, `~/.gradle/caches`). */
+      readonly buildCache?: (tool: JvmBuildTool) => Promise<boolean>;
     } = {},
   ) {}
 
@@ -201,6 +218,7 @@ export class CheckReadiness {
       checks.push({ id: "conformance", ...conformanceLine(seen) });
     if (place === ".") checks.push(...(await this.tree()), ...(await this.branch()));
     checks.push(await this.dependencies(place));
+    if (place === ".") checks.push(...(await this.java()));
     checks.push(await this.environment(input.worktree));
     checks.push(await this.mcpServers());
     checks.push(await this.isolation());
@@ -354,6 +372,65 @@ export class CheckReadiness {
       // A worktree gets them from the main checkout or the package manager in one command.
       fix: place === "." ? fix : "metator worktree setup --worktree <id>",
     };
+  }
+
+  /**
+   * A Java repository (round 22): a JDK new enough for what the build declares, the build tool or
+   * its wrapper, and whether its dependencies were ever downloaded here. Whether they resolve
+   * needs the network, which doctor does not use: the build says (`doctor --gates`).
+   */
+  private async java(): Promise<ReadinessCheck[]> {
+    const builds = (await this.here.builds?.()) ?? [];
+    if (builds.length === 0) return [];
+    const declared = builds.reduce<JvmBuild["java"]>(
+      (top, b) => (b.java && (!top || b.java.version > top.version) ? b.java : top),
+      null,
+    );
+    const output = await this.here.java?.();
+    const checks: ReadinessCheck[] = [
+      { id: "jdk", ...jdkVerdict(output === undefined ? undefined : jdkMajor(output), declared) },
+    ];
+    // The wrapper that runs on this machine: `mvnw` here, `mvnw.cmd` on Windows.
+    const platform = this.here.platform?.() ?? "";
+    for (const b of builds) {
+      const name = b.tool === "maven" ? "Maven" : "Gradle";
+      const program = buildProgram(b.tool, false, platform);
+      const wrapper = wrapperOf(b.tool, platform);
+      if (await this.fs.exists(wrapper))
+        checks.push({ id: "build", status: "ok", message: `${name} runs through ${wrapper}` });
+      else if (await this.mcp.hasCommand(program))
+        checks.push({
+          id: "build",
+          status: "ok",
+          message: `${name} runs as ${program} from PATH (no ${wrapper})`,
+        });
+      else
+        checks.push({
+          id: "build",
+          status: "warn",
+          message: `neither ${wrapper} nor ${program} is here: the gates cannot build the Java code`,
+          fix:
+            b.tool === "maven"
+              ? "install Maven (https://maven.apache.org/download.cgi), or add the wrapper: mvn wrapper:wrapper"
+              : "install Gradle (https://gradle.org/install/), or add the wrapper: gradle wrapper",
+        });
+      const cache = b.tool === "maven" ? "~/.m2/repository" : "~/.gradle/caches";
+      checks.push(
+        (await this.here.buildCache?.(b.tool))
+          ? {
+              id: "build-dependencies",
+              status: "ok",
+              message: `${name}'s local cache is here (${cache}); whether every dependency resolves shows when the build runs`,
+            }
+          : {
+              id: "build-dependencies",
+              status: "warn",
+              message: `${name} has downloaded nothing on this machine (no ${cache}): the first build downloads the dependencies and needs the network`,
+              fix: "metator doctor --gates",
+            },
+      );
+    }
+    return checks;
   }
 
   /** Every configured MCP server starts from a command on the PATH or a URL (design/14 §2). */

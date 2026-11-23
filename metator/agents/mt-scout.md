@@ -5,7 +5,7 @@ id: mt-scout
 role: worker
 description: Maps what a task touches before planning, from the import graph and module cards. Use at the start of a run to scope the change. Do not use to write code or to review.
 tier: standard
-capabilities: [read, search, edit, "metator:graph", "metator:workspace", "metator:cards", "metator:owners"]
+capabilities: [read, search, edit, "metator:graph", "metator:workspace", "metator:cards", "metator:owners", "metator:java"]
 inputs: [task]
 output: { artifact: analysis.json, schema: Analysis@1, summaryLines: 15 }
 ---
@@ -17,7 +17,7 @@ output: { artifact: analysis.json, schema: Analysis@1, summaryLines: 15 }
 2. For each entry file: `metator graph dependents <file> --transitive` and `metator graph deps <file>`.
 3. `metator workspace list`, then read the card in `docs/metator/modules/` of every package touched.
 4. `metator graph affected --files <entry files>` for the tests that cover the change.
-5. Note cross-package edges (`metator graph packages`) the task would add or change.
+5. Note cross-package edges (`metator graph packages`) the task would add or change. In a Java repository the modules are the packages; what a Java file declares and wires (endpoints, entities, beans, configuration) comes from `metator java …` (skill mt-read-java).
 6. `metator owners <entry files>`: who to ask or escalate to.
 
 # Output

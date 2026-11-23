@@ -36,6 +36,7 @@ import { registerGuardCommands } from "./commands/guard.ts";
 import { registerHostCommands } from "./commands/host.ts";
 import { registerIntakeCommands } from "./commands/intake.ts";
 import { registerIssueCommands } from "./commands/issue.ts";
+import { registerJavaCommands } from "./commands/java.ts";
 import { registerLessonsCommands } from "./commands/lessons.ts";
 import { registerMcpCommand } from "./commands/mcp.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
@@ -177,6 +178,7 @@ export function buildProgram(
   registerMetaCommands(program, ctx);
   registerChangedCommand(program, ctx);
   registerGraphCommands(program, ctx);
+  registerJavaCommands(program, ctx);
   registerApiCommands(program, ctx);
   registerOwnersCommand(program, ctx);
   registerSystemCommands(program, ctx);

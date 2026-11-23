@@ -19,7 +19,7 @@ export interface Envelope<T> {
 export const EXIT = { OK: 0, FAIL: 1, BLOCKED: 3, WAITING: 4, USAGE: 64, STALE_INDEX: 65 } as const;
 
 export function exitCodeFor(error: MetatorError): number {
-  if (error.code === "USAGE") return EXIT.USAGE;
+  if (error.code === "USAGE" || error.code === "AMBIGUOUS") return EXIT.USAGE;
   if (error.code === "STALE_INDEX") return EXIT.STALE_INDEX;
   // A gate that waits (W13): the drive tells "not yet" from "stopped for good" by these.
   if (error.code === "WAITING") return EXIT.WAITING;

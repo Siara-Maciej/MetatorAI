@@ -99,6 +99,7 @@ describe("InspectFolder", () => {
       setUp: "no",
       config: null,
       uncommitted: ["README.md"],
+      stack: { languages: [], builds: [], line: "" },
     });
     expect(i.git).toEqual({
       installed: true,

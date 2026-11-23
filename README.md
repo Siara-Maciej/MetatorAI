@@ -67,6 +67,10 @@ Work from a folder that holds several repositories with one app and one Home. Wh
 
 ![Terminals for a task over two repositories: the chat, and one session each for shop-api and shop-web](site/public/screens/real/real-09-system-task-tiles.webp)
 
+### Java repositories too
+
+Set MetatorAI up in a Maven or Gradle repository and its gates compile and test with your build, only the modules a change touches; the agents read the Java code through commands that list its endpoints, entities, beans, configuration and entry points, each with its file and line. See [Java repositories](https://siara-maciej.github.io/MetatorAI/guide/java).
+
 ### Works with Claude Code or GitHub Copilot CLI
 
 MetatorAI does not replace your AI tool: it runs it. Setup finds the tool your repository already uses, or the one installed on your machine, and writes the agents, skills and safety hooks for Claude Code, Copilot CLI, or both.

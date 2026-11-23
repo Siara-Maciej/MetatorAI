@@ -178,6 +178,150 @@ metator symbols find [options] <name>
 |---|---|---|
 | `<name>` | exported name | |
 
+## java
+
+### `metator java overview`
+
+Build tools, modules, Java versions, source roots, counts, frameworks and files that did not parse
+
+```bash
+metator java overview [options]
+```
+
+### `metator java modules`
+
+Each module: directory, packaging, parent, dependencies on other modules and external ones
+
+```bash
+metator java modules [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+
+### `metator java types`
+
+The types, one line each
+
+```bash
+metator java types [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+| `--kind <kind>` | only this kind (one of: class, interface, enum, record, annotation) |  |
+| `--annotated <name>` | only types with this annotation (Entity, @RestController) |  |
+| `--implements <type>` | only types that extend or implement this type (simple or qualified) |  |
+
+### `metator java show`
+
+One type in full: members, annotations, supertypes and subtypes, where it is used
+
+```bash
+metator java show [options] <type>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<type>` | a fully qualified name, or a simple name only one type has | |
+
+### `metator java endpoints`
+
+HTTP endpoints: Spring MVC, WebFlux (annotations and RouterFunction), JAX-RS, Servlets
+
+```bash
+metator java endpoints [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+| `--framework <name>` | only this framework (one of: spring-mvc, webflux, jax-rs, servlet) |  |
+
+### `metator java entities`
+
+JPA entities (javax and jakarta) with ids, columns and relations, and persistence.xml units
+
+```bash
+metator java entities [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+
+### `metator java repositories`
+
+Spring Data repositories: entity, id, derived query methods and @Query strings
+
+```bash
+metator java repositories [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+
+### `metator java beans`
+
+Spring, CDI, EJB and Spring XML beans with their injection points and the bean that provides each
+
+```bash
+metator java beans [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+| `--injects <type>` | only beans that inject this type (simple or qualified) |  |
+
+### `metator java config`
+
+application*.properties/yml keys by profile, and where code reads them (@Value, @ConfigurationProperties)
+
+```bash
+metator java config [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+| `--key <prefix>` | only keys under this prefix (shop.orders) |  |
+
+### `metator java entrypoints`
+
+main methods, @Scheduled jobs, Kafka/JMS/Rabbit and event listeners, message-driven and startup beans
+
+```bash
+metator java entrypoints [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+
+### `metator java index`
+
+Build or refresh the Java index (.metator/index/java.json); --check only says whether it is current
+
+```bash
+metator java index [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--check` | change nothing; exit 65 (STALE_INDEX) when the index is not current |  |
+
 ## api
 
 ### `metator api snapshot`

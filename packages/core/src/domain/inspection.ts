@@ -1,5 +1,7 @@
 import type { HostTarget } from "./config.ts";
 import type { ContainerFix } from "./devcontainer.ts";
+import type { JavaBuild } from "./java-build.ts";
+import { buildLabel, type JvmBuildTool, jvmBuildsOf, moduleCount } from "./jvm-build.ts";
 
 /**
  * `metator inspect <path>` (ADR-0105): what a folder is to MetatorAI before anything is written
@@ -50,6 +52,8 @@ export interface InspectedRepository {
   readonly config: string | null;
   /** Files with uncommitted changes, tracked and untracked (ignored ones and `.metator/` aside), sorted. */
   readonly uncommitted: readonly string[];
+  /** The languages and builds at its root (round 22). */
+  readonly stack: RepositoryStack;
 }
 
 export type InspectionKind = "missing" | "not-git" | "repo" | "folder";
@@ -156,4 +160,50 @@ export function schemaVersionOf(raw: unknown): number | undefined {
   if (raw === null || typeof raw !== "object") return undefined;
   const v = (raw as Record<string, unknown>).schemaVersion;
   return typeof v === "number" && Number.isInteger(v) ? v : undefined;
+}
+
+/** The languages and builds found at a repository's root (round 22): what `inspect` reports and the app says in one line. */
+export interface RepositoryStack {
+  /** "Java", "TypeScript", "JavaScript", in that order, the ones found. */
+  readonly languages: readonly string[];
+  readonly builds: readonly {
+    readonly tool: JvmBuildTool;
+    readonly wrapper: boolean;
+    /** The build's modules, read without running it (at least 1, the root). */
+    readonly modules: number;
+    /** "Maven", "Gradle, Kotlin DSL"… */
+    readonly label: string;
+  }[];
+  /** All of it in one line for a person ("Java · Maven (wrapper), 14 modules"); empty when nothing was found. */
+  readonly line: string;
+}
+
+/**
+ * The stack of a repository from its root: the Java builds (Maven, Gradle) the Java build reader
+ * found there, with their modules, and Node's languages (`package.json`, TypeScript when a
+ * `tsconfig.json` is there). `read` gives a repo-relative file's text, or undefined.
+ */
+export function repositoryStack(
+  read: (file: string) => string | undefined,
+  java: JavaBuild | undefined,
+): RepositoryStack {
+  const builds = (java ? jvmBuildsOf(java) : []).map((b) => ({
+    tool: b.tool,
+    wrapper: b.wrapper !== null,
+    modules: moduleCount(java as JavaBuild, b.tool),
+    label: buildLabel(b),
+  }));
+  const node = read("package.json") !== undefined;
+  const ts = read("tsconfig.json") !== undefined;
+  const languages = [
+    ...(builds.length > 0 ? ["Java"] : []),
+    ...(node || ts ? [ts ? "TypeScript" : "JavaScript"] : []),
+  ];
+  return { languages, builds, line: stackLine({ languages, builds }) };
+}
+
+/** The stack in one line for a person: "Java · Maven (wrapper), 14 modules"; empty when nothing was found. */
+export function stackLine(stack: Pick<RepositoryStack, "languages" | "builds">): string {
+  const builds = stack.builds.map((b) => `${b.label}, ${b.modules} module${b.modules === 1 ? "" : "s"}`);
+  return [stack.languages.join(", "), ...builds].filter((p) => p !== "").join(" · ");
 }

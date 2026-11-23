@@ -14,7 +14,8 @@ import { join } from "node:path";
 import type { Page } from "playwright";
 import type { FakeWorld } from "../packages/desktop/src/fake-commands.ts";
 import { browser, closeBrowser } from "./helpers/browser.ts";
-import { CLI_ENTRY, E2E_STATE_DIR, stopProcessesUnder } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
+import { createJavaRepo } from "./helpers/java.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -277,6 +278,50 @@ describe("Add repository in the desktop app (the shell faked, a real daemon to o
       await add.getByRole("button", { name: "Continue" }).click();
       await found.filter({ hasText: "Already in the app" }).waitFor({ timeout: 10_000 });
       expect(await add.getByRole("button", { name: "Open" }).count()).toBe(1);
+      expect(errors).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
+  test("a Java repository says what it is in one line, from the real `metator inspect` (round 22)", async () => {
+    // What the CLI reports for the Maven fixture, passed through the fake shell as the app gets it.
+    const java = await createJavaRepo("maven");
+    let stack: unknown;
+    try {
+      const inspected = await metator(["inspect", "."], java.root, { METATOR_NO_REAL_HOSTS: "1" });
+      stack = (inspected.json.data as { repository: { stack: unknown } }).repository.stack;
+    } finally {
+      await java.dispose();
+    }
+    expect((stack as { line: string }).line).toBe("Java · Maven, 5 modules");
+    const page = await withFake({
+      folders: {
+        "/home/you/shop-java": { kind: "repo", setUp: "no", writes: FILES, stack: stack as never },
+        "/home/you/work": { kind: "folder", children: ["/home/you/work/legacy", "/home/you/work/web"] },
+        "/home/you/work/legacy": { kind: "repo", setUp: "no", stack: stack as never },
+        "/home/you/work/web": { kind: "repo", setUp: "yes" },
+      },
+      hosts: [{ id: "claude", installed: true, loggedIn: true }],
+      url: base(),
+    });
+    try {
+      await page.goto(app("add"));
+      const add = page.getByTestId("add-repo");
+      await add.getByLabel("folder path").fill("/home/you/shop-java");
+      await add.getByRole("button", { name: "Continue" }).click();
+      const found = add.getByTestId("inspection");
+      await found.filter({ hasText: "MetatorAI is not set up here yet" }).waitFor({ timeout: 10_000 });
+      expect(await found.locator("p").first().textContent()).toBe("Java · Maven, 5 modules");
+      // What setup will write holds for a Java repository as for any.
+      expect(await add.getByTestId("will-write").locator("li").allTextContents()).toEqual(FILES);
+      await shot(page, "add-java");
+      // In a folder, each repository's line beside its name.
+      await add.getByRole("button", { name: "Change" }).click();
+      await add.getByLabel("folder path").fill("/home/you/work");
+      await add.getByRole("button", { name: "Continue" }).click();
+      await found.filter({ hasText: "A folder of 2 repositories" }).waitFor({ timeout: 10_000 });
+      expect(await add.getByTestId("child-stack").allTextContents()).toEqual(["Java · Maven, 5 modules"]);
       expect(errors).toEqual([]);
     } finally {
       await page.close();

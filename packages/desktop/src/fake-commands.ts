@@ -31,6 +31,8 @@ export interface FakeFolder {
   /** What setup writes here (for either host). */
   writes?: string[];
   uncommitted?: string[];
+  /** A repository's languages and builds, as `metator inspect` reports them. */
+  stack?: InspectedRepository["stack"];
   /** A folder of repositories: their paths (each a folder of the world). */
   children?: string[];
 }
@@ -155,6 +157,7 @@ export function fakeInspection(
       setUp: f?.setUp ?? "no",
       config: f?.setUp === "yes" ? "metator.config.yml" : null,
       uncommitted: [...(f?.uncommitted ?? [])],
+      ...(f?.stack ? { stack: f.stack } : {}),
     };
   };
   const base = {

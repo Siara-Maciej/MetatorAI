@@ -304,8 +304,10 @@ const NEXT: Readonly<Record<Inspection["next"], string>> = {
 /** `metator inspect` as a person reads it: what the folder is, the machine's git and hosts, what comes next. */
 export function renderInspection(i: Inspection): string {
   const mark = (ok: boolean | null) => (ok === null ? "·" : ok ? "✓" : "✗");
-  const repo = (r: NonNullable<Inspection["repository"]>) =>
-    `${r.name} (${r.root})${r.worktree ? ", from its worktree" : ""}: set up ${r.setUp}${r.uncommitted.length > 0 ? `, ${r.uncommitted.length} uncommitted file(s)` : ""}`;
+  const repo = (r: NonNullable<Inspection["repository"]>) => {
+    const stack = r.stack.line;
+    return `${r.name} (${r.root})${r.worktree ? ", from its worktree" : ""}: set up ${r.setUp}${r.uncommitted.length > 0 ? `, ${r.uncommitted.length} uncommitted file(s)` : ""}${stack ? `; ${stack}` : ""}`;
+  };
   const lines = [`${i.path}: ${i.kind}`];
   if (i.repository) lines.push(`  ${repo(i.repository)}`);
   for (const r of i.folder?.repos ?? []) lines.push(`  ${repo(r)}`);

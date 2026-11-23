@@ -191,11 +191,15 @@ export function readInspection(
       action: "Make it a git repository",
     };
   const r = i.repository;
-  const within = r.worktree
-    ? [`A worktree of ${r.root}: the app adds that repository.`]
-    : r.root !== i.path
-      ? [`Inside the repository ${r.root}: the app adds that.`]
-      : [];
+  const within = [
+    // What it is, in one line: "Java · Maven, 14 modules" (round 22).
+    ...(r.stack?.line ? [r.stack.line] : []),
+    ...(r.worktree
+      ? [`A worktree of ${r.root}: the app adds that repository.`]
+      : r.root !== i.path
+        ? [`Inside the repository ${r.root}: the app adds that.`]
+        : []),
+  ];
   if (i.next === "add")
     return {
       kind: "set-up",

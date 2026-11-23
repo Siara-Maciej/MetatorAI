@@ -8,7 +8,7 @@ Two kinds of files are written for people and carry no header: views rendered fr
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 15
+schemaVersion: 16
 ```
 
 A file with an older `schemaVersion` is upgraded when it is read. A file with a newer one is refused, and the error asks you to upgrade MetatorAI.
@@ -84,8 +84,9 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | Kind | File | Written by |
 |---|---|---|
 | `RunPointer` | `.metator/runs/latest.json` | `metator run ...` |
-| `Discovery` | `.metator/discovery.json` | `metator discover`, `metator init` |
+| `Discovery` | `.metator/discovery.json` | `metator discover`, `metator init`. v2: `builds`, the Maven or Gradle build at the root with its wrapper, check plugins and declared Java version |
 | `ImportIndex` | `.metator/index/imports.json` | `metator index build` |
+| `JavaIndex` | `.metator/index/java.json` | `metator java …` and `metator java index`: what each `.java` file declares, by content fingerprint ([Java repositories](../guide/java.md#read-a-java-repository)) |
 | `PatternIndex` | `.metator/index/patterns.json` | `metator patterns scan` |
 | `ApiSnapshot` | `.metator/api/<package>.json` | `metator api snapshot` |
 | `GateReport` | `.metator/gates/<gate>.json` | `metator gate` |

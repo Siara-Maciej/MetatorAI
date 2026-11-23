@@ -17,6 +17,7 @@
     "@metator/plugin-host-copilot": "workspace:*",
     "@metator/plugin-host-opencode": "workspace:*",
     "@metator/plugin-host-scenario": "workspace:*",
+    "@metator/plugin-java": "workspace:*",
     "@metator/plugin-node": "workspace:*",
     "@metator/plugin-codehost-gh": "workspace:*",
     "@metator/plugin-codehost-mcp": "workspace:*",

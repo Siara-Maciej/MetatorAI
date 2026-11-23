@@ -1,0 +1,17 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 15,
+  "gates": {
+    "quick": [
+      { "id": "lint", "run": { "bin": "biome", "args": ["check"] }, "files": "append", "match": ["**/*.ts"] },
+      { "id": "test", "run": { "workspaces": "test" } }
+    ],
+    "full": [{ "id": "test", "run": { "script": "test" } }]
+  },
+  "codehost": {
+    "sources": [{ "id": "shop", "kind": "github", "repo": "acme/shop", "via": "gh" }]
+  },
+  "intake": {
+    "rules": [{ "id": "bugs", "source": "shop", "labels": ["bug"], "workflow": "mt-bugfix" }]
+  }
+}

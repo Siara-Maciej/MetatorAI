@@ -114,6 +114,11 @@ describe("a compiled metator finds its installation (ADR-0105)", () => {
   test("compiled, node-pty and the sandbox runtime come from the resources, the runtime being the executable as bun", () => {
     const paths = installationPaths({ METATOR_RESOURCES: "/r" }, "/app/metator", COMPILED);
     expect(paths.nodePty).toBe(join("/r", "node-pty"));
+    // The Java parser's WebAssembly (ADR-0107).
+    expect(paths.javaGrammar).toEqual({
+      runtime: join("/r", "wasm", "web-tree-sitter.wasm"),
+      language: join("/r", "wasm", "tree-sitter-java.wasm"),
+    });
     expect(paths.sandboxRuntime).toEqual({
       runtime: ["env", "BUN_BE_BUN=1", "/app/metator"],
       cli: join("/r", "sandbox-runtime", "dist", "cli.js"),
@@ -122,6 +127,7 @@ describe("a compiled metator finds its installation (ADR-0105)", () => {
     // No resources: no node-pty, and the sandbox runtime where it was looked for (doctor says it is not there).
     const none = installationPaths({}, "/nowhere/metator", COMPILED);
     expect(none.nodePty).toBeUndefined();
+    expect(none.javaGrammar).toBeUndefined();
     expect(none.sandboxRuntime?.cli).toBe(
       join("/nowhere", "metator-resources", "sandbox-runtime", "dist", "cli.js"),
     );

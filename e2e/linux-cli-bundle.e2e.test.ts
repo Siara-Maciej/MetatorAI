@@ -2,7 +2,7 @@
  * The portable Linux CLI bundle end to end (ADR-0105): `scripts/linux-cli-bundle.ts` builds the
  * compiled `metator` with its native addons and launcher as one tarball; unpacked in a fresh
  * folder, as a Dev Container would get it, it runs with a clean environment (no Bun, no
- * node_modules, no checkout): version, inspect, setup and its commit, an oxc parse, the daemon with
+ * node_modules, no checkout): version, inspect, setup and its commit, an oxc parse, a Java read, the daemon with
  * the scenario host and its sessions in real PTYs, and the sandbox runtime on the executable.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -11,6 +11,7 @@ import { mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { stopProcessesUnder } from "./helpers/cli.ts";
+import { copyJavaFixture } from "./helpers/java.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 const linux = process.platform === "linux" && (process.arch === "x64" || process.arch === "arm64");
@@ -140,6 +141,8 @@ describe.skipIf(!linux)("the portable Linux CLI bundle (built, unpacked, clean e
       `native/linux-${arch}/oxc-resolver.node`,
       "node-pty/package.json",
       "sandbox-runtime/dist/cli.js",
+      "wasm/web-tree-sitter.wasm",
+      "wasm/tree-sitter-java.wasm",
       "canon/metator",
     ])
       expect(existsSync(join(resources, file))).toBe(true);
@@ -189,6 +192,33 @@ describe.skipIf(!linux)("the portable Linux CLI bundle (built, unpacked, clean e
       expect((await run(["version"], r)).code).toBe(0);
     } finally {
       await rename(join(resources, "native-away"), join(resources, "native"));
+    }
+  }, 60_000);
+
+  test("a Java repository is read with the grammar from the resources (ADR-0107); without it only `java` fails", async () => {
+    const r = join(tmp, "java-shop");
+    await mkdir(r, { recursive: true });
+    await copyJavaFixture("maven", r);
+    await git(r, "init", "-q");
+    const overview = await run(["java", "overview"], r);
+    expect(overview.code).toBe(0);
+    const o = overview.json.data as {
+      counts: { files: number; endpoints: number };
+      parseFailures: { file: string }[];
+    };
+    expect(o.counts).toMatchObject({ files: 47, endpoints: 17 });
+    expect(o.parseFailures.map((f) => f.file)).toEqual([
+      "shop-experimental/src/main/java/com/example/shop/experimental/Broken.java",
+    ]);
+    await rename(join(resources, "wasm"), join(resources, "wasm-away"));
+    try {
+      await rm(join(r, ".metator"), { recursive: true, force: true });
+      const without = await run(["java", "overview"], r);
+      expect([without.code, without.json.error?.code]).toEqual([1, "BIN_NOT_FOUND"]);
+      expect(without.json.error?.message).toContain("wasm");
+      expect((await run(["version"], r)).code).toBe(0);
+    } finally {
+      await rename(join(resources, "wasm-away"), join(resources, "wasm"));
     }
   }, 60_000);
 

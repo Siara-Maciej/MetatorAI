@@ -11,9 +11,11 @@ import {
   type InspectionKind,
   loginFound,
   nextStep,
+  repositoryStack,
   schemaVersionOf,
   setUpState,
 } from "../domain/inspection.ts";
+import type { JavaBuild } from "../domain/java-build.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseYamlDocument } from "../domain/versioned.ts";
 import type { RepositoryGit } from "../ports/index.ts";
@@ -44,6 +46,8 @@ export interface InspectDependencies {
   /** A host's file in the home folder (a path relative to it), or undefined when it is not there. */
   readonly readHome: (path: string) => HomeFile | undefined;
   readonly git: RepositoryGit;
+  /** The Java build of a repository (its checkout, absolute), read without running it; undefined: none read. */
+  readonly javaBuild?: (root: string) => Promise<JavaBuild | undefined>;
   /** An absolute path: a folder, a file, or nothing; and a file's text. */
   readonly files: {
     readonly kind: (path: string) => "dir" | "file" | undefined;
@@ -191,6 +195,7 @@ export class InspectFolder {
       setUp: setUpState(version, d.configVersion, lock),
       config,
       uncommitted: uncommitted.isOk() ? uncommitted.value : [],
+      stack: repositoryStack((file) => d.files.read(below(root, file)), await d.javaBuild?.(root)),
     });
   }
 }

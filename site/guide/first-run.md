@@ -51,7 +51,7 @@ Then commit what setup wrote, yourself or with `metator setup --commit --files <
 
 Setup does four things, whichever way you started it:
 
-1. It reads your `package.json` scripts and writes `metator.config.yml` with the quality gates it found. An existing config is never overwritten.
+1. It reads your `package.json` scripts (and a Maven or Gradle build: [Java repositories](./java.md)) and writes `metator.config.yml` with the quality gates it found. An existing config is never overwritten.
 2. It copies the shipped agents, skills and the eight workflows into `metator/` and `.github/metator/workflows/` (`--workflows` installs fewer).
 3. It generates the files your AI tool reads (`.claude/` for Claude Code, `.github/agents/` and `.github/skills/` for Copilot) and the hooks. `--no-hooks` leaves the hooks out; without them nothing guards commits and pushes, and your word in the chat is no consent.
 4. It lints what it installed.

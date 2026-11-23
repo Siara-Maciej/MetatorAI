@@ -128,3 +128,18 @@ packages:
       need: "MetatorAI as an MCP server over stdio (`metator mcp`); the MCP client that reads code hosts for intake (ADR-0083)",
       adr: 0081-mcp-server.md,
     }
+  - {
+      package: web-tree-sitter,
+      need: "the tree-sitter runtime in WebAssembly: Java parsed without a JDK or a native addon",
+      adr: 0107-java-repositories.md,
+    }
+  - {
+      package: tree-sitter-java,
+      need: "the Java grammar (Java 8 to 21) as WebAssembly, error-tolerant",
+      adr: 0107-java-repositories.md,
+    }
+  - {
+      package: saxes,
+      need: "XML with line numbers: Maven POMs, web.xml, persistence.xml, Spring XML",
+      adr: 0107-java-repositories.md,
+    }

@@ -43,8 +43,8 @@ export interface ToolShape {
 
 /**
  * The typed fields of a tool, from the command itself: its required arguments in order, and its
- * options (a flag is a boolean, `<values...>` a list, one with a parser a number, any other a
- * string). An option the tool refuses (`writesWith`) or always passes (`readsWith`) is no field.
+ * options (a flag is a boolean, `<values...>` a list, one with a parser a number unless it is one
+ * of a few words, any other a string). An option the tool refuses (`writesWith`) or always passes (`readsWith`) is no field.
  */
 export function toolShape(cmd: Command): ToolShape {
   const { writesWith = [], readsWith = [] } = metaOf(cmd);
@@ -55,7 +55,8 @@ export function toolShape(cmd: Command): ToolShape {
       ? "boolean"
       : o.variadic
         ? "list"
-        : o.parseArg || typeof o.defaultValue === "number"
+        : // One of a few words (`.choices()`) has a parser too, but it is a string.
+          (o.parseArg && !o.argChoices) || typeof o.defaultValue === "number"
           ? "number"
           : "string";
   }

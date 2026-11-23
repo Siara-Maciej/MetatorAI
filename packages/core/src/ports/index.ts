@@ -16,6 +16,8 @@ import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { GuardCommands } from "../domain/guard-commands.ts";
 import type { IntakeItem, IntakeSource } from "../domain/intake.ts";
+import type { JavaBuild, JavaDescriptorFacts } from "../domain/java-build.ts";
+import type { JavaParsedFile } from "../domain/java-model.ts";
 import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
 import type {
@@ -538,6 +540,8 @@ export interface WorkspacePackage {
   readonly dir: string;
   /** A project of its own beside others (no workspace holds it): the package manager cannot run a script across it. */
   readonly standalone?: boolean;
+  /** A module of a Java build (ADR-0107), not a package of a JavaScript workspace. */
+  readonly build?: "maven" | "gradle";
 }
 
 export interface WorkspaceReader {
@@ -632,8 +636,11 @@ export type Resolution =
 export interface ImportAnalyzer {
   /** File extensions this analyzer understands, e.g. [".ts", ".tsx"]. */
   readonly extensions: readonly string[];
-  /** Stable content fingerprint used to skip re-parsing unchanged files. */
-  fingerprint(content: string): string;
+  /**
+   * Stable content fingerprint used to skip re-parsing unchanged files. With the file's path, an
+   * analyzer of several languages answers for that file's language.
+   */
+  fingerprint(content: string, path?: string): string;
   parse(path: string, content: string): Result<readonly ImportSpecifier[], MetatorError>;
   /** Resolves a specifier from a repo-relative file; files outside the repo or in node_modules are external. */
   resolve(fromPath: string, specifier: string): Resolution;
@@ -644,6 +651,23 @@ export interface ImportAnalyzer {
 /** Exported and imported names of one module (split from ImportAnalyzer: a different axis). */
 export interface SymbolAnalyzer {
   symbols(path: string, content: string): Result<ModuleSymbols, MetatorError>;
+}
+
+/** Java source files read into declarations (ADR-0107); a file with a syntax error is facts plus `error`, never a failure. */
+export interface JavaSourceParser {
+  /** Cache key of the Java index: what `parse` extracts. */
+  readonly id: string;
+  parse(path: string, content: string): Promise<Result<JavaParsedFile, MetatorError>>;
+}
+
+/** The Java build of the repository (Maven, Gradle), read from its files without running it. */
+export interface JavaBuildReader {
+  read(): Promise<Result<JavaBuild, MetatorError>>;
+}
+
+/** Java descriptors: web.xml, persistence.xml, Spring XML beans, `application*.{properties,yml}`. */
+export interface JavaDescriptorParser {
+  parse(path: string, content: string): Result<JavaDescriptorFacts, MetatorError>;
 }
 
 /** Declaration files (`.d.ts`) of the project, by repo-relative path (ADR-0040). */

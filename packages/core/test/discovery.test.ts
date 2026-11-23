@@ -3,7 +3,8 @@ import { FakeVcs, InMemoryFileSystem } from "@metator/testing";
 import { Discover } from "../src/application/discover.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { SourceFiles } from "../src/application/source-files.ts";
-import { classifyScript, codeHostOf, commandsOf } from "../src/domain/discovery.ts";
+import { classifyScript, codeHostOf, commandsOf, DiscoveryDocument } from "../src/domain/discovery.ts";
+import type { JavaBuild } from "../src/domain/java-build.ts";
 import { ok } from "../src/domain/result.ts";
 
 const caps = (name: string, command: string) =>
@@ -116,7 +117,64 @@ describe("Discover", () => {
     expect(d.docs).toEqual({ adr: "docs/adr", codeowners: ".github/CODEOWNERS" });
     expect(d.ai.map((a) => a.host)).toEqual(["copilot", "agents-md"]);
     const saved = JSON.parse((await w.fs.read(".metator/discovery.json"))._unsafeUnwrap());
-    expect([saved.kind, saved.schemaVersion]).toEqual(["Discovery", 1]);
+    expect([saved.kind, saved.schemaVersion]).toEqual(["Discovery", 2]);
+    expect(d.builds).toEqual([]);
+  });
+
+  test("a Java build at the root, as the Java build reader read it, is a fact with its evidence (Discovery v2); a v1 file reads as one without", async () => {
+    const files: Record<string, string> = { "pom.xml": "<project/>", mvnw: "#!/bin/sh" };
+    const fs = new InMemoryFileSystem(files);
+    const vcs = new FakeVcs(Object.keys(files), []);
+    const java = {
+      read: async () =>
+        ok<JavaBuild>({
+          tools: ["maven"],
+          builds: [{ tool: "maven", dir: ".", file: "pom.xml", wrapper: "mvnw" }],
+          modules: [
+            {
+              name: "shop",
+              dir: ".",
+              build: "maven",
+              buildFile: "pom.xml",
+              sourceRoots: [],
+              modules: [],
+              dependencies: [],
+              javaVersion: {
+                version: "21",
+                evidence: { at: "pom.xml:2", source: "<java.version>21</java.version>" },
+              },
+              checks: [{ tool: "pmd", evidence: { at: "pom.xml:9", source: "maven-pmd-plugin" } }],
+            },
+          ],
+          notes: [],
+        }),
+    };
+    const d = (
+      await new Discover(
+        fs,
+        new SourceFiles(vcs, fs, []),
+        vcs,
+        { packages: async () => ok([]) },
+        { detect: async () => ok(undefined) },
+        DEFAULT_PATHS,
+        java,
+      ).execute()
+    )._unsafeUnwrap();
+    expect(d.builds).toEqual([
+      {
+        tool: "maven",
+        file: "pom.xml",
+        wrapper: "mvnw",
+        checks: [{ tool: "pmd", evidence: "pom.xml:9 maven-pmd-plugin" }],
+        java: { version: 21, evidence: "pom.xml:2 <java.version>" },
+      },
+    ]);
+    const v1 = {
+      ...JSON.parse((await fs.read(".metator/discovery.json"))._unsafeUnwrap()),
+      schemaVersion: 1,
+    };
+    delete v1.builds;
+    expect(DiscoveryDocument.parse(v1, "d")._unsafeUnwrap().builds).toEqual([]);
   });
 
   test("several lockfiles are a warning; no remote and no package manager are null", async () => {

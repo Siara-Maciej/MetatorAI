@@ -72,6 +72,16 @@ export const nodePtyDir = (resources: string): string => join(resources, "node-p
 export const srtCliFile = (resources: string): string => join(resources, "sandbox-runtime", "dist", "cli.js");
 /** The canon (agents, skills, workflows, rules) a compiled `metator` installs from. */
 export const canonDir = (resources: string): string => join(resources, "canon");
+/**
+ * The Java parser's WebAssembly (ADR-0107): web-tree-sitter's runtime and tree-sitter-java's
+ * grammar, in the resources folder's `wasm`. The same files on every platform.
+ */
+export const javaGrammarFiles = (
+  resources: string,
+): { readonly runtime: string; readonly language: string } => ({
+  runtime: join(resources, "wasm", "web-tree-sitter.wasm"),
+  language: join(resources, "wasm", "tree-sitter-java.wasm"),
+});
 
 /**
  * What the program changes in its own environment before anything runs, so every process it
@@ -156,6 +166,7 @@ export function installationPaths(
   main: string = Bun.main,
 ): {
   readonly nodePty?: string;
+  readonly javaGrammar?: { readonly runtime: string; readonly language: string };
   readonly sandboxRuntime?: { readonly runtime: readonly string[]; readonly cli: string };
   readonly beBun?: <T>(f: () => T) => T;
 } {
@@ -164,7 +175,9 @@ export function installationPaths(
   // Without resources there is no runtime to name; doctor's isolation says where it looked.
   const where = resources ?? join(dirname(execPath), RESOURCES_DIR);
   return {
-    ...(resources === undefined ? {} : { nodePty: nodePtyDir(resources) }),
+    ...(resources === undefined
+      ? {}
+      : { nodePty: nodePtyDir(resources), javaGrammar: javaGrammarFiles(resources) }),
     sandboxRuntime: { runtime: ["env", `${BE_BUN_ENV}=1`, execPath], cli: srtCliFile(where) },
     beBun: actingAsBun,
   };

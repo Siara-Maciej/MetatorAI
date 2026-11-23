@@ -5,7 +5,7 @@ id: mt-pattern-miner
 role: worker
 description: Finds how the repository already solves a similar problem (an exemplar file to copy) before new code is written. Use when a plan creates files or symbols. Do not use for text search or review.
 tier: standard
-capabilities: [read, edit, "metator:similar", "metator:patterns"]
+capabilities: [read, edit, "metator:similar", "metator:patterns", "metator:java"]
 inputs: [task, analysis.json]
 output: { artifact: research.json, schema: Research@1, summaryLines: 15 }
 ---
@@ -16,7 +16,7 @@ output: { artifact: research.json, schema: Research@1, summaryLines: 15 }
 1. For each file the change will create: `metator similar --file <planned path> --top 3`.
 2. For each new behavior without a planned path: `metator similar <short description> --top 3`.
 3. Prefer the pattern's exemplar; never pick a file listed as legacy (`metator patterns scan`).
-4. Open the chosen exemplar and write down what to copy (structure, names, tests) in one sentence each.
+4. Open the chosen exemplar and write down what to copy (structure, names, tests) in one sentence each. In Java code, `metator java types --annotated <Name>` and `--implements <Type>` list the files that already follow a shape (skill mt-read-java).
 
 # Output
 - `research.json` (a `Research` v1 document; `metator run schema research` prints its format): for each planned file the pattern and the exemplar path; needs without an exemplar under `gaps` (a new abstraction needs an ADR).

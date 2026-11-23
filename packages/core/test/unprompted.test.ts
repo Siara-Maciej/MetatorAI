@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readOnlyCommand } from "../src/domain/read-only-command.ts";
 import {
   allowToolsOf,
   personsCommand,
@@ -278,5 +279,60 @@ describe("allowToolsOf: the list a host takes up front (Copilot CLI's --allow-to
     );
     expect(personsCommand(["mrs", "send", "github-acme-shop-45", "--only", "t1"])).toBe("mrs send");
     expect(personsCommand(["review", "show", "github-acme-shop-45"])).toBeUndefined();
+  });
+});
+
+describe("a Java repository (round 22)", () => {
+  const JAVA: Partial<Unprompted> = {
+    gates: [
+      { build: "maven", args: ["-q", "-B", "-DskipTests", "compile"] },
+      { build: "maven", args: ["-B", "test"] },
+    ],
+    scripts: {},
+  };
+
+  test("reading it is MetatorAI's own command; its build gates are the repository's own checks, by wrapper or PATH", () => {
+    expect(why("metator java endpoints --module shop-api", JAVA)).toBe("MetatorAI's own command");
+    expect(why("metator -C ../legacy java beans --injects OrderService", JAVA)).toBe(
+      "MetatorAI's own command",
+    );
+    expect(why("./mvnw -B test", JAVA)).toBe("the repository's own check");
+    // On Windows the wrapper is mvnw.cmd.
+    expect(why("mvnw.cmd -B test", JAVA)).toBe("the repository's own check");
+    expect(why("mvn -B test -pl shop-api -am", JAVA)).toBe("the repository's own check");
+    expect(why("mvn -q -B -DskipTests compile", JAVA)).toBe("the repository's own check");
+    // Another goal, or a build file of a step's own, is not a gate's check.
+    expect(why("mvn -B deploy", JAVA)).toBeUndefined();
+    expect(why("./gradlew test", JAVA)).toBeUndefined();
+  });
+
+  test("a host without the hook may run every `metator java` query unasked; a writing option still asks", () => {
+    for (const q of [
+      "overview",
+      "modules",
+      "types --kind record",
+      "show Order",
+      "endpoints",
+      "beans --injects X",
+      "index --check",
+    ])
+      expect([q, readOnlyCommand(`metator java ${q}`, [ROOT])]).toEqual([q, true]);
+    expect(readOnlyCommand("metator java endpoints --out x.json", [ROOT])).toBe(false);
+  });
+
+  test("the allow list holds `java` and each build gate as typed", () => {
+    const tools = allowToolsOf({
+      metatorCommand: "metator",
+      gates: [
+        { build: "gradle", args: ["test"] },
+        { build: "gradle", args: ["test"] },
+      ],
+    });
+    expect(tools).toContain("shell(metator java)");
+    expect(tools.filter((t) => t.includes("gradle"))).toEqual([
+      "shell(./gradlew test)",
+      "shell(gradlew.bat test)",
+      "shell(gradle test)",
+    ]);
   });
 });

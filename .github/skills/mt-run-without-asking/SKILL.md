@@ -34,7 +34,7 @@ Every stage of a run, before a Bash call. A command a person must allow stops th
 | `bun run metator guard …` | hooks run themselves; never run one |
 | a gate check of your own (`debug-tags check`, `contract diff`, a test runner) at the gates stage | `bun run metator gate full` only: the configuration decides the checks |
 
-3. Metator queries run without asking: `bun run metator help`, `graph …`, `symbols find`, `similar`, `review diff|plan|metadata`, `findings schema|check-quote|validate`, `plan lint`, `run status|schema`, `api diff`, `system show|impact|sources`. A writing option (`--out`, `--write`, `--fix`) runs without asking only when your agent's definition names that command.
+3. Metator queries run without asking: `bun run metator help`, `graph …`, `symbols find`, `similar`, `java …`, `review diff|plan|metadata`, `findings schema|check-quote|validate`, `plan lint`, `run status|schema`, `api diff`, `system show|impact|sources`. A writing option (`--out`, `--write`, `--fix`) runs without asking only when your agent's definition names that command.
 4. Write a Markdown run artifact (`quick-review.md`, `build-log.md`) with exactly one command, a quoted here-document: `bun run metator run write <artifact> --run <run id> <<'EOF'`, its text, then `EOF` alone on the last line; it runs without asking, also without a Write tool. Write a JSON artifact with Write into the run directory the prompt names (`.metator/runs/<run id>/…`). Never into a `findings/` or other folder of the repository.
 
 # Output

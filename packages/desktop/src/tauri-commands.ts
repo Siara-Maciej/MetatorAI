@@ -55,6 +55,19 @@ export interface InspectedRepository {
   readonly config: string | null;
   /** Files with uncommitted changes, sorted. */
   readonly uncommitted: readonly string[];
+  /** The languages and builds at its root, and all of it in one line ("Java · Maven, 14 modules"). */
+  readonly stack?:
+    | {
+        readonly languages: readonly string[];
+        readonly builds: readonly {
+          readonly tool: string;
+          readonly wrapper: boolean;
+          readonly modules: number;
+          readonly label: string;
+        }[];
+        readonly line: string;
+      }
+    | undefined;
 }
 
 /** What `metator inspect <path> --json` found (Agent A's shape, passed through; deterministic, read-only). */

@@ -52,8 +52,9 @@ export class InitProject {
     const minimal = (steps: readonly GateStep[]) =>
       steps.map((st) => ({
         id: st.id,
-        run: st.run,
-        ...(st.files === "append" ? { files: st.files } : {}),
+        // A copy: a step in both gates is written out twice, never as a YAML alias.
+        run: "args" in st.run ? { ...st.run, args: [...st.run.args] } : { ...st.run },
+        ...(st.files !== "none" ? { files: st.files } : {}),
         ...(st.match ? { match: st.match } : {}),
       }));
     const gates = {
@@ -83,7 +84,7 @@ export class InitProject {
     const warnings = [...discovery.value.warnings];
     if (proposal.gates.quick.length === 0)
       warnings.push(
-        "nothing found for the quick gate (no lint, typecheck or test script): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
+        "nothing found for the quick gate (no lint, typecheck or test script, no Maven or Gradle build): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
       );
     return ok({ written: input.dryRun ? null : file, config: text, decisions: proposal.decisions, warnings });
   }

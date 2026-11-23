@@ -445,3 +445,130 @@ describe("CheckReadiness: the host conformance suite's kept runs (ADR-0098)", ()
     expect((await withSeen([]))._unsafeUnwrap().checks.some((c) => c.id === "conformance")).toBe(false);
   });
 });
+
+describe("CheckReadiness in a Java repository (round 22)", () => {
+  const maven = {
+    tool: "maven" as const,
+    file: "pom.xml",
+    wrapper: null,
+    checks: [],
+    java: { version: 17, evidence: "pom.xml:5 <maven.compiler.release>" },
+  };
+  const doctor = (
+    here: ConstructorParameters<typeof CheckReadiness>[10],
+    onPath: readonly string[] = [],
+    files: readonly string[] = ["metator/install.lock.json"],
+  ) =>
+    new CheckReadiness(
+      present(...files),
+      DEFAULT_PATHS,
+      { config: gated, source: "metator.config.yml" },
+      catalog("mt-feature"),
+      new FakeVcs([], [], "git@example.com:a/b.git"),
+      async () => false,
+      undefined,
+      undefined,
+      { servers: async () => ok({}), hasCommand: async (bin) => onPath.includes(bin) },
+      undefined,
+      here,
+    )
+      .execute()
+      .then((r) =>
+        r
+          ._unsafeUnwrap()
+          .checks.filter((c) => ["jdk", "build", "build-dependencies", "dependencies"].includes(c.id)),
+      );
+
+  test("a JDK new enough, Maven on PATH, its cache here: all ok, and nothing about node_modules", async () => {
+    const checks = await doctor(
+      {
+        builds: async () => [maven],
+        java: async () => 'openjdk version "21.0.5" 2024-10-15',
+        buildCache: async () => true,
+      },
+      ["mvn"],
+    );
+    expect(checks).toEqual([
+      { id: "dependencies", status: "ok", message: "not a Node project: nothing to install" },
+      {
+        id: "jdk",
+        status: "ok",
+        message: "JDK 21; the build declares Java 17 (pom.xml:5 <maven.compiler.release>)",
+      },
+      { id: "build", status: "ok", message: "Maven runs as mvn from PATH (no mvnw)" },
+      {
+        id: "build-dependencies",
+        status: "ok",
+        message:
+          "Maven's local cache is here (~/.m2/repository); whether every dependency resolves shows when the build runs",
+      },
+    ]);
+  });
+
+  test("no JDK, no Maven and no wrapper, nothing downloaded: warnings with their fixes, never a failure", async () => {
+    const checks = await doctor({
+      builds: async () => [maven],
+      java: async () => undefined,
+      buildCache: async () => false,
+    });
+    expect(checks.map((c) => [c.id, c.status, c.fix])).toEqual([
+      ["dependencies", "ok", undefined],
+      ["jdk", "warn", "install a JDK 17 or newer and put `java` on PATH (or set JAVA_HOME)"],
+      [
+        "build",
+        "warn",
+        "install Maven (https://maven.apache.org/download.cgi), or add the wrapper: mvn wrapper:wrapper",
+      ],
+      ["build-dependencies", "warn", "metator doctor --gates"],
+    ]);
+  });
+
+  test("an old JDK is said with the declared version's evidence; the Gradle wrapper needs no gradle on PATH", async () => {
+    const checks = await doctor(
+      {
+        builds: async () => [{ ...maven, tool: "gradle", file: "build.gradle.kts", wrapper: "gradlew" }],
+        java: async () => 'java version "1.8.0_392"',
+        buildCache: async () => true,
+      },
+      [],
+      ["metator/install.lock.json", "gradlew"],
+    );
+    expect(checks.find((c) => c.id === "jdk")?.message).toBe(
+      "JDK 8 is older than the Java 17 the build declares (pom.xml:5 <maven.compiler.release>): the gates would fail to compile",
+    );
+    expect(checks.find((c) => c.id === "build")?.message).toBe("Gradle runs through gradlew");
+  });
+
+  test("on Windows the wrapper is mvnw.cmd: the shell script alone does not run there, and the tool is mvn", async () => {
+    const windows = (files: string[], onPath: string[] = []) =>
+      doctor(
+        {
+          builds: async () => [{ ...maven, wrapper: "mvnw" }],
+          java: async () => 'openjdk version "21.0.5"',
+          buildCache: async () => true,
+          platform: () => "win32",
+        },
+        onPath,
+        ["metator/install.lock.json", ...files],
+      ).then((c) => c.find((x) => x.id === "build"));
+    expect((await windows(["mvnw", "mvnw.cmd"]))?.message).toBe("Maven runs through mvnw.cmd");
+    expect(await windows(["mvnw"], ["mvn"])).toEqual({
+      id: "build",
+      status: "ok",
+      message: "Maven runs as mvn from PATH (no mvnw.cmd)",
+    });
+    expect(await windows(["mvnw"])).toMatchObject({
+      status: "warn",
+      message: "neither mvnw.cmd nor mvn is here: the gates cannot build the Java code",
+    });
+  });
+
+  test("a repository without a Java build gets no Java checks", async () => {
+    const checks = await doctor(
+      { builds: async () => [], java: async () => undefined },
+      [],
+      ["metator/install.lock.json", "package.json"],
+    );
+    expect(checks.map((c) => c.id)).toEqual(["dependencies"]);
+  });
+});

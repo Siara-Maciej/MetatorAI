@@ -6,6 +6,8 @@
  *   compiled loaders take from here (`nativeAddon` in packages/cli/src/installation.ts);
  * - `node-pty/`: its package (JavaScript, the native build; on Windows ConPTY's programs);
  * - `sandbox-runtime/`: `srt` bundled into one file with its vendored programs (Linux, macOS);
+ * - `wasm/`: the Java parser's WebAssembly, web-tree-sitter's runtime and tree-sitter-java's
+ *   grammar (ADR-0107), the same on every platform (`javaGrammarFiles` in installation.ts);
  * - `canon/`: the agents, skills, workflows and rules `setup` installs.
  * Anything missing stops the script with the file it looked for: a build never ships without it.
  *
@@ -216,6 +218,17 @@ async function sandboxRuntime(out: string, platforms: readonly Platform[]): Prom
   if (existsSync(agent)) await cp(agent, join(to, "vendor", "java-proxy-agent", "srt-proxy-agent.jar"));
 }
 
+/** The Java parser's two WebAssembly files (ADR-0107), from the packages plugin-java depends on. */
+async function javaGrammar(out: string): Promise<void> {
+  const java = join(ROOT, "packages/plugin-java");
+  await mkdir(join(out, "wasm"), { recursive: true });
+  for (const [pkg, file] of [
+    ["web-tree-sitter", "web-tree-sitter.wasm"],
+    ["tree-sitter-java", "tree-sitter-java.wasm"],
+  ] as const)
+    await cp(must(join(packageDir(pkg, java), file), `${pkg}'s ${file}`), join(out, "wasm", file));
+}
+
 async function canon(out: string): Promise<void> {
   for (const dir of SHIPPED_DIRS) await cp(join(ROOT, dir), join(out, "canon", dir), { recursive: true });
 }
@@ -263,6 +276,7 @@ export async function compileCli(o: { readonly triple: string; readonly out: str
   await nativeAddons(resources, platforms);
   await nodePty(resources, platforms);
   await sandboxRuntime(resources, platforms);
+  await javaGrammar(resources);
   await canon(resources);
   return { binary, resources };
 }

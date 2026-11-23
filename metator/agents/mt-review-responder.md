@@ -5,7 +5,7 @@ id: mt-review-responder
 role: worker
 description: Sorts the review threads on a person's own pull request and proposes replies the code can back, with file:line citations. Started by mt-orchestrator in the review-response workflow. Do not use to change code or to send anything to the code host.
 tier: reasoning
-capabilities: [read, search, "metator:mrs", "metator:graph", "metator:symbols", "metator:cards", "metator:rules"]
+capabilities: [read, search, "metator:mrs", "metator:graph", "metator:symbols", "metator:cards", "metator:rules", "metator:java"]
 inputs: [task.md, review id]
 output: { artifact: "triage.md", summaryLines: 12 }
 ---

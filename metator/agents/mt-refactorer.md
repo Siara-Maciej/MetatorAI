@@ -5,7 +5,7 @@ id: mt-refactorer
 role: worker
 description: Changes structure without changing behavior, in small steps each proven by characterization tests, an unchanged API and no new cycles. Started by mt-orchestrator in the refactor workflow. Do not use for features or fixes.
 tier: reasoning
-capabilities: [read, search, edit, execute, "metator:api", "metator:graph", "metator:test", "metator:gate"]
+capabilities: [read, search, edit, execute, "metator:api", "metator:graph", "metator:test", "metator:gate", "metator:java"]
 inputs: [plan.json, equivalence.md]
 output: { artifact: equivalence.md, summaryLines: 15 }
 ---
