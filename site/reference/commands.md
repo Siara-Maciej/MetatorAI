@@ -3469,3 +3469,99 @@ metator supervise [options]
 |---|---|---|
 | `--once` | one tick, then the report |  |
 | `--interval-ms <n>` | how often to tick | `5000` |
+
+## devcontainer
+
+### `metator devcontainer list`
+
+The dev containers docker (or nerdctl) knows: their local folder, state, workspace folder and user
+
+```bash
+metator devcontainer list [options]
+```
+
+### `metator devcontainer start`
+
+Start a stopped dev container; answers it running
+
+```bash
+metator devcontainer start [options] <container>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+
+### `metator devcontainer install`
+
+Copy MetatorAI's Linux CLI of the container's architecture into ~/.metator/server/&lt;version&gt;/ of its user, unless that version is there
+
+```bash
+metator devcontainer install [options] <container>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+| `--bundles <dir>` | the Linux CLI bundles (&lt;dir&gt;/&lt;arch&gt;/metator-bundle.json; default: $METATOR_LINUX_BUNDLES, else the desktop app's) |  |
+
+### `metator devcontainer run`
+
+Run metator in the container (installed first when needed) and answer what it answered: `metator devcontainer run shop -- inspect . --json`
+
+```bash
+metator devcontainer run [options] <container> [args...]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+| `[args]` | metator's arguments, after -- | |
+| `--cwd <dir>` | its folder in the container (default: the workspace folder) |  |
+| `--env <name=value...>` | more variables for the program in the container |  |
+| `--bundles <dir>` | the Linux CLI bundles (&lt;dir&gt;/&lt;arch&gt;/metator-bundle.json; default: $METATOR_LINUX_BUNDLES, else the desktop app's) |  |
+
+### `metator devcontainer exec`
+
+Run a program in the container as its user, in the workspace folder; answers its exit code and output
+
+```bash
+metator devcontainer exec [options] <container> <argv...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+| `<argv>` | the program and its arguments, after -- | |
+| `--cwd <dir>` | its folder in the container (default: the workspace folder) |  |
+| `--env <name=value...>` | more variables for the program in the container |  |
+
+### `metator devcontainer serve`
+
+The daemon of a repository in the container (`serve --ensure` there, installed first when needed), and the command that tunnels a connection to it
+
+```bash
+metator devcontainer serve [options] <container>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+| `--path <dir>` | the repository in the container (default: the workspace folder) |  |
+| `--env <name=value...>` | more variables for the program in the container |  |
+| `--bundles <dir>` | the Linux CLI bundles (&lt;dir&gt;/&lt;arch&gt;/metator-bundle.json; default: $METATOR_LINUX_BUNDLES, else the desktop app's) |  |
+
+## tunnel
+
+### `metator tunnel`
+
+Join stdin and stdout to a TCP port of this machine (the desktop app reaches a daemon in a dev container through it)
+
+```bash
+metator tunnel [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--port <n>` | the port to connect to **Required.** |  |
+| `--host <host>` | the address to connect to | `"127.0.0.1"` |

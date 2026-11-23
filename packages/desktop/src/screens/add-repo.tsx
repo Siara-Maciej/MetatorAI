@@ -4,8 +4,26 @@
  * card (Commit / Not now: the commit is the person's), then Open. The steps are `flowStep`
  * (repos.ts); this screen runs the shell's command each busy step names and draws the rest. In a
  * browser it shows the commands to run instead (`WebAdd`).
+ *
+ * Round 21 (ADR-0106): a third source, "Dev Container": the containers the engine lists (Start a
+ * stopped one, Refresh), then the one picked gets MetatorAI installed with its progress
+ * (`containerStep`, devcontainers.ts), and the same flow runs in the container (`inContainer`).
  */
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Tabs } from "../components/tabs.tsx";
+import {
+  type ContainerEvent,
+  type ContainerFlow,
+  containerRows,
+  containerStep,
+  DEVCONTAINER_DOCS,
+  folderName,
+  inContainer,
+  installErrorText,
+  installLine,
+  LISTING,
+  readContainerList,
+} from "../devcontainers.ts";
 import {
   alreadyAdded,
   commitQuestion,
@@ -18,15 +36,33 @@ import {
   pathOf,
   progressLine,
   readInspection,
+  repoName,
   requirements,
   START,
   shortSha,
+  type Where,
   webCommands,
   writesFor,
 } from "../repos.ts";
 import { useRepos } from "../repos-context.tsx";
-import { type Commands, errorText, setupWithOutput } from "../tauri-commands.ts";
+import {
+  asCommandError,
+  type Commands,
+  type DevContainer,
+  errorText,
+  installWithOutput,
+  setupWithOutput,
+} from "../tauri-commands.ts";
 import { RequirementList } from "./first-run.tsx";
+
+/** Where the repository comes from. */
+type Source = "folder" | "repos" | "devcontainer";
+
+const SOURCES: readonly { readonly id: Source; readonly label: string }[] = [
+  { id: "folder", label: "Folder on this computer" },
+  { id: "repos", label: "Folder of repositories" },
+  { id: "devcontainer", label: "Dev Container" },
+];
 
 export function AddRepoScreen() {
   const { commands } = useRepos();
@@ -35,7 +71,13 @@ export function AddRepoScreen() {
 
 function AddFlow({ commands }: { readonly commands: Commands }) {
   const repos = useRepos();
+  const [source, setSource] = useState<Source>("folder");
   const [flow, dispatch] = useReducer(flowStep, START);
+  const [boxes, box] = useReducer(containerStep, LISTING);
+  // The dev container the flow runs in, once MetatorAI is installed there; none on this computer.
+  const [place, setPlace] = useState<DevContainer>();
+  const where: Where = place ? "container" : "here";
+  const run = useMemo(() => (place ? inContainer(commands, place.localFolder) : commands), [commands, place]);
   const now = useRef<Flow>(flow);
   now.current = flow;
   const addAndOpen = useRef(repos.addAndOpen);
@@ -52,16 +94,16 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
     const fail = (e: unknown) => say({ type: "failed", error: errorText(e) });
     switch (f.step) {
       case "inspecting":
-        commands.inspectFolder(f.path).then((inspection) => say({ type: "inspected", inspection }), fail);
+        run.inspectFolder(f.path).then((inspection) => say({ type: "inspected", inspection }), fail);
         break;
       case "initializing":
-        commands
+        run
           .gitInit(f.inspection.path)
-          .then(() => commands.inspectFolder(f.inspection.path))
+          .then(() => run.inspectFolder(f.inspection.path))
           .then((inspection) => say({ type: "inspected", inspection }), fail);
         break;
       case "setting-up":
-        setupWithOutput(commands, f.target, f.host, (line) => say({ type: "line", line })).then(
+        setupWithOutput(run, f.target, f.host, (line) => say({ type: "line", line })).then(
           (done) =>
             say(
               done.ok
@@ -72,20 +114,62 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
         );
         break;
       case "committing":
-        commands
-          .commitSetup(f.target, f.written)
-          .then((r) => say({ type: "committed", commit: r.commit }), fail);
+        run.commitSetup(f.target, f.written).then((r) => say({ type: "committed", commit: r.commit }), fail);
         break;
       case "opening":
         void addAndOpen
-          .current(f.path)
+          .current(f.path, place?.localFolder)
           .then((why) => say(why ? { type: "failed", error: why } : { type: "opened" }));
         break;
     }
     return () => {
       live = false;
     };
-  }, [step, commands]);
+  }, [step, run, place]);
+  // The Dev Container source's busy steps, the same way: list, start, install.
+  const boxNow = useRef<ContainerFlow>(boxes);
+  boxNow.current = boxes;
+  const boxStep = source === "devcontainer" ? boxes.step : undefined;
+  useEffect(() => {
+    void boxStep;
+    const b = boxNow.current;
+    let live = true;
+    const say = (e: ContainerEvent) => {
+      if (live) box(e);
+    };
+    const fail = (e: unknown) => say({ type: "failed", error: errorText(e) });
+    if (boxStep === undefined) return;
+    switch (b.step) {
+      case "listing":
+        commands.listDevContainers().then((list) => say({ type: "listed", list }), fail);
+        break;
+      case "starting":
+        commands.startDevContainer(b.key).then((container) => say({ type: "started", container }), fail);
+        break;
+      case "installing":
+        installWithOutput(commands, b.container.localFolder, (line) => say({ type: "line", line })).then(
+          (done) =>
+            done.ok
+              ? say({ type: "installed", version: done.version ?? "" })
+              : say({
+                  type: "failed",
+                  error: done.error
+                    ? installErrorText(done.error, errorText(done.error))
+                    : "the install did not finish",
+                }),
+          (e) => say({ type: "failed", error: installErrorText(asCommandError(e), errorText(e)) }),
+        );
+        break;
+      case "installed":
+        // Installed: the round-20 flow takes over, in the container, at its workspace folder.
+        setPlace(b.container);
+        dispatch({ type: "inspect", path: b.container.workspaceFolder ?? "" });
+        break;
+    }
+    return () => {
+      live = false;
+    };
+  }, [boxStep, commands]);
   const [output, setOutput] = useState(false);
   const [pickError, setPickError] = useState<string>();
   const pick = async () => {
@@ -98,13 +182,49 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
     }
   };
   const resting = flow.step === "inspected" || flow.step === "ready";
+  /** Change: back to the folder, or to the list of dev containers. */
+  const change = () => {
+    dispatch({ type: "back" });
+    if (place) {
+      setPlace(undefined);
+      box({ type: "back" });
+      dispatch({ type: "type", path: "" });
+    }
+  };
+  const picking = flow.step === "pick" && !place;
   return (
     <div className="setup-page" data-testid="add-repo">
       <div className="panel">
         <h1>Add repository</h1>
-        {flow.step === "pick" ? (
+        {picking &&
+        !(source === "devcontainer" && (boxes.step === "installing" || boxes.step === "installed")) ? (
+          <Tabs
+            label="where the repository is"
+            items={SOURCES}
+            current={source}
+            onSelect={(id) => setSource(id)}
+            className="tabs sources"
+            testId="sources"
+          />
+        ) : null}
+        {picking && source === "devcontainer" ? (
+          <Containers
+            flow={boxes}
+            dispatch={box}
+            onOpenKnown={(localFolder) => {
+              const k = repos.known?.find((x) => x.devcontainer?.localFolder === localFolder);
+              if (k) void repos.open(k.path);
+            }}
+            output={output}
+            onOutput={() => setOutput(!output)}
+          />
+        ) : picking ? (
           <>
-            <p className="muted">Choose your repository, or a folder of repositories.</p>
+            <p className="muted">
+              {source === "repos"
+                ? "Choose the folder that holds your repositories."
+                : "Choose your repository, or a folder of repositories."}
+            </p>
             <form
               className="addr"
               onSubmit={(e) => {
@@ -129,19 +249,29 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
             {pickError ? <p className="refusal">{pickError}</p> : null}
           </>
         ) : (
-          <div className="where">
+          <div className="where" data-testid="where">
+            {place ? (
+              <span className="dim">{repoName({ name: folderOf(place), kind: "devcontainer" })}</span>
+            ) : null}
             <code>{pathOf(flow)}</code>
-            {resting ? (
-              <button type="button" className="ghost" onClick={() => dispatch({ type: "back" })}>
+            {resting || (place && flow.step === "pick") ? (
+              <button type="button" className="ghost" onClick={change}>
                 Change
               </button>
             ) : null}
           </div>
         )}
-        {flow.step === "inspecting" ? <p className="busy">Looking at the folder…</p> : null}
+        {place && flow.step === "pick" && flow.error ? <p className="refusal">{flow.error}</p> : null}
+        {flow.step === "inspecting" ? (
+          <p className="busy">
+            {place ? "Looking at the folder in the container…" : "Looking at the folder…"}
+          </p>
+        ) : null}
         {flow.step === "inspected" ? (
           <Inspected
             flow={flow}
+            where={where}
+            container={place?.localFolder}
             dispatch={dispatch}
             output={output}
             onOutput={() => setOutput(!output)}
@@ -152,7 +282,8 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
         {flow.step === "setting-up" ? (
           <section className="progress" data-testid="setup-progress" aria-live="polite">
             <p className="busy">
-              Setting up {flow.target.split(/[\\/]/).pop()} for {hostName(flow.host)}…
+              Setting up {flow.target.split(/[\\/]/).pop()} for {hostName(flow.host)}
+              {place ? " in the container" : ""}…
             </p>
             <p className="line" data-testid="progress-line">
               {progressLine(flow.lines)}
@@ -216,7 +347,7 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
           </section>
         ) : null}
         {flow.step === "opening" || flow.step === "open" ? (
-          <p className="busy">Starting its daemon…</p>
+          <p className="busy">{place ? "Starting its daemon in the container…" : "Starting its daemon…"}</p>
         ) : null}
       </div>
     </div>
@@ -226,12 +357,17 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
 /** What the inspection found, and the one next action. */
 function Inspected({
   flow,
+  where,
+  container,
   dispatch,
   output,
   onOutput,
   onOpenKnown,
 }: {
   readonly flow: Extract<Flow, { step: "inspected" }>;
+  readonly where: Where;
+  /** The dev container's local folder label, when the folder is in one. */
+  readonly container: string | undefined;
   dispatch(e: FlowEvent): void;
   readonly output: boolean;
   onOutput(): void;
@@ -239,8 +375,8 @@ function Inspected({
 }) {
   const { known } = useRepos();
   const i = flow.inspection;
-  const reading = readInspection(i, flow.host);
-  const added = alreadyAdded(known, i);
+  const reading = readInspection(i, flow.host, where);
+  const added = alreadyAdded(known, i, container);
   const retry = () => dispatch({ type: "inspect", path: i.path });
   const children = i.folder?.repos ?? [];
   const needsHost =
@@ -249,7 +385,13 @@ function Inspected({
     <section className="reading" data-testid="inspection" data-kind={reading.kind}>
       <h2>{added ? "Already in the app" : reading.title}</h2>
       {added ? <p>Open it; nothing is set up again.</p> : reading.lines.map((l) => <p key={l}>{l}</p>)}
-      {reading.kind === "no-git" || reading.kind === "no-host" ? (
+      {where === "container" && !added ? (
+        // In a container the host check is always shown: what is there is what its sessions get.
+        <div className="in-container" data-testid="container-check">
+          <h3>In the container</h3>
+          <RequirementList items={requirements(i)} onRetry={retry} />
+        </div>
+      ) : reading.kind === "no-git" || reading.kind === "no-host" ? (
         <RequirementList items={requirements(i)} onRetry={retry} />
       ) : null}
       {!added && reading.kind === "not-set-up" ? (
@@ -326,6 +468,113 @@ function Inspected({
 }
 
 const CHILD_WORDS = { yes: "set up", no: "not set up", newer: "set up by a newer MetatorAI" } as const;
+
+/** A dev container's folder name: its local folder's. */
+const folderOf = (c: Pick<DevContainer, "localFolder">): string => folderName(c.localFolder);
+
+const STATE_WORDS = { running: "running", stopped: "stopped" } as const;
+
+/**
+ * The Dev Container source: the containers the engine lists, each with its state and workspace
+ * folder; Start for a stopped one, Choose for a running one, Refresh; then the install's progress.
+ */
+function Containers({
+  flow,
+  dispatch,
+  onOpenKnown,
+  output,
+  onOutput,
+}: {
+  readonly flow: ContainerFlow;
+  dispatch(e: ContainerEvent): void;
+  onOpenKnown(localFolder: string): void;
+  readonly output: boolean;
+  onOutput(): void;
+}) {
+  const { known } = useRepos();
+  if (flow.step === "installing" || flow.step === "installed")
+    return (
+      <section className="progress" data-testid="install-progress" aria-live="polite">
+        <p className="busy">Installing MetatorAI in the dev container of {folderOf(flow.container)}…</p>
+        <p className="line" data-testid="install-line">
+          {flow.step === "installing"
+            ? installLine(flow.lines)
+            : `MetatorAI ${flow.version} is in the container.`}
+        </p>
+        <p className="dim">
+          Into a folder of its own in the container ({"~/.metator/server"}); nothing else in the container
+          changes.
+        </p>
+        {flow.step === "installing" ? <Output lines={flow.lines} open={output} onToggle={onOutput} /> : null}
+      </section>
+    );
+  const list = flow.list;
+  const reading = list ? readContainerList(list) : undefined;
+  const rows = list ? containerRows(list, known) : [];
+  const busy = flow.step === "listing" || flow.step === "starting";
+  return (
+    <section className="containers" data-testid="containers" data-kind={reading?.kind ?? "listing"}>
+      <div className="containers-head">
+        <h2>{reading ? reading.title : "Looking for dev containers…"}</h2>
+        <button type="button" disabled={busy} onClick={() => dispatch({ type: "refresh" })}>
+          {flow.step === "listing" ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+      {reading?.lines.map((l) => (
+        <p key={l} className={reading.kind === "list" ? "dim" : ""}>
+          {l}
+        </p>
+      ))}
+      {reading && reading.links.length > 0 ? (
+        <p className="links">
+          {reading.links.map((l) => (
+            <a key={l.url} href={l.url} target="_blank" rel="noreferrer">
+              {l.name}
+            </a>
+          ))}
+        </p>
+      ) : null}
+      {reading?.kind === "none" ? (
+        <p>
+          <a href={DEVCONTAINER_DOCS} target="_blank" rel="noreferrer">
+            About dev containers
+          </a>
+        </p>
+      ) : null}
+      {flow.step === "listed" && flow.error ? <p className="refusal">{flow.error}</p> : null}
+      {rows.length > 0 ? (
+        <ul className="container-list" data-testid="container-list">
+          {rows.map((r) => (
+            <li key={r.key} data-state={r.state}>
+              <span className="name">{r.name}</span>
+              <span className={`state ${r.state}`}>{STATE_WORDS[r.state]}</span>
+              <code className="dim path" title={r.key}>
+                {r.workspace || "—"}
+              </code>
+              {r.note ? <span className="dim note">{r.note}</span> : null}
+              {r.button ? (
+                <button
+                  type="button"
+                  className={r.action === "choose" || r.action === "open" ? "primary" : ""}
+                  disabled={busy}
+                  onClick={() =>
+                    r.action === "start"
+                      ? dispatch({ type: "start", key: r.key })
+                      : r.action === "open"
+                        ? onOpenKnown(r.key)
+                        : dispatch({ type: "pick", key: r.key })
+                  }
+                >
+                  {flow.step === "starting" && flow.key === r.key ? "Starting…" : r.button}
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
 
 /** The AI host for setup: only an installed one can be chosen. */
 function HostPick({
@@ -423,6 +672,7 @@ function WebAdd() {
         <p className="dim">
           The second command says what it found; setup lists the files it writes; the commit is yours to make.
         </p>
+        <p className="dim">A repository in a dev container is added from the desktop app.</p>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import type { HostTarget } from "./config.ts";
+import type { ContainerFix } from "./devcontainer.ts";
 
 /**
  * `metator inspect <path>` (ADR-0105): what a folder is to MetatorAI before anything is written
@@ -19,6 +20,8 @@ export interface HostSetupHelp {
     readonly env: readonly string[];
     readonly files: readonly { readonly path: string; readonly key?: string }[];
   };
+  /** How to add it to a dev container (ADR-0106): a feature for `devcontainer.json`, a command for its terminal. */
+  readonly container?: ContainerFix;
 }
 
 export interface InspectedHost {
@@ -29,6 +32,8 @@ export interface InspectedHost {
   readonly loggedIn: boolean | null;
   readonly install: { readonly url: string; readonly command: string };
   readonly login: string;
+  /** In a dev container (ADR-0106): how to add it there. */
+  readonly fix?: ContainerFix;
 }
 
 /** yes: config and install lock; no: setup has not run (or did not finish); newer: a newer MetatorAI wrote its config. */
@@ -65,6 +70,8 @@ export interface Inspection {
     readonly installed: boolean;
     readonly version: string | null;
     readonly install: { readonly url: string };
+    /** In a dev container (ADR-0106): how to add it there. */
+    readonly fix?: ContainerFix;
   };
   readonly repository: InspectedRepository | null;
   readonly folder: { readonly file: string | null; readonly repos: readonly InspectedRepository[] } | null;

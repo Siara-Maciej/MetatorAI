@@ -49,8 +49,17 @@ pub fn data(stdout: &str, stderr: &str) -> Result<Value, ShellError> {
         }
         if let Some(e) = env.get("error") {
             let text = |k: &str| e.get(k).and_then(Value::as_str).map(str::to_string);
+            // A dev container's reason (ADR-0106) is the code the window tells apart:
+            // container-stopped → CONTAINER_STOPPED, musl → MUSL, no-engine → NO_ENGINE…
+            let reason = e
+                .get("details")
+                .and_then(|d| d.get("reason"))
+                .and_then(Value::as_str)
+                .map(|r| r.to_ascii_uppercase().replace('-', "_"));
             return Err(ShellError {
-                code: text("code").unwrap_or_else(|| "COMMAND_FAILED".to_string()),
+                code: reason
+                    .or_else(|| text("code"))
+                    .unwrap_or_else(|| "COMMAND_FAILED".to_string()),
                 message: text("message").unwrap_or_else(|| "metator failed".to_string()),
                 hint: text("hint"),
             });
@@ -152,6 +161,21 @@ mod tests {
             serde_json::to_value(ShellError::new("IO", "x")).unwrap(),
             json!({"code": "IO", "message": "x"})
         );
+    }
+
+    #[test]
+    fn a_dev_containers_reason_is_the_code() {
+        let out = r#"{"ok":false,"error":{"code":"COMMAND_FAILED","message":"the dev container of /w is stopped","hint":"Start it.","details":{"reason":"container-stopped"}}}"#;
+        let e = data(out, "").unwrap_err();
+        assert_eq!(
+            (e.code.as_str(), e.hint.as_deref()),
+            ("CONTAINER_STOPPED", Some("Start it."))
+        );
+        let musl = r#"{"ok":false,"error":{"code":"COMMAND_FAILED","message":"Alpine","details":{"reason":"musl"}}}"#;
+        assert_eq!(data(musl, "").unwrap_err().code, "MUSL");
+        let other =
+            r#"{"ok":false,"error":{"code":"USAGE","message":"x","details":{"path":"/x"}}}"#;
+        assert_eq!(data(other, "").unwrap_err().code, "USAGE");
     }
 
     #[test]

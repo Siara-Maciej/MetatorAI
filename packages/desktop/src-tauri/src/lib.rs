@@ -3,13 +3,18 @@
 //! to open the editor or a shell. No domain logic lives here. The commands below are what a
 //! browser tab cannot do (ADR-0101, ADR-0105): run the `metator` the app ships with (or the one the
 //! person chose) to inspect a folder, set it up, commit what setup wrote and start its daemon;
-//! remember the repositories; install the `metator` command; find the Linux CLI bundle.
+//! remember the repositories; install the `metator` command; find the Linux CLI bundle. With a
+//! dev container (ADR-0106) they run `metator devcontainer …` instead, which reaches the container
+//! through docker or nerdctl, and `open_repo` joins the window to the daemon in the container
+//! through a loopback forwarder (`forward`).
 //! Every command rejects with `{ code, message, hint }` (`envelope::ShellError`).
 
 mod bundle;
 mod cli;
 mod daemon;
+mod devcontainer;
 mod envelope;
+pub mod forward;
 mod launcher;
 mod paths;
 mod runner;
@@ -20,6 +25,7 @@ use envelope::ShellError;
 use runner::Machine;
 use serde::Serialize;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -32,6 +38,37 @@ struct Shell {
     machine: Machine,
     files: Mutex<()>,
     runs: AtomicU64,
+    /// One loopback forwarder per dev container's repository (by its key), kept while the app runs.
+    forwarders: Mutex<HashMap<String, forward::Forwarder>>,
+}
+
+/// The Linux CLI bundles the app carries (`linux-cli/` in its resources; Windows and macOS builds).
+fn bundles(shell: &Shell) -> Option<PathBuf> {
+    shell
+        .machine
+        .resource_dir
+        .as_ref()
+        .map(|d| d.join(bundle::RESOURCES_DIR))
+        .filter(|d| d.exists())
+}
+
+/// A round-20 command line, or the same run in the dev container of `container`.
+fn inside(shell: &Shell, container: Option<&str>, args: Vec<String>) -> Vec<String> {
+    match container {
+        Some(c) => devcontainer::run_args(c, bundles(shell).as_deref(), &args),
+        None => args,
+    }
+}
+
+fn run_id(shell: &Shell, what: &str) -> String {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    format!(
+        "{what}-{millis}-{}",
+        shell.runs.fetch_add(1, Ordering::SeqCst)
+    )
 }
 
 type Answer<T> = Result<T, ShellError>;
@@ -53,10 +90,18 @@ fn pick_folder(app: AppHandle) -> Answer<Option<String>> {
         .map(|p| p.to_string_lossy().to_string()))
 }
 
-/// What `metator inspect <path>` found, passed through.
+/// What `metator inspect <path>` found, passed through; in the dev container of `container`, there.
 #[tauri::command(async)]
-fn inspect_folder(shell: State<'_, Shell>, path: String) -> Answer<Value> {
-    shell.machine.run(&cli::inspect_args(&path))
+fn inspect_folder(
+    shell: State<'_, Shell>,
+    path: String,
+    container: Option<String>,
+) -> Answer<Value> {
+    shell.machine.run(&inside(
+        &shell,
+        container.as_deref(),
+        cli::inspect_args(&path),
+    ))
 }
 
 #[derive(Clone, Serialize)]
@@ -85,16 +130,15 @@ struct RunId {
 /// Starts `metator -C <path> setup --host <host> --yes` and answers at once; its lines come as
 /// `setup://output`, its end as `setup://done` with the files it wrote.
 #[tauri::command(async)]
-fn run_setup(app: AppHandle, shell: State<'_, Shell>, path: String, host: String) -> Answer<RunId> {
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let run_id = format!(
-        "setup-{millis}-{}",
-        shell.runs.fetch_add(1, Ordering::SeqCst)
-    );
-    let args = cli::setup_args(&path, &host);
+fn run_setup(
+    app: AppHandle,
+    shell: State<'_, Shell>,
+    path: String,
+    host: String,
+    container: Option<String>,
+) -> Answer<RunId> {
+    let run_id = run_id(&shell, "setup");
+    let args = inside(&shell, container.as_deref(), cli::setup_args(&path, &host));
     let (id, handle) = (run_id.clone(), app.clone());
     std::thread::spawn(move || {
         let say = |app: &AppHandle, line: &str| {
@@ -140,9 +184,13 @@ fn run_setup(app: AppHandle, shell: State<'_, Shell>, path: String, host: String
     Ok(RunId { run_id })
 }
 
-/// `git init` in a folder that is not a repository (the person's click).
+/// `git init` in a folder that is not a repository (the person's click); in the container's when given.
 #[tauri::command(async)]
-fn git_init(shell: State<'_, Shell>, path: String) -> Answer<()> {
+fn git_init(shell: State<'_, Shell>, path: String, container: Option<String>) -> Answer<()> {
+    if let Some(c) = container {
+        let data = shell.machine.run(&devcontainer::git_init_args(&c, &path))?;
+        return devcontainer::git_init_result(&data);
+    }
     let out = shell.machine.other("git", &["-C", &path, "init"])?;
     if out.status.success() {
         return Ok(());
@@ -156,8 +204,17 @@ fn git_init(shell: State<'_, Shell>, path: String) -> Answer<()> {
 
 /// `metator -C <path> setup --commit --files <files…>`: exactly these, as "Set up MetatorAI".
 #[tauri::command(async)]
-fn commit_setup(shell: State<'_, Shell>, path: String, files: Vec<String>) -> Answer<Value> {
-    shell.machine.run(&cli::commit_args(&path, &files))
+fn commit_setup(
+    shell: State<'_, Shell>,
+    path: String,
+    files: Vec<String>,
+    container: Option<String>,
+) -> Answer<Value> {
+    shell.machine.run(&inside(
+        &shell,
+        container.as_deref(),
+        cli::commit_args(&path, &files),
+    ))
 }
 
 fn repos(shell: &Shell) -> Answer<Vec<store::KnownRepo>> {
@@ -169,9 +226,41 @@ fn known_repos(shell: State<'_, Shell>) -> Answer<Vec<store::KnownRepo>> {
     repos(&shell)
 }
 
-/// Remembers a repository or a folder of them; one already known is answered as it was.
+fn now() -> String {
+    store::iso8601(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+    )
+}
+
+/// Remembers a repository or a folder of them; one already known is answered as it was. With
+/// `container`: the repository at `path` in that dev container, known by its local folder label.
 #[tauri::command(async)]
-fn add_repo(shell: State<'_, Shell>, path: String) -> Answer<store::KnownRepo> {
+fn add_repo(
+    shell: State<'_, Shell>,
+    path: String,
+    container: Option<String>,
+) -> Answer<store::KnownRepo> {
+    if let Some(c) = container {
+        let list = shell.machine.run(&devcontainer::list_args())?;
+        let found = devcontainer::listed(&list, &c)?;
+        let text = |k: &str| found.get(k).and_then(Value::as_str).map(str::to_string);
+        let known = store::KnownDevContainer {
+            local_folder: c.clone(),
+            workspace_folder: path,
+            config_file: text("configFile"),
+            editor_uri: text("editorUri").unwrap_or_default(),
+        };
+        let _one = shell
+            .files
+            .lock()
+            .map_err(|_| ShellError::new("IO", "the app's files are locked"))?;
+        let (all, entry) = store::add_devcontainer(&repos(&shell)?, known, &now());
+        store::write_file(&shell.machine.repos_file(), &store::write_repos(&all))?;
+        return Ok(entry);
+    }
     let dir = Path::new(&path);
     let children: Vec<PathBuf> = std::fs::read_dir(dir)
         .map(|rd| {
@@ -186,11 +275,7 @@ fn add_repo(shell: State<'_, Shell>, path: String) -> Answer<store::KnownRepo> {
         .files
         .lock()
         .map_err(|_| ShellError::new("IO", "the app's files are locked"))?;
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let (all, entry) = store::add(&repos(&shell)?, &path, kind, &store::iso8601(now));
+    let (all, entry) = store::add(&repos(&shell)?, &path, kind, &now());
     store::write_file(&shell.machine.repos_file(), &store::write_repos(&all))?;
     Ok(entry)
 }
@@ -211,9 +296,14 @@ struct Url {
     url: String,
 }
 
-/// The repository's daemon, started when none runs (`serve --ensure`, ADR-0101).
+/// The repository's daemon, started when none runs (`serve --ensure`, ADR-0101). A dev
+/// container's (its key, ADR-0106): the daemon in the container, reached through this computer's
+/// loopback forwarder, whose address is answered.
 #[tauri::command(async)]
 fn open_repo(shell: State<'_, Shell>, path: String) -> Answer<Url> {
+    if let Some(local_folder) = devcontainer::local_folder_of(&path) {
+        return open_container(&shell, &path, local_folder);
+    }
     let data = shell.machine.run(&daemon::ensure_args(&path))?;
     Ok(Url {
         url: daemon::url(&data)?,
@@ -223,7 +313,126 @@ fn open_repo(shell: State<'_, Shell>, path: String) -> Answer<Url> {
 /// The same as `open_repo`, by its earlier name (ADR-0101): the address alone.
 #[tauri::command(async)]
 fn ensure_daemon(shell: State<'_, Shell>, folder: String) -> Answer<String> {
+    if let Some(local_folder) = devcontainer::local_folder_of(&folder) {
+        return open_container(&shell, &folder, local_folder).map(|u| u.url);
+    }
     daemon::url(&shell.machine.run(&daemon::ensure_args(&folder))?)
+}
+
+/// The daemon in a dev container (installed and started when needed) and the window's way to it.
+fn open_container(shell: &Shell, key: &str, local_folder: &str) -> Answer<Url> {
+    let workspace = repos(shell)?
+        .into_iter()
+        .find(|r| r.path == key)
+        .and_then(|r| r.devcontainer)
+        .map(|d| d.workspace_folder);
+    let data = shell.machine.run(&devcontainer::serve_args(
+        local_folder,
+        workspace.as_deref(),
+        bundles(shell).as_deref(),
+    ))?;
+    let argv = devcontainer::tunnel_of(&data)?;
+    let mut all = shell
+        .forwarders
+        .lock()
+        .map_err(|_| ShellError::new("IO", "the forwarders are locked"))?;
+    let port = match all.get(key) {
+        Some(f) => {
+            f.point(argv);
+            f.port()
+        }
+        None => {
+            let f = forward::Forwarder::start(argv, forward::processes()).map_err(|e| {
+                ShellError::new("IO", &format!("cannot listen on this computer: {e}"))
+            })?;
+            let port = f.port();
+            all.insert(key.to_string(), f);
+            port
+        }
+    };
+    Ok(Url {
+        url: devcontainer::local_url(port),
+    })
+}
+
+/// The dev containers docker (or nerdctl) knows; `engine: null` with the problem when none answers.
+#[tauri::command(async)]
+fn list_devcontainers(shell: State<'_, Shell>) -> Answer<Value> {
+    shell.machine.run(&devcontainer::list_args())
+}
+
+/// Starts a stopped dev container; answers it running.
+#[tauri::command(async)]
+fn start_devcontainer(shell: State<'_, Shell>, local_folder: String) -> Answer<Value> {
+    shell.machine.run(&devcontainer::start_args(&local_folder))
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InstallDone {
+    run_id: String,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    /// The launcher inside the container.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<ShellError>,
+}
+
+/// Copies the Linux CLI into the dev container unless its version is there; answers at once. Its
+/// lines come as `container://install-output`, its end as `container://install-done`.
+#[tauri::command(async)]
+fn install_in_container(
+    app: AppHandle,
+    shell: State<'_, Shell>,
+    local_folder: String,
+) -> Answer<RunId> {
+    let run_id = run_id(&shell, "install");
+    let args = devcontainer::install_args(&local_folder, bundles(&shell).as_deref());
+    let (id, handle) = (run_id.clone(), app.clone());
+    std::thread::spawn(move || {
+        let (out_app, out_id) = (handle.clone(), id.clone());
+        let shell = handle.state::<Shell>();
+        let done = match shell.machine.stream(&args, move |l| {
+            let _ = out_app.emit(
+                "container://install-output",
+                SetupOutput {
+                    run_id: out_id.clone(),
+                    line: l.to_string(),
+                },
+            );
+        }) {
+            Ok((data, _)) => InstallDone {
+                run_id: id.clone(),
+                ok: true,
+                version: envelope::text(&data, "version"),
+                path: envelope::text(&data, "path"),
+                error: None,
+            },
+            Err(e) => InstallDone {
+                run_id: id.clone(),
+                ok: false,
+                version: None,
+                path: None,
+                error: Some(e),
+            },
+        };
+        let _ = handle.emit("container://install-done", done);
+    });
+    Ok(RunId { run_id })
+}
+
+/// Opens VS Code's link on this computer (a dev container's editor link); any other link is refused.
+#[tauri::command(async)]
+#[allow(deprecated)]
+fn open_uri(app: AppHandle, uri: String) -> Answer<()> {
+    use tauri_plugin_shell::ShellExt;
+    devcontainer::check_uri(&uri)?;
+    app.shell()
+        .open(uri.trim(), None)
+        .map_err(|e| ShellError::new("SPAWN", &format!("cannot open {uri}: {e}")))
 }
 
 #[derive(Serialize)]
@@ -414,6 +623,7 @@ pub fn run() {
                 machine: Machine::new(exe_dir, resource_dir, data_dir),
                 files: Mutex::new(()),
                 runs: AtomicU64::new(0),
+                forwarders: Mutex::new(HashMap::new()),
             });
             Ok(())
         })
@@ -432,7 +642,11 @@ pub fn run() {
             set_cli_source,
             install_cli_command,
             uninstall_cli_command,
-            linux_cli_bundle
+            linux_cli_bundle,
+            list_devcontainers,
+            start_devcontainer,
+            install_in_container,
+            open_uri
         ])
         .run(tauri::generate_context!())
         .expect("error while running the MetatorAI desktop app");

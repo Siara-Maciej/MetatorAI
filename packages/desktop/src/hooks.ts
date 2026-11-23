@@ -6,7 +6,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { DaemonClient } from "./api.ts";
 import { boardCards } from "./board.ts";
 import { useDaemon } from "./daemon.tsx";
+import type { HostEditor } from "./devcontainers.ts";
 import { type Run, refusalText } from "./model.ts";
+import { useHostEditor } from "./repos-context.tsx";
 import { type WorkTask, workTasks } from "./tasks.ts";
 
 /** The work as parent tasks (tasks.ts), from the runs and system plans: the sidebar's, Home's and a page's. */
@@ -102,13 +104,21 @@ export function useAction(reload?: () => Promise<unknown> | unknown): Action {
   };
 }
 
-type RunRef = Pick<Run, "runId" | "repo" | "driver" | "attachedBy">;
+type RunRef = Pick<Run, "runId" | "repo" | "driver" | "attachedBy"> & {
+  readonly worktree?: Pick<NonNullable<Run["worktree"]>, "path"> | undefined;
+};
 
 /**
  * The controls of one run, the same on the session screen and on the workbench (which has many
  * runs and asks for the controls of the one a pane belongs to).
  */
-export function runControls(client: DaemonClient, action: Action, me: string, run: RunRef | undefined) {
+export function runControls(
+  client: DaemonClient,
+  action: Action,
+  me: string,
+  run: RunRef | undefined,
+  editor?: HostEditor,
+) {
   const runId = run?.runId;
   const repo = run?.repo;
   const none = () => Promise.resolve(false);
@@ -119,9 +129,17 @@ export function runControls(client: DaemonClient, action: Action, me: string, ru
     taken: run?.driver === "human",
     attach: () => (runId ? action.run((by) => client.attach(runId, by, repo), { who: true }) : none()),
     release: () => (runId ? action.run(() => client.release(runId, repo)) : none()),
-    /** The run's directory in the person's editor (`editor.command`), at a file and line when given. */
-    openEditor: (at: { file?: string; line?: number } = {}) =>
-      runId ? action.run(() => client.openEditor(runId, at, repo), { done: "opened in the editor" }) : none(),
+    /**
+     * The run's directory in the person's editor (`editor.command`), at a file and line when given;
+     * in a dev container, VS Code on this computer attached to it (round 21).
+     */
+    openEditor: (at: { file?: string; line?: number } = {}) => {
+      if (!runId) return none();
+      const onHost = editor?.({ ...at, worktree: run?.worktree?.path });
+      return action.run(onHost ?? (() => client.openEditor(runId, at, repo)), {
+        done: "opened in the editor",
+      });
+    },
     closePane: (paneId: string) => action.run(() => client.closePane(paneId, repo)),
     /**
      * Starts the run's conductor in a pane of its own (`POST /runs/:run/start`): the agent that
@@ -150,5 +168,5 @@ export function runControls(client: DaemonClient, action: Action, me: string, ru
 /** `runControls` of one run, for a screen that is about that run. */
 export function useRunControls(run: RunRef | undefined, action: Action) {
   const { client, me } = useDaemon();
-  return runControls(client, action, me, run);
+  return runControls(client, action, me, run, useHostEditor());
 }

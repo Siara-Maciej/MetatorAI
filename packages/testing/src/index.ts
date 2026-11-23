@@ -1,5 +1,6 @@
 export * from "./contracts/agent-host.contract.ts";
 export * from "./contracts/code-host.contract.ts";
+export * from "./contracts/container-engine.contract.ts";
 export * from "./contracts/contract-differ.contract.ts";
 export * from "./contracts/data-isolator.contract.ts";
 export * from "./contracts/file-lock.contract.ts";
@@ -20,4 +21,5 @@ export * from "./fixtures/claude-screens.ts";
 export * from "./fixtures/monorepo.ts";
 export * from "./postgres.ts";
 export * from "./sandbox-here.ts";
+export * from "./stand-in-container-cli.ts";
 export * from "./stand-in-host.ts";

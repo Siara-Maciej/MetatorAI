@@ -18,6 +18,7 @@ export const sections = [
       { text: "What MetatorAI is", link: "" },
       { text: "Install", link: "install" },
       { text: "Get the desktop app", link: "desktop-app" },
+      { text: "Dev Containers", link: "devcontainers" },
       { text: "Start with one repository", link: "first-run" },
       { text: "Start with many repositories", link: "many" },
       { text: "Copilot and Claude Code", link: "hosts" },

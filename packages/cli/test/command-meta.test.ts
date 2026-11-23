@@ -304,8 +304,10 @@ describe("what a command says of itself (meta)", () => {
   test("the commands of a folder of repositories are the ones listed before", () => {
     // `metator ui` was one of them; the full-screen view is withdrawn (ADR-0086).
     // Round 20 (ADR-0105): `inspect` looks at any folder, a folder of repositories included.
+    // Round 21 (ADR-0106): the dev container commands and the tunnel do not depend on the folder.
+    const devcontainer = ["list", "start", "install", "run", "exec", "serve"].map((c) => `devcontainer ${c}`);
     expect(folderCommands(program).sort()).toEqual(
-      [...BEFORE.folder.filter((c) => c !== "ui"), "inspect"].sort(),
+      [...BEFORE.folder.filter((c) => c !== "ui"), "inspect", ...devcontainer, "tunnel"].sort(),
     );
   });
 
@@ -323,12 +325,19 @@ describe("what a command says of itself (meta)", () => {
     // Round 19 (ADR-0098): the host conformance suite, after the host files it checks.
     const at = before.indexOf("generate") + 1;
     // Round 20 (ADR-0105): `inspect` first, what a folder is before setup.
-    expect(verbs).toEqual([
+    const withHosts = [
       "inspect",
       ...before.slice(0, at),
       "host conformance",
       "host conformance diff",
       ...before.slice(at),
+    ];
+    // Round 21 (ADR-0106): the dev containers, before keeping it running.
+    const keep = withHosts.indexOf("serve");
+    expect(verbs).toEqual([
+      ...withHosts.slice(0, keep),
+      ...["list", "start", "install", "run", "exec", "serve"].map((c) => `devcontainer ${c}`),
+      ...withHosts.slice(keep),
     ]);
   });
 

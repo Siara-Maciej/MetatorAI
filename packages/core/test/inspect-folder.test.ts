@@ -35,6 +35,8 @@ interface World {
   home?: Record<string, string>;
   folder?: { file: string | null; roots: string[] } | null;
   previewFails?: boolean;
+  inContainer?: boolean;
+  hosts?: HostDescriptor[];
 }
 
 function inspect(w: World = {}) {
@@ -49,11 +51,12 @@ function inspect(w: World = {}) {
     commit: async () => ok("sha"),
   };
   const d: InspectDependencies = {
+    ...(w.inContainer ? { inContainer: true } : {}),
     version: "1.2.3",
     configVersion: 1,
     installLock: "metator/install.lock.json",
     hostOrder: ["copilot", "claude", "opencode"],
-    hosts: HOSTS,
+    hosts: w.hosts ?? HOSTS,
     installed: (programs) => programs.filter((p) => (w.onPath ?? []).includes(p)),
     env: w.env ?? {},
     readHome: (p) => (w.home?.[p] === undefined ? undefined : { json: JSON.parse(w.home[p] as string) }),
@@ -118,6 +121,28 @@ describe("InspectFolder", () => {
       install: help("claude").install,
     });
     expect(i.defaultHost).toBe("claude");
+  });
+
+  test("in a dev container each host and git say how to add them there", async () => {
+    const hosts: HostDescriptor[] = HOSTS.map((h) =>
+      h.id === "claude" && h.setup
+        ? { ...h, setup: { ...h.setup, container: { feature: "f", command: "c" } } }
+        : h,
+    );
+    const base = { dirs: ["/x"], onPath: ["claude"], hosts };
+    const there = inspect({ ...base, inContainer: true });
+    const outside = inspect(base);
+    const inside = (await there.use.execute({ path: "/x" }))._unsafeUnwrap();
+    expect(inside.hosts.map((h) => [h.id, h.fix])).toEqual([
+      ["copilot", undefined],
+      ["claude", { feature: "f", command: "c" }],
+    ]);
+    expect(inside.git.fix).toEqual({
+      feature: '"ghcr.io/devcontainers/features/git:1": {}',
+      command: "sudo apt-get update && sudo apt-get install -y git",
+    });
+    const here = (await outside.use.execute({ path: "/x" }))._unsafeUnwrap();
+    expect([here.hosts.some((h) => "fix" in h), "fix" in here.git]).toEqual([false, false]);
   });
 
   test("installed but no sign of a login is false; a token in the environment counts", async () => {

@@ -8,6 +8,7 @@ import type { ToolBoundaries } from "../domain/architecture-check.ts";
 import type { ManifestSet } from "../domain/architecture-manifests.ts";
 import type { LabAction, LabView } from "../domain/conformance-lab.ts";
 import type { ContractComparison } from "../domain/contract-diff.ts";
+import type { ContainerCommand, ContainerDetails } from "../domain/devcontainer.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
@@ -273,6 +274,26 @@ export interface ContainerRuntime {
   up(service: ComposeService): Promise<Result<void, MetatorError>>;
   stop(service: ComposeService): Promise<Result<void, MetatorError>>;
   logs(service: ComposeService, lines: number): Promise<Result<string, MetatorError>>;
+}
+
+/**
+ * A container engine through the CLI the person already has (ADR-0106): `docker` (Docker Desktop,
+ * Rancher Desktop with moby) or `nerdctl` (Rancher Desktop with containerd), whatever its context.
+ * No SDK, no socket. A program that fails in the container is a result with its exit code; an
+ * engine that cannot do what is asked is an error.
+ */
+export interface ContainerEngine {
+  /** The ids of the containers carrying a label (any value), stopped ones too. */
+  list(label: string): Promise<Result<readonly string[], MetatorError>>;
+  inspect(ids: readonly string[]): Promise<Result<readonly ContainerDetails[], MetatorError>>;
+  start(id: string): Promise<Result<void, MetatorError>>;
+  /** Runs a program in a running container (no terminal, no stdin). */
+  exec(id: string, command: ContainerCommand): Promise<Result<ProcessResult, MetatorError>>;
+  /** Writes a file of this computer into a running container at `to`, owned by `user`. */
+  copyIn(
+    id: string,
+    file: { readonly from: string; readonly to: string; readonly user: string },
+  ): Promise<Result<void, MetatorError>>;
 }
 
 /** Programs a person uses from `metator ui`: an editor, a shell, a pager, a browser (F8.6). */

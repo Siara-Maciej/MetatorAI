@@ -195,6 +195,17 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
     ],
   },
   {
+    verb: "Dev containers",
+    commands: [
+      ["devcontainer list", "the dev containers docker or nerdctl knows: folder, state, workspace, user"],
+      ["devcontainer start", "start a stopped dev container"],
+      ["devcontainer install", "MetatorAI's Linux CLI into a dev container, once per version"],
+      ["devcontainer run", "metator in the container, as its user, in its workspace folder"],
+      ["devcontainer exec", "any program in the container, as its user"],
+      ["devcontainer serve", "the daemon in the container, and the command that tunnels to it"],
+    ],
+  },
+  {
     verb: "Keep it running",
     commands: [
       ["serve", "the local daemon: state, inbox, terminals, the desktop app's backend"],

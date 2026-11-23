@@ -108,6 +108,29 @@ export function installationEnv(o: {
   return out;
 }
 
+/** The variable that names the folder of the Linux CLI bundles (`<arch>/metator-bundle.json`, ADR-0106). */
+export const LINUX_BUNDLES_ENV = "METATOR_LINUX_BUNDLES";
+
+/**
+ * The Linux CLI bundles `metator devcontainer` copies into a container: `$METATOR_LINUX_BUNDLES`,
+ * else the desktop app's `linux-cli` folder beside its resources (the Windows and macOS apps carry
+ * it); undefined when there is none (a checkout, npm, the Linux app).
+ */
+export function linuxBundlesDir(
+  env: Readonly<Record<string, string | undefined>>,
+  execPath: string,
+  main: string,
+  exists: (path: string) => boolean,
+): string | undefined {
+  const given = env[LINUX_BUNDLES_ENV];
+  if (given !== undefined && given.trim() !== "") return given;
+  if (!isCompiled(main)) return undefined;
+  const resources = findResources(env, dirname(execPath), exists);
+  if (resources === undefined) return undefined;
+  const dir = join(dirname(resources), "linux-cli");
+  return exists(dir) ? dir : undefined;
+}
+
 /** The variable plugin-host-claude reads for the `claude` program its Agent SDK runs. */
 export const CLAUDE_EXECUTABLE_ENV = "METATOR_CLAUDE_EXECUTABLE";
 

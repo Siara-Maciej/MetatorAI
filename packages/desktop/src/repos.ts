@@ -6,7 +6,7 @@
  * what these say.
  */
 import { plural } from "./model.ts";
-import type { CliInfo, HostId, Inspection, KnownRepo } from "./tauri-commands.ts";
+import type { CliInfo, HostFix, HostId, Inspection, KnownRepo } from "./tauri-commands.ts";
 
 /** A tool MetatorAI needs and cannot install, with where to get it. */
 export interface Requirement {
@@ -17,6 +17,8 @@ export interface Requirement {
   readonly problem: string;
   /** Where to get it; empty when what is missing is a login. */
   readonly link: string;
+  /** In a dev container (round 21): how to add it there, when it is missing. */
+  readonly fix?: HostFix | undefined;
 }
 
 export const GIT_DOWNLOAD = "https://git-scm.com/downloads";
@@ -41,6 +43,7 @@ export function requirements(i: Pick<Inspection, "git" | "hosts">): Requirement[
     ok: i.git.installed,
     problem: i.git.installed ? "" : "not installed",
     link: i.git.install?.url ?? GIT_DOWNLOAD,
+    ...(!i.git.installed && i.git.fix ? { fix: i.git.fix } : {}),
   };
   const installed = i.hosts.filter((h) => h.installed);
   const shown = installed.length > 0 ? installed : i.hosts;
@@ -52,6 +55,8 @@ export function requirements(i: Pick<Inspection, "git" | "hosts">): Requirement[
       ok: h.installed && h.loggedIn !== false,
       problem: !h.installed ? "not installed" : h.loggedIn === false ? `not logged in: run ${h.login}` : "",
       link: h.installed ? "" : h.install.url,
+      // A login is typed, not installed: the fix is for a missing program only.
+      ...(!h.installed && h.fix ? { fix: h.fix } : {}),
     })),
   ];
 }
@@ -112,15 +117,47 @@ export const repoPathOf = (i: Pick<Inspection, "path" | "repository">): string =
 export const writesFor = (i: Pick<Inspection, "writes">, host: HostId | undefined): readonly string[] =>
   (host ? i.writes[host] : undefined) ?? [];
 
+/** Where the folder is: on this computer, or in a dev container (round 21). */
+export type Where = "here" | "container";
+
+/** The words that change when the folder is in a dev container. */
+const WORDS = {
+  here: {
+    missing: "There is no folder here",
+    noGit: "git is not installed",
+    installIt: "Install it, then press Retry.",
+    installOne: "Install one, then press Retry.",
+    setUp: "MetatorAI is already set up here",
+    noHost: "No AI host is installed",
+    notSetUp: "MetatorAI is not set up here yet",
+    notRepo: "This folder is not a git repository",
+  },
+  container: {
+    missing: "There is no such folder in the container",
+    noGit: "git is not installed in the container",
+    installIt: "Add it to the container as said below, then press Retry.",
+    installOne: "Add one to the container as said below, then press Retry.",
+    setUp: "MetatorAI is already set up in the container",
+    noHost: "No AI host is installed in the container",
+    notSetUp: "MetatorAI is not set up in the container yet",
+    notRepo: "This folder in the container is not a git repository",
+  },
+} as const;
+
 /** The inspection's `next`, in words: the CLI decides what the folder is, the app says it. */
-export function readInspection(i: Inspection, host: HostId | undefined = defaultHost(i)): Reading {
+export function readInspection(
+  i: Inspection,
+  host: HostId | undefined = defaultHost(i),
+  where: Where = "here",
+): Reading {
+  const w = WORDS[where];
   if (i.kind === "missing" || i.next === "choose-another")
-    return { kind: "missing", title: "There is no folder here", lines: [i.path], action: undefined };
+    return { kind: "missing", title: w.missing, lines: [i.path], action: undefined };
   if (!i.git.installed)
     return {
       kind: "no-git",
-      title: "git is not installed",
-      lines: ["MetatorAI keeps its work in git. Install it, then press Retry."],
+      title: w.noGit,
+      lines: [`MetatorAI keeps its work in git. ${w.installIt}`],
       action: undefined,
     };
   if (i.next === "update-app")
@@ -149,12 +186,12 @@ export function readInspection(i: Inspection, host: HostId | undefined = default
   if (i.kind === "not-git" || !i.repository)
     return {
       kind: "not-repo",
-      title: "This folder is not a git repository",
+      title: w.notRepo,
       lines: ["MetatorAI works in a git repository. git init makes this folder one; nothing else changes."],
       action: "Make it a git repository",
     };
   const r = i.repository;
-  const where = r.worktree
+  const within = r.worktree
     ? [`A worktree of ${r.root}: the app adds that repository.`]
     : r.root !== i.path
       ? [`Inside the repository ${r.root}: the app adds that.`]
@@ -162,15 +199,15 @@ export function readInspection(i: Inspection, host: HostId | undefined = default
   if (i.next === "add")
     return {
       kind: "set-up",
-      title: "MetatorAI is already set up here",
-      lines: [...where, "Nothing needs to be written. Add it and open it."],
+      title: w.setUp,
+      lines: [...within, "Nothing needs to be written. Add it and open it."],
       action: "Add and open",
     };
   if (host === undefined)
     return {
       kind: "no-host",
-      title: "No AI host is installed",
-      lines: [...where, "Setup needs Claude Code or GitHub Copilot CLI. Install one, then press Retry."],
+      title: w.noHost,
+      lines: [...within, `Setup needs Claude Code or GitHub Copilot CLI. ${w.installOne}`],
       action: undefined,
     };
   const dirty =
@@ -179,9 +216,9 @@ export function readInspection(i: Inspection, host: HostId | undefined = default
       : [];
   return {
     kind: "not-set-up",
-    title: "MetatorAI is not set up here yet",
+    title: w.notSetUp,
     lines: [
-      ...where,
+      ...within,
       `Setup will write ${plural(writesFor(i, host).length, "file")}. Nothing is committed unless you say so.`,
       ...dirty,
     ],
@@ -376,40 +413,79 @@ export function pathOf(s: Flow): string {
   }
 }
 
-/** The one progress line of a running setup: its last line with words, else that it started. */
-export function progressLine(lines: readonly string[]): string {
+/** The one progress line of a running setup (or install): its last line with words, else that it started. */
+export function progressLine(lines: readonly string[], empty = "Starting setup…"): string {
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = (lines[i] ?? "").trim();
     if (line !== "") return line;
   }
-  return "Starting setup…";
+  return empty;
 }
 
 /** The commit card's question. */
 export const commitQuestion = (written: readonly string[]): string =>
   `Setup wrote ${plural(written.length, "file")}. Commit them?`;
 
+/**
+ * A dev container's state as the app last saw it (round 21): running, stopped, or "missing" (no
+ * container carries its local folder label any more). Unknown until the engine was asked.
+ */
+export type ContainerState = "running" | "stopped" | "missing";
+
+/** The local folder label of each dev container the engine listed, with its state. */
+export type ContainerStates = Readonly<Record<string, "running" | "stopped">>;
+
+/** A known dev container's state: what the engine listed, "missing" when it listed others but not it. */
+export function containerStateOf(
+  k: Pick<KnownRepo, "devcontainer">,
+  states: ContainerStates | undefined,
+): ContainerState | undefined {
+  if (!k.devcontainer || !states) return undefined;
+  return states[k.devcontainer.localFolder] ?? "missing";
+}
+
+/** The name a repository goes by in the app: a dev container's says so ("shop (Dev Container)"). */
+export const repoName = (k: Pick<KnownRepo, "name" | "kind">): string =>
+  k.kind === "devcontainer" ? `${k.name} (Dev Container)` : k.name;
+
 /** One row of the repository switcher. */
 export interface SwitcherRow {
   readonly path: string;
+  /** "shop", or "shop (Dev Container)". */
   readonly name: string;
-  readonly kind: "repo" | "folder";
+  readonly kind: KnownRepo["kind"];
   readonly current: boolean;
-  /** A dim word: "folder" for a folder of repositories. */
+  /** A dim word: "folder" for a folder of repositories, a dev container's state when it is not running. */
   readonly note: string;
+  /** A dev container's state; undefined for a folder on this computer, or before the engine answered. */
+  readonly state: ContainerState | undefined;
 }
 
+const STATE_NOTE: Readonly<Record<ContainerState, string>> = {
+  running: "running",
+  stopped: "stopped",
+  missing: "container not found",
+};
+
 /** The repositories and folders the app knows, by name, the current one marked. */
-export function switcherRows(known: readonly KnownRepo[], current: string | undefined): SwitcherRow[] {
+export function switcherRows(
+  known: readonly KnownRepo[],
+  current: string | undefined,
+  states?: ContainerStates,
+): SwitcherRow[] {
   return [...known]
     .sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path))
-    .map((k) => ({
-      path: k.path,
-      name: k.name,
-      kind: k.kind,
-      current: k.path === current,
-      note: k.kind === "folder" ? "folder" : "",
-    }));
+    .map((k) => {
+      const state = containerStateOf(k, states);
+      return {
+        path: k.path,
+        name: repoName(k),
+        kind: k.kind,
+        current: k.path === current,
+        note: k.kind === "folder" ? "folder" : state ? STATE_NOTE[state] : "",
+        state,
+      };
+    });
 }
 
 /** The repository the app opens: the remembered one when the app still knows it, else the first added. */
@@ -433,11 +509,11 @@ export function afterRemove(
 /** The top bar's words: the open repository's name, and how many repositories its daemon serves when more than one. */
 export function switcherLabel(current: KnownRepo | undefined, served: string): string {
   if (!current) return served;
-  return current.kind === "folder" ? `${current.name} · ${served}` : current.name;
+  return current.kind === "folder" ? `${current.name} · ${served}` : repoName(current);
 }
 
 /** What the app shows instead of the daemon's screens. */
-export type ShellView = "first-run" | "add" | "app-settings" | "no-daemon" | "screens";
+export type ShellView = "first-run" | "add" | "app-settings" | "no-daemon" | "container-down" | "screens";
 
 export function shellView(a: {
   /** The app has its shell's commands (the Tauri window, or the e2e's fake). */
@@ -446,10 +522,16 @@ export function shellView(a: {
   readonly known: readonly KnownRepo[] | undefined;
   readonly down: boolean;
   readonly screen: string;
+  /** The repository the app has open (round 21: a dev container's has its own panel). */
+  readonly current?: Pick<KnownRepo, "kind"> | undefined;
+  /** The last start of its daemon failed, and none is starting. */
+  readonly startFailed?: boolean | undefined;
 }): ShellView {
   if (a.screen === "add") return "add";
   if (a.screen === "app") return "app-settings";
   if (a.commands && a.known !== undefined && a.known.length === 0) return "first-run";
+  // A dev container that stopped (or its link that dropped): Start and Reconnect, not the daemon's panel.
+  if (a.current?.kind === "devcontainer" && (a.down || a.startFailed === true)) return "container-down";
   return a.down ? "no-daemon" : "screens";
 }
 
@@ -484,10 +566,18 @@ export function cliSourceText(info: Pick<CliInfo, "source">): string {
   }
 }
 
-/** The known repository or folder an inspection is about: it is opened, never set up again. */
-export function alreadyAdded(known: readonly KnownRepo[] | undefined, i: Inspection): KnownRepo | undefined {
+/**
+ * The known repository or folder an inspection is about: it is opened, never set up again. In a
+ * dev container (its local folder label), the known entry of that container.
+ */
+export function alreadyAdded(
+  known: readonly KnownRepo[] | undefined,
+  i: Inspection,
+  container?: string,
+): KnownRepo | undefined {
+  if (container !== undefined) return known?.find((k) => k.devcontainer?.localFolder === container);
   const path = i.folder ? i.path : repoPathOf(i);
-  return known?.find((k) => k.path === path);
+  return known?.find((k) => k.kind !== "devcontainer" && k.path === path);
 }
 
 /** Where the desktop app comes from, for the web build's Add repository. */

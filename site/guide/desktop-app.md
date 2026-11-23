@@ -32,6 +32,8 @@ The first time, the app has no repository and shows **Welcome to MetatorAI**, wi
 3. After setup: **Setup wrote N files. Commit them?** **Commit** commits exactly those files with the message “Set up MetatorAI”; your other changes stay out of it. **Not now** leaves them uncommitted: a commit is always your decision.
 4. The app remembers the repository, starts its daemon and opens it.
 
+Is the repository in a dev container (VS Code's Dev Containers)? Choose the source **Dev Container** instead: the same flow runs in the container, and so does everything after it ([Dev Containers](./devcontainers.md)).
+
 A worktree of a repository the app knows opens that repository. **Remove from the app** (in **Settings**, **Repositories**) forgets a repository; its files stay.
 
 When git or the AI host is missing, or the host is installed but not logged in, the app says what to install or type, with a link and **Retry**. When a repository was set up by a newer MetatorAI than the app's, the app asks you to update the app.

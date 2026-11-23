@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { IssueRef, ThreadView } from "./api.ts";
 import { NoDaemon, Notice } from "./components/common.tsx";
+import { ContainerDown } from "./components/container-down.tsx";
 import { HelpOverlay } from "./components/help-overlay.tsx";
 import { RepoSwitcher } from "./components/repo-switcher.tsx";
 import { Sidebar } from "./components/sidebar.tsx";
@@ -277,6 +278,8 @@ function Shell() {
     known: repos.known,
     down: d.down,
     screen: route.screen,
+    current: repos.current,
+    startFailed: d.startError !== undefined && !d.starting,
   });
   // With no repository yet there is nothing for the sidebar: the first run and Add stand alone.
   const solo = repos.commands !== undefined && repos.known?.length === 0;
@@ -494,6 +497,7 @@ function Shell() {
           </>
         ) : null}
         {view === "no-daemon" ? <NoDaemon /> : null}
+        {view === "container-down" ? <ContainerDown /> : null}
         {view === "screens" ? screen : null}
       </main>
       {help ? <HelpOverlay keymap={keyMapOf(d.options)} onClose={() => setHelp(false)} /> : null}

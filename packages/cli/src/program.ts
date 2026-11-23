@@ -23,6 +23,7 @@ import { registerConfigCommands } from "./commands/config.ts";
 import { registerContractCommands } from "./commands/contract.ts";
 import { registerCoverageCommands } from "./commands/coverage.ts";
 import { registerDebugTagsCommands } from "./commands/debug-tags.ts";
+import { registerDevcontainerCommands } from "./commands/devcontainer.ts";
 import { registerDiscoverCommands } from "./commands/discover.ts";
 import { registerDocsCommands } from "./commands/docs.ts";
 import { registerEnvCommands } from "./commands/env.ts";
@@ -58,6 +59,7 @@ import { registerSuperviseCommand } from "./commands/supervise.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
 import { registerThreadCommands } from "./commands/thread.ts";
+import { registerTunnelCommand } from "./commands/tunnel.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import { registerWorktreeCommands } from "./commands/worktree.ts";
 import { conformanceLab } from "./conformance-lab.ts";
@@ -222,6 +224,8 @@ export function buildProgram(
   registerAttachCommand(program, ctx);
   registerMcpCommand(program, ctx);
   registerSuperviseCommand(program, ctx);
+  registerDevcontainerCommands(program, ctx);
+  registerTunnelCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
   program.hook("preAction", (_root, action) => {

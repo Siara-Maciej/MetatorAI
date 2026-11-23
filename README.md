@@ -80,6 +80,8 @@ MetatorAI does not replace your AI tool: it runs it. Setup finds the tool your r
 
 That is all, plus git and Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), installed and logged in. The app checks both and says how to install what is missing. Nothing comes from npm.
 
+Is your repository in a dev container? **Add repository**, **Dev Container**: the app on Windows or macOS only shows the window, and everything else runs in the container ([Dev Containers](https://siara-maciej.github.io/MetatorAI/guide/devcontainers)).
+
 The app starts the repository's daemon itself; click **+ New chat**. [Get the desktop app](https://siara-maciej.github.io/MetatorAI/guide/desktop-app) has the details, [Install](https://siara-maciej.github.io/MetatorAI/guide/install) puts `metator` in your terminal too, and [Start with one repository](https://siara-maciej.github.io/MetatorAI/guide/first-run) walks you through the first chat.
 
 ## Documentation

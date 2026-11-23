@@ -1,4 +1,5 @@
 import { CONFIG_FILES, HOST_TARGETS, type HostTarget } from "../domain/config.ts";
+import { GIT_CONTAINER_FIX } from "../domain/devcontainer.ts";
 import { MetatorError } from "../domain/errors.ts";
 import {
   defaultHost,
@@ -27,6 +28,8 @@ const lastPart = (path: string) =>
     .pop() ?? path;
 
 export interface InspectDependencies {
+  /** It runs in a dev container (ADR-0106): each host and git say how to add them there. */
+  readonly inContainer?: boolean;
   /** This MetatorAI's version, and the newest config schema it reads. */
   readonly version: string;
   readonly configVersion: number;
@@ -115,7 +118,12 @@ export class InspectFolder {
       path,
       kind,
       next: gitVersion === undefined && kind !== "missing" ? "install-git" : nextStep(kind, repos),
-      git: { installed: gitVersion !== undefined, version: gitVersion ?? null, install: GIT_INSTALL },
+      git: {
+        installed: gitVersion !== undefined,
+        version: gitVersion ?? null,
+        install: GIT_INSTALL,
+        ...(d.inContainer ? { fix: GIT_CONTAINER_FIX } : {}),
+      },
       repository,
       folder,
       hosts,
@@ -152,6 +160,7 @@ export class InspectFolder {
           loggedIn: installed ? loginFound(setup.credentials, d.env, d.readHome) : null,
           install: setup.install,
           login: setup.login,
+          ...(d.inContainer && setup.container ? { fix: setup.container } : {}),
         };
       })
       .sort((a, b) => rank(a.id) - rank(b.id));

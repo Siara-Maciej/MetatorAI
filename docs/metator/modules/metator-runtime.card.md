@@ -30,6 +30,7 @@ Composition root: the awilix container, the typed Cradle and the JSON envelope. 
 - One adapter instance stands behind the ports it implements (git, the package manager, the oxc analyzer), so they agree with each other.
 - Every host session goes through its host's launch (`sandboxLaunches`, ADR-0104): interactive hosts get a `SandboxedTerminal`, agent hosts the launch itself. The policy is read from the repository's config at each start, so `sandbox.enabled` holds from the next session without a restart.
 
+- `metator devcontainer …` is built without a repository (`devContainers`, like `folderInspector`): the engine is found on PATH, docker first, nerdctl when docker's engine does not answer (`METATOR_DOCKER_BIN` names docker), and the Linux CLI bundles are read from `<bundles>/<arch>/metator-bundle.json` (`bundleIn`).
 ## Allowed dependencies
 
 `@metator/core` and every plugin; `@metator/testing` in tests. Nothing depends on the runtime except the CLI.

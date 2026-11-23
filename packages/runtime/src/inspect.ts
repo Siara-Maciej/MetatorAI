@@ -8,6 +8,7 @@ import {
   DEFAULT_PATHS,
   err,
   foldWorktrees,
+  IN_DEVCONTAINER_ENV,
   InspectFolder,
   MetatorConfigDocument,
   MetatorError,
@@ -97,6 +98,7 @@ export function folderInspector(
     installLock: DEFAULT_PATHS.installLock,
     hostOrder: DEFAULT_CONFIG.supervisor.hostOrder,
     hosts: HOSTS,
+    inContainer: env[IN_DEVCONTAINER_ENV] === "1",
     installed: (programs) => new BunLauncher().available(programs),
     env,
     readHome: (path) => {

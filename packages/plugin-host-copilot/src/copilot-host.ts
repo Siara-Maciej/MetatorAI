@@ -28,6 +28,8 @@ export const copilotHost: HostDescriptor = {
       env: ["COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"],
       files: [{ path: ".copilot/config.json", key: "logged_in_users" }],
     },
+    // In a dev container (ADR-0106): npm in its terminal (Node 22 or later, the node feature).
+    container: { command: "npm install -g @github/copilot" },
   },
   files: {
     generator: () => new CopilotGenerator(),

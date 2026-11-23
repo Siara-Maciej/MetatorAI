@@ -3856,6 +3856,92 @@ a.button-link.big {
 .requirements .missing .mark {
   color: var(--red);
 }
+/* Round 21: a dev container's host check, and how to add what it misses. */
+.requirements li {
+  flex-wrap: wrap;
+}
+.requirements .fix {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: 0 0 var(--sp-3) 28px;
+}
+.copyable {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  max-width: 100%;
+}
+.copyable code {
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--teal);
+  overflow-wrap: anywhere;
+}
+.setup-page .in-container h3 {
+  margin-top: var(--sp-2);
+}
+/* Round 21: Add repository's Dev Container source. */
+.setup-page .sources + section {
+  border-top: none;
+  padding-top: var(--sp-2);
+}
+.setup-page .containers-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+.setup-page .containers-head h2 {
+  margin-top: 0;
+}
+.setup-page .links {
+  display: flex;
+  gap: var(--sp-5);
+}
+.setup-page .container-list li {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) 64px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--sp-4);
+  min-height: 38px;
+  border-bottom: 1px solid var(--edge);
+}
+.setup-page .container-list li:last-child {
+  border-bottom: none;
+}
+.setup-page .container-list .name {
+  font-weight: 600;
+}
+.setup-page .container-list .path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setup-page .container-list .note {
+  grid-column: 3;
+  grid-row: 2;
+  font-size: var(--fs-small);
+}
+.setup-page .container-list button {
+  grid-column: 4;
+  grid-row: 1;
+}
+.state.running {
+  color: var(--green);
+}
+.state.stopped,
+.state.missing {
+  color: var(--grey);
+}
+.container-down .panel .actions {
+  display: flex;
+  gap: var(--sp-3);
+}
 .setup-page .commit-card {
   border: 1px solid var(--teal-line);
   background: var(--teal-wash);

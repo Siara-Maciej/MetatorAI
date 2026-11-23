@@ -2,7 +2,8 @@
  * The app's own settings (round 20, ADR-0105): where the `metator` command comes from (the one
  * bundled with the app, the one on the PATH, or a path the person chose), "Install the metator
  * command" for a terminal and hooks outside the app (only on a click; it says where it wrote),
- * and the repositories the app knows, each with Open and Remove from the app.
+ * and the repositories the app knows, each with Open and Remove from the app. A dev container's
+ * says so, with its container's state and where the repository is in it (round 21).
  */
 import { useCallback, useEffect, useState } from "react";
 import { cliSourceText, installedText, switcherRows } from "../repos.ts";
@@ -31,6 +32,12 @@ export function AppSettings() {
   useEffect(() => {
     void read();
   }, [read]);
+  // The dev containers' states, read again whenever Settings opens.
+  const { refreshContainers } = repos;
+  const anyContainer = repos.known?.some((k) => k.kind === "devcontainer") ?? false;
+  useEffect(() => {
+    if (anyContainer) void refreshContainers();
+  }, [anyContainer, refreshContainers]);
   if (!commands)
     return (
       <div className="app-settings" data-testid="app-settings">
@@ -55,7 +62,7 @@ export function AppSettings() {
       setInfo(next);
       return `The app now runs ${next.path}.`;
     }, "The source was not changed");
-  const rows = switcherRows(repos.known ?? [], repos.current?.path);
+  const rows = switcherRows(repos.known ?? [], repos.current?.path, repos.states);
   return (
     <div className="app-settings" data-testid="app-settings">
       {said ? (
@@ -149,29 +156,37 @@ export function AppSettings() {
       <section>
         <h2>Repositories</h2>
         <ul className="known-repos" data-testid="known-repos">
-          {rows.map((r) => (
-            <li key={r.path}>
-              <span className="name">
-                {r.name}r.note ? <span className="dim"> · {r.note}</span> : nullr.current ?{" "}
-                <span className="dim"> · open</span> : null
-              </span>
-              <code className="dim path">r.path</code>r.current ? null : (
-              <button type="button" onClick={() => void repos.open(r.path)}>
-                Open
-              </button>
-              )
-              <button
-                type="button"
-                className="ghost"
-                title="The app forgets it; its files stay."
-                onClick={() =>
-                  void repos.remove(r.path).then((why) => why && setSaid({ text: why, tone: "error" }))
-                }
-              >
-                Remove from the app
-              </button>
-            </li>
-          ))}
+          {rows.map((r) => {
+            const k = repos.known?.find((x) => x.path === r.path);
+            const where = k?.devcontainer
+              ? `${k.devcontainer.workspaceFolder} in the container of ${k.devcontainer.localFolder}`
+              : r.path;
+            return (
+              <li key={r.path} data-kind={r.kind}>
+                <span className="name">
+                  {r.name}
+                  {r.note ? <span className={`dim state ${r.state ?? ""}`}> · {r.note}</span> : null}
+                  {r.current ? <span className="dim"> · open</span> : null}
+                </span>
+                <code className="dim path">{where}</code>
+                {r.current ? null : (
+                  <button type="button" onClick={() => void repos.open(r.path)}>
+                    Open
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="ghost"
+                  title="The app forgets it; its files stay."
+                  onClick={() =>
+                    void repos.remove(r.path).then((why) => why && setSaid({ text: why, tone: "error" }))
+                  }
+                >
+                  Remove from the app
+                </button>
+              </li>
+            );
+          })}
         </ul>
         <a className="button-link" href="#/add">
           Add repository…

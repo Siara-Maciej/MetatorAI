@@ -11,6 +11,11 @@ export interface Outcome {
    * this object is printed as is (nothing for null) and the exit code is 0 (ADR-0038).
    */
   readonly hook?: Record<string, unknown> | null;
+  /**
+   * The command's stdout was its data, byte for byte (`tunnel`): no envelope follows it. A failure
+   * is said on stderr, and the exit code is the result's as always.
+   */
+  readonly streamed?: boolean;
 }
 
 /** A checkout of a folder's repository (`root` absolute), as a request names it (`name`). */

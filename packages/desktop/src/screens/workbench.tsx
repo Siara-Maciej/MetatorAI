@@ -57,6 +57,7 @@ import {
   workbenchRepos,
   workspaceOfPane,
 } from "../model.ts";
+import { useHostEditor } from "../repos-context.tsx";
 import {
   continueText,
   finishedOf,
@@ -230,7 +231,9 @@ export function WorkbenchScreen({
   const handles = useRef(new Map<string, TerminalHandle>());
   const run = tab?.run;
   const runOf = (p: PaneView | undefined) => d.run(p?.runId, repoOf(p));
-  const controlsOf = (p: PaneView | undefined) => runControls(client, action, me, runOf(p));
+  // A repository in a dev container opens VS Code on this computer, attached to it (round 21).
+  const hostEditor = useHostEditor();
+  const controlsOf = (p: PaneView | undefined) => runControls(client, action, me, runOf(p), hostEditor);
   /** A shell takes anyone's keys; an agent's pane of a run only its attached person's. */
   const canType = (p: PaneView) => !p.runId || p.role === "shell" || controlsOf(p).attached;
   const confirmClose = useOption("ui.confirmClosePane", true);
@@ -340,9 +343,16 @@ export function WorkbenchScreen({
     /** The editor on a pane's directory, or on the tab's run (its worktree). */
     editor: (p, t) => {
       const runId = t?.runId;
-      if (p) void action.run(() => client.openPaneEditor(p.id, repoName), { done: "opened in the editor" });
+      if (p)
+        void action.run(hostEditor?.({ cwd: p.cwd }) ?? (() => client.openPaneEditor(p.id, repoName)), {
+          done: "opened in the editor",
+        });
       else if (runId)
-        void action.run(() => client.openEditor(runId, {}, repoName), { done: "opened in the editor" });
+        void action.run(
+          hostEditor?.({ worktree: d.run(runId, repoName)?.worktree?.path }) ??
+            (() => client.openEditor(runId, {}, repoName)),
+          { done: "opened in the editor" },
+        );
     },
     taskFromHere: (p) => onOpenBacklog(p?.runId ? { refs: [{ run: p.runId }] } : {}),
     closePane: (p) => {

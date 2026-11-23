@@ -7,6 +7,7 @@ import {
   installationEnv,
   installationPaths,
   isCompiled,
+  linuxBundlesDir,
   missingAddon,
   nativeAddonFile,
   nodePtyDir,
@@ -160,5 +161,23 @@ describe("a compiled metator finds its installation (ADR-0105)", () => {
     expect(
       selfCommand({ argv: ["/usr/bin/bun", SOURCE, "serve"], execPath: "/usr/bin/bun" }, SOURCE),
     ).toEqual(["/usr/bin/bun", SOURCE]);
+  });
+});
+
+describe("the Linux CLI bundles (ADR-0106)", () => {
+  const there = (paths: readonly string[]) => (p: string) => paths.includes(p);
+  test("$METATOR_LINUX_BUNDLES first; else the app's linux-cli beside its resources; else none", () => {
+    expect(linuxBundlesDir({ METATOR_LINUX_BUNDLES: "/b" }, "/x/metator", "/src/main.ts", there([]))).toBe(
+      "/b",
+    );
+    expect(linuxBundlesDir({}, "/x/metator", "/src/main.ts", there([]))).toBeUndefined();
+    const app = there(["/app/metator-resources/native", "/app/linux-cli"]);
+    expect(linuxBundlesDir({}, "/app/metator", "/$bunfs/root/metator", app)).toBe("/app/linux-cli");
+    expect(
+      linuxBundlesDir({}, "/app/metator", "/$bunfs/root/metator", there(["/app/metator-resources/native"])),
+    ).toBeUndefined();
+    expect(
+      linuxBundlesDir({ METATOR_LINUX_BUNDLES: " " }, "/app/metator", "/$bunfs/root/metator", there([])),
+    ).toBeUndefined();
   });
 });

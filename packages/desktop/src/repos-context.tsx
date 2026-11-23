@@ -6,8 +6,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { appCommands } from "./app-commands.ts";
 import { useDaemon } from "./daemon.tsx";
-import { afterRemove, currentRepo } from "./repos.ts";
-import { type Commands, errorText, type KnownRepo } from "./tauri-commands.ts";
+import { editorChoice, type HostEditor, statesOf } from "./devcontainers.ts";
+import { afterRemove, type ContainerStates, currentRepo } from "./repos.ts";
+import { type Commands, type DevContainerList, errorText, type KnownRepo } from "./tauri-commands.ts";
 
 export interface Repos {
   /** The shell's commands: the Tauri window's, the e2e's fake, none in a browser. */
@@ -19,8 +20,21 @@ export interface Repos {
   /** Why the list could not be read. */
   readonly error: string | undefined;
   reload(): Promise<void>;
-  /** Remembers a folder and opens it; resolves to why not, or undefined. */
-  addAndOpen(path: string): Promise<string | undefined>;
+  /**
+   * The dev containers the engine listed last (round 21), read when the app knows one and again
+   * on `refreshContainers`; undefined before, and in a browser.
+   */
+  readonly containers: DevContainerList | undefined;
+  /** Each known dev container's state, by its local folder label; undefined until the engine answered. */
+  readonly states: ContainerStates | undefined;
+  refreshContainers(): Promise<void>;
+  /** Starts a stopped dev container; resolves to why not, or undefined. */
+  startContainer(localFolder: string): Promise<string | undefined>;
+  /**
+   * Remembers a folder and opens it; resolves to why not, or undefined. With `container` (a dev
+   * container's local folder label), `path` is the repository inside that container.
+   */
+  addAndOpen(path: string, container?: string): Promise<string | undefined>;
   /** Starts the daemon of a known repository and shows it; resolves to why not, or undefined. */
   open(path: string): Promise<string | undefined>;
   /** Forgets a repository (its files stay); the open one is replaced by another, or the first run. */
@@ -50,6 +64,34 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
       setKnown((k) => k ?? []);
     }
   }, [commands]);
+  const [containers, setContainers] = useState<DevContainerList>();
+  const refreshContainers = useCallback(async () => {
+    if (!commands) return;
+    try {
+      setContainers(await commands.listDevContainers());
+    } catch {
+      // An engine that does not answer leaves the states unknown: the switcher says nothing of them.
+      setContainers(undefined);
+    }
+  }, [commands]);
+  const hasContainer = known?.some((k) => k.kind === "devcontainer") ?? false;
+  useEffect(() => {
+    if (hasContainer) void refreshContainers();
+  }, [hasContainer, refreshContainers]);
+  const startContainer = useCallback(
+    async (localFolder: string) => {
+      if (!commands) return "the app cannot start a container in a browser";
+      try {
+        await commands.startDevContainer(localFolder);
+        return undefined;
+      } catch (e) {
+        return errorText(e);
+      } finally {
+        await refreshContainers();
+      }
+    },
+    [commands, refreshContainers],
+  );
   const { folder, start, forgetFolder } = d;
   // The folder an older app remembered becomes the first known repository, once, when the app opens.
   const remembered = useRef(folder);
@@ -83,15 +125,17 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
     [start],
   );
   const addAndOpen = useCallback(
-    async (path: string) => {
+    async (path: string, container?: string) => {
       if (!commands) return "the app cannot add a repository in a browser";
+      let key = path;
       try {
-        await commands.addRepo(path);
+        // A dev container's entry is the shell's key, not the path inside the container.
+        key = (container ? await commands.addRepo(path, container) : await commands.addRepo(path)).path;
       } catch (e) {
         return errorText(e);
       }
       // The folder is remembered before the list grows: nothing else opens it a second time.
-      const opened = open(path);
+      const opened = open(key);
       await reload();
       return opened;
     },
@@ -115,6 +159,45 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
     },
     [commands, known, current, reload, open, forgetFolder],
   );
-  const value: Repos = { commands, known, current, error, reload, addAndOpen, open, remove };
+  const value: Repos = {
+    commands,
+    known,
+    current,
+    error,
+    reload,
+    containers,
+    states: statesOf(containers),
+    refreshContainers,
+    startContainer,
+    addAndOpen,
+    open,
+    remove,
+  };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+/**
+ * The editor of a repository in a dev container (round 21): VS Code on this computer, attached to
+ * the container (`editorChoice`), opened by the shell; undefined when the daemon opens the editor.
+ */
+export function useHostEditor(): HostEditor | undefined {
+  const r = useContext(Ctx);
+  const commands = r?.commands;
+  const current = r?.current;
+  return useMemo(() => {
+    if (!commands || current?.kind !== "devcontainer") return undefined;
+    return (at) => {
+      const choice = editorChoice(current, at);
+      if (choice.kind === "daemon") return undefined;
+      return async () => {
+        if (choice.kind === "none") return { ok: false, error: { message: choice.why } };
+        try {
+          await commands.openUri(choice.uri);
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, error: { message: errorText(e) } };
+        }
+      };
+    };
+  }, [commands, current]);
 }

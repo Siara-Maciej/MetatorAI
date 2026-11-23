@@ -25,7 +25,7 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 ## Invariants
 
-- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:98 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
+- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:100 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]]. `metator tunnel --port <n>` is the one command whose stdout is data, not an envelope (`Outcome.streamed`): it joins stdin and stdout to the port, and ends the connection after stdin ends only once the server has been quiet (`src/tunnel.ts`), because a server that sees a half-closed connection drops its answer. `metator devcontainer run` answers what the `metator` in the container answered (`fromEnvelope`), its progress on stderr (`src/devcontainer.ts`).
 
 ## Allowed dependencies
 

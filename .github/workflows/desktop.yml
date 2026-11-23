@@ -4,7 +4,8 @@ name: desktop
 # the metator CLI inside (ADR-0105): each build compiles it for its platform (`bun build
 # --compile`, scripts/compile-cli.ts) into the app's sidecar and its `metator-resources`. First,
 # the portable Linux CLI bundle (scripts/linux-cli-bundle.ts) is built and proven once per
-# architecture; the Windows and macOS apps carry it in `linux-cli/<arch>/` for Dev Containers.
+# architecture, and in a real dev container (`devcontainer`); the Windows and macOS apps carry it in
+# `linux-cli/<arch>/` for Dev Containers (ADR-0106).
 # Every run keeps the installers as workflow artifacts (Actions → the run → Artifacts). Once every
 # platform has built, the `release` job puts them on the repository's Releases page:
 # - a push to main (or a manual run on main) replaces the pre-release "desktop-latest", the latest build of main;
@@ -23,6 +24,7 @@ on:
       - scripts/linux-cli-bundle.ts
       - scripts/pack.ts
       - e2e/linux-cli-bundle.e2e.test.ts
+      - e2e/devcontainer-docker.e2e.test.ts
       - bun.lock
       - .github/workflows/desktop.yml
   pull_request:
@@ -35,6 +37,7 @@ on:
       - scripts/linux-cli-bundle.ts
       - scripts/pack.ts
       - e2e/linux-cli-bundle.e2e.test.ts
+      - e2e/devcontainer-docker.e2e.test.ts
       - bun.lock
       - .github/workflows/desktop.yml
   workflow_dispatch:
@@ -89,6 +92,30 @@ jobs:
           path: |
             linux-cli/${{ matrix.arch }}/metator-bundle.json
             linux-cli/${{ matrix.arch }}/metator-linux-${{ matrix.arch }}.tar.gz
+
+  # The bundle in a real dev container (ADR-0106): a `devcontainers/base:bookworm` container labelled
+  # as the Dev Containers extension labels it, a repository mounted; the CLI on the runner finds it
+  # through docker, installs the bundle as its `vscode` user, runs inspect, setup and its commit there,
+  # starts the daemon there and reaches /state and a pane's WebSocket through `metator tunnel`.
+  devcontainer:
+    needs: linux-cli
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: The Linux CLI bundle, x64
+        uses: actions/download-artifact@v4
+        with:
+          name: metator-linux-cli-x64
+          path: linux-cli/x64
+      - name: Install, set up, serve and tunnel in a real dev container
+        env:
+          METATOR_NO_REAL_HOSTS: "1"
+          METATOR_E2E_DOCKER_BUNDLES: ${{ github.workspace }}/linux-cli
+        run: bun test e2e/devcontainer-docker.e2e.test.ts
 
   build:
     needs: linux-cli
@@ -206,7 +233,7 @@ jobs:
 
   # Every platform's installers on one release, so a release is never missing a platform.
   release:
-    needs: build
+    needs: [build, devcontainer]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v'))
     runs-on: ubuntu-latest
     steps:

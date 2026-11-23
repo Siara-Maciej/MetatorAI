@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { type Requirement, ready, requirements } from "../repos.ts";
 import { useRepos } from "../repos-context.tsx";
-import { errorText } from "../tauri-commands.ts";
+import { errorText, type HostFix } from "../tauri-commands.ts";
 
 export function FirstRun() {
   const { commands } = useRepos();
@@ -73,6 +73,7 @@ export function RequirementList({
                 ) : null}
               </>
             )}
+            {!r.ok && r.fix ? <FixHint fix={r.fix} /> : null}
           </li>
         ))}
       </ul>
@@ -83,5 +84,51 @@ export function RequirementList({
         </button>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * How to add a missing tool to a dev container (round 21), in the engine's words: a feature line
+ * for `devcontainer.json` (then Rebuild Container), or a command for the container's terminal.
+ */
+function FixHint({ fix }: { readonly fix: HostFix }) {
+  return (
+    <div className="fix" data-testid="fix">
+      {fix.feature ? (
+        <>
+          <span className="dim">
+            Add to the features of .devcontainer/devcontainer.json, then rebuild the container:
+          </span>
+          <Copyable text={fix.feature} />
+        </>
+      ) : null}
+      {fix.command ? (
+        <>
+          <span className="dim">{fix.feature ? "Or run" : "Run"} in the container's terminal:</span>
+          <Copyable text={fix.command} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function Copyable({ text }: { readonly text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className="copyable">
+      <code>{text}</code>
+      <button
+        type="button"
+        className="ghost"
+        onClick={() =>
+          void navigator.clipboard
+            ?.writeText(text)
+            .then(() => setCopied(true))
+            .catch(() => undefined)
+        }
+      >
+        {copied ? "copied" : "copy"}
+      </button>
+    </span>
   );
 }

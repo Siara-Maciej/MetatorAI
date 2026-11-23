@@ -14,11 +14,31 @@ pub const SCHEMA_VERSION: u32 = 1;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KnownRepo {
+    /// Its key: a folder's absolute path; for a dev container, `devcontainer:<local folder>`.
     pub path: String,
     pub name: String,
-    /// "repo" or "folder" (a folder of repositories).
+    /// "repo", "folder" (a folder of repositories) or "devcontainer" (ADR-0106).
     pub kind: String,
     pub added_at: String,
+    /// kind "devcontainer": the container, known by its local folder label (stable across rebuilds).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub devcontainer: Option<KnownDevContainer>,
+}
+
+/// A repository in a dev container (ADR-0106). The container's id is not kept: it changes when the
+/// container is rebuilt, so it is looked up by the label on each connect.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownDevContainer {
+    /// The `devcontainer.local_folder` label.
+    pub local_folder: String,
+    /// The repository inside the container (absolute there).
+    pub workspace_folder: String,
+    #[serde(default)]
+    pub config_file: Option<String>,
+    /// `vscode://vscode-remote/dev-container+<hex>`: VS Code on this computer, attached to it.
+    #[serde(default)]
+    pub editor_uri: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -111,6 +131,30 @@ pub fn add(repos: &[KnownRepo], path: &str, kind: &str, now: &str) -> (Vec<Known
         name: name_of(path),
         kind: kind.to_string(),
         added_at: now.to_string(),
+        devcontainer: None,
+    };
+    let mut out = repos.to_vec();
+    out.push(entry.clone());
+    (out, entry)
+}
+
+/// A dev container's repository added (ADR-0106): keyed by the container's local folder label and
+/// named after that folder ("shop", shown "shop (Dev Container)"); one already there is kept as it was.
+pub fn add_devcontainer(
+    repos: &[KnownRepo],
+    container: KnownDevContainer,
+    now: &str,
+) -> (Vec<KnownRepo>, KnownRepo) {
+    let key = crate::devcontainer::key(&container.local_folder);
+    if let Some(known) = repos.iter().find(|r| r.path == key) {
+        return (repos.to_vec(), known.clone());
+    }
+    let entry = KnownRepo {
+        path: key,
+        name: name_of(&container.local_folder),
+        kind: "devcontainer".to_string(),
+        added_at: now.to_string(),
+        devcontainer: Some(container),
     };
     let mut out = repos.to_vec();
     out.push(entry.clone());
@@ -253,6 +297,47 @@ mod tests {
             ["/work/all/"]
         );
         assert_eq!(name_of("C:\\work\\shop"), "shop");
+    }
+
+    #[test]
+    fn a_dev_containers_repository_is_keyed_by_its_local_folder_and_reads_back() {
+        let dc = |ws: &str| KnownDevContainer {
+            local_folder: "c:\\work\\shop".to_string(),
+            workspace_folder: ws.to_string(),
+            config_file: Some("c:\\work\\shop\\.devcontainer\\devcontainer.json".to_string()),
+            editor_uri: "vscode://vscode-remote/dev-container+633a".to_string(),
+        };
+        let (one, _) = add(&[], "c:\\work\\shop", "repo", "2026-11-23T10:00:00Z");
+        let (two, entry) = add_devcontainer(&one, dc("/workspaces/shop"), "2026-11-23T10:01:00Z");
+        assert_eq!(
+            (
+                entry.path.as_str(),
+                entry.name.as_str(),
+                entry.kind.as_str()
+            ),
+            ("devcontainer:c:\\work\\shop", "shop", "devcontainer")
+        );
+        // The same folder on this computer stays a separate entry.
+        assert_eq!(two.len(), 2);
+        let (again, kept) = add_devcontainer(&two, dc("/elsewhere"), "2026-11-24T00:00:00Z");
+        assert_eq!(again, two);
+        assert_eq!(
+            kept.devcontainer.unwrap().workspace_folder,
+            "/workspaces/shop"
+        );
+        let text = write_repos(&two);
+        assert!(text.contains("\"workspaceFolder\": \"/workspaces/shop\""));
+        assert!(text.contains("\"editorUri\""));
+        assert_eq!(read_repos(Some(&text)).unwrap(), two);
+        // A round-20 entry has no devcontainer field, and still reads.
+        assert!(!write_repos(&one).contains("devcontainer"));
+        assert_eq!(
+            remove(&two, "devcontainer:c:\\work\\shop")
+                .iter()
+                .map(|r| r.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["repo"]
+        );
     }
 
     #[test]

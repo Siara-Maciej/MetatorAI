@@ -44,6 +44,11 @@ export const claudeHost: HostDescriptor = {
       env: ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
       files: [{ path: ".claude/.credentials.json" }, { path: ".claude.json", key: "oauthAccount" }],
     },
+    // In a dev container (ADR-0106): Anthropic's feature, or the native installer in its terminal.
+    container: {
+      feature: '"ghcr.io/anthropics/devcontainer-features/claude-code:1": {}',
+      command: "curl -fsSL https://claude.ai/install.sh | bash",
+    },
   },
   files: {
     generator: () => new ClaudeGenerator(),
