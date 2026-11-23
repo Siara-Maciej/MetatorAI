@@ -1163,9 +1163,15 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/run.ts",
-    from: "return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
-    to: "return 0;",
+    from: "  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));\n  return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
+    to: "  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));\n  return 0;",
     why: "failures must produce a non-zero exit code",
+  },
+  {
+    file: "packages/cli/src/run.ts",
+    from: "    if (final.result.isErr()) console.error(renderError(final.result.error));\n    return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
+    to: "    if (final.result.isErr()) console.error(renderError(final.result.error));\n    return 0;",
+    why: "a streamed command (the tunnel) that fails exits non-zero",
   },
   {
     file: "packages/core/src/domain/workflow-spec.ts",

@@ -244,3 +244,20 @@ describe("metator CLI usage errors (fail before touching the repository)", () =>
     expect(await usage("run", "status", "--bogus")).toContain("--bogus");
   });
 });
+
+describe("a streamed command (its stdout is the stream, never an envelope)", () => {
+  test("a failure is a non-zero exit code and text on stderr, with nothing on stdout", async () => {
+    const lines: string[] = [];
+    const said: string[] = [];
+    const original = console.error;
+    console.error = (...a: unknown[]) => void said.push(a.join(" "));
+    try {
+      // Port 1 is never listened on: the tunnel cannot connect.
+      const code = await run(["tunnel", "--port", "1"], { out: (t) => lines.push(t) });
+      expect([code !== 0, lines]).toEqual([true, []]);
+      expect(said.join("\n")).toContain("nothing listens on 127.0.0.1:1");
+    } finally {
+      console.error = original;
+    }
+  });
+});
