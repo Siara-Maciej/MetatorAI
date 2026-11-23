@@ -3,6 +3,7 @@
 [![coverage](https://img.shields.io/endpoint?url=https://siara-maciej.github.io/MetatorAI/badges/coverage.json)](https://siara-maciej.github.io/MetatorAI/repo/gates-ci#the-metatorai-readme-badges)
 [![mutants killed](https://img.shields.io/endpoint?url=https://siara-maciej.github.io/MetatorAI/badges/mutation.json)](https://siara-maciej.github.io/MetatorAI/repo/gates-ci#the-metatorai-readme-badges)
 [![docs](https://img.shields.io/badge/docs-siara--maciej.github.io%2FMetatorAI-blue)](https://siara-maciej.github.io/MetatorAI/)
+[![download](https://img.shields.io/badge/download-desktop%20app-2ea44f)](https://github.com/Siara-Maciej/MetatorAI/releases/tag/desktop-latest)
 
 # MetatorAI
 
@@ -86,7 +87,7 @@ metator setup     # once per repository; commit the result
 metator serve     # the local service the app talks to
 ```
 
-Then open the desktop app and click **+ New chat**. Installers for Windows, macOS and Linux, and other ways to run the app, are on [Get the desktop app](https://siara-maciej.github.io/MetatorAI/guide/desktop-app). [Start with one repository](https://siara-maciej.github.io/MetatorAI/guide/first-run) walks you through the first chat.
+Then open the desktop app and click **+ New chat**. Download the installer for Windows, macOS or Linux from [Releases](https://github.com/Siara-Maciej/MetatorAI/releases/tag/desktop-latest); other ways to run the app are on [Get the desktop app](https://siara-maciej.github.io/MetatorAI/guide/desktop-app). [Start with one repository](https://siara-maciej.github.io/MetatorAI/guide/first-run) walks you through the first chat.
 
 ## Documentation
 

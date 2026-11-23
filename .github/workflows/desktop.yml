@@ -1,9 +1,11 @@
 name: desktop
 
-# Builds the MetatorAI Desktop installers (Tauri) for Windows and macOS (universal), and Linux for
-# completeness. Every push to the main branches and every pull request that touches the app
-# leaves the installers as workflow artifacts (Actions → the run → Artifacts); a tag `desktop-v*`
-# publishes them on a GitHub Release.
+# Builds the MetatorAI Desktop installers (Tauri) for Windows, macOS (universal) and Linux.
+# Every run keeps them as workflow artifacts (Actions → the run → Artifacts). Once every platform
+# has built, the `release` job puts them on the repository's Releases page:
+# - a push to main (or a manual run on main) replaces the pre-release "desktop-latest", the latest build of main;
+# - a tag `desktop-v*` publishes a release of that version.
+# Pull requests only build.
 on:
   push:
     branches: [main, claude/foundation]
@@ -66,12 +68,6 @@ jobs:
         with:
           projectPath: packages/desktop
           args: ${{ matrix.args }}
-          # A tag publishes a release with every platform's installer; otherwise only the artifacts below.
-          tagName: ${{ startsWith(github.ref, 'refs/tags/desktop-v') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/desktop-v') && format('MetatorAI Desktop {0}', github.ref_name) || '' }}
-          releaseBody: "Installers for Windows (.exe, .msi), macOS (.dmg) and Linux (.deb, .AppImage). The app needs `metator serve` running locally."
-          releaseDraft: true
-          prerelease: true
       - name: Keep the installers as artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -83,3 +79,38 @@ jobs:
             packages/desktop/src-tauri/target/**/release/bundle/dmg/*.dmg
             packages/desktop/src-tauri/target/**/release/bundle/deb/*.deb
             packages/desktop/src-tauri/target/**/release/bundle/appimage/*.AppImage
+
+  # Every platform's installers on one release, so a release is never missing a platform.
+  release:
+    needs: build
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: metatorai-desktop-*
+          path: installers
+          merge-multiple: true
+      - name: Collect the installer files
+        run: |
+          mkdir -p upload
+          find installers -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} upload/ \;
+          ls -l upload
+          test -n "$(ls upload)"
+      - name: Publish on Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          notes="Installers for Windows (.exe, .msi), macOS (.dmg, Apple Silicon and Intel) and Linux (.deb, .AppImage), built from ${SHA}. The app needs the metator command and \`metator serve\` running: see https://siara-maciej.github.io/MetatorAI/guide/desktop-app"
+          if [[ "$REF" == refs/tags/desktop-v* ]]; then
+            gh release create "$REF_NAME" upload/* --verify-tag --title "MetatorAI Desktop ${REF_NAME#desktop-}" --notes "$notes"
+          else
+            # The latest build of main: the pre-release and its tag move to this commit.
+            gh release delete desktop-latest --yes --cleanup-tag || true
+            gh release create desktop-latest upload/* --target "$SHA" --prerelease \
+              --title "MetatorAI Desktop (latest build of main)" --notes "$notes"
+          fi
