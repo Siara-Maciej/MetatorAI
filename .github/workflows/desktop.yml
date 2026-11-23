@@ -70,7 +70,11 @@ jobs:
     steps:
       - name: Build tools (git, a C++ compiler for node-pty, binutils for the glibc check)
         run: |
-          apt-get update
+          # Bullseye is past its LTS: its security updates left deb.debian.org for archive.debian.org,
+          # whose Release files have expired. Its main archive is still served where it was.
+          sed -i 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' /etc/apt/sources.list
+          for f in /etc/apt/sources.list.d/*; do [ -f "$f" ] && sed -i 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' "$f"; done
+          apt-get -o Acquire::Check-Valid-Until=false update
           apt-get install -y --no-install-recommends ca-certificates curl unzip xz-utils git python3 make g++ binutils
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
