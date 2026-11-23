@@ -1,6 +1,8 @@
 # Start with many repositories
 
-This page is for work that spans several repositories: you set each one up, start one daemon in the folder that holds them, and see the work of all of them in one app. Then, when your applications depend on each other, a change that crosses them becomes a system plan. Read [Start with one repository](./first-run.md) first: everything there holds inside each repository.
+This page is for work that spans several repositories: you set each one up, start one daemon in the folder that holds them, and see the work of all of them in one place. Then, when your applications depend on each other, a change that crosses them becomes a system plan. Read [Start with one repository](./first-run.md) first: everything there holds inside each repository.
+
+<WaySwitch />
 
 ## Set up each repository
 
@@ -11,11 +13,21 @@ This page is for work that spans several repositories: you set each one up, star
 └── web/
 ```
 
+<Way app>
+
+**Add repository…**, choose the folder `~/work`: the app finds the repositories in it and offers **Set up** for each one not set up yet, then adds the folder ([Add a repository](./desktop-app.md#add-a-repository)).
+
+</Way>
+
+<Way cli>
+
 ```bash
 cd ~/work/shop    && metator setup
 cd ~/work/billing && metator setup
 cd ~/work/web     && metator setup
 ```
+
+</Way>
 
 Each repository keeps its own `metator.config.yml`, agents, hooks, workflows, runs and worktrees. Nothing in one changes another. Commit the result in each.
 
@@ -47,10 +59,20 @@ When you keep a second checkout of a repository next to it (`git worktree add ..
 
 ## One daemon for the folder
 
+<Way app>
+
+The app starts it when it opens the folder.
+
+</Way>
+
+<Way cli>
+
 ```bash
 cd ~/work
 metator serve
 ```
+
+</Way>
 
 The daemon serves every repository of the folder, and each repository's own checks, intake and reviews still follow its own configuration. In the folder, `metator status`, `inbox`, `repos status` and `ask` cover every repository. Any other command works inside one repository, or with `-C <repository>`:
 
@@ -60,6 +82,12 @@ metator -C shop run new --workflow mt-feature --task "Add discount"
 ```
 
 ## The app on a folder
+
+<Way cli>
+
+In a terminal, `metator inbox` in the folder holds the questions of every repository in one queue, and `metator status` their runs. The rest of this section is the app's.
+
+</Way>
 
 Open the app as for one repository. The top bar shows the folder as **3 repositories**. Then:
 

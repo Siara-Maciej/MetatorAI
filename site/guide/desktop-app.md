@@ -1,6 +1,6 @@
 # Get the desktop app
 
-The desktop app is all you install: the `metator` command is inside it, and the app starts the daemon (`metator serve`) of each repository itself. Besides the app you need git and Claude Code or GitHub Copilot CLI ([Requirements](./install.md#requirements)).
+The desktop app is all you install: the `metator` command is inside it, and the app starts the daemon (`metator serve`) of each repository itself. Besides the app you need git and Claude Code or GitHub Copilot CLI ([Requirements](./install.md#requirements)). Working in the terminal only, without a window? [Install](./install.md) has that way too: choose **Terminal only** there.
 
 ## An installer
 
@@ -41,7 +41,7 @@ When git or the AI host is missing, or the host is installed but not logged in, 
 ## Settings
 
 - **The metator command**, **Where it comes from**: **Bundled with the app** (the default), **The metator on your PATH**, or **A metator you chose**. The other two are for developers who run MetatorAI from a checkout.
-- **Install the metator command**: puts `metator` on your terminal's `PATH`, only when you click it ([Install](./install.md#the-metator-command-in-your-terminal)).
+- **Install the metator command**: puts `metator` on your terminal's `PATH`, only when you click it ([Install](./install.md#install-metatorai)).
 - **Repositories**: the repositories and folders the app knows, each with **Open** and **Remove from the app**.
 
 Everything the app starts (the daemon, and through it every agent's session and the hooks in it) finds the app's `metator` first on its `PATH`, so the hooks your repository commits keep calling plain `metator`.
@@ -86,6 +86,6 @@ In a browser, `?daemon=<url>` in the address names the daemon for that page.
 
 ## The Linux CLI for Dev Containers
 
-The Windows and macOS installers also carry the `metator` command for Linux (x64 and arm64, for distributions with glibc), to run MetatorAI inside a Dev Container. The app does not use it yet.
+The Windows and macOS installers also carry the `metator` command for Linux (x64 and arm64, for distributions with glibc). The app copies it into a dev container when you add a repository from one ([Dev Containers](./devcontainers.md)).
 
 Next: [Start with one repository](./first-run.md) or [Start with many repositories](./many.md).

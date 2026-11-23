@@ -40,9 +40,13 @@ Log in once in the container's terminal (`claude`, then `/login`; `copilot`, the
 
 For a repository in a dev container, **Open in editor** opens VS Code on your computer, attached to the container, at the file and line: `vscode://vscode-remote/dev-container+<hex>/<path in the container>:<line>`. This is the link the Dev Containers extension itself uses. No editor is started in the container.
 
+## Terminal only, inside the container
+
+Without the app, install the Linux `metator` in the container itself, in its terminal (VS Code's, or `docker exec -it <container> bash`), as [Install](./install.md#install-metatorai) shows under **Terminal only** for Linux. Then everything on [Start with one repository](./first-run.md) works there in its terminal way: `metator setup`, `metator serve`, `claude --agent mt-chat`. Nothing is installed on your computer.
+
 ## From a terminal
 
-The same commands the app runs work in a terminal on your computer, with the `metator` command installed ([Install](./install.md#the-metator-command-in-your-terminal)):
+The same commands the app runs work in a terminal on your computer, with the `metator` command installed ([Install](./install.md#install-metatorai)):
 
 ```bash
 metator devcontainer list                                  # the dev containers docker or nerdctl knows

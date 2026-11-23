@@ -6,8 +6,9 @@ name: desktop
 # the portable Linux CLI bundle (scripts/linux-cli-bundle.ts) is built and proven once per
 # architecture, and in a real dev container (`devcontainer`); the Windows and macOS apps carry it in
 # `linux-cli/<arch>/` for Dev Containers (ADR-0106).
-# Every run keeps the installers as workflow artifacts (Actions → the run → Artifacts). Once every
-# platform has built, the `release` job puts them on the repository's Releases page:
+# Every run keeps the installers, and the CLI on its own for a terminal without the app, as
+# workflow artifacts (Actions → the run → Artifacts). Once every platform has built, the
+# `release` job puts them on the repository's Releases page:
 # - a push to main (or a manual run on main) replaces the pre-release "desktop-latest", the latest build of main;
 # - a tag `desktop-v*` publishes a release of that version.
 # Pull requests only build.
@@ -219,6 +220,41 @@ jobs:
           found="$("$bin" -C "$GITHUB_WORKSPACE" symbols find compileCli --json)"
           echo "$found"
           echo "$found" | grep -Eq '"file":"scripts(/|\\\\)compile-cli\.ts"'
+      # The CLI on its own, for a terminal without the app (Linux has the portable bundle above):
+      # the executable beside its resources, run from the unpacked folder with nothing set, so it
+      # finds them beside itself.
+      - name: The CLI on its own, unpacked and proven
+        if: runner.os != 'Linux'
+        shell: bash
+        env:
+          TRIPLE: ${{ matrix.triple }}
+          NAME: ${{ matrix.name }}
+          RUNNER: ${{ runner.os }}
+        run: |
+          exe=""
+          if [ "$RUNNER" = "Windows" ]; then exe=".exe"; fi
+          dir="cli-pack/metator-$NAME"
+          mkdir -p "$dir"
+          cp "packages/desktop/src-tauri/binaries/metator-$TRIPLE$exe" "$dir/metator$exe"
+          cp -R packages/desktop/src-tauri/metator-resources "$dir/metator-resources"
+          env -u METATOR_RESOURCES -u METATOR_CANON "$dir/metator$exe" version --json
+          found="$(env -u METATOR_RESOURCES -u METATOR_CANON "$dir/metator$exe" -C "$GITHUB_WORKSPACE" symbols find compileCli --json)"
+          echo "$found"
+          echo "$found" | grep -Eq '"file":"scripts(/|\\\\)compile-cli\.ts"'
+          if [ "$RUNNER" != "Windows" ]; then tar -C cli-pack -czf "cli-pack/metator-$NAME.tar.gz" "metator-$NAME"; fi
+      - name: The CLI on its own, zipped (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path cli-pack/metator-${{ matrix.name }} -DestinationPath cli-pack/metator-${{ matrix.name }}.zip
+      - name: Keep the CLI on its own as an artifact
+        if: runner.os != 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: metator-cli-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            cli-pack/metator-${{ matrix.name }}.zip
+            cli-pack/metator-${{ matrix.name }}.tar.gz
       - name: Build the installers
         uses: tauri-apps/tauri-action@v0
         env:
@@ -249,12 +285,21 @@ jobs:
           pattern: metatorai-desktop-*
           path: installers
           merge-multiple: true
-      - name: Collect the installer files
+      # The CLI on its own: Windows (.zip) and macOS (.tar.gz) from the builds, Linux x64 and arm64
+      # from the portable bundles.
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: metator-*cli-*
+          path: cli
+      - name: Collect the installer and CLI files
         run: |
           mkdir -p upload
           find installers -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} upload/ \;
+          find cli -type f \( -name 'metator-*.zip' -o -name 'metator-*.tar.gz' \) -exec cp {} upload/ \;
           ls -l upload
-          test -n "$(ls upload)"
+          for f in metator-windows-x64.zip metator-macos-universal.tar.gz metator-linux-x64.tar.gz metator-linux-arm64.tar.gz; do
+            if [ ! -f "upload/$f" ]; then echo "::error::the release would miss $f"; exit 1; fi
+          done
       - name: Publish on Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -263,7 +308,7 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
         run: |
-          notes="Installers for Windows (.exe, .msi), macOS (.dmg, Apple Silicon and Intel) and Linux (.deb, .AppImage), built from ${SHA}. The metator CLI is inside the app: install it, then Add repository. You need git and Claude Code or GitHub Copilot CLI. See https://siara-maciej.github.io/MetatorAI/guide/desktop-app"
+          notes="Installers for Windows (.exe, .msi), macOS (.dmg, Apple Silicon and Intel) and Linux (.deb, .AppImage), built from ${SHA}. The metator CLI is inside the app: install it, then Add repository. For the terminal only, without the app: metator-windows-x64.zip, metator-macos-universal.tar.gz, metator-linux-x64.tar.gz or metator-linux-arm64.tar.gz. You need git and Claude Code or GitHub Copilot CLI. See https://siara-maciej.github.io/MetatorAI/guide/install"
           if [[ "$REF" == refs/tags/desktop-v* ]]; then
             gh release create "$REF_NAME" upload/* --verify-tag --title "MetatorAI Desktop ${REF_NAME#desktop-}" --notes "$notes"
           else
