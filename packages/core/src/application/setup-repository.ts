@@ -1,6 +1,6 @@
 import { HOST_TARGETS, type HostTarget, hostsFromEvidence, repositoryHosts } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
-import type { InstallStep } from "../domain/install.ts";
+import { type InstallStep, writesFile } from "../domain/install.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { GenerateHosts, LintAgents } from "./agents.ts";
@@ -99,6 +99,11 @@ export interface RepositorySetup {
   }[];
   /** What the guide says comes next. */
   readonly next: readonly string[];
+  /**
+   * Every file setup wrote (created or changed), repository-relative, sorted: what a commit of the
+   * setup takes (`setup --commit`, the desktop app's Commit, ADR-0105), and nothing else.
+   */
+  readonly written: readonly string[];
 }
 
 export interface SetupDependencies {
@@ -154,14 +159,17 @@ export class SetupRepository {
     const workflows = input.workflows ?? preview.value.workflows;
 
     const warnings: string[] = [];
+    const written = new Set<string>();
     if (d.config.source === undefined) {
       const init = await d.initProject.execute({ dryRun: false, hosts });
       if (init.isErr()) return err(stopped("init", init.error));
       warnings.push(...init.value.warnings);
+      if (init.value.written) written.add(init.value.written);
     } else if (hosts.join() !== d.config.hosts.join()) {
       // Hosts chosen now (--host or the questions) win over the file: saved, comments kept.
       const saved = await d.updateConfig.execute({ hostTargets: hosts });
       if (saved.isErr()) return err(saved.error);
+      written.add(d.config.source);
     }
     const now = d.configured();
     if (now.isErr()) return err(now.error);
@@ -195,6 +203,11 @@ export class SetupRepository {
     const ignored = await ignoreLocalState(d.fs);
     if (ignored.isErr()) return err(ignored.error);
 
+    for (const s of canon.value.steps) if (writesFile(s.action)) written.add(s.path);
+    if (canon.value.lock) written.add(canon.value.lock);
+    for (const f of [...agents.value.written, ...skills.value.written]) written.add(f);
+    if (ignored.value === "added") written.add(".gitignore");
+
     const steps: Record<string, number> = {};
     for (const s of canon.value.steps) steps[s.action] = (steps[s.action] ?? 0) + 1;
     return ok({
@@ -211,6 +224,7 @@ export class SetupRepository {
         // What a run cannot do here yet (with --gates: whether the quick gate is green before any
         // run), then the daemon the app talks to.
         next: ["metator doctor", "metator doctor --gates", "metator serve"],
+        written: [...written].sort(),
       },
       warnings,
     });

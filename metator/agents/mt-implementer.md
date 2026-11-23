@@ -5,7 +5,7 @@ id: mt-implementer
 role: worker
 description: Implements plan steps until their red tests pass, inside plan-scope.json, following each step's exemplar. Started at the build stage after mt-test-author. Do not use to change tests or the plan.
 tier: standard
-capabilities: [read, search, edit, execute, "metator:test", "metator:gate", "metator:rules", "metator:plan"]
+capabilities: [read, search, edit, execute, "metator:test", "metator:gate", "metator:rules", "metator:plan", "metator:java"]
 inputs: [plan.json, step ids, build-log.md]
 output: { artifact: build-log.md, summaryLines: 10 }
 ---

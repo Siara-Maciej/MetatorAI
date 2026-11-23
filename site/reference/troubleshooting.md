@@ -20,7 +20,7 @@ export PATH="$(bun pm bin -g):$PATH"   # add this line to ~/.bashrc or ~/.zshrc
 metator version
 ```
 
-An alias is not enough on its own: the hooks and agents call `metator` from their own shells. Without the folder on `PATH`, set `hosts.metatorCommand` as [Install](../guide/install.md#without-bun-link) shows.
+An alias is not enough on its own: the hooks and agents call `metator` from their own shells. Without the folder on `PATH`, set `hosts.metatorCommand` as [Install](../guide/install.md#from-a-checkout-for-developers-of-metatorai) shows.
 
 ## BIN_NOT_FOUND: ast-grep is not installed
 

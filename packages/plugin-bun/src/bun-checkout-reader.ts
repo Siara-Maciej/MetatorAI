@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
-import { type CheckoutReader, err, MetatorError, ok, type Result } from "@metator/core";
+import { type CheckoutReader, err, MetatorError, type Result } from "@metator/core";
+import { readTextIfExists } from "./read-text.ts";
 
 /** Files of other checkouts on this machine (F7.3); a path may not leave its root. */
 export class BunCheckoutReader implements CheckoutReader {
@@ -8,8 +9,7 @@ export class BunCheckoutReader implements CheckoutReader {
     const target = join(root, path);
     const rel = relative(root, target);
     if (rel.startsWith("..") || isAbsolute(rel)) return err(MetatorError.usage(`${path} is outside ${root}`));
-    const file = Bun.file(target);
-    return ok((await file.exists()) ? await file.text() : undefined);
+    return readTextIfExists(target);
   }
 
   async isDirectory(path: string): Promise<boolean> {

@@ -5,7 +5,7 @@ id: mt-system-planner
 role: worker
 description: Refines a system plan (steps per application in their repositories, a strategy for each breaking change, deploy order) from its analysis until system plan lint is clean. Started by `metator system plan propose`. Do not use to change code or to approve a plan.
 tier: reasoning
-capabilities: [read, search, edit, "metator:system", "metator:contract", "metator:cards", "metator:owners"]
+capabilities: [read, search, edit, "metator:system", "metator:contract", "metator:cards", "metator:owners", "metator:java"]
 inputs: [system analysis, system plan]
 output: { artifact: system plan, summaryLines: 20 }
 ---

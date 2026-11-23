@@ -335,7 +335,11 @@ export type Route =
   | { readonly screen: "backlog"; readonly id?: string }
   | { readonly screen: "board"; readonly task?: string }
   /** A thread (round 16): its chat terminal as the main view. */
-  | { readonly screen: "thread"; readonly id: string };
+  | { readonly screen: "thread"; readonly id: string }
+  /** Add repository (round 20): pick a folder, inspect it, set it up, open it. */
+  | { readonly screen: "add" }
+  /** The app's own settings (round 20): the metator command and the repositories it knows. */
+  | { readonly screen: "app" };
 
 /** The tab an old run route showed. */
 const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
@@ -356,6 +360,15 @@ function runRoute(runId: string, tab: RunTab, rest: readonly string[]): Route {
     ...(pane ? { pane } : {}),
     ...(file ? { file } : {}),
   };
+}
+
+/**
+ * Where Home goes once a card's answer is through: back to its queue, but only while the person is
+ * still on Home. The daemon's answer can come late (a loaded machine); a person who went elsewhere
+ * meanwhile stays where they went.
+ */
+export function afterAnswer(hash: string): Route | undefined {
+  return parseRoute(hash).screen === "inbox" ? { screen: "inbox" } : undefined;
 }
 
 export function parseRoute(hash: string): Route {
@@ -421,6 +434,10 @@ export function parseRoute(hash: string): Route {
     case "mrs":
     case "reviews":
       return arg ? { screen: "reviews", id: arg } : { screen: "reviews" };
+    case "add":
+      return { screen: "add" };
+    case "app":
+      return { screen: "app" };
     case "inbox": {
       // A decision's address has its repository, run and question as parts (`decisionKey`).
       const pick = parts.slice(1).join("/");

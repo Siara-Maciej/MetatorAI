@@ -48,11 +48,12 @@ describe("bootstrap", () => {
       expect(c.resolve(port) as unknown).toBe(git);
   });
 
-  test("the import and the symbol analyzer are the one oxc analyzer", () => {
+  test("the import and the symbol analyzer are one analyzer of every language (oxc, Java)", () => {
     const c = bootstrap({ root: "/repo" });
-    const oxc = c.resolve("oxc");
-    expect(c.resolve("importAnalyzer") as unknown).toBe(oxc);
-    expect(c.resolve("symbolAnalyzer") as unknown).toBe(oxc);
+    const analyzers = c.resolve("analyzers");
+    expect(c.resolve("importAnalyzer") as unknown).toBe(analyzers);
+    expect(c.resolve("symbolAnalyzer") as unknown).toBe(analyzers);
+    expect(analyzers.extensions).toEqual([...c.resolve("oxc").extensions, ".java"]);
   });
 
   test("the contract kinds are the ones a differ compares", () => {

@@ -29,6 +29,7 @@ import {
   type Result,
 } from "@metator/core";
 import type { BootstrapOptions } from "@metator/runtime";
+import { selfCommand } from "./installation.ts";
 
 /**
  * The host conformance suite's throwaway repository (ADR-0098), as only this program can make it:
@@ -562,4 +563,4 @@ export const conformanceLab =
     env: Readonly<Record<string, string | undefined>> = process.env,
   ): NonNullable<BootstrapOptions["conformanceLab"]> =>
   ({ root }) =>
-    new DaemonLab({ metator: [process.execPath, process.argv[1] as string], env, root });
+    new DaemonLab({ metator: selfCommand(), env, root });

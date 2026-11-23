@@ -27,6 +27,7 @@ const discovery = (scripts: Record<string, string>, tools: string[] = []): Disco
   docs: { adr: null, codeowners: null },
   ai: [],
   warnings: [],
+  builds: [],
 });
 
 const ids = (steps: readonly { id: string; run: unknown; files: string }[]) =>
@@ -293,7 +294,7 @@ describe("InitProject", () => {
       await new InitProject(lonely, new InMemoryFileSystem({}), DEFAULT_PATHS).execute({ dryRun: true })
     )._unsafeUnwrap();
     expect(onlyE2e.warnings).toEqual([
-      "nothing found for the quick gate (no lint, typecheck or test script): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
+      "nothing found for the quick gate (no lint, typecheck or test script, no Maven or Gradle build): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
     ]);
     // An empty gate is not written: `quick: []` reads as a choice nobody made.
     expect(parse(onlyE2e.config).gates).toEqual({ full: [{ id: "e2e", run: { script: "e2e" } }] });
@@ -313,5 +314,109 @@ describe("proposeConfig picks the strongest signal", () => {
   test("of two lint scripts, the one that also runs a linter wins over a name-only match", () => {
     const p = proposeConfig(discovery({ "lint:fix": "node fix.js", lint: "eslint" }), { ruleCanon: false });
     expect(p.gates.full.map((s) => JSON.stringify(s.run))).toEqual(['{"script":"lint"}']);
+  });
+});
+
+describe("proposeConfig for a Java build (round 22)", () => {
+  const maven = {
+    tool: "maven" as const,
+    file: "pom.xml",
+    wrapper: "mvnw",
+    checks: [{ tool: "checkstyle" as const, evidence: "pom.xml:30 maven-checkstyle-plugin" }],
+    java: null,
+  };
+
+  test("compile, test and the configured linter, through the wrapper; the quick gate builds only the changed modules", () => {
+    const p = proposeConfig(
+      { ...discovery({}), packageManager: null, builds: [maven] },
+      { ruleCanon: false },
+    );
+    expect(p.gates.full.map((s) => [s.id, JSON.stringify(s.run), s.files])).toEqual([
+      ["typecheck", '{"build":"maven","args":["-q","-B","-DskipTests","compile"]}', "none"],
+      ["test", '{"build":"maven","args":["-B","test"]}', "none"],
+      ["lint", '{"build":"maven","args":["-q","-B","checkstyle:check"]}', "none"],
+    ]);
+    expect(p.gates.quick.map((s) => [s.id, s.files, s.match?.includes("**/*.java")])).toEqual([
+      ["typecheck", "modules", true],
+      ["test", "modules", true],
+      ["lint", "modules", true],
+    ]);
+    expect(p.decisions.find((d) => d.gate === "full" && d.capability === "lint")).toEqual({
+      capability: "lint",
+      gate: "full",
+      step: "mvnw -q -B checkstyle:check (mvnw.cmd on Windows)",
+      evidence: ["pom.xml:30 maven-checkstyle-plugin", "mvnw"],
+      reason: "the build configures checkstyle",
+    });
+  });
+
+  test("beside a Node project both get their gates; the Java steps that would share an id are named by their tool", () => {
+    const p = proposeConfig(
+      { ...discovery({ test: "vitest run", typecheck: "tsc --noEmit" }), builds: [{ ...maven, checks: [] }] },
+      { ruleCanon: true },
+    );
+    expect(p.gates.full.map((s) => s.id)).toEqual([
+      "typecheck",
+      "test",
+      "maven:typecheck",
+      "maven:test",
+      "rules",
+    ]);
+    expect(p.gates.quick.map((s) => s.id)).toEqual([
+      "typecheck",
+      "test",
+      "maven:typecheck",
+      "maven:test",
+      "rules",
+    ]);
+  });
+
+  test("init writes it as MetatorConfig v16, every step its own (no YAML alias), and it parses back", async () => {
+    const java = { execute: async () => ok({ ...discovery({}), packageManager: null, builds: [maven] }) };
+    const report = (
+      await new InitProject(java, new InMemoryFileSystem({}), DEFAULT_PATHS).execute({ dryRun: true })
+    )._unsafeUnwrap();
+    expect(report.warnings).toEqual([]);
+    expect(report.config).not.toContain("&");
+    const config = MetatorConfigDocument.parse(parse(report.config), "c")._unsafeUnwrap();
+    expect(parse(report.config).schemaVersion).toBe(16);
+    expect(config.gates.quick[1]).toMatchObject({
+      id: "test",
+      run: { build: "maven", args: ["-B", "test"] },
+      files: "modules",
+    });
+  });
+});
+
+describe("MetatorConfig v16", () => {
+  test("a v15 file is a v16 file; a build step or files: modules is new in v16", () => {
+    const v15 = {
+      kind: "MetatorConfig",
+      schemaVersion: 15,
+      gates: { full: [{ id: "t", run: { script: "test" } }] },
+    };
+    expect(MetatorConfigDocument.parse(v15, "c")._unsafeUnwrap().gates.full[0]?.run).toEqual({
+      script: "test",
+    });
+    const build = { id: "t", run: { build: "gradle", args: ["test"] }, files: "modules" };
+    expect(
+      MetatorConfigDocument.parse(
+        { kind: "MetatorConfig", schemaVersion: 15, gates: { full: [build] } },
+        "c",
+      ).isErr(),
+    ).toBe(true);
+    expect(
+      MetatorConfigDocument.parse(
+        { kind: "MetatorConfig", schemaVersion: 16, gates: { full: [build] } },
+        "c",
+      ).isOk(),
+    ).toBe(true);
+    const ant = { id: "t", run: { build: "ant", args: ["test"] } };
+    expect(
+      MetatorConfigDocument.parse(
+        { kind: "MetatorConfig", schemaVersion: 16, gates: { full: [ant] } },
+        "c",
+      ).isErr(),
+    ).toBe(true);
   });
 });

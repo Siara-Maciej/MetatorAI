@@ -435,6 +435,16 @@ describe("MetatorAI Desktop: others' MRs (real daemon, real Chromium, fake code 
     const card = await cardOnHome("review-card-approve", "All 2 findings are fixed: approve MR #46?");
     await shot("18-home-approve.png");
     expect((await log()).some((e) => e.approve !== undefined)).toBe(false);
+    // The daemon's answer reaches the window late, as on a loaded machine: the person has gone to
+    // Reviews meanwhile, and the late answer must not take them back to Home.
+    const slowApprove = /\/approve$/;
+    let answered = false;
+    await page.route(slowApprove, async (route) => {
+      const response = await route.fetch();
+      await Bun.sleep(1500);
+      await route.fulfill({ response });
+      answered = true;
+    });
     await card.getByRole("button", { name: "Yes" }).click();
     await until("the approval at the host", async () =>
       (await log()).some((e) => e.approve === 46) ? true : undefined,
@@ -442,6 +452,10 @@ describe("MetatorAI Desktop: others' MRs (real daemon, real Chromium, fake code 
     await until("the MR approved", async () => ((await review())?.status === "approved" ? true : undefined));
     // Watching ended: the row is under "ended" in the place, with its word.
     await page.goto(app("reviews"));
+    await until("the late answer in the window", async () => (answered ? true : undefined));
+    await Bun.sleep(300);
+    await page.unroute(slowApprove);
+    expect(page.url()).toContain("#/reviews");
     await page.getByRole("button", { name: /ended · 1/ }).click();
     await says(`review-${ID}`, "approved");
     expect(errors).toEqual([]);

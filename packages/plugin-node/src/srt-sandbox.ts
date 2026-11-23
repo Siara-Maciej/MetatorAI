@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -19,6 +19,12 @@ import {
 /** What a process started in the sandbox finds in its environment: it is inside one. */
 export const SANDBOX_ENV = "METATOR_SANDBOX";
 
+/**
+ * Bun's switch that makes a compiled executable act as `bun`: a compiled `metator` runs `srt` with
+ * it (ADR-0105). The session inside must not inherit it, or a hook's `metator` would be a `bun`.
+ */
+export const BE_BUN_ENV = "BUN_BE_BUN";
+
 /** Where the sandbox runtime's command line lives (`srt`, from `@anthropic-ai/sandbox-runtime`). */
 export function srtCli(): string {
   const manifest = createRequire(import.meta.url).resolve("@anthropic-ai/sandbox-runtime/package.json");
@@ -28,8 +34,9 @@ export function srtCli(): string {
 /**
  * HostSandbox on Anthropic's sandbox runtime (`@anthropic-ai/sandbox-runtime`, ADR-0104), the
  * one Claude Code holds its own commands in: bubblewrap on Linux, `sandbox-exec` on macOS, with
- * the network through its proxy. The session is `srt --settings <file> -- env METATOR_SANDBOX=1
- * <argv>`, run by the runtime this program runs on. The settings file is named by its content
+ * the network through its proxy. The session is `srt --settings <file> -- env -u BUN_BE_BUN
+ * METATOR_SANDBOX=1 <argv>`, run by the runtime this program runs on (`runtime`: its command line;
+ * a compiled `metator` is `env BUN_BE_BUN=1 <itself>`). The settings file is named by its content
  * and kept outside every path a session may write (`~/.cache/metator/sandbox`), and written again
  * before each start, so no session changes the next one's.
  */
@@ -40,9 +47,19 @@ export class SrtSandbox implements HostSandbox {
       "metator",
       "sandbox",
     ),
-    private readonly runtime: string = process.execPath,
+    private readonly runtime: string | readonly string[] = process.execPath,
     private readonly cli: () => string = srtCli,
   ) {}
+
+  missing(): string | undefined {
+    let cli: string;
+    try {
+      cli = this.cli();
+    } catch (e) {
+      return `the sandbox runtime cannot be found (${(e as Error).message})`;
+    }
+    return existsSync(cli) ? undefined : `the sandbox runtime is not at ${cli}`;
+  }
 
   command(argv: readonly string[], settings: SandboxSettings): Result<string[], MetatorError> {
     if (argv.length === 0) return err(MetatorError.usage("nothing to start in the sandbox: empty argv"));
@@ -60,7 +77,19 @@ export class SrtSandbox implements HostSandbox {
         }),
       );
     }
-    return ok([this.runtime, cli, "--settings", file, "--", "env", `${SANDBOX_ENV}=1`, ...argv]);
+    const runtime = typeof this.runtime === "string" ? [this.runtime] : this.runtime;
+    return ok([
+      ...runtime,
+      cli,
+      "--settings",
+      file,
+      "--",
+      "env",
+      "-u",
+      BE_BUN_ENV,
+      `${SANDBOX_ENV}=1`,
+      ...argv,
+    ]);
   }
 }
 

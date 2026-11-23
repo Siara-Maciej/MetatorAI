@@ -123,6 +123,8 @@ import type {
   InventoryMemory,
   IssueSnapshots,
   Issues,
+  JavaBuildReader,
+  JavaSourceParser,
   JudgeFindings,
   KnowledgeFiles,
   Launcher,
@@ -179,6 +181,7 @@ import type {
   QuickReady,
   QuickReviewed,
   QuickStart,
+  ReadJava,
   ReadRunArtifact,
   RecordArchitectureBaseline,
   RefactorPlanStore,
@@ -320,8 +323,12 @@ export interface Cradle {
   toolBoundariesReader: ToolBoundariesReader;
   /** The one analyzer of the repository; the two ports below resolve to it. */
   oxc: ImportAnalyzer & SymbolAnalyzer;
+  /** Every language's analyzer behind the two ports below (ADR-0107). */
+  analyzers: ImportAnalyzer & SymbolAnalyzer;
   importAnalyzer: ImportAnalyzer;
   symbolAnalyzer: SymbolAnalyzer;
+  javaBuild: JavaBuildReader;
+  javaParser: JavaSourceParser;
   importGraphReader: ImportGraphReader;
   ruleEngines: readonly RuleEngine[];
   ruleScaffolders: readonly RuleScaffolder[];
@@ -502,6 +509,7 @@ export interface Cradle {
   scanPatterns: ScanPatterns;
   findSimilar: FindSimilar;
   symbolQueries: SymbolQueries;
+  readJava: ReadJava;
   checkFlaky: CheckFlaky;
   checkDebugTags: CheckDebugTags;
   checkQuote: CheckQuote;

@@ -3,6 +3,7 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { err, InProcessLock, type MachineState, MetatorError, ok, type Result } from "@metator/core";
 import { type LockFileOptions, withLockFile } from "./lock-file.ts";
+import { readTextIfExists } from "./read-text.ts";
 
 /**
  * MachineState in a directory of the user's (G1, ADR-0056): `$METATOR_STATE_DIR`, else
@@ -18,14 +19,7 @@ export class BunMachineState implements MachineState {
   ) {}
 
   async read(name: string): Promise<Result<string | undefined, MetatorError>> {
-    const file = Bun.file(join(this.dir, name));
-    try {
-      return ok((await file.exists()) ? await file.text() : undefined);
-    } catch (e) {
-      return err(
-        new MetatorError("COMMAND_FAILED", `cannot read ${join(this.dir, name)}: ${(e as Error).message}`),
-      );
-    }
+    return readTextIfExists(join(this.dir, name));
   }
 
   async write(name: string, content: string): Promise<Result<void, MetatorError>> {

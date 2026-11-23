@@ -5,7 +5,7 @@ id: mt-test-author
 role: worker
 description: Writes the failing tests a plan step lists in testsFirst and proves they fail for the right reason. Started at the build stage before mt-implementer. Do not use to write the code under test.
 tier: standard
-capabilities: [read, search, edit, execute, "metator:test", "metator:similar"]
+capabilities: [read, search, edit, execute, "metator:test", "metator:similar", "metator:java"]
 inputs: [plan.json, step ids]
 output: { artifact: build-log.md, summaryLines: 10 }
 ---

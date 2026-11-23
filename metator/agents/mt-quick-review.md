@@ -5,7 +5,7 @@ id: mt-quick-review
 role: worker
 description: Reads the uncommitted diff of a quick change once and reports only what must be fixed before a person looks at it. Use as the one short review of an mt-quick run. Do not use to review a pull request (mt-pr-review) or to fix code.
 tier: standard
-capabilities: [read, search, "metator:review", "metator:graph", "metator:rules"]
+capabilities: [read, search, "metator:review", "metator:graph", "metator:rules", "metator:java"]
 inputs: [task, the working tree's diff]
 output: { artifact: quick-review.md, summaryLines: 10 }
 ---

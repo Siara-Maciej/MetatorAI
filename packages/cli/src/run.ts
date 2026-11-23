@@ -74,6 +74,10 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
     if (final.hook !== null) io.out(JSON.stringify(final.hook));
     return 0; // a hook never fails the host's tool call by exit code
   }
+  if (final.streamed) {
+    if (final.result.isErr()) console.error(renderError(final.result.error));
+    return final.result.isOk() ? 0 : exitCodeFor(final.result.error);
+  }
   const render = ran ? metaOf(ran).render : undefined;
   // Text only for a person at a terminal; a renderer that fails never fails the command (a gate
   // script, an agent and a pipe read the JSON line, and its exit code, only).

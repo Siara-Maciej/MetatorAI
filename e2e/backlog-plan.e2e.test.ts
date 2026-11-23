@@ -295,6 +295,11 @@ describe("analysis and plan in the Backlog (real CLI, scenario host)", () => {
     (await mt("web", "issue", "add", "Show totals", "--by", "ana")).json;
     const plan = data(await mt("web", "issue", "plan", "i002", "--session"));
     await approvePlan("web", plan.runId as string);
+    // What the person sees: the item reads "plan ready" once it holds its plan; only then is a file edited.
+    await until("the item to hold its plan", async () => {
+      const item = data(await mt("web", "issue", "show", "i002"));
+      return item.plan ? item : undefined;
+    });
     await Bun.write(
       join(at("web"), "src/price.ts"),
       "export const round = (n: number) => Math.round(n * 1);\n",
@@ -402,7 +407,10 @@ describe("the Backlog's buttons through the daemon (scenario host)", () => {
       analysis: { file: ".metator/issues/i001/analysis.md" },
     });
     expect(String(item.analysisText)).toContain("Prices round in src/price.ts:1.\n\n## Deterministic facts");
-    expect(await paneText(pane.id)).toContain("Recorded on the item");
+    // The guide's last words reach its pane a moment after the item changed.
+    await until("the guide's last words in its pane", async () =>
+      (await paneText(pane.id)).includes("Recorded on the item") ? true : undefined,
+    );
   }, 120_000);
 
   test("Make plan opens the plan run's conductor; once approved the item has its plan", async () => {

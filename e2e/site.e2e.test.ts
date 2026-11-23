@@ -220,6 +220,49 @@ describe("documentation site", () => {
     await page.close();
   }, 60_000);
 
+  test("the way switch shows the desktop app or the terminal only, on every page, remembered", async () => {
+    const base = `http://localhost:${server.port}`;
+    const page = await (await browser()).newPage({ viewport: { width: 1280, height: 900 } });
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    /** How many blocks of each way the page shows, and how many it has. */
+    const ways = () =>
+      page.evaluate(() => {
+        const blocks = [...document.querySelectorAll<HTMLElement>(".vp-doc .mx-way")];
+        const seen = (w: string) =>
+          blocks.filter((b) => b.dataset.way === w && b.offsetParent !== null).length;
+        const all = (w: string) => blocks.filter((b) => b.dataset.way === w).length;
+        return { app: seen("app"), cli: seen("cli"), appAll: all("app"), cliAll: all("cli") };
+      });
+    const checked = () =>
+      page.locator('.vp-doc .mx-way-switch button[aria-checked="true"]').getAttribute("data-way");
+    // The desktop app until the reader chooses: only its blocks show, and the switch says so.
+    await page.goto(`${base}/guide/install`);
+    let w = await ways();
+    expect([w.app > 0, w.cli, w.cliAll > 0, await checked()]).toEqual([true, 0, true, "app"]);
+    expect(await page.locator(".vp-doc").textContent()).toContain("metator-windows-x64.zip");
+    // Terminal only: the other blocks, on this page and the next, without a reload.
+    await page.locator('.vp-doc .mx-way-switch button[data-way="cli"]').click();
+    w = await ways();
+    expect([w.app, w.cli > 0]).toEqual([0, true]);
+    await page.goto(`${base}/guide/first-run`);
+    w = await ways();
+    expect([w.app, w.cli === w.cliAll, w.cli > 0, await checked()]).toEqual([0, true, true, "cli"]);
+    // The page's outline has no heading of one way only: it is the same whichever is shown.
+    expect(await page.locator(".vp-doc .mx-way :is(h1, h2, h3, h4)").count()).toBe(0);
+    // A link with ?way=app chooses for the reader, and the choice holds on the next page.
+    await page.goto(`${base}/guide/many?way=app`);
+    w = await ways();
+    expect([w.app > 0, w.cli]).toEqual([true, 0]);
+    await page.goto(`${base}/guide/install`);
+    expect(await checked()).toBe("app");
+    // On a phone the switch fits the screen.
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    expect(errors).toEqual([]);
+    await page.close();
+  }, 60_000);
+
   test("five sections in the top bar, each sidebar covers its pages, and Next leads through each section", async () => {
     const { sections, pathOf } = await import("../site/.vitepress/config.ts");
     const config = (await import("../site/.vitepress/config.ts")).default as {

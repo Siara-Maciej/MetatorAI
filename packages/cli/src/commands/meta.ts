@@ -119,6 +119,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
   {
     verb: "Set up a repository",
     commands: [
+      ["inspect", "what a folder is before setup: set up or not, git, the AI hosts, what setup would write"],
       ["setup", "AI hosts, workflows and hooks, asked in the terminal (or --host … --yes)"],
       ["init", "the config from the repository's own scripts, with the evidence"],
       ["doctor", "what a run will not be able to do here, and the fix for each"],
@@ -170,6 +171,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["graph affected", "the files and tests a change touches"],
       ["graph dependents", "who imports a file, directly or through others"],
       ["symbols find", "where an exported name is defined and re-exported"],
+      ["java overview", "a Java repository: modules, endpoints, entities, beans; then `metator java <fact>`"],
       ["cards build", "one card per package: facts from the code plus your notes"],
       ["owners", "who owns a path (CODEOWNERS)"],
     ],
@@ -191,6 +193,17 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["repos", "a folder of repositories: list, init, status"],
       ["system", "the system map: contracts between applications, impact, plans"],
       ["system plan step-plan", "the plan of one step of a system plan, on demand, in its repository"],
+    ],
+  },
+  {
+    verb: "Dev containers",
+    commands: [
+      ["devcontainer list", "the dev containers docker or nerdctl knows: folder, state, workspace, user"],
+      ["devcontainer start", "start a stopped dev container"],
+      ["devcontainer install", "MetatorAI's Linux CLI into a dev container, once per version"],
+      ["devcontainer run", "metator in the container, as its user, in its workspace folder"],
+      ["devcontainer exec", "any program in the container, as its user"],
+      ["devcontainer serve", "the daemon in the container, and the command that tunnels to it"],
     ],
   },
   {

@@ -20,7 +20,7 @@
       "status": "verified",
       "evidence": {
         "path": "packages/core/src/domain/errors.ts",
-        "line": 26,
+        "line": 28,
         "quote": "export class MetatorError extends Error {"
       }
     },

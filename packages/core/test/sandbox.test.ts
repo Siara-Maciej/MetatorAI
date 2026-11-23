@@ -175,6 +175,22 @@ describe("sandboxIsolation: what the machine needs for the policy to hold", () =
     expect([windows.status, windows.message]).toEqual(["warn", expect.stringContaining("WSL2")]);
   });
 
+  test("a sandbox runtime this installation lacks is said, with the fix; off, it does not matter (ADR-0105)", () => {
+    const why =
+      "the sandbox runtime is not at /usr/lib/MetatorAI/metator-resources/sandbox-runtime/dist/cli.js";
+    const lacking = sandboxIsolation(on, "linux", [], why);
+    expect(lacking.status).toBe("warn");
+    expect(lacking.message).toContain(why);
+    expect(lacking.message).toContain("host sessions cannot start in it");
+    expect(lacking.fix).toContain("Reinstall the MetatorAI app");
+    expect(sandboxIsolation(on, "darwin", [], why).status).toBe("warn");
+    expect(sandboxIsolation(undefined, "linux", [], why).fix).toBe(
+      "metator config set sandbox.enabled true --scope repo",
+    );
+    // Windows has no sandbox to start, with or without its runtime.
+    expect(sandboxIsolation(on, "win32", [], why).message).toContain("WSL2");
+  });
+
   test("ok says both hosts' sessions are inside, and a host started by hand is not", () => {
     const message = sandboxIsolation(on, "linux", []).message;
     expect(message).toContain("Claude Code and Copilot CLI");

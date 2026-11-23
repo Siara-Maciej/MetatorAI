@@ -95,3 +95,15 @@ describe("BunTestEngine.check (real bun test)", () => {
     expect(result._unsafeUnwrapErr().code).toBe("BIN_NOT_FOUND");
   });
 });
+
+describe("BunTestEngine from a compiled metator (ADR-0105)", () => {
+  test("each test runs with the environment that makes the runtime a bun; none from a checkout", async () => {
+    const files = { "rules/conformance/mt-a.test.ts": PASSING };
+    const compiled = new ScriptedProcessRunner([{ argvPrefix: [process.execPath, "test"], result: {} }]);
+    await new BunTestEngine(compiled, await project(files), "rules/conformance", { BUN_BE_BUN: "1" }).check();
+    expect(compiled.calls[0]?.env).toEqual({ BUN_BE_BUN: "1" });
+    const checkout = new ScriptedProcessRunner([{ argvPrefix: [process.execPath, "test"], result: {} }]);
+    await new BunTestEngine(checkout, await project(files)).check();
+    expect(checkout.calls[0]?.env).toBeUndefined();
+  });
+});

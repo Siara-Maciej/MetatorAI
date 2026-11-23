@@ -6,12 +6,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { IssueRef, ThreadView } from "./api.ts";
 import { NoDaemon, Notice } from "./components/common.tsx";
+import { ContainerDown } from "./components/container-down.tsx";
 import { HelpOverlay } from "./components/help-overlay.tsx";
+import { RepoSwitcher } from "./components/repo-switcher.tsx";
 import { Sidebar } from "./components/sidebar.tsx";
 import { sendLine } from "./components/terminal.tsx";
 import { createConfirmer } from "./confirm.ts";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import {
+  afterAnswer,
   flattenState,
   folderLabel,
   goesToPane,
@@ -35,9 +38,14 @@ import {
   wasAway,
 } from "./model.ts";
 import { systemNotifier } from "./notify.ts";
+import { shellView } from "./repos.ts";
+import { ReposProvider, useRepos } from "./repos-context.tsx";
 import { reviewNeeds } from "./reviews.ts";
+import { AddRepoScreen } from "./screens/add-repo.tsx";
+import { AppSettings } from "./screens/app-settings.tsx";
 import { BacklogScreen } from "./screens/backlog.tsx";
 import { BoardScreen } from "./screens/board.tsx";
+import { FirstRun } from "./screens/first-run.tsx";
 import { InboxScreen } from "./screens/inbox.tsx";
 import { NewSessionDialog } from "./screens/new-session.tsx";
 import { OverviewScreen } from "./screens/overview.tsx";
@@ -50,7 +58,9 @@ import { chatTitleOf, followedThread } from "./threads.ts";
 
 export const App = () => (
   <DaemonProvider>
-    <Shell />
+    <ReposProvider>
+      <Shell />
+    </ReposProvider>
   </DaemonProvider>
 );
 
@@ -58,6 +68,7 @@ const notifier = systemNotifier();
 
 function Shell() {
   const d = useDaemon();
+  const repos = useRepos();
   // The folder in the top bar: its repositories, counted once however many worktrees each has.
   const folder = folderLabel(d.repos);
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
@@ -254,7 +265,25 @@ function Shell() {
   const picked = route.screen === "inbox" ? pickedNeed(needs, route.pick) : undefined;
   // Settings holds the places that are not daily work: the System.
   const settingsPart =
-    route.screen === "overview" ? "system" : route.screen === "settings" ? "options" : undefined;
+    route.screen === "overview"
+      ? "system"
+      : route.screen === "settings"
+        ? "options"
+        : route.screen === "app"
+          ? "app"
+          : undefined;
+  // What the main area holds instead of the daemon's screens (round 20): the first run, Add
+  // repository, the app's settings, or the panel that says the daemon is not there.
+  const view = shellView({
+    commands: repos.commands !== undefined,
+    known: repos.known,
+    down: d.down,
+    screen: route.screen,
+    current: repos.current,
+    startFailed: d.startError !== undefined && !d.starting,
+  });
+  // With no repository yet there is nothing for the sidebar: the first run and Add stand alone.
+  const solo = repos.commands !== undefined && repos.known?.length === 0;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Escape closes the runs drawer; a dialog closes itself (the browser's own <dialog>, D7).
@@ -290,22 +319,24 @@ function Shell() {
     return () => window.removeEventListener("keydown", onKey);
   });
   // The place the route names: an expression, not a component, so a render keeps its state.
+  const settingsNav = settingsPart ? (
+    <nav className="settings-parts run-tabs" aria-label="parts of the settings">
+      {(
+        [
+          ["options", "Options", routeHash({ screen: "settings" })],
+          ["system", "System", routeHash({ screen: "overview", tab: "daemon" })],
+          ["app", "App", routeHash({ screen: "app" })],
+        ] as const
+      ).map(([id, label, href]) => (
+        <a key={id} href={href} aria-current={settingsPart === id ? "page" : undefined}>
+          {label}
+        </a>
+      ))}
+    </nav>
+  ) : null;
   const screen = (
     <>
-      {settingsPart ? (
-        <nav className="settings-parts run-tabs" aria-label="parts of the settings">
-          {(
-            [
-              ["options", "Options", routeHash({ screen: "settings" })],
-              ["system", "System", routeHash({ screen: "overview", tab: "daemon" })],
-            ] as const
-          ).map(([id, label, href]) => (
-            <a key={id} href={href} aria-current={settingsPart === id ? "page" : undefined}>
-              {label}
-            </a>
-          ))}
-        </nav>
-      ) : null}
+      {settingsNav}
       {route.screen === "inbox" ? (
         <InboxScreen
           needs={needs}
@@ -326,7 +357,8 @@ function Shell() {
               });
               return;
             }
-            go({ screen: "inbox" });
+            const back = afterAnswer(window.location.hash);
+            if (back) go(back);
             if (!choices || !item) {
               setNotice(undefined);
               return;
@@ -396,12 +428,10 @@ function Shell() {
     </>
   );
   return (
-    <div className={`shell${panelOpen ? " panel-open" : ""}`}>
+    <div className={`shell${panelOpen ? " panel-open" : ""}${solo ? " solo" : ""}`}>
       <header className="topbar">
         <span className="logo">MetatorAI</span>
-        <span className="dim scope" data-testid="scope" title={folder.repos.join("\n") || undefined}>
-          {folder.text}
-        </span>
+        {solo ? null : <RepoSwitcher served={folder} />}
         <button
           type="button"
           className="panel-toggle"
@@ -421,40 +451,56 @@ function Shell() {
         >
           ?
         </button>
-        <button
-          type="button"
-          className="ghost who"
-          title="Your name goes next to every answer you give. Click to change it."
-          onClick={d.changeName}
-        >
-          {d.me ? `you: ${d.me}` : "set your name"}
-        </button>
-        <span className={`conn ${d.connected ? "green" : "red"}`} data-testid="connection">
-          {d.connected ? "connected" : d.down ? "no daemon" : "connecting…"}
-        </span>
+        {solo ? null : (
+          <>
+            <button
+              type="button"
+              className="ghost who"
+              title="Your name goes next to every answer you give. Click to change it."
+              onClick={d.changeName}
+            >
+              {d.me ? `you: ${d.me}` : "set your name"}
+            </button>
+            <span className={`conn ${d.connected ? "green" : "red"}`} data-testid="connection">
+              {d.connected ? "connected" : d.down ? "no daemon" : "connecting…"}
+            </span>
+          </>
+        )}
       </header>
-      <Sidebar
-        route={route}
-        needs={needs}
-        onRun={(r, pane) =>
-          r.status === "escalated"
-            ? go({ screen: "inbox", pick: `escalated:${r.repo ?? ""}:${r.runId}` })
-            : openRun(r.runId, false, pane)
-        }
-        onInbox={() => go({ screen: "inbox" })}
-        onNew={() => void newChat()}
-        onForm={() => setDialog(true)}
-        onThread={(t) => go({ screen: "thread", id: t.id })}
-        onCloseThread={(t) => void threadAct(t, "close")}
-        onReopenThread={(t) => void threadAct(t, "reopen")}
-      />
+      {solo ? null : (
+        <Sidebar
+          route={route}
+          needs={needs}
+          onRun={(r, pane) =>
+            r.status === "escalated"
+              ? go({ screen: "inbox", pick: `escalated:${r.repo ?? ""}:${r.runId}` })
+              : openRun(r.runId, false, pane)
+          }
+          onInbox={() => go({ screen: "inbox" })}
+          onNew={() => void newChat()}
+          onForm={() => setDialog(true)}
+          onThread={(t) => go({ screen: "thread", id: t.id })}
+          onCloseThread={(t) => void threadAct(t, "close")}
+          onReopenThread={(t) => void threadAct(t, "reopen")}
+        />
+      )}
       <main className="content">
         <Notice
-          text={d.down ? undefined : notice?.text}
+          text={view === "screens" ? notice?.text : undefined}
           tone={notice?.tone ?? "error"}
           onClose={() => setNotice(undefined)}
         />
-        {d.down ? <NoDaemon /> : screen}
+        {view === "first-run" ? <FirstRun /> : null}
+        {view === "add" ? <AddRepoScreen /> : null}
+        {view === "app-settings" ? (
+          <>
+            {settingsNav}
+            <AppSettings />
+          </>
+        ) : null}
+        {view === "no-daemon" ? <NoDaemon /> : null}
+        {view === "container-down" ? <ContainerDown /> : null}
+        {view === "screens" ? screen : null}
       </main>
       {help ? <HelpOverlay keymap={keyMapOf(d.options)} onClose={() => setHelp(false)} /> : null}
       {dialog && !d.down ? (

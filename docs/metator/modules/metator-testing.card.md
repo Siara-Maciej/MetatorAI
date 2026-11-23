@@ -21,7 +21,7 @@ dir: packages/testing
 
 ## Responsibility
 
-Fakes of the ports that tests need in memory, contract suites for the ports that have one (file system and lock, process runner, version control, rule engine, worktrees, machine state, tree copier, data isolator, the hosts and their generators, code and review hosts (the reviewer side too: `reviewerHostContract`), contract differ, screen renderer), shared fixtures (the Bun-workspaces monorepo, Claude Code's screens) and a throwaway real Postgres (`startPostgres`, `postgresScript`) used by unit and e2e tests. `sandboxUnheldHere` says why this machine holds no sandbox (ADR-0104), so a test that needs a real one is skipped, saying why, rather than passing silently.
+Fakes of the ports that tests need in memory, contract suites for the ports that have one (file system and lock, process runner, version control, rule engine, worktrees, machine state, tree copier, data isolator, the hosts and their generators, code and review hosts (the reviewer side too: `reviewerHostContract`), contract differ, screen renderer, container engine: `containerEngineContract` on `CONTAINER_WORLD`), shared fixtures (the Bun-workspaces monorepo, Claude Code's screens) and a throwaway real Postgres (`startPostgres`, `postgresScript`) used by unit and e2e tests. `sandboxUnheldHere` says why this machine holds no sandbox (ADR-0104), so a test that needs a real one is skipped, saying why, rather than passing silently.
 
 ## Invariants
 
@@ -34,4 +34,5 @@ Fakes of the ports that tests need in memory, contract suites for the ports that
 ## Pitfalls
 
 - A fake that is more lenient than the real adapter hides bugs; when an adapter test finds a difference, fix the fake too.
+- `standInContainerCli` writes a stand-in `docker` or `nerdctl` (never a real engine): it answers from a world in a JSON file, in its CLI's dialect, and runs each `exec` on this machine with the container's environment and `-e`, naming the `-u` user in `STANDIN_USER`. It shows what MetatorAI asks of an engine, never how a real one isolates.
 - `standInHost` writes a stand-in `claude` or `copilot` program (never a real host) that takes the host's command line, draws its prompt and approval menu, runs the repository's hooks and keeps a session per id; a fault (`StandInFault`) breaks one conformance claim on purpose. It shows what MetatorAI does with a host, never how the real host behaves.

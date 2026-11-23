@@ -6,6 +6,7 @@ import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { MetatorConfigSchema } from "../src/domain/config.ts";
 import { MetatorError } from "../src/domain/errors.ts";
 import { outputTail } from "../src/domain/gate.ts";
+import type { JavaBuild, JavaModule } from "../src/domain/java-build.ts";
 import { err, ok } from "../src/domain/result.ts";
 import type { ResolvedCommand } from "../src/ports/index.ts";
 
@@ -48,7 +49,13 @@ const checksWith = (rules: ReturnType<typeof violations>) =>
 function gate(
   gates: unknown,
   runner: ScriptedProcessRunner,
-  opts: { files?: Record<string, string>; changed?: string[]; rules?: ReturnType<typeof violations> } = {},
+  opts: {
+    files?: Record<string, string>;
+    changed?: string[];
+    rules?: ReturnType<typeof violations>;
+    java?: JavaBuild;
+    platform?: string;
+  } = {},
 ) {
   const fs = new InMemoryFileSystem(opts.files ?? { "src/a.ts": "", "src/b.ts": "" });
   const vcs = new FakeVcs(Object.keys(opts.files ?? {}), opts.changed ?? []);
@@ -64,6 +71,8 @@ function gate(
       fs,
       DEFAULT_PATHS,
       new FixedClock(new Date("2026-10-26T10:00:00Z")),
+      opts.java ? { read: async () => ok(opts.java as JavaBuild) } : undefined,
+      () => opts.platform ?? "linux",
     ),
   };
 }
@@ -186,5 +195,114 @@ describe("outputTail", () => {
   test("keeps the last lines, then caps the characters from the end", () => {
     expect(outputTail("a\nb\nc\n", 2)).toBe("b\nc");
     expect(outputTail(`${"x".repeat(50)}END`, 20, 10)).toBe("xxxxxxxEND");
+  });
+});
+
+describe("RunGate: a Java build (round 22)", () => {
+  const BUILD = {
+    id: "test",
+    run: { build: "maven", args: ["-B", "test"] },
+    files: "modules",
+    match: ["**/*.java", "**/pom.xml"],
+  };
+  const files = {
+    "pom.xml": "<project/>",
+    "shop-api/pom.xml": "<project/>",
+    "shop-api/src/main/java/a/Api.java": "",
+    "shop-domain/pom.xml": "<project/>",
+    "shop-domain/src/main/java/a/Order.java": "",
+    "README.md": "",
+  };
+  // The modules as the Java build reader gives them.
+  const mod = (name: string, dir: string, build: "maven" | "gradle" = "maven"): JavaModule => ({
+    name,
+    dir,
+    build,
+    buildFile: `${dir}/pom.xml`,
+    sourceRoots: [],
+    modules: [],
+    dependencies: [],
+  });
+  const java: JavaBuild = {
+    tools: ["maven"],
+    modules: [mod("parent", "."), mod("shop-api", "shop-api"), mod("shop-domain", "shop-domain")],
+    notes: [],
+  };
+
+  test("only the changed files' modules, and what they need; the tool from PATH without a wrapper", async () => {
+    const runner = new ScriptedProcessRunner([{ argvPrefix: [], result: { exitCode: 0 } }]);
+    const report = (
+      await gate({ quick: [BUILD] }, runner, { files, java }).run.execute({
+        gate: "quick",
+        files: ["shop-domain/src/main/java/a/Order.java", "shop-api/src/main/java/a/Api.java", "README.md"],
+      })
+    )._unsafeUnwrap();
+    expect(report.steps[0]?.command).toEqual(["mvn", "-pl", "shop-api,shop-domain", "-am", "-B", "test"]);
+    expect(runner.calls[0]?.cwd).toBe("/repo");
+  });
+
+  test("the wrapper at the root wins, by its path; a root file builds everything", async () => {
+    const runner = new ScriptedProcessRunner([{ argvPrefix: [], result: { exitCode: 0 } }]);
+    const report = (
+      await gate({ quick: [BUILD] }, runner, { files: { ...files, mvnw: "#!/bin/sh" }, java }).run.execute({
+        gate: "quick",
+        files: ["pom.xml", "shop-api/src/main/java/a/Api.java"],
+      })
+    )._unsafeUnwrap();
+    expect(report.steps[0]?.command).toEqual(["/repo/mvnw", "-B", "test"]);
+  });
+
+  test("on Windows the wrapper is mvnw.cmd (gradlew.bat), by its Windows path; the shell script alone is not run there", async () => {
+    const runner = new ScriptedProcessRunner([{ argvPrefix: [], result: { exitCode: 0 } }]);
+    const run = (files: Record<string, string>, step: object, platform = "win32") =>
+      gate({ full: [{ ...step, files: "none" }] }, runner, { files, platform })
+        .run.execute({ gate: "full" })
+        .then((r) => r._unsafeUnwrap().steps[0]?.command);
+    const gradle = { id: "test", run: { build: "gradle", args: ["test"] } };
+    expect(await run({ mvnw: "", "mvnw.cmd": "" }, BUILD)).toEqual(["/repo\\mvnw.cmd", "-B", "test"]);
+    expect(await run({ mvnw: "" }, BUILD)).toEqual(["mvn", "-B", "test"]);
+    expect(await run({ gradlew: "", "gradlew.bat": "" }, gradle)).toEqual(["/repo\\gradlew.bat", "test"]);
+    // On Linux the same repository runs the shell script, never the Windows one.
+    expect(await run({ "mvnw.cmd": "" }, BUILD, "linux")).toEqual(["mvn", "-B", "test"]);
+    expect(await run({ gradlew: "", "gradlew.bat": "" }, gradle, "linux")).toEqual(["/repo/gradlew", "test"]);
+  });
+
+  test("Gradle: each task in each module's project; no Java file changed: skipped", async () => {
+    const runner = new ScriptedProcessRunner([{ argvPrefix: [], result: { exitCode: 0 } }]);
+    const step = {
+      id: "typecheck",
+      run: { build: "gradle", args: ["compileJava", "-q"] },
+      files: "modules",
+      match: ["**/*.java"],
+    };
+    const w = gate({ quick: [step] }, runner, {
+      files: { "settings.gradle.kts": "", "libs/core/build.gradle.kts": "", "libs/core/src/A.java": "" },
+      java: { tools: ["gradle"], modules: [mod("libs:core", "libs/core", "gradle")], notes: [] },
+    });
+    const one = (await w.run.execute({ gate: "quick", files: ["libs/core/src/A.java"] }))._unsafeUnwrap();
+    expect(one.steps[0]?.command).toEqual(["gradle", ":libs:core:compileJava", "-q"]);
+    const none = (await w.run.execute({ gate: "quick", files: ["settings.gradle.kts"] }))._unsafeUnwrap();
+    expect(none.steps[0]).toMatchObject({ status: "skipped", detail: "no files this step checks" });
+    // Without the Java build read, a changed file builds the whole build: never less than asked.
+    const unread = gate({ quick: [step] }, runner, { files: { "libs/core/src/A.java": "" } });
+    const whole = (
+      await unread.run.execute({ gate: "quick", files: ["libs/core/src/A.java"] })
+    )._unsafeUnwrap();
+    expect(whole.steps[0]?.command).toEqual(["gradle", "compileJava", "-q"]);
+  });
+
+  test("the full gate builds everything; a red build fails the step with its output", async () => {
+    const runner = new ScriptedProcessRunner([
+      { argvPrefix: [], result: { exitCode: 1, stdout: "[ERROR] COMPILATION ERROR" } },
+    ]);
+    const full = { ...BUILD, files: "none" };
+    const report = (
+      await gate({ full: [full] }, runner, { files }).run.execute({ gate: "full" })
+    )._unsafeUnwrap();
+    expect(report.steps[0]).toMatchObject({
+      command: ["mvn", "-B", "test"],
+      status: "fail",
+      detail: expect.stringContaining("COMPILATION ERROR"),
+    });
   });
 });

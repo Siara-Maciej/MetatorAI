@@ -1,6 +1,17 @@
 kind: MetatorConfig
 schemaVersion: 2
 # MetatorAI on itself (ADR-0029). `bun run metator config show` prints the resolved values.
+project:
+  # The defaults, plus the e2e fixtures: sample repositories the tests copy (the Java shop has
+  # entity cycles on purpose), not this repository's code.
+  sourceIgnores:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/coverage/**"
+    - ".metator/**"
+    - "**/*.d.ts"
+    - "e2e/fixtures/**"
 gates:
   quick:
     - id: lint

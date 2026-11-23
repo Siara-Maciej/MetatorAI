@@ -235,6 +235,7 @@ const TOOLS_NOT_QUERIES: string[] = [
   "env status",
   "help",
   "inbox",
+  "inspect",
   "issue list",
   "issue show",
   "memory budget",
@@ -273,7 +274,28 @@ describe("what a command says of itself (meta)", () => {
   const program = buildProgram(() => {});
 
   test("the MCP tools, with the options refused and always passed, are the ones listed before", () => {
-    expect(mcpTools(program).map((t) => t.command)).toEqual(BEFORE.tools);
+    // Round 20 (ADR-0105): `inspect`, what a folder is before setup (the desktop app's Add repository).
+    const tools = [...BEFORE.tools];
+    tools.splice(tools.indexOf("config show") + 1, 0, "inspect");
+    // Round 22 (ADR-0107): `metator java`, the reading of a Java repository, reads only.
+    tools.splice(
+      tools.indexOf("symbols find") + 1,
+      0,
+      ...[
+        "overview",
+        "modules",
+        "types",
+        "show",
+        "endpoints",
+        "entities",
+        "repositories",
+        "beans",
+        "config",
+        "entrypoints",
+        "index",
+      ].map((c) => `java ${c}`),
+    );
+    expect(mcpTools(program).map((t) => t.command)).toEqual(tools);
     expect(refusedOptions(program)).toEqual(BEFORE.refused);
     expect(alwaysOptions(program)).toEqual(BEFORE.always);
   });
@@ -286,6 +308,23 @@ describe("what a command says of itself (meta)", () => {
       "graph dependents": { positionals: ["file"], flags: { transitive: "boolean" } },
       "graph path": { positionals: ["from", "to"], flags: {} },
       "symbols find": { positionals: ["name"], flags: {} },
+      "java overview": { positionals: [], flags: {} },
+      "java types": {
+        positionals: [],
+        flags: {
+          module: "string",
+          package: "string",
+          kind: "string",
+          annotated: "string",
+          implements: "string",
+        },
+      },
+      "java show": { positionals: ["type"], flags: {} },
+      "java endpoints": {
+        positionals: [],
+        flags: { module: "string", package: "string", framework: "string" },
+      },
+      "java beans": { positionals: [], flags: { module: "string", package: "string", injects: "string" } },
       "rules pack": { positionals: [], flags: { files: "list", base: "string", budget: "number" } },
       "rules show": { positionals: ["id"], flags: {} },
       "plan scope": { positionals: ["file"], flags: {} },
@@ -299,7 +338,12 @@ describe("what a command says of itself (meta)", () => {
 
   test("the commands of a folder of repositories are the ones listed before", () => {
     // `metator ui` was one of them; the full-screen view is withdrawn (ADR-0086).
-    expect(folderCommands(program).sort()).toEqual(BEFORE.folder.filter((c) => c !== "ui").sort());
+    // Round 20 (ADR-0105): `inspect` looks at any folder, a folder of repositories included.
+    // Round 21 (ADR-0106): the dev container commands and the tunnel do not depend on the folder.
+    const devcontainer = ["list", "start", "install", "run", "exec", "serve"].map((c) => `devcontainer ${c}`);
+    expect(folderCommands(program).sort()).toEqual(
+      [...BEFORE.folder.filter((c) => c !== "ui"), "inspect", ...devcontainer, "tunnel"].sort(),
+    );
   });
 
   test("meta check-all runs the checks listed before, in the tree's order", () => {
@@ -315,11 +359,23 @@ describe("what a command says of itself (meta)", () => {
     const before = BEFORE.verbs.filter((v) => v !== "ui").map((v) => (v === "run init" ? "run new" : v));
     // Round 19 (ADR-0098): the host conformance suite, after the host files it checks.
     const at = before.indexOf("generate") + 1;
-    expect(verbs).toEqual([
+    // Round 20 (ADR-0105): `inspect` first, what a folder is before setup.
+    const withHosts = [
+      "inspect",
       ...before.slice(0, at),
       "host conformance",
       "host conformance diff",
       ...before.slice(at),
+    ];
+    // Round 22 (ADR-0107): reading a Java repository, after finding a symbol.
+    const symbols = withHosts.indexOf("symbols find") + 1;
+    const withJava = [...withHosts.slice(0, symbols), "java overview", ...withHosts.slice(symbols)];
+    // Round 21 (ADR-0106): the dev containers, before keeping it running.
+    const keep = withJava.indexOf("serve");
+    expect(verbs).toEqual([
+      ...withJava.slice(0, keep),
+      ...["list", "start", "install", "run", "exec", "serve"].map((c) => `devcontainer ${c}`),
+      ...withJava.slice(keep),
     ]);
   });
 

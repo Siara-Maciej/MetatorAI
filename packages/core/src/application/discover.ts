@@ -10,9 +10,16 @@ import {
 import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { manifestPath } from "../domain/import-index.ts";
+import { jvmBuildsOf } from "../domain/jvm-build.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseJsonDocument } from "../domain/versioned.ts";
-import type { FileSystem, PackageManagerDetector, Vcs, WorkspaceReader } from "../ports/index.ts";
+import type {
+  FileSystem,
+  JavaBuildReader,
+  PackageManagerDetector,
+  Vcs,
+  WorkspaceReader,
+} from "../ports/index.ts";
 import { writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";
@@ -40,6 +47,8 @@ export class Discover {
     private readonly workspace: WorkspaceReader,
     private readonly packageManager: PackageManagerDetector,
     private readonly paths: MetatorPaths,
+    /** The Java build (round 22): the Maven or Gradle build at the root, for the gates. */
+    private readonly java?: Pick<JavaBuildReader, "read">,
   ) {}
 
   async execute(): Promise<Result<Discovery, MetatorError>> {
@@ -97,6 +106,10 @@ export class Discover {
       if (evidence.length > 0) tools.push({ id: t.id, evidence });
     }
 
+    // The Java builds at the root, as the Java build reader read them (round 22).
+    const java = this.java ? await this.java.read() : undefined;
+    const builds = java?.isOk() ? jvmBuildsOf(java.value) : [];
+
     const remote = await this.vcs.remoteUrl();
     const discovery: Discovery = {
       packageManager: pm.value ? { ...pm.value, lockfiles: [...pm.value.lockfiles] } : null,
@@ -119,6 +132,7 @@ export class Discover {
         files: files.value.filter((f) => matchesAny(f, a.globs)).slice(0, MAX_FILES_PER_HOST),
       })).filter((a) => a.files.length > 0),
       warnings,
+      builds: builds.map((b) => ({ ...b, checks: b.checks.map((c) => ({ ...c })) })),
     };
     const saved = await writeDocument(this.fs, this.paths.discovery, DiscoveryDocument, discovery, "json");
     if (saved.isErr()) return err(saved.error);

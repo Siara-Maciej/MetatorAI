@@ -1,0 +1,28 @@
+server:
+  port: 8080
+shop:
+  currency: EUR
+  tax-rate: 0.23
+  orders:
+    max-lines: 50
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shop
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+shop:
+  currency: PLN
+spring.datasource.url: jdbc:h2:mem:shop
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+server:
+  port: 80
+shop:
+  orders:
+    allow-guests: false

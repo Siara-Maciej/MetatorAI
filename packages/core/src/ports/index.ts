@@ -8,6 +8,7 @@ import type { ToolBoundaries } from "../domain/architecture-check.ts";
 import type { ManifestSet } from "../domain/architecture-manifests.ts";
 import type { LabAction, LabView } from "../domain/conformance-lab.ts";
 import type { ContractComparison } from "../domain/contract-diff.ts";
+import type { ContainerCommand, ContainerDetails } from "../domain/devcontainer.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
@@ -15,6 +16,8 @@ import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { GuardCommands } from "../domain/guard-commands.ts";
 import type { IntakeItem, IntakeSource } from "../domain/intake.ts";
+import type { JavaBuild, JavaDescriptorFacts } from "../domain/java-build.ts";
+import type { JavaParsedFile } from "../domain/java-model.ts";
 import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
 import type {
@@ -171,6 +174,8 @@ export interface Terminal {
  */
 export interface HostSandbox {
   command(argv: readonly string[], settings: SandboxSettings): Result<string[], MetatorError>;
+  /** Why the sandbox runtime cannot start from this installation (it is not there); undefined when it can. */
+  missing?(): string | undefined;
 }
 
 /**
@@ -273,6 +278,26 @@ export interface ContainerRuntime {
   logs(service: ComposeService, lines: number): Promise<Result<string, MetatorError>>;
 }
 
+/**
+ * A container engine through the CLI the person already has (ADR-0106): `docker` (Docker Desktop,
+ * Rancher Desktop with moby) or `nerdctl` (Rancher Desktop with containerd), whatever its context.
+ * No SDK, no socket. A program that fails in the container is a result with its exit code; an
+ * engine that cannot do what is asked is an error.
+ */
+export interface ContainerEngine {
+  /** The ids of the containers carrying a label (any value), stopped ones too. */
+  list(label: string): Promise<Result<readonly string[], MetatorError>>;
+  inspect(ids: readonly string[]): Promise<Result<readonly ContainerDetails[], MetatorError>>;
+  start(id: string): Promise<Result<void, MetatorError>>;
+  /** Runs a program in a running container (no terminal, no stdin). */
+  exec(id: string, command: ContainerCommand): Promise<Result<ProcessResult, MetatorError>>;
+  /** Writes a file of this computer into a running container at `to`, owned by `user`. */
+  copyIn(
+    id: string,
+    file: { readonly from: string; readonly to: string; readonly user: string },
+  ): Promise<Result<void, MetatorError>>;
+}
+
 /** Programs a person uses from `metator ui`: an editor, a shell, a pager, a browser (F8.6). */
 export interface Launcher {
   /** Runs a program on this terminal and waits until it exits (shell, terminal editor, diff). */
@@ -352,6 +377,24 @@ export interface Vcs {
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
   /** Whether there is a commit yet (a worktree and a merge base need one); assumed when absent. */
   hasCommits?(): Promise<Result<boolean, MetatorError>>;
+}
+
+/**
+ * Git as the desktop app's "Add repository" needs it (ADR-0105): what a folder is, what is not
+ * committed there, and the commit of a setup, which only ever takes the files named.
+ */
+export interface RepositoryGit {
+  /** git's version (`2.43.0`); undefined when git is not installed. */
+  version(): Promise<string | undefined>;
+  /**
+   * The checkout `dir` is in: its top level, and its main checkout (another folder only for a
+   * linked worktree); undefined outside a repository.
+   */
+  checkout(dir: string): Promise<{ readonly top: string; readonly main: string } | undefined>;
+  /** Files with uncommitted changes at `root`, tracked and untracked (ignored ones and MetatorAI's state aside), sorted. */
+  uncommitted(root: string): Promise<Result<readonly string[], MetatorError>>;
+  /** Stages exactly `files` and commits only them with `message` (what else is staged stays staged); the new commit's id. */
+  commit(root: string, files: readonly string[], message: string): Promise<Result<string, MetatorError>>;
 }
 
 /** What a checkout's working tree looks like now: asked before a run starts and between worktrees. */
@@ -497,6 +540,8 @@ export interface WorkspacePackage {
   readonly dir: string;
   /** A project of its own beside others (no workspace holds it): the package manager cannot run a script across it. */
   readonly standalone?: boolean;
+  /** A module of a Java build (ADR-0107), not a package of a JavaScript workspace. */
+  readonly build?: "maven" | "gradle";
 }
 
 export interface WorkspaceReader {
@@ -591,8 +636,11 @@ export type Resolution =
 export interface ImportAnalyzer {
   /** File extensions this analyzer understands, e.g. [".ts", ".tsx"]. */
   readonly extensions: readonly string[];
-  /** Stable content fingerprint used to skip re-parsing unchanged files. */
-  fingerprint(content: string): string;
+  /**
+   * Stable content fingerprint used to skip re-parsing unchanged files. With the file's path, an
+   * analyzer of several languages answers for that file's language.
+   */
+  fingerprint(content: string, path?: string): string;
   parse(path: string, content: string): Result<readonly ImportSpecifier[], MetatorError>;
   /** Resolves a specifier from a repo-relative file; files outside the repo or in node_modules are external. */
   resolve(fromPath: string, specifier: string): Resolution;
@@ -603,6 +651,23 @@ export interface ImportAnalyzer {
 /** Exported and imported names of one module (split from ImportAnalyzer: a different axis). */
 export interface SymbolAnalyzer {
   symbols(path: string, content: string): Result<ModuleSymbols, MetatorError>;
+}
+
+/** Java source files read into declarations (ADR-0107); a file with a syntax error is facts plus `error`, never a failure. */
+export interface JavaSourceParser {
+  /** Cache key of the Java index: what `parse` extracts. */
+  readonly id: string;
+  parse(path: string, content: string): Promise<Result<JavaParsedFile, MetatorError>>;
+}
+
+/** The Java build of the repository (Maven, Gradle), read from its files without running it. */
+export interface JavaBuildReader {
+  read(): Promise<Result<JavaBuild, MetatorError>>;
+}
+
+/** Java descriptors: web.xml, persistence.xml, Spring XML beans, `application*.{properties,yml}`. */
+export interface JavaDescriptorParser {
+  parse(path: string, content: string): Result<JavaDescriptorFacts, MetatorError>;
 }
 
 /** Declaration files (`.d.ts`) of the project, by repo-relative path (ADR-0040). */

@@ -178,6 +178,150 @@ metator symbols find [options] <name>
 |---|---|---|
 | `<name>` | exported name | |
 
+## java
+
+### `metator java overview`
+
+Build tools, modules, Java versions, source roots, counts, frameworks and files that did not parse
+
+```bash
+metator java overview [options]
+```
+
+### `metator java modules`
+
+Each module: directory, packaging, parent, dependencies on other modules and external ones
+
+```bash
+metator java modules [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+
+### `metator java types`
+
+The types, one line each
+
+```bash
+metator java types [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+| `--kind <kind>` | only this kind (one of: class, interface, enum, record, annotation) |  |
+| `--annotated <name>` | only types with this annotation (Entity, @RestController) |  |
+| `--implements <type>` | only types that extend or implement this type (simple or qualified) |  |
+
+### `metator java show`
+
+One type in full: members, annotations, supertypes and subtypes, where it is used
+
+```bash
+metator java show [options] <type>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<type>` | a fully qualified name, or a simple name only one type has | |
+
+### `metator java endpoints`
+
+HTTP endpoints: Spring MVC, WebFlux (annotations and RouterFunction), JAX-RS, Servlets
+
+```bash
+metator java endpoints [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+| `--framework <name>` | only this framework (one of: spring-mvc, webflux, jax-rs, servlet) |  |
+
+### `metator java entities`
+
+JPA entities (javax and jakarta) with ids, columns and relations, and persistence.xml units
+
+```bash
+metator java entities [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+
+### `metator java repositories`
+
+Spring Data repositories: entity, id, derived query methods and @Query strings
+
+```bash
+metator java repositories [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+
+### `metator java beans`
+
+Spring, CDI, EJB and Spring XML beans with their injection points and the bean that provides each
+
+```bash
+metator java beans [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+| `--injects <type>` | only beans that inject this type (simple or qualified) |  |
+
+### `metator java config`
+
+application*.properties/yml keys by profile, and where code reads them (@Value, @ConfigurationProperties)
+
+```bash
+metator java config [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+| `--key <prefix>` | only keys under this prefix (shop.orders) |  |
+
+### `metator java entrypoints`
+
+main methods, @Scheduled jobs, Kafka/JMS/Rabbit and event listeners, message-driven and startup beans
+
+```bash
+metator java entrypoints [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--module <name>` | only this Maven/Gradle module |  |
+| `--package <prefix>` | only this Java package and the ones below it (com.example.shop) |  |
+
+### `metator java index`
+
+Build or refresh the Java index (.metator/index/java.json); --check only says whether it is current
+
+```bash
+metator java index [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--check` | change nothing; exit 65 (STALE_INDEX) when the index is not current |  |
+
 ## api
 
 ### `metator api snapshot`
@@ -1168,6 +1312,20 @@ metator config unset [options] <key>
 | `--scope <scope>` | which file holds the value (one of: user, repo, run) **Required.** |  |
 | `--run <id>` | the run, for --scope run |  |
 
+## inspect
+
+### `metator inspect`
+
+Say what a folder is before setup: a repository (set up or not), a folder of repositories, git and the AI hosts on this machine, and what setup would write
+
+```bash
+metator inspect [options] [path]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[path]` | the folder to look at (default: this one) | |
+
 ## agents
 
 ### `metator agents install`
@@ -1217,6 +1375,8 @@ metator setup [options]
 | `--hooks` | install the hooks (`metator guard`) for each host without asking (the default) |  |
 | `--no-hooks` | do not install the hooks: nothing then guards commits and pushes, and a word in the chat is no consent |  |
 | `--yes` | do not ask; take the options and what was found |  |
+| `--commit` | commit the files a setup wrote (--files, as `written` names them) as "Set up MetatorAI", and nothing else |  |
+| `--files <files...>` | with --commit: the files to commit, relative to the repository |  |
 
 ## gate
 
@@ -3453,3 +3613,99 @@ metator supervise [options]
 |---|---|---|
 | `--once` | one tick, then the report |  |
 | `--interval-ms <n>` | how often to tick | `5000` |
+
+## devcontainer
+
+### `metator devcontainer list`
+
+The dev containers docker (or nerdctl) knows: their local folder, state, workspace folder and user
+
+```bash
+metator devcontainer list [options]
+```
+
+### `metator devcontainer start`
+
+Start a stopped dev container; answers it running
+
+```bash
+metator devcontainer start [options] <container>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+
+### `metator devcontainer install`
+
+Copy MetatorAI's Linux CLI of the container's architecture into ~/.metator/server/&lt;version&gt;/ of its user, unless that version is there
+
+```bash
+metator devcontainer install [options] <container>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+| `--bundles <dir>` | the Linux CLI bundles (&lt;dir&gt;/&lt;arch&gt;/metator-bundle.json; default: $METATOR_LINUX_BUNDLES, else the desktop app's) |  |
+
+### `metator devcontainer run`
+
+Run metator in the container (installed first when needed) and answer what it answered: `metator devcontainer run shop -- inspect . --json`
+
+```bash
+metator devcontainer run [options] <container> [args...]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+| `[args]` | metator's arguments, after -- | |
+| `--cwd <dir>` | its folder in the container (default: the workspace folder) |  |
+| `--env <name=value...>` | more variables for the program in the container |  |
+| `--bundles <dir>` | the Linux CLI bundles (&lt;dir&gt;/&lt;arch&gt;/metator-bundle.json; default: $METATOR_LINUX_BUNDLES, else the desktop app's) |  |
+
+### `metator devcontainer exec`
+
+Run a program in the container as its user, in the workspace folder; answers its exit code and output
+
+```bash
+metator devcontainer exec [options] <container> <argv...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+| `<argv>` | the program and its arguments, after -- | |
+| `--cwd <dir>` | its folder in the container (default: the workspace folder) |  |
+| `--env <name=value...>` | more variables for the program in the container |  |
+
+### `metator devcontainer serve`
+
+The daemon of a repository in the container (`serve --ensure` there, installed first when needed), and the command that tunnels a connection to it
+
+```bash
+metator devcontainer serve [options] <container>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<container>` | the dev container: its local folder (the devcontainer.local_folder label), the folder's name, or the container's name or id | |
+| `--path <dir>` | the repository in the container (default: the workspace folder) |  |
+| `--env <name=value...>` | more variables for the program in the container |  |
+| `--bundles <dir>` | the Linux CLI bundles (&lt;dir&gt;/&lt;arch&gt;/metator-bundle.json; default: $METATOR_LINUX_BUNDLES, else the desktop app's) |  |
+
+## tunnel
+
+### `metator tunnel`
+
+Join stdin and stdout to a TCP port of this machine (the desktop app reaches a daemon in a dev container through it)
+
+```bash
+metator tunnel [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--port <n>` | the port to connect to **Required.** |  |
+| `--host <host>` | the address to connect to | `"127.0.0.1"` |

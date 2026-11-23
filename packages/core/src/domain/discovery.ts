@@ -1,5 +1,6 @@
 import { parse } from "shell-quote";
 import { z } from "zod";
+import { JVM_BUILD_TOOLS, JVM_CHECK_TOOLS } from "./jvm-build.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -257,7 +258,7 @@ export function codeHostOf(remote: string): "github" | "azure-devops" | "gitlab"
 
 const Evidence = z.array(z.string());
 
-export const DiscoverySchema = z.strictObject({
+const DiscoveryV1Schema = z.strictObject({
   packageManager: z
     .strictObject({ name: z.string(), version: z.string().optional(), lockfiles: z.array(z.string()) })
     .nullable(),
@@ -286,6 +287,25 @@ export const DiscoverySchema = z.strictObject({
   ai: z.array(z.strictObject({ host: z.string(), files: z.array(z.string()) })),
   warnings: z.array(z.string()),
 });
+
+/** A Java build at the root (v2, round 22): what the gates and `doctor` are decided from. */
+const JvmBuildSchema = z.strictObject({
+  tool: z.enum(JVM_BUILD_TOOLS),
+  file: z.string(),
+  wrapper: z.string().nullable(),
+  checks: z.array(z.strictObject({ tool: z.enum(JVM_CHECK_TOOLS), evidence: z.string() })),
+  java: z.strictObject({ version: z.number().int(), evidence: z.string() }).nullable(),
+});
+
+/** v2 adds `builds`: the Java builds (Maven, Gradle) at the root. Every v1 file is a v2 file with none. */
+export const DiscoverySchema = z.strictObject({
+  ...DiscoveryV1Schema.shape,
+  builds: z.array(JvmBuildSchema),
+});
 export type Discovery = z.output<typeof DiscoverySchema>;
 
-export const DiscoveryDocument = defineDocument("Discovery", { latest: DiscoverySchema });
+export const DiscoveryDocument = defineDocument("Discovery", {
+  history: [{ schema: DiscoveryV1Schema }],
+  latest: DiscoverySchema,
+  upgrade: (v1) => ({ ...(v1 as object), builds: [] }),
+});

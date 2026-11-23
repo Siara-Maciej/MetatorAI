@@ -23,15 +23,20 @@ dir: packages/plugin-docker
 
 `ContainerRuntime` on the Docker CLI for `env up|down|logs` (ADR-0053): `docker compose -p <project> -f <file> up -d|stop|logs <service>`, run through the `ProcessRunner` port in the place's directory with the service's environment. It starts nothing on its own and knows nothing of ports or health.
 
+`ContainerEngine` for Dev Containers (ADR-0106) on the container CLI the person has: `DockerCliEngine` (Docker Desktop, Rancher Desktop with moby, the current docker context) and `NerdctlCliEngine` (Rancher Desktop with containerd), the same words for both (`ps -a -q --filter label=…`, `inspect`, `start`, `exec -u -w -e`), `inspect` read in docker's shape and nerdctl's (`readDetails`, the `devcontainer.metadata` label as a list of objects, `metadataOf`). `engineFacts` says where a program is, whether its engine answers (`info --format '{{.ServerVersion}}'`) and docker's context; core's `chooseEngine` decides.
+
 ## Invariants
 
 - Each place has its own Compose project, so worktrees never stop each other's containers [[cite: packages/plugin-docker/src/docker-compose-runtime.ts:43 | "return this.run(s, [this.bin, \"compose\", \"-p\", s.project, \"-f\", s.file, ...args]);"]].
 - A failing command or a missing binary is an error value with the reason, never a throw; a Docker that cannot be started (the runner's exit 127) is `BIN_NOT_FOUND` with how to get it.
+- A file goes into a container through `exec -i … sh -c 'cat > "$1"'` as the container's user, so it is that user's and the same with both CLIs [[cite: packages/plugin-docker/src/cli-container-engine.ts:75 | "[this.program, \"exec\", \"-i\", \"-u\", f.user, id, \"sh\", \"-c\", 'cat > \"$1\"', \"sh\", f.to],"]]. A program that fails in the container is a result with its exit code; past its time it is 124, answered without waiting for the program in the container, which killing the engine's client does not end. Both adapters run `containerEngineContract` on `standInContainerCli`.
 
 ## Allowed dependencies
 
 `@metator/core` only (MT-ARCH-005); the Docker CLI is called as a process. `@metator/plugin-bun` and `@metator/testing` in tests.
 
 ## Pitfalls
+
+- `nerdctl cp` does not read a tar from stdin as `docker cp -` does, and `docker cp` makes root's files: copy through `exec`.
 
 - Fixed ports in a compose file collide across worktrees; ports must come from `METATOR_PORT_*` variables in the file.

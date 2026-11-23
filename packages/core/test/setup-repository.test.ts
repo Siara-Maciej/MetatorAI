@@ -20,6 +20,9 @@ interface World {
   workflowProblems?: string[];
   stale?: string[];
   initFails?: boolean;
+  /** The config file init says it wrote. */
+  initWritten?: string;
+  canonSteps?: { action: string; path: string }[];
   canonFails?: boolean;
   badConfig?: boolean;
 }
@@ -38,7 +41,7 @@ function world(w: World = {}) {
         from: "canon",
         available: ["mt-feature", "mt-tiny"],
         workflows: i.workflows ?? ["mt-feature", "mt-tiny"],
-        steps: [
+        steps: w.canonSteps ?? [
           { action: "add", path: "metator/agents/a.md" },
           { action: "add", path: "metator/agents/b.md" },
           { action: "conflict", path: "metator/agents/c.md" },
@@ -89,7 +92,7 @@ function world(w: World = {}) {
         calls.push(`init [${(i.hosts ?? []).join(",")}]`);
         return w.initFails
           ? err(MetatorError.usage("metator.config.yml exists", "Edit it."))
-          : ok({ warnings: ["no test script found"] });
+          : ok({ warnings: ["no test script found"], ...(w.initWritten ? { written: w.initWritten } : {}) });
       },
     } as never,
     updateConfig: {
@@ -139,6 +142,8 @@ describe("SetupRepository", () => {
       gitignore: "added",
       checks: SETUP_CHECKS.map((command) => ({ command, passed: true })),
       next: ["metator doctor", "metator doctor --gates", "metator serve"],
+      // What a commit of the setup takes (ADR-0105): every file a step wrote, once, sorted.
+      written: [".gitignore", "hosts/x", "hosts/y", "metator/install.lock.json", "skills/x", "skills/y"],
     });
     expect(warnings).toEqual([
       "no test script found",
@@ -146,6 +151,49 @@ describe("SetupRepository", () => {
       "metator/agents/old.md: no longer shipped; delete it if nothing of yours depends on it",
     ]);
     expect((await w.fs.read(".gitignore"))._unsafeUnwrap()).toContain(".metator/\n");
+  });
+
+  test("written: the config, the canon's created and changed files and its lock, the host files, .gitignore; nothing it left alone", async () => {
+    const fresh = world({
+      initWritten: "metator.config.yml",
+      canonSteps: [
+        { action: "create", path: "metator/agents/a.md" },
+        { action: "update", path: "metator/agents/b.md" },
+        { action: "overwrite", path: "hosts/x" },
+        { action: "keep", path: "metator/agents/c.md" },
+        { action: "conflict", path: "metator/agents/d.md" },
+      ],
+    });
+    const a = (await fresh.use.execute({ hooks: true }))._unsafeUnwrap().report;
+    expect(a.written).toEqual([
+      ".gitignore",
+      "hosts/x",
+      "hosts/y",
+      "metator.config.yml",
+      "metator/agents/a.md",
+      "metator/agents/b.md",
+      "metator/install.lock.json",
+      "skills/x",
+      "skills/y",
+    ]);
+    // Set up before: the config is saved only when the hosts change, and .gitignore already ignores.
+    const again = world({
+      source: "metator.config.yml",
+      hosts: ["claude"],
+      files: { ".gitignore": ".metator/\n" },
+    });
+    expect((await again.use.execute({ hooks: true }))._unsafeUnwrap().report.written).not.toContain(
+      ".gitignore",
+    );
+    const changed = world({ source: "metator.config.yml", hosts: ["claude"] });
+    expect(
+      (await changed.use.execute({ hooks: true, hosts: ["copilot"] }))._unsafeUnwrap().report.written,
+    ).toContain("metator.config.yml");
+    expect(
+      (
+        await world({ source: "metator.config.yml", hosts: ["claude"] }).use.execute({ hooks: true })
+      )._unsafeUnwrap().report.written,
+    ).not.toContain("metator.config.yml");
   });
 
   test("the hosts: the option, else the config's, else what the repository shows, else asked; a change is saved to the config", async () => {

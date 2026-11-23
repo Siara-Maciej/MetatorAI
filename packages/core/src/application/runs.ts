@@ -485,6 +485,11 @@ export class AdvanceRun {
       return ok(stopped);
     });
     if (updated.isErr()) return err(updated.error);
+    // Its plan as the code is now, at once: the item's snapshot is taken before anything else can
+    // happen (a person who sees "plan ready" and edits a cited file must find the plan stale). A
+    // Backlog that cannot take it yet takes it when it is next read.
+    if (this.plans && updated.value.state.status === "planned" && seen.status === "active")
+      await this.plans.planned(id.value);
     for (const line of lines) {
       const logged = await this.repo.appendLog(id.value, line);
       if (logged.isErr()) return err(logged.error);
@@ -507,9 +512,6 @@ export class AdvanceRun {
       const asked = await this.gates.ask(id.value);
       if (asked.isErr()) return err(asked.error);
     }
-    // Its plan as the code is now; a Backlog that cannot take it yet takes it when it is next read.
-    if (this.plans && updated.value.state.status === "planned" && seen.status === "active")
-      await this.plans.planned(id.value);
     return ok(view(updated.value, machine, this.repo));
   }
 }

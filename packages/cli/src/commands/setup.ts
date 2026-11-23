@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import {
   conflictWarnings,
   err,
@@ -8,10 +9,20 @@ import {
   upstreamWarnings,
   writesFile,
 } from "@metator/core";
+import {
+  findRepoRoot,
+  folderInspector,
+  hostBinsOf,
+  machineStateDir,
+  setupCommitter,
+  userConfigDir,
+} from "@metator/runtime";
 import { type Command, Option } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { installationPaths } from "../installation.ts";
 import { defined } from "../options.ts";
+import { renderInspection } from "../render.ts";
 
 interface InstallOptions {
   readonly workflows?: string[];
@@ -22,8 +33,37 @@ interface InstallOptions {
 
 export function registerSetupCommands(
   program: Command,
-  { action, container, terminal }: CommandContext,
+  { action, container, terminal, start }: CommandContext,
 ): void {
+  // What a folder is to MetatorAI before anything is written there: the desktop app's "Add
+  // repository" asks this first (ADR-0105). It runs in any folder, a repository or not.
+  meta(program.command("inspect").argument("[path]", "the folder to look at (default: this one)"), {
+    audience: "person",
+    reads: true,
+    folder: true,
+    render: renderInspection,
+  })
+    .description(
+      "Say what a folder is before setup: a repository (set up or not), a folder of repositories, git and the AI hosts on this machine, and what setup would write",
+    )
+    .action(
+      action(async (path: string | undefined) => {
+        const env = process.env;
+        const inspector = folderInspector(
+          {
+            ...(env.METATOR_CANON ? { canon: env.METATOR_CANON } : {}),
+            bins: hostBinsOf(env),
+            noRealHosts: true,
+            stateDir: machineStateDir(env),
+            userConfigDir: userConfigDir(env),
+            installation: installationPaths(env),
+          },
+          env,
+        );
+        return { result: await inspector.execute({ path: resolve(start(), path ?? ".") }) };
+      }),
+    );
+
   const agents = program
     .command("agents")
     .description("The agents, skills and workflows shipped with MetatorAI, installed into this repository");
@@ -87,49 +127,69 @@ export function registerSetupCommands(
       "do not install the hooks: nothing then guards commits and pushes, and a word in the chat is no consent",
     )
     .option("--yes", "do not ask; take the options and what was found", false)
+    .option(
+      "--commit",
+      'commit the files a setup wrote (--files, as `written` names them) as "Set up MetatorAI", and nothing else',
+      false,
+    )
+    .option("--files <files...>", "with --commit: the files to commit, relative to the repository")
     .action(
-      action(async (opts: { host?: HostTarget[]; workflows?: string[]; hooks?: boolean; yes: boolean }) => {
-        // The whole setup is one use case (`SetupRepository`); only the questions are the terminal's.
-        const ask = opts.yes ? null : terminal;
-        const done = await container()
-          .resolve("setupRepository")
-          .execute({
-            ...defined({ hosts: opts.host, workflows: opts.workflows }),
-            ...(opts.hooks !== undefined ? { hooks: opts.hooks } : {}),
-            ...(ask
-              ? {
-                  ask: async (q) =>
-                    ask.setup({
-                      askHosts: q.askHosts,
-                      askHooks: q.askHooks,
-                      defaults: { hosts: q.defaults.hosts, hooks: q.defaults.hooks },
-                    }),
-                }
-              : {}),
-          });
-        if (done.isErr()) return { result: done };
-        const { report, warnings } = done.value;
-        // What setup wrote must pass; a lint that fails only on the repository's own files is
-        // theirs to fix: a warning, and setup still finishes (exit 0).
-        const failed = report.checks.filter((k) => !k.passed && !k.theirs);
-        const theirs = report.checks.flatMap((k) =>
-          k.theirs
-            ? [
-                `${k.command}: ${k.theirs.join(", ")} has errors setup did not make; fix them (\`metator ${k.command}\`)`,
-              ]
-            : [],
-        );
-        if (failed.length > 0)
-          return {
-            result: err(
-              new MetatorError("CHECK_FAILED", `${failed.length} setup check(s) failed`, {
-                hint: "Run each failing command on its own for the details.",
-                details: { ...report },
-              }),
-            ),
-            warnings: [...warnings, ...theirs],
-          };
-        return { result: ok(report), warnings: [...warnings, ...theirs] };
-      }),
+      action(
+        async (opts: {
+          host?: HostTarget[];
+          workflows?: string[];
+          hooks?: boolean;
+          yes: boolean;
+          commit: boolean;
+          files?: string[];
+        }) => {
+          // A commit is the person's decision, made after the setup (the app's Commit button, ADR-0105).
+          if (opts.commit)
+            return {
+              result: await setupCommitter(findRepoRoot(start())).execute({ files: opts.files ?? [] }),
+            };
+          // The whole setup is one use case (`SetupRepository`); only the questions are the terminal's.
+          const ask = opts.yes ? null : terminal;
+          const done = await container()
+            .resolve("setupRepository")
+            .execute({
+              ...defined({ hosts: opts.host, workflows: opts.workflows }),
+              ...(opts.hooks !== undefined ? { hooks: opts.hooks } : {}),
+              ...(ask
+                ? {
+                    ask: async (q) =>
+                      ask.setup({
+                        askHosts: q.askHosts,
+                        askHooks: q.askHooks,
+                        defaults: { hosts: q.defaults.hosts, hooks: q.defaults.hooks },
+                      }),
+                  }
+                : {}),
+            });
+          if (done.isErr()) return { result: done };
+          const { report, warnings } = done.value;
+          // What setup wrote must pass; a lint that fails only on the repository's own files is
+          // theirs to fix: a warning, and setup still finishes (exit 0).
+          const failed = report.checks.filter((k) => !k.passed && !k.theirs);
+          const theirs = report.checks.flatMap((k) =>
+            k.theirs
+              ? [
+                  `${k.command}: ${k.theirs.join(", ")} has errors setup did not make; fix them (\`metator ${k.command}\`)`,
+                ]
+              : [],
+          );
+          if (failed.length > 0)
+            return {
+              result: err(
+                new MetatorError("CHECK_FAILED", `${failed.length} setup check(s) failed`, {
+                  hint: "Run each failing command on its own for the details.",
+                  details: { ...report },
+                }),
+              ),
+              warnings: [...warnings, ...theirs],
+            };
+          return { result: ok(report), warnings: [...warnings, ...theirs] };
+        },
+      ),
     );
 }

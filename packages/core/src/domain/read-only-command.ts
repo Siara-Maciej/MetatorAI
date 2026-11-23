@@ -190,6 +190,18 @@ export const METATOR_QUERIES: ReadonlySet<string> = new Set([
   "adr lint",
   "docs links",
   "docs inventory",
+  // Reading a Java repository (round 22): each prints facts; `java index` only refreshes its cache.
+  "java overview",
+  "java modules",
+  "java types",
+  "java show",
+  "java endpoints",
+  "java entities",
+  "java repositories",
+  "java beans",
+  "java config",
+  "java entrypoints",
+  "java index",
 ]);
 /** Options that make a query write a file. */
 const WRITING_OPTIONS = /^--(out|write|fix|save)(=|$)/;

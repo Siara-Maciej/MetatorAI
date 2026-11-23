@@ -214,14 +214,15 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await page.locator("main.content").textContent()).toContain("Describe a task");
   }, 90_000);
 
-  test("in the app's shell the daemon starts itself: for the remembered folder, or the one the person names (ADR-0101)", async () => {
+  test("in the app's shell the daemon starts itself: for the open repository, or the one the person picks (ADR-0101, ADR-0105)", async () => {
     await stop();
     const fresh = await ScratchRepo.create();
     await fresh.write(".gitignore", ".metator/\n");
     await fresh.commit("init");
     const started: number[] = [];
     const b = await browser();
-    // The shell's one command, done by the real CLI: what `ensure_daemon` runs in the Tauri window.
+    // The shell's commands through Tauri's own `invoke`: `open_repo` done by the real CLI, as the
+    // Tauri window runs it; the app knows two repositories, the first of which does not exist.
     const shell = await b.newPage({ viewport: { width: 1440, height: 900 } });
     await shell.exposeFunction("ensureDaemonForTest", async (dir: string) => {
       const r = await metator(["-C", dir, "serve", "--ensure", "--port", "0"], dir, {
@@ -232,29 +233,47 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
       started.push(data.pid);
       return data.url;
     });
-    await shell.addInitScript(() => {
+    await shell.addInitScript((freshRoot: string) => {
       const w = window as unknown as {
         __TAURI__: unknown;
         ensureDaemonForTest(dir: string): Promise<string>;
       };
+      const known = [
+        { path: "/nowhere/at/all", name: "all", kind: "repo", addedAt: "2026-01-01T00:00:00Z" },
+        { path: freshRoot, name: "fresh", kind: "repo", addedAt: "2026-01-02T00:00:00Z" },
+      ];
       w.__TAURI__ = {
-        core: { invoke: (_cmd: string, args: { folder: string }) => w.ensureDaemonForTest(args.folder) },
+        core: {
+          invoke: async (cmd: string, args: { path: string }) => {
+            if (cmd === "known_repos") return known;
+            if (cmd === "open_repo") {
+              try {
+                return { url: await w.ensureDaemonForTest(args.path) };
+              } catch (e) {
+                throw { code: "COMMAND_FAILED", message: (e as Error).message };
+              }
+            }
+            throw { code: "USAGE", message: `not in this test: ${cmd}` };
+          },
+        },
       };
-    });
+    }, fresh.root);
     try {
-      // First start: no folder is remembered, so the panel asks for one and offers to start.
+      // First start: nothing remembered, so the first repository the app knows is opened. It does
+      // not exist: the panel says why, and the switcher offers the others.
       await shell.goto(app("inbox"));
       const panel = shell.getByTestId("no-daemon");
-      await panel.waitFor({ timeout: 20_000 });
-      expect(await panel.textContent()).not.toContain("In a terminal");
-      await panel.getByLabel("folder to serve").fill("/nowhere/at/all");
-      await panel.getByRole("button", { name: "Start the daemon" }).click();
       await panel.getByTestId("start-error").waitFor({ timeout: 30_000 });
-      await panel.getByLabel("folder to serve").fill(fresh.root);
-      await panel.getByRole("button", { name: "Start the daemon" }).click();
+      expect(await panel.textContent()).not.toContain("In a terminal");
+      await shell.getByTestId("scope").click();
+      await shell
+        .getByRole("menu", { name: "repositories" })
+        .getByRole("menuitem", { name: "fresh" })
+        .click();
       await shell.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 40_000 });
       expect(await panel.count()).toBe(0);
       expect(started).toHaveLength(1);
+      expect((await shell.getByTestId("scope").textContent())?.startsWith("fresh")).toBe(true);
 
       // The daemon goes away while the app is open: the app starts one again for the same folder,
       // with nothing typed and nothing clicked.

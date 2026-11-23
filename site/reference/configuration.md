@@ -13,7 +13,7 @@ A file that does not match the schema stops every command with `INVALID_CONFIG` 
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 15
+schemaVersion: 16
 
 gates:
   quick:
@@ -86,6 +86,7 @@ A step has an `id` and a `run`, which is one of:
 | `{ script: <name> }` | a `package.json` script, through your package manager | `{ script: lint }` |
 | `{ bin: <name>, args: [...] }` | a binary from `node_modules/.bin` | `{ bin: tsc, args: [--noEmit] }` |
 | `{ workspaces: <name> }` | the script in every workspace package that has it | `{ workspaces: typecheck }` |
+| `{ build: maven \| gradle, args: [...] }` | a Java build with its goals or tasks, through the repository's wrapper (`mvnw`, `gradlew`; `mvnw.cmd`, `gradlew.bat` on Windows) when it has one, else `mvn` or `gradle` from PATH (v16) | `{ build: maven, args: [-B, test] }` |
 | `{ metator: <check> }` | a MetatorAI check, in process | `{ metator: graph diff }` |
 
 The checks a `metator` step can run: `rules check`, `test affected`, `graph diff`, `arch check`, `contract diff`, `api diff <package>`, `coverage diff [--min <percent>] [--lcov <file>]`.
@@ -94,8 +95,8 @@ Other step fields:
 
 | Field | Default | Use |
 |---|---|---|
-| `files` | `none` | `append` adds the gate's files as arguments, for tools that check single files |
-| `match` | all files | with `files: append`, pass only files that match these globs |
+| `files` | `none` | `append` adds the gate's files as arguments, for tools that check single files; `modules` (a `build` step, v16) builds only the modules the gate's files are in ([Java repositories](../guide/java.md#the-quick-gate-builds-only-the-modules-of-the-change)) |
+| `match` | all files | with `files: append` or `modules`, only files that match these globs count; none left skips the step |
 | `okExitCodes` | `[0]` | for a tool that exits 1 when it only reports findings |
 | `timeoutMs` | `600000` | stops a step that hangs |
 
@@ -287,7 +288,7 @@ With `guard.prompts: metator` the `pre-tool` hook answers `allow`, with the reas
 | MetatorAI's own commands | `metator …` as the repository runs it (`hosts.metatorCommand`, `npx metator`, `bun run metator`), any subcommand except the ones that are your decision: `run approve`, `run answer`, `run resume`, `run take`, `run close`, `system plan approve`, `system plan retry`, `arch plan approve`, `scratch forget`, `policy`, `config set`, `config unset`, `issue add`, `setup`, `init`, `generate`, `agents`, `serve`, `mcp`, `findings to-github`, `mrs send`, `mrs resolve`, `review approve`, and `quick start --override`. Those are asked about by name. `metator guard` is never an agent's command |
 | Commands that only read | `git status`, `git diff`, `git log`, `grep`, `rg`, `ls`, `cat`, `head`, `sed -n '1,80p' file` and the like, with paths inside the repository; no option that writes or runs something |
 | Edits inside the repository | a file edit or write whose every path is inside the repository (in a run: inside its plan's scope), except `.git/`, `metator.config.*`, `.claude/settings*.json`, `.github/hooks/`, and MetatorAI's own records under `.metator/` (a run's artifacts are fine). Secrets are denied as always |
-| The repository's own checks | the steps of `gates.quick` and `gates.full` (a script through `bun`, `npm`, `pnpm` or `yarn`; a binary with its arguments, also through `npx` or `bunx`), and the package's `test`, `typecheck`, `lint` and `build` scripts or the command such a script runs (`bunx tsc --noEmit`) |
+| The repository's own checks | the steps of `gates.quick` and `gates.full` (a script through `bun`, `npm`, `pnpm` or `yarn`; a binary with its arguments, also through `npx` or `bunx`; a Java build's goals through `./mvnw`, `mvnw.cmd`, `mvn`, `./gradlew`, `gradlew.bat` or `gradle`), and the package's `test`, `typecheck`, `lint` and `build` scripts or the command such a script runs (`bunx tsc --noEmit`) |
 
 A chain or a pipeline passes only when every part of it qualifies (`git status --short && bun test`, `bun test 2>&1 | tail -20`). A command substitution, a redirection to a file, a path outside the repository, or one part that does not qualify (`git status && curl …`) leaves the whole call to your host's prompt.
 

@@ -49,6 +49,8 @@ describe("the overview by verb (metator help --verbs)", () => {
       "cards",
       "owners",
       "workflow",
+      // Round 21 (ADR-0106): the desktop app's stdio tunnel into a dev container.
+      "tunnel",
     ]);
     const top = new Set(all.map((c) => c.split(" ")[0] as string));
     for (const t of top) if (!plumbing.has(t)) expect([t, reached.has(t)]).toEqual([t, true]);

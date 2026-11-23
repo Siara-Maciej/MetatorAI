@@ -10,6 +10,7 @@ import {
   AllGateApprovals,
   AnalyzeArchitecture,
   AnalyzeEnvironment,
+  AnalyzerByExtension,
   AnalyzeSystem,
   AnswerPolicyStore,
   AnswerQuestion,
@@ -25,6 +26,7 @@ import {
   AuditAgents,
   agentDefinitionFiles,
   allowToolsOf,
+  analyzersId,
   BacklogWork,
   BaseArchitectureFacts,
   BriefRun,
@@ -129,6 +131,7 @@ import {
   IssueSnapshots,
   Issues,
   JudgeFindings,
+  jvmBuildsOf,
   KnowledgeFiles,
   LayoutPaneIdentity,
   LayoutStore,
@@ -149,6 +152,7 @@ import {
   MeasureRuleCoverage,
   MemoryBudget,
   MemoryMapReader,
+  MergedWorkspace,
   MergeFindingSets,
   type MetatorConfig,
   MetatorError,
@@ -183,6 +187,7 @@ import {
   QuickReady,
   QuickReviewed,
   QuickStart,
+  ReadJava,
   ReadRunArtifact,
   RecordArchitectureBaseline,
   RefactorPlanStore,
@@ -321,6 +326,14 @@ import { copilotHost } from "@metator/plugin-host-copilot";
 import { opencodeHost } from "@metator/plugin-host-opencode";
 import { scenarioHost } from "@metator/plugin-host-scenario";
 import {
+  JavaBuildFiles,
+  JavaDescriptors,
+  type JavaGrammarFiles,
+  JavaImportAnalyzer,
+  JavaWorkspace,
+  TreeSitterJavaParser,
+} from "@metator/plugin-java";
+import {
   GetPortProbe,
   JsonToolBoundariesReader,
   LcovCoverageReader,
@@ -340,6 +353,7 @@ import { asFunction, asValue } from "awilix";
 import { METATOR_VERSION, resolveCanon } from "./canon.ts";
 import { type LoadedConfig, loadConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
+import { buildCacheHere, javaVersionOutput } from "./java-here.ts";
 
 /** Where a repository's local state lives (the defaults of `paths` are all under it). */
 const LOCAL_STATE_DIR = ".metator";
@@ -395,6 +409,18 @@ export interface BootstrapOptions {
   readonly conformanceLab?: (deps: { readonly root: string }) => ConformanceLab;
   /** The host a new drive uses when nothing names one (METATOR_HOST), when the runtime holds it. */
   readonly defaultHost?: string;
+  /**
+   * What a compiled `metator` (the desktop app's, ADR-0105) takes from its installation instead of
+   * node_modules: node-pty's package folder, the sandbox runtime's command line and how to run it,
+   * and on Windows how node-pty's helper runs (`beBun`). Omitted: node_modules has them.
+   */
+  readonly installation?: {
+    readonly nodePty?: string;
+    /** The Java grammar's WebAssembly files (ADR-0107). */
+    readonly javaGrammar?: { readonly runtime: string; readonly language: string };
+    readonly sandboxRuntime?: { readonly runtime: readonly string[]; readonly cli: string };
+    readonly beBun?: <T>(f: () => T) => T;
+  };
 }
 
 /**
@@ -643,6 +669,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         checkoutReader,
         workingTree,
         conformanceHistory,
+        hostSandbox,
+        javaBuild,
+        processRunner,
       }) =>
         new CheckReadiness(
           fileSystem,
@@ -663,6 +692,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             platform: () => process.platform,
             quickGate: () => runGate.execute({ gate: "quick" }),
             conformance: () => conformanceHistory.seen(),
+            sandboxRuntime: () => hostSandbox.missing?.(),
+            builds: async () => {
+              const read = await javaBuild.read();
+              return read.isOk() ? jvmBuildsOf(read.value) : [];
+            },
+            java: () => javaVersionOutput(processRunner, root),
+            buildCache: async (tool) => buildCacheHere(tool),
           },
         ),
     ),
@@ -740,7 +776,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     knownHosts: asValue(options.noRealHosts ? withoutRealHosts(HOSTS, options.bins ?? {}) : HOSTS),
     // Every host session this repository starts goes through its host's launch: in the
     // operating system's sandbox while `sandbox.enabled` is on (ADR-0104), read at each start.
-    hostSandbox: asFunction(() => new SrtSandbox()).singleton(),
+    hostSandbox: asFunction(() => {
+      const srt = options.installation?.sandboxRuntime;
+      return srt ? new SrtSandbox(undefined, srt.runtime, () => srt.cli) : new SrtSandbox();
+    }).singleton(),
     sandboxLaunches: asFunction(({ hostSandbox, root }: { hostSandbox: HostSandbox; root: string }) => {
       const launches = new Map<string, SandboxLaunch>();
       const policy = () => sandboxPolicy(currentConfig(root, config).config);
@@ -769,7 +808,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id], hostGuard(config.config), sandboxLaunches(h)));
       return hosts;
     }).singleton(),
-    terminal: asFunction(() => new NodePtyTerminal()).singleton(),
+    terminal: asFunction(
+      () => new NodePtyTerminal(options.installation?.nodePty, options.installation?.beBun),
+    ).singleton(),
     // A pane's screen as a person sees it (@xterm/headless, ADR-0091): prompts are read from it.
     screenRenderer: asFunction(() => new XtermScreenRenderer()).singleton(),
     // The first host is the default of a new session: the scenario when a test plays one, else
@@ -1377,15 +1418,45 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // Rule engines and the declaration emitter run a tool from PATH where a project's dependencies
     // are not installed (a fresh worktree still checks its rules); gate steps do not (`binResolver`).
     toolBins: asFunction(({ root }) => new NodeBinResolver(root, "path")).singleton(),
-    workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
+    // The JavaScript workspace's packages, then the Java build's modules (ADR-0107).
+    workspaceReader: asFunction(
+      ({ root, javaBuild }) =>
+        new MergedWorkspace([new ManypkgWorkspaceReader(root), new JavaWorkspace(javaBuild)]),
+    ).singleton(),
     toolBoundariesReader: asFunction(({ root }) => new JsonToolBoundariesReader(root)).singleton(),
     manifestReader: asFunction(
       ({ root, workspaceReader }) => new ManypkgManifestReader(root, workspaceReader),
     ).singleton(),
     // One oxc analyzer behind both ports: one set of resolvers and tsconfig lookups.
     oxc: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
-    importAnalyzer: asFunction(({ oxc }) => oxc).singleton(),
-    symbolAnalyzer: asFunction(({ oxc }) => oxc).singleton(),
+    // Each file goes to its language's analyzer: TypeScript/JavaScript (oxc) and Java (ADR-0107).
+    analyzers: asFunction(({ oxc, root }) => {
+      const java = new JavaImportAnalyzer(root);
+      return new AnalyzerByExtension([
+        { imports: oxc, symbols: oxc },
+        { imports: java, symbols: java },
+      ]);
+    }).singleton(),
+    importAnalyzer: asFunction(({ analyzers }) => analyzers).singleton(),
+    symbolAnalyzer: asFunction(({ analyzers }) => analyzers).singleton(),
+    javaBuild: asFunction(({ root }) => new JavaBuildFiles(root)).singleton(),
+    javaParser: asFunction(() => {
+      const grammar: JavaGrammarFiles | undefined = options.installation?.javaGrammar;
+      return grammar ? new TreeSitterJavaParser(() => grammar) : new TreeSitterJavaParser();
+    }).singleton(),
+    readJava: asFunction(
+      ({ sourceFiles, fileSystem, javaBuild, javaParser, contentHasher, clock, paths }) =>
+        new ReadJava(
+          sourceFiles,
+          fileSystem,
+          javaBuild,
+          javaParser,
+          new JavaDescriptors(),
+          contentHasher,
+          clock,
+          paths,
+        ),
+    ).singleton(),
     sourceFiles: asFunction(
       ({ vcs, fileSystem, sourceIgnores }) => new SourceFiles(vcs, fileSystem, sourceIgnores),
     ).singleton(),
@@ -1397,7 +1468,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           importAnalyzer,
           workspaceReader,
           paths,
-          OxcImportAnalyzer.id,
+          analyzersId([OxcImportAnalyzer.id, JavaImportAnalyzer.id]),
         ),
     ).singleton(),
     importGraphReader: asFunction(({ buildImportGraph }) => new IndexedImportGraphReader(buildImportGraph)),
@@ -1406,7 +1477,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       new AstGrepEngine(processRunner, root, toolBins),
       new BiomeEngine(processRunner, root, toolBins),
       new TscEngine(processRunner, root, toolBins),
-      new BunTestEngine(processRunner, root),
+      new BunTestEngine(
+        processRunner,
+        root,
+        undefined,
+        options.installation?.beBun ? { BUN_BE_BUN: "1" } : undefined,
+      ),
     ]).singleton(),
     ruleScaffolders: asFunction(({ root }) => [new AstGrepScaffolder(root)]).singleton(),
     ruleCatalog: asFunction(({ fileSystem, paths }) => new RuleCatalog(fileSystem, paths)).singleton(),
@@ -1833,8 +1909,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new FindMemoryDupes(memoryMapReader, knowledgeFiles, fileSystem),
     ),
     discover: asFunction(
-      ({ fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths }) =>
-        new Discover(fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths),
+      ({ fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths, javaBuild }) =>
+        new Discover(fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths, javaBuild),
     ),
     gateChecks: asFunction(
       ({
@@ -1857,7 +1933,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         ),
     ),
     runGate: asFunction(
-      ({ config, packageManager, binResolver, processRunner, gateChecks, vcs, fileSystem, paths, clock }) =>
+      ({
+        config,
+        packageManager,
+        binResolver,
+        processRunner,
+        gateChecks,
+        vcs,
+        fileSystem,
+        paths,
+        clock,
+        javaBuild,
+      }) =>
         new RunGate(
           config.config,
           packageManager,
@@ -1868,6 +1955,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           fileSystem,
           paths,
           clock,
+          javaBuild,
+          () => process.platform,
         ),
     ),
     installCanon: asFunction(

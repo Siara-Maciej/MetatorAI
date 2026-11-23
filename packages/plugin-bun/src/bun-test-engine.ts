@@ -32,6 +32,11 @@ export class BunTestEngine implements RuleEngine {
     private readonly runner: ProcessRunner,
     private readonly root: string,
     private readonly dir = "rules/conformance",
+    /**
+     * The environment that makes this program's runtime a `bun` (a compiled `metator` acts as one
+     * with `BUN_BE_BUN=1`, ADR-0105); none when it already is one.
+     */
+    private readonly asBun: Readonly<Record<string, string>> = {},
   ) {}
 
   async rules(): Promise<Result<readonly EngineRule[], MetatorError>> {
@@ -51,7 +56,11 @@ export class BunTestEngine implements RuleEngine {
     const diagnostics: Diagnostic[] = [];
     for (const rule of rules.value) {
       const r = await this.runner.run(
-        { argv: [process.execPath, "test", `./${rule.source}`], cwd: this.root },
+        {
+          argv: [process.execPath, "test", `./${rule.source}`],
+          cwd: this.root,
+          ...(Object.keys(this.asBun).length > 0 ? { env: this.asBun } : {}),
+        },
         { timeoutMs: 120_000 },
       );
       if (r.exitCode === 0) continue;

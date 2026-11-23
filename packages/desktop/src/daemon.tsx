@@ -43,6 +43,7 @@ import {
 } from "./model.ts";
 import { appShell } from "./shell.ts";
 import { scratchCount, scratchRepos } from "./stage1.ts";
+import { errorText } from "./tauri-commands.ts";
 import { threadsStamp } from "./threads.ts";
 
 export interface Daemon {
@@ -119,8 +120,13 @@ export interface Daemon {
   readonly starting: boolean;
   /** Why the last start did not work. */
   readonly startError?: string;
-  /** Starts (or finds) the daemon of a folder and points the app at it; remembers the folder. */
-  start(folder: string): void;
+  /**
+   * Starts (or finds) the daemon of a folder and points the app at it; remembers the folder.
+   * Resolves to why it did not start, or undefined when it did.
+   */
+  start(folder: string): Promise<string | undefined>;
+  /** Forgets the remembered folder (it was removed from the app): nothing is started for it again. */
+  forgetFolder(): void;
   /** Tries the daemon again now, without waiting for the next attempt. */
   retry(): void;
   /** The person's name: the saved one, or asked for once in the app's own dialog ("" when they cancel). */
@@ -379,26 +385,37 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   const [startError, setStartError] = useState<string>();
   const tried = useRef<string | undefined>(undefined);
   const start = useCallback(
-    (dir: string) => {
+    async (dir: string): Promise<string | undefined> => {
       const clean = dir.trim();
-      if (!shell || clean === "") return;
+      if (!shell || clean === "") return "no folder to start the daemon in";
       write("metator.folder", clean);
       setFolder(clean);
       tried.current = clean;
       setStarting(true);
       setStartError(undefined);
-      shell
-        .ensureDaemon(clean)
-        .then(setUrl, (e: unknown) => setStartError(e instanceof Error ? e.message : String(e)))
-        .finally(() => setStarting(false));
+      try {
+        setUrl(await shell.ensureDaemon(clean));
+        return undefined;
+      } catch (e) {
+        const why = e instanceof Error ? e.message : errorText(e);
+        setStartError(why);
+        return why;
+      } finally {
+        setStarting(false);
+      }
     },
     [shell, setUrl],
   );
+  const forgetFolder = useCallback(() => {
+    write("metator.folder", "");
+    setFolder("");
+    tried.current = undefined;
+  }, []);
   useEffect(() => {
     // A daemon that answered and then went away is started again, by itself.
     if (stateUp) tried.current = undefined;
     if (autostart({ shell: shell !== undefined, down, folder, tried: tried.current, starting }) === "start")
-      start(folder);
+      void start(folder);
   }, [shell, down, stateUp, folder, starting, start]);
   const repo = repoChoice(repos, savedRepo);
   const options = usePolled(`options:${url}:${repo ?? ""}`, () => client.options(repo), 3000);
@@ -490,6 +507,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     starting,
     ...(startError ? { startError } : {}),
     start,
+    forgetFolder,
     retry: () => setAttempt((n) => n + 1),
     who,
     changeName: () => setAsking(true),

@@ -1,6 +1,7 @@
 import { CHAT_AGENT } from "../domain/conductor.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { HostGuard } from "../domain/guard-commands.ts";
+import type { HostSetupHelp } from "../domain/inspection.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   type HostSandboxNeeds,
@@ -43,6 +44,8 @@ export interface HostDescriptor {
   interactive?(terminal: Terminal, bin: string | undefined, guard?: HostGuard): InteractiveHost;
   /** What the host needs inside the sandbox: its API's hosts and its own state files (ADR-0104). */
   readonly sandbox?: HostSandboxNeeds;
+  /** How a person installs it and logs in, and the signs of a login (`metator inspect`, ADR-0105). */
+  readonly setup?: HostSetupHelp;
   /** Writes the host's agent files and hooks; `agentFile` is where an agent's file goes. */
   readonly files?: {
     generator(): HostGenerator;

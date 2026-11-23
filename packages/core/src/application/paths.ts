@@ -128,4 +128,6 @@ export const DEFAULT_TEST_GLOBS: readonly string[] = [
   "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
   // Type tests (tsd, expect-type): index.test-d.ts.
   "**/*.test-d.{ts,tsx,mts,cts}",
+  // Java: Maven's and Gradle's test source sets (src/test/java, src/it/java, src/integrationTest/java).
+  "**/src/{test,it,integrationTest,testFixtures}/**/*.java",
 ];

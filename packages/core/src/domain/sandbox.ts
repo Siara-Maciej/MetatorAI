@@ -139,6 +139,8 @@ export function sandboxIsolation(
   policy: SandboxPolicy | undefined,
   platform: string,
   missing: readonly string[],
+  /** Why this installation cannot start the sandbox runtime itself (`srt`); undefined when it can. */
+  runtimeMissing?: string,
 ): { readonly status: "ok" | "warn"; readonly message: string; readonly fix?: string } {
   if (!policy)
     return {
@@ -153,6 +155,12 @@ export function sandboxIsolation(
       message:
         "the sandbox is on, but native Windows has none: host sessions run unsandboxed here; in WSL2 they are held",
       fix: "run MetatorAI and the AI host inside WSL2",
+    };
+  if (runtimeMissing)
+    return {
+      status: "warn",
+      message: `the sandbox is on, but ${runtimeMissing}: host sessions cannot start in it`,
+      fix: "Reinstall the MetatorAI app (its metator-resources folder holds the sandbox runtime), or run metator from a checkout or the npm package",
     };
   const why = sandboxUnavailable(platform, missing);
   if (why)

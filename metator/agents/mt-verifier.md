@@ -5,7 +5,7 @@ id: mt-verifier
 role: worker
 description: Tries to refute one review finding with fresh eyes and records confirmed, refuted or unproven with evidence. Started by mt-pr-review per finding. Do not use to find new problems.
 tier: reasoning
-capabilities: [read, search, edit, execute, "metator:graph", "metator:findings", "metator:review", "metator:test"]
+capabilities: [read, search, edit, execute, "metator:graph", "metator:findings", "metator:review", "metator:test", "metator:java"]
 inputs: [one finding from findings/merged.json]
 output: { artifact: findings/merged.json, summaryLines: 5 }
 ---

@@ -5,7 +5,7 @@ id: mt-arch-planner
 role: worker
 description: Plans a refactor of a repository's packages (cycles, layers, boundaries) as moves with reasons and citations, each tried with arch simulate, in a refactor plan that lint accepts. Started by `metator arch plan propose`. Do not use to change code or to approve a plan.
 tier: reasoning
-capabilities: [read, search, edit, "metator:arch", "metator:graph", "metator:cards", "metator:owners", "metator:symbols"]
+capabilities: [read, search, edit, "metator:arch", "metator:graph", "metator:cards", "metator:owners", "metator:symbols", "metator:java"]
 inputs: [architecture report, refactor plan]
 output: { artifact: refactor plan, summaryLines: 20 }
 ---

@@ -13,7 +13,7 @@ dir: packages/cli
 - Depends on: `@metator/core`, `@metator/runtime`
 - Test-only dependencies: none
 - Used by: `(root)`
-- Imported by other packages: `packages/cli/package.json`, `packages/cli/src/command-meta.ts`, `packages/cli/src/program.ts`
+- Imported by other packages: `packages/cli/package.json`, `packages/cli/src/command-meta.ts`, `packages/cli/src/linux-bundle.ts`, `packages/cli/src/program.ts`
 - Third-party: `@clack/prompts`, `@modelcontextprotocol/sdk`, `commander`, `zod`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `cli-command-group`
@@ -25,7 +25,7 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 ## Invariants
 
-- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:97 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
+- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:101 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]]. `metator tunnel --port <n>` is the one command whose stdout is data, not an envelope (`Outcome.streamed`): it joins stdin and stdout to the port, and ends the connection after stdin ends only once the server has been quiet (`src/tunnel.ts`), because a server that sees a half-closed connection drops its answer. `metator devcontainer run` answers what the `metator` in the container answered (`fromEnvelope`), its progress on stderr (`src/devcontainer.ts`).
 
 ## Allowed dependencies
 
@@ -56,4 +56,5 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 - The Backlog's buttons (ADR-0096) are routes over `BacklogWork`: `POST /issues/:issue/analyze` opens the guide's pane, `plan` and `start` always open the run's conductor (`session`), and `start` opens the new thread's chat (`chat: true`); the CLI's `issue plan|start` open the conductor only with `--session`, and `issue start` makes a thread without its chat. `issue analyze` takes the thread from `$METATOR_PANE_ID`. `GET /issues` lists `IssueView`s (freshness, children, waitsFor, progress); `issue list|show` print the same.
 - Reviews (ADR-0097) are routes over `WatchedReviews` and `MyReviews` (`routes/reviews.ts`): `POST /reviews` is global and reviews in the repository whose checkout is the MR's; `/reviews/:id/approve` is a person's only (a pane's token is refused); `/inbox` carries `reviews` (the cards of every served repository, `reviewCards`). The daemon's clock reads the watched MRs (`watchedReviews.check`) on `codehost.review.everyMs`, switched with `--reviews-ms` like the reviews of my requests. `review open|rereview` open the run's conductor unless `--no-session`; `mrs analyse` goes through the daemon.
 - `host conformance` gives core its lab (`src/conformance-lab.ts`, `DaemonLab`, through `bootstrap`'s `conformanceLab`): a throwaway repository set up by this program's own `metator setup`, a daemon of its own, a person's calls only (a thread's chat, the pane's socket for typing, `/panes/:pane/answer`, `metator session tell|interrupt`, SIGKILL and `--no-restore`, `/panes/:pane/continue`); nothing of it outlives `close`, also on SIGINT and SIGTERM; its `sandbox` action turns `sandbox.enabled` on with a `denyRead` directory inside the repository (`sandbox-deny-read`). `metator inbox` asks the daemon for the pane questions (`src/pane-asks.ts`).
+- A compiled `metator` (the desktop app's, ADR-0105) is one executable: what it cannot hold is in `metator-resources/` (native addons, node-pty, the sandbox runtime, the canon), found by `src/installation.ts` (`$METATOR_RESOURCES`, else beside the executable, `../Resources`, `../lib/MetatorAI`). `main.ts` adopts it first (`adoptInstallation`: the resources, the canon and its own folder first on `PATH`, so a hook's plain `metator` is this program); it starts itself again with `selfCommand()`, never `process.argv[0..1]`, and runs `bun` work as itself with `BUN_BE_BUN=1`. The oxc addons come through `nativeAddon`, which `scripts/compile-cli.ts` puts into their napi-rs loaders; a missing one fails only the command that parses. The portable Linux bundle (tarball, launcher, manifest `LinuxCliBundle`) is `src/linux-bundle.ts` with `scripts/linux-cli-bundle.ts`, proven by `e2e/linux-cli-bundle.e2e.test.ts`. `inspect` (read only, any folder) and `setup --commit --files` are the app's Add repository: `setup` reports `written`, and a commit takes exactly those files.
 - Only the command a person typed may ask questions (`ctx.prompter`, set by `main.ts` for a TTY); questions go to stderr so stdout stays one envelope, and commands run through `invoke` never ask (ADR-0049).

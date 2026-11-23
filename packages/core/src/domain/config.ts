@@ -8,6 +8,7 @@ import {
   GuardConfigV14Schema,
 } from "./guard-commands.ts";
 import { IntakeConfigSchema, IntakeSettingsSchema } from "./intake.ts";
+import { JVM_BUILD_TOOLS } from "./jvm-build.ts";
 import { McpServersSchema } from "./mcp.ts";
 import { ReviewsConfigSchema, ReviewsSettingsSchema } from "./review-thread.ts";
 import { defineDocument } from "./versioned.ts";
@@ -68,13 +69,28 @@ const WorkspacesRun = z
   .strictObject({ workspaces: z.string().min(1) })
   .describe("the script in every workspace package that has it, run by the repo's package manager");
 
-function gateStepSchema<M extends z.ZodType<string>, R extends z.ZodType>(metator: M, run?: R) {
+/**
+ * v16 (round 22): a Java build, Maven or Gradle, through its wrapper at the root when there is
+ * one (`./mvnw`, `./gradlew`), else the tool from PATH. `args` are its goals or tasks and flags.
+ */
+const BuildRun = z
+  .strictObject({ build: z.enum(JVM_BUILD_TOOLS), args: z.array(z.string()).min(1) })
+  .describe("a Maven or Gradle build, through its wrapper when the repository has one");
+
+function gateStepSchema<M extends z.ZodType<string>, R extends z.ZodType>(
+  metator: M,
+  run?: R,
+  files: z.ZodType<string> = z.enum(["append", "none"]),
+) {
   const runs = runSchemas(metator);
   return z.strictObject({
     id: z.string().regex(/^[a-z][a-z0-9:-]*$/, "expected a short id, e.g. lint or test:affected"),
     run: (run ?? z.union(runs)) as R extends z.ZodType ? R : z.ZodUnion<typeof runs>,
-    /** append: the gate's files are appended as arguments (only for file-scopable commands). */
-    files: z.enum(["append", "none"]).default("none"),
+    /**
+     * append: the gate's files are appended as arguments (only for file-scopable commands).
+     * modules (v16, a build): only the modules of the gate's files are built.
+     */
+    files: (files as z.ZodEnum<{ append: "append"; none: "none"; modules: "modules" }>).default("none"),
     /** With files: append, only files matching these globs are passed (e.g. a linter's languages). */
     match: z.array(z.string()).optional(),
     /** Exit codes that mean "ran fine" (a linter may exit 1 with findings reported via parser). */
@@ -90,9 +106,12 @@ const metatorStep = z
   .refine((t) => parseMetatorStep(t) !== undefined, `expected one of: ${METATOR_STEPS}`);
 /** v2–v4 gate steps. Never change them. */
 const GateStepV4Schema = gateStepSchema(metatorStep);
+/** v5–v15 gate steps. Never change them. */
+const GateStepV15Schema = gateStepSchema(metatorStep, z.union([...runSchemas(metatorStep), WorkspacesRun]));
 export const GateStepSchema = gateStepSchema(
   metatorStep,
-  z.union([...runSchemas(metatorStep), WorkspacesRun]),
+  z.union([...runSchemas(metatorStep), WorkspacesRun, BuildRun]),
+  z.enum(["append", "none", "modules"]),
 );
 export type GateStep = z.output<typeof GateStepSchema>;
 
@@ -148,7 +167,11 @@ const PathOverrides = z
   })
   .partial();
 
-type AnyGateStep = typeof GateStepSchema | typeof GateStepV4Schema | typeof GateStepV1Schema;
+type AnyGateStep =
+  | typeof GateStepSchema
+  | typeof GateStepV15Schema
+  | typeof GateStepV4Schema
+  | typeof GateStepV1Schema;
 
 function configSchema<S extends AnyGateStep>(step: S) {
   return z.strictObject(configFields(step));
@@ -223,7 +246,7 @@ const ConfigV4Schema = z.strictObject({
 /** v5 adds the `workspaces` gate step: a script of every workspace package. Every v4 file is a v5 file. */
 const ConfigV5Schema = z.strictObject({
   ...ConfigV4Schema.shape,
-  ...configFields(GateStepSchema),
+  ...configFields(GateStepV15Schema),
   editor: ConfigV4Schema.shape.editor,
 });
 
@@ -369,26 +392,43 @@ const ConfigV14Schema = z.strictObject({
  * migration moves `reviews.sources` and `intake.rules[].source` there; a rule names its source by
  * id. `guard.commands.ask` adds `metator review approve`.
  */
-const ConfigV15Schema = z
-  .strictObject({
-    ...ConfigV14Schema.shape,
-    guard: GuardConfigSchema.default(DEFAULT_GUARD_CONFIG),
-    codehost: CodeHostConfigSchema.default(CodeHostConfigSchema.parse({})),
-    reviews: ReviewsSettingsSchema.default(ReviewsSettingsSchema.parse({})),
-    intake: IntakeSettingsSchema.default(IntakeSettingsSchema.parse({})),
-  })
-  .superRefine((c, ctx) => {
-    const ids = new Set(c.codehost.sources.map((s) => s.id));
-    for (const rule of c.intake.rules)
-      if (!ids.has(rule.source))
-        ctx.addIssue({
-          code: "custom",
-          path: ["intake", "rules"],
-          message: `intake rule ${rule.id} names the source ${rule.source}, which is not in codehost.sources`,
-        });
-  });
+const ConfigV15Fields = {
+  ...ConfigV14Schema.shape,
+  guard: GuardConfigSchema.default(DEFAULT_GUARD_CONFIG),
+  codehost: CodeHostConfigSchema.default(CodeHostConfigSchema.parse({})),
+  reviews: ReviewsSettingsSchema.default(ReviewsSettingsSchema.parse({})),
+  intake: IntakeSettingsSchema.default(IntakeSettingsSchema.parse({})),
+};
 
-export const MetatorConfigSchema = ConfigV15Schema;
+/** Every intake rule names a source of `codehost.sources` (v15 and later). */
+function intakeSourcesKnown(
+  c: {
+    readonly codehost: { readonly sources: readonly { readonly id: string }[] };
+    readonly intake: { readonly rules: readonly { readonly id: string; readonly source: string }[] };
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const ids = new Set(c.codehost.sources.map((s) => s.id));
+  for (const rule of c.intake.rules)
+    if (!ids.has(rule.source))
+      ctx.addIssue({
+        code: "custom",
+        path: ["intake", "rules"],
+        message: `intake rule ${rule.id} names the source ${rule.source}, which is not in codehost.sources`,
+      });
+}
+
+const ConfigV15Schema = z.strictObject(ConfigV15Fields).superRefine(intakeSourcesKnown);
+
+/**
+ * v16 (round 22) adds the `build` gate step (a Maven or Gradle build) and `files: modules` (only
+ * the modules of the changed files are built). Every v15 file is a v16 file.
+ */
+const ConfigV16Schema = z
+  .strictObject({ ...ConfigV15Fields, gates: configFields(GateStepSchema).gates })
+  .superRefine(intakeSourcesKnown);
+
+export const MetatorConfigSchema = ConfigV16Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -412,9 +452,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV12Schema, fromPrevious: withoutLocalStatePaths },
     { schema: ConfigV13Schema, fromPrevious: (v12) => v12 },
     { schema: ConfigV14Schema, fromPrevious: (v13) => v13 },
+    { schema: ConfigV15Schema, fromPrevious: codehostFromV14 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: codehostFromV14,
+  upgrade: (v15) => v15,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });
