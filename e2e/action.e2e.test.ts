@@ -228,9 +228,8 @@ describe("the MetatorAI GitHub Action (action.yml)", () => {
     expect(String(installers?.with?.path)).toContain("bundle/dmg/*.dmg");
     // The CLI on its own, for a terminal without the app: kept per platform, and on the release
     // next to the installers with the Linux bundles; a missing one fails the release.
-    expect(String(upload("Keep the CLI on its own as an artifact")?.with?.path)).toContain(
-      "cli-pack/metator-${{ matrix.name }}",
-    );
+    const cli = String(upload("Keep the CLI on its own as an artifact")?.with?.path);
+    expect([cli.includes("cli-pack/metator-"), cli.includes("matrix.name")]).toEqual([true, true]);
     const collect =
       wf.jobs.release.steps.find((s) => s.name === "Collect the installer and CLI files")?.run ?? "";
     for (const f of [

@@ -1163,13 +1163,13 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-bun/src/read-text.ts",
-    from: "    return await Bun.file(path).text();",
-    to: "    const file = Bun.file(path);\n    if (!(await file.exists())) return undefined;\n    return await file.text();",
+    from: "    return ok(await Bun.file(path).text());",
+    to: "    const file = Bun.file(path);\n    if (!(await file.exists())) return ok(undefined);\n    return ok(await file.text());",
     why: "a file read while another process renames a new one over it is never cut to the old size",
   },
   {
     file: "packages/plugin-bun/src/read-text.ts",
-    from: '    if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;',
+    from: '    if ((e as NodeJS.ErrnoException).code === "ENOENT") return ok(undefined);',
     to: "",
     why: "a file that is not there is not found, never an error",
   },

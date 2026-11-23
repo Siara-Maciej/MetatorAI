@@ -60,8 +60,9 @@ export class BunFileSystem implements FileSystem {
     const target = this.resolve(path);
     if (target.isErr()) return err(target.error);
     const text = await readTextIfExists(target.value);
-    if (text === undefined) return err(MetatorError.notFound(`File ${path}`, { path }));
-    return ok(text);
+    if (text.isErr()) return err(text.error);
+    if (text.value === undefined) return err(MetatorError.notFound(`File ${path}`, { path }));
+    return ok(text.value);
   }
 
   async exists(path: string): Promise<boolean> {

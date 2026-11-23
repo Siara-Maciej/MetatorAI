@@ -19,13 +19,7 @@ export class BunMachineState implements MachineState {
   ) {}
 
   async read(name: string): Promise<Result<string | undefined, MetatorError>> {
-    try {
-      return ok(await readTextIfExists(join(this.dir, name)));
-    } catch (e) {
-      return err(
-        new MetatorError("COMMAND_FAILED", `cannot read ${join(this.dir, name)}: ${(e as Error).message}`),
-      );
-    }
+    return readTextIfExists(join(this.dir, name));
   }
 
   async write(name: string, content: string): Promise<Result<void, MetatorError>> {
