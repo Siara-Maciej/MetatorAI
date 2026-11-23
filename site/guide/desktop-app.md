@@ -4,15 +4,20 @@ The desktop app is a window over the daemon, `metator serve`. It needs the [`met
 
 ## An installer
 
-The MetatorAI repository builds the installers in its `desktop` workflow (GitHub Actions), for every change to the app:
+Download it from the repository's [Releases](https://github.com/Siara-Maciej/MetatorAI/releases):
 
-| Platform | Artifact | Files |
-|---|---|---|
-| Windows | `metatorai-desktop-windows-x64` | `.exe`, `.msi` |
-| macOS (Apple Silicon and Intel) | `metatorai-desktop-macos-universal` | `.dmg` |
-| Linux | `metatorai-desktop-linux-x64` | `.deb`, `.AppImage` |
+- **[MetatorAI Desktop (latest build of main)](https://github.com/Siara-Maciej/MetatorAI/releases/tag/desktop-latest)**: rebuilt and replaced on every change to the app on main, marked as a pre-release;
+- **MetatorAI Desktop &lt;version&gt;**: a release for every `desktop-v*` tag.
 
-Open the repository's **Actions** tab, the latest run of **desktop**, and download the artifact under **Artifacts**. A tag `desktop-v*` also puts every installer on a GitHub Release, made as a draft pre-release for a maintainer to publish.
+| Platform | Files |
+|---|---|
+| Windows | `.exe` (installer), `.msi` |
+| macOS, Apple Silicon and Intel | `.dmg` |
+| Linux | `.deb`, `.AppImage` |
+
+The installers are not signed yet. Windows SmartScreen asks once (**More info**, then **Run anyway**). On macOS, open the app the first time with right-click, **Open**. On Linux, make the `.AppImage` executable (`chmod +x`).
+
+The same files are kept on every run of the `desktop` workflow, pull requests included: the repository's **Actions** tab, the run, **Artifacts**.
 
 ## From a checkout
 

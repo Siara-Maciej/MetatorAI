@@ -47,7 +47,15 @@ bun install
 cd packages/cli && bun link
 ```
 
-`bun link` puts `metator` into `~/.bun/bin`. Make sure that directory is on your `PATH`, then check from any directory:
+`bun link` links `metator` into Bun's global bin folder; it does not change your `PATH`. Where that folder is depends on how Bun was installed (`~/.bun/bin` with the install script; somewhere else with npm, Homebrew or a container image), and `bun pm bin -g` prints it. If `metator` is not found, put that folder on your `PATH`, in your shell profile (`~/.bashrc`, `~/.zshrc`) so new shells and containers have it too:
+
+```bash
+bun pm bin -g                                    # where Bun put metator
+ls "$(bun pm bin -g)/metator"                    # the link bun link made
+export PATH="$(bun pm bin -g):$PATH"             # add it to your shell profile
+```
+
+Then check from any directory:
 
 ```bash
 metator version
