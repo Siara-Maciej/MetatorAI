@@ -215,7 +215,10 @@ jobs:
           bin="packages/desktop/src-tauri/binaries/metator-$TRIPLE"
           if [ -e "$bin.exe" ]; then bin="$bin.exe"; fi
           "$bin" version --json
-          "$bin" -C "$GITHUB_WORKSPACE" symbols find compileCli --json | tee /dev/stderr | grep -q '"file":"scripts/compile-cli.ts"'
+          # No `tee /dev/stderr`: Git Bash on Windows has no /dev/stderr. Keep the answer, print it, then check it.
+          found="$("$bin" -C "$GITHUB_WORKSPACE" symbols find compileCli --json)"
+          echo "$found"
+          echo "$found" | grep -Eq '"file":"scripts(/|\\\\)compile-cli\.ts"'
       - name: Build the installers
         uses: tauri-apps/tauri-action@v0
         env:
