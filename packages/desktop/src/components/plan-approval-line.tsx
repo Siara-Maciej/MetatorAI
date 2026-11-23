@@ -110,7 +110,8 @@ export function SystemPlanFull({
           </>
         ) : null}
       </h3>
-      <SystemPlanContent view={plan} repo={plan.repo} foldSteps />
+      {/* The plan is always in sight on its approval: the flow, then the steps per repository. */}
+      <SystemPlanContent view={plan} repo={plan.repo} foldSteps stepsOpen />
     </section>
   );
 }

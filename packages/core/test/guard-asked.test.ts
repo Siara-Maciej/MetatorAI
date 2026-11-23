@@ -23,6 +23,19 @@ describe("GuardAsked: why the guard asked about a pane's command, for the card t
         'git add src/server.ts && git commit -m "Log sku (debug)\n Co-Authored-By: Claude <noreply@anthropic.com>"',
       ),
     ).toEqual({ decision: "ask", reason: WHY });
+    // A row the screen joined to the next with no space at all, or spaced out by a wide terminal.
+    expect(
+      await w.asked.reasonFor(
+        "w1:p1",
+        'git add src/server.ts && git commit -m "Log sku (debug)Co-Authored-By: Claude <noreply@anthropic.com>"',
+      ),
+    ).toEqual({ decision: "ask", reason: WHY });
+    expect(await w.asked.reasonFor("w1:p1", COMMIT.replaceAll(" ", "   "))).toEqual({
+      decision: "ask",
+      reason: WHY,
+    });
+    // Other words are another command, however spaced.
+    expect(await w.asked.reasonFor("w1:p1", COMMIT.replace("Log sku", "Log price"))).toBeUndefined();
     expect(await w.asked.reasonFor("w1:p2", COMMIT)).toBeUndefined();
     expect(await w.asked.reasonFor("w1:p1", "git push")).toBeUndefined();
     expect(await w.asked.reasonFor("w1:p1", "")).toBeUndefined();

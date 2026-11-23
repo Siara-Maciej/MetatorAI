@@ -68,13 +68,16 @@ type BoardPlan = Pick<SystemPlanView, "plan" | "steps" | "waves" | "status"> & {
 
 const ageOf = (now: number, at: string) => Math.max(0, now - Date.parse(at));
 
-/** The system run of a plan: the run whose children are its steps' runs, else the one with its task. */
-export function systemRunOf<R extends Pick<RunOverview, "runId" | "task" | "children" | "workflow">>(
-  plan: Pick<SystemPlanView, "plan" | "steps">,
-  runs: readonly R[],
-): R | undefined {
+/**
+ * The system run of a plan: the run the daemon names as carrying it out (by the plan's id), else
+ * the run whose children are its steps' runs, else the one with its task.
+ */
+export function systemRunOf<
+  R extends Pick<RunOverview, "runId" | "task" | "children" | "workflow" | "systemPlan">,
+>(plan: Pick<SystemPlanView, "plan" | "steps">, runs: readonly R[]): R | undefined {
   const childRuns = new Set(plan.steps.flatMap((s) => (s.run ? [s.run] : [])));
   return (
+    runs.find((r) => r.systemPlan !== undefined && r.systemPlan === plan.plan.id) ??
     runs.find((r) => r.children?.some((c) => childRuns.has(c))) ??
     runs.find((r) => r.task === plan.plan.task && /system/.test(r.workflow))
   );

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
-import { liveSession, WorkOverview } from "../src/application/overview.ts";
+import { liveSession, systemPlanIdOf, WorkOverview } from "../src/application/overview.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { MetatorError } from "../src/domain/errors.ts";
@@ -178,6 +178,20 @@ async function world(sessions?: ConstructorParameters<typeof WorkOverview>[8]) {
 }
 
 describe("WorkOverview", () => {
+  test("a run whose workflow starts a system plan's steps names that plan (its id, from the task); any other none", async () => {
+    const system = [
+      { id: "plan", owner: "mt-system-planner" },
+      { id: "plan-approval", hitl: true },
+      { id: "children", owner: "script:metator system plan run --run {runDir}" },
+    ];
+    const task = "Show prices with tax in shop-web. Decisions: autonomy L0, no worktrees.";
+    expect(systemPlanIdOf(system as never, task)).toBe("show-prices-with-tax-in-shop-web-decisions-auton");
+    expect(systemPlanIdOf(STAGES as never, task)).toBeUndefined();
+    const { overview } = await world();
+    const runs = (await overview.execute())._unsafeUnwrap().runs;
+    expect(runs.every((r) => r.systemPlan === undefined)).toBe(true);
+  });
+
   test("a run whose agent works in a pane counts as working, not stopped, and is no background drive", async () => {
     const view = (runId: string, idle: boolean, role: "conductor" | "shell" = "conductor") => ({
       paneId: "w1:p1",

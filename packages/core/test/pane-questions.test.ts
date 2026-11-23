@@ -17,6 +17,7 @@ import {
   WorkflowCatalog,
 } from "@metator/core";
 import {
+  CLAUDE_APPROVAL_COMMIT_PANEL_SCREEN,
   CLAUDE_APPROVAL_COMMIT_SCREEN,
   CLAUDE_APPROVAL_MULTILINE_SCREEN,
   CLAUDE_APPROVAL_OPTIONS,
@@ -26,6 +27,7 @@ import {
   CLAUDE_COMMIT_COMMAND,
   CLAUDE_MULTILINE_COMMAND,
   CLAUDE_NOT_A_QUESTION_SCREENS,
+  CLAUDE_PANEL_COMMIT_COMMAND,
   CLAUDE_TEXT_QUESTION_SCREEN,
   FakePty,
   FakeScreenRenderer,
@@ -71,7 +73,7 @@ function world() {
     screen: (paneId) => broker.backlog(paneId),
     rendered: (paneId) => broker.screen(paneId),
   });
-  const start = (paneId: string, host: string, runId?: string, role?: string) => {
+  const start = (paneId: string, host: string, runId?: string, role?: string, cols = 100) => {
     const pty = new FakePty(1001);
     broker
       .start({
@@ -81,7 +83,7 @@ function world() {
         host,
         sessionId: `${host}-1`,
         pty,
-        size: { cols: 100, rows: 40 },
+        size: { cols, rows: 40 },
       })
       ._unsafeUnwrap();
     return pty;
@@ -133,11 +135,57 @@ describe("an agent that asks the person in words at the end of its turn", () => 
     )._unsafeUnwrap();
     expect(w.typed).toEqual(["w2:p1 1"]);
     expect(w.prompts.asksInPane("w2:p1")).toBe(false);
-    // The agent works again: the item is gone, and the same message is not asked twice.
-    pty.print("● Starting mt-gatekeeper-2 with only the full gate.\r\n");
+    // Output alone while it waits (a redraw of the same screen, its title) answers nothing.
+    pty.print(`\u001b]0;✳ mt-orchestrator\u0007\u001b[2J\u001b[H${typeScreen(CLAUDE_TEXT_QUESTION_SCREEN)}`);
+    expect((await w.prompts.tick())._unsafeUnwrap().resolved).toEqual([]);
+    // The agent works again: its next message above its input box; the item is gone, and the
+    // same message is not asked twice.
+    pty.print(
+      "\u001b[2J\u001b[H● Starting mt-gatekeeper-2 with only the full gate.\r\n\r\n✻ Working…\r\n\r\n───\r\n❯\r\n───\r\n",
+    );
     expect((await w.prompts.tick())._unsafeUnwrap().resolved).toEqual(["w2:p1"]);
     w.clock.advance(20_000);
     expect((await w.prompts.tick())._unsafeUnwrap().asked).toEqual([]);
+    // The same message on its screen again (redrawn, wrapped otherwise): answered, not asked anew.
+    pty.print(
+      `\u001b[2J\u001b[H${typeScreen(CLAUDE_TEXT_QUESTION_SCREEN.replace("have it run\n      only", "have it run only"))}`,
+    );
+    w.clock.advance(20_000);
+    expect((await w.prompts.tick())._unsafeUnwrap().asked).toEqual([]);
+  });
+
+  test("output while the chat waits (a redraw, its title, its status line, a resize) is no answer: the card's words are still typed", async () => {
+    const w = world();
+    const pty = w.start("w1:p1", "claude");
+    pty.print(typeScreen(CLAUDE_TEXT_QUESTION_SCREEN));
+    w.clock.advance(20_000);
+    await w.prompts.tick();
+    const q = w.questions.open()[0];
+    expect(q?.source).toBe("agent");
+    // Claude Code redraws its screen while it waits: at work for a moment, the same message.
+    pty.print(`\u001b]0;✳ mt-chat\u0007\u001b[2J\u001b[H${typeScreen(CLAUDE_TEXT_QUESTION_SCREEN)}`);
+    expect((await w.prompts.tick())._unsafeUnwrap().resolved).toEqual([]);
+    // Wrapped at another width once the terminal is resized: the same message, its lines joined.
+    w.clock.advance(20_000);
+    pty.print(
+      `\u001b[2J\u001b[H${typeScreen(CLAUDE_TEXT_QUESTION_SCREEN.replace("have it run\n      only", "have it run only"))}`,
+    );
+    w.clock.advance(20_000);
+    const idle = (await w.prompts.tick())._unsafeUnwrap();
+    expect([idle.resolved, idle.asked]).toEqual([[], []]);
+    expect(w.questions.get("w1:p1", q?.id as string)?.answer).toBeUndefined();
+    // At work again for a moment when the person answers on the card: still asked, and typed.
+    pty.print("\u001b]0;✳ mt-chat\u0007");
+    (
+      await w.prompts.answerPane({
+        paneId: "w1:p1",
+        question: q?.id as string,
+        choices: [],
+        text: "neither",
+        by: "ana",
+      })
+    )._unsafeUnwrap();
+    expect(w.typed).toEqual(["w1:p1 neither"]);
   });
 
   test("a chat's reply words: the word is typed; Other types the person's words; Leave it types nothing", async () => {
@@ -359,6 +407,21 @@ describe("host prompts in a pane without a run (the intake chat)", () => {
       ["git add", why],
       ["metator", undefined],
     ]);
+  });
+
+  test("Claude Code 2.1.330 with its diff panel open: the card's command has no frame, and the guard's reason is found", async () => {
+    const w = world();
+    const why = "this commit holds debug changes: src/server.ts. Remove them first (`metator scratch drop`).";
+    (await w.asked.record("w1:p1", CLAUDE_PANEL_COMMIT_COMMAND, "ask", why))._unsafeUnwrap();
+    const chat = w.start("w1:p1", "claude", undefined, undefined, 120);
+    chat.print(`${CLAUDE_APPROVAL_COMMIT_PANEL_SCREEN.split("\n").join("\r\n")}\r\n`);
+    await w.prompts.tick();
+    const q = w.questions.open()[0];
+    expect([q?.source, q?.command, q?.reason]).toEqual(["permission", CLAUDE_PANEL_COMMIT_COMMAND, why]);
+    expect(q?.prompt).toBe(
+      'git add src/server.ts && git commit -m "debug: log the sku in GET /prices handler — This command requires approval',
+    );
+    expect(q?.options.map((o) => o.label).slice(0, 2)).toEqual(["Yes", "No"]);
   });
 
   test("a run's pane with a host menu: the menu's choices are the card's options and the chosen one's key is typed", async () => {

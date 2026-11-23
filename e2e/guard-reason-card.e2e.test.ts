@@ -11,7 +11,12 @@ import { chmodSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLAUDE_APPROVAL_COMMIT_SCREEN, CLAUDE_COMMIT_COMMAND } from "@metator/testing";
+import {
+  CLAUDE_APPROVAL_COMMIT_PANEL_SCREEN,
+  CLAUDE_APPROVAL_COMMIT_SCREEN,
+  CLAUDE_COMMIT_COMMAND,
+  CLAUDE_PANEL_COMMIT_COMMAND,
+} from "@metator/testing";
 import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
@@ -24,6 +29,7 @@ interface PaneItem {
   question: { id: string; source: string; prompt: string; command?: string; reason?: string };
 }
 const COMMIT = CLAUDE_COMMIT_COMMAND.replace("src/server.ts", "src/price.ts");
+const PANEL_COMMIT = CLAUDE_PANEL_COMMIT_COMMAND.replace("src/server.ts", "src/price.ts");
 
 async function until<T>(what: string, probe: () => Promise<T | undefined>, ms = 30_000): Promise<T> {
   const deadline = Date.now() + ms;
@@ -60,10 +66,21 @@ beforeAll(async () => {
     "standin/approval.txt",
     `${CLAUDE_APPROVAL_COMMIT_SCREEN.replaceAll("src/server.ts", "src/price.ts")}\n`,
   );
-  // Claude Code runs its pre-tool hook in the pane (its env names the pane), then draws its own approval.
+  // Claude Code 2.1.330 with its diff panel open: the same commit, its rows bordered at the right.
+  await repo.write(
+    "standin/panel-payload.json",
+    JSON.stringify({ tool_name: "Bash", tool_input: { command: PANEL_COMMIT }, session_id: "s2" }),
+  );
+  await repo.write(
+    "standin/panel.txt",
+    `${CLAUDE_APPROVAL_COMMIT_PANEL_SCREEN.replaceAll("src/server.ts", "src/price.ts")}\n`,
+  );
+  // Claude Code runs its pre-tool hook in the pane (its env names the pane), then draws its own
+  // approval; the pane's agent (`--agent mt-panel`, passed as its file exists) picks the panel's screen.
+  await repo.write(".claude/agents/mt-panel.md", "---\nname: mt-panel\n---\nA chat.\n");
   await repo.write(
     "standin/claude",
-    `#!/bin/sh\nmetator guard pre-tool < "${repo.path("standin/payload.json")}" > /dev/null\ncat "${repo.path("standin/approval.txt")}"\nread -r key\nprintf 'picked %s\\n' "$key"\nsleep 60\n`,
+    `#!/bin/sh\ncase "$*" in *mt-panel*) s=panel; p=panel-payload ;; *) s=approval; p=payload ;; esac\nmetator guard pre-tool < "${repo.path("standin")}/$p.json" > /dev/null\ncat "${repo.path("standin")}/$s.txt"\nread -r key\nprintf 'picked %s\\n' "$key"\nsleep 60\n`,
   );
   chmodSync(repo.path("standin/claude"), 0o755);
   daemon = Bun.spawn(
@@ -142,6 +159,33 @@ describe("the guard's reason on the card of a host's approval (real daemon, real
     };
     expect([kept.kind, kept.asked.map((a) => a.decision)]).toEqual(["GuardAsked", ["ask"]]);
     expect(JSON.stringify(kept)).not.toContain("git commit");
+    await fetch(`${base}/panes/${paneId}/close`, { method: "POST", body: "{}" });
+  }, 60_000);
+
+  test("Claude Code 2.1.330 with its diff panel open: the card's command has no `│` of the panel or the gutter, and the reason is found", async () => {
+    const opened = (await (
+      await fetch(`${base}/panes`, {
+        method: "POST",
+        body: JSON.stringify({ label: "chat", role: "apps", host: "claude", agent: "mt-panel" }),
+      })
+    ).json()) as { ok: boolean; data: { id: string }; error?: unknown };
+    expect(opened.ok).toBe(true);
+    const paneId = opened.data.id;
+    const item = await until("the approval's card", async () =>
+      (((await get("/inbox")).panes ?? []) as PaneItem[]).find((i) => i.paneId === paneId),
+    ).catch(async (e) => {
+      throw new Error(
+        `${(e as Error).message}: ${JSON.stringify(await get(`/panes/${paneId}`)).slice(0, 1500)}`,
+      );
+    });
+    expect(item.question.source).toBe("permission");
+    expect(item.question.command).toBe(PANEL_COMMIT);
+    expect(item.question.prompt).toBe(
+      'git add src/price.ts && git commit -m "debug: log the sku in GET /prices handler — This command requires approval',
+    );
+    expect(item.question.reason).toBe(
+      "this commit holds debug changes: src/price.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.",
+    );
     await fetch(`${base}/panes/${paneId}/close`, { method: "POST", body: "{}" });
   }, 60_000);
 });

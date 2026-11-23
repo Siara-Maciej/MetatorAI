@@ -315,6 +315,28 @@ describe("BacklogWork: plan and implement", () => {
     expect(fromClosed.issue.threadId).toBe("20261122-new-1");
     expect(w.threads.get("20261122-new-1")?.runs).toEqual([fromClosed.runId]);
   });
+
+  test("Make plan of an item analysed in a chat: the plan run is in that chat's thread, and Implement after it too", async () => {
+    const w = world();
+    w.threads.set("20261123-new-chat-2", w.thread("20261123-new-chat-2", "open"));
+    w.threads.set("20261120-old", w.thread("20261120-old", "closed"));
+    (
+      await w.work.analyze({ title: "Mugs", text: ANALYSIS, by: "ana", threadId: "20261123-new-chat-2" })
+    )._unsafeUnwrap();
+    (
+      await w.work.analyze({ title: "Cups", text: ANALYSIS, by: "ana", threadId: "20261120-old" })
+    )._unsafeUnwrap();
+    (await w.work.analyze({ title: "Plates", text: ANALYSIS, by: "ana" }))._unsafeUnwrap();
+    const planRun = await planned(w, "i001");
+    expect(w.threads.get("20261123-new-chat-2")?.runs).toEqual([planRun]);
+    const built = (await w.work.implement("i001", { by: "ana", worktree: false }))._unsafeUnwrap();
+    expect(built.thread).toEqual({ id: "20261123-new-chat-2" });
+    expect(w.threads.get("20261123-new-chat-2")?.runs).toEqual([planRun, built.runId]);
+    // A closed thread takes no plan run, and an item without a thread makes none: no thread is made.
+    (await w.work.plan("i002"))._unsafeUnwrap();
+    (await w.work.plan("i003"))._unsafeUnwrap();
+    expect([w.threads.get("20261120-old")?.runs, w.made]).toEqual([[], []]);
+  });
 });
 
 describe("BacklogWork: items from a plan", () => {

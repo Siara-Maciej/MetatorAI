@@ -2318,12 +2318,13 @@ export const plansShown = <P extends { readonly status: string; readonly updated
   );
 
 /**
- * The system plan a run carries out, as its parent: the plan one of whose steps is a child of the
- * run, else the plan with the run's task (before its first step started).
+ * The system plan a run carries out, as its parent: the plan the daemon names for it (its id, from
+ * the run's task), else the plan one of whose steps is a child of the run, else the plan with the
+ * run's task.
  */
 export function systemPlanOf<P extends Pick<SystemPlanView, "steps" | "plan">>(
   plans: readonly P[],
-  run: Pick<RunOverview, "runId" | "task" | "children">,
+  run: Pick<RunOverview, "runId" | "task" | "children" | "systemPlan">,
   runs: readonly Pick<RunOverview, "runId" | "parent">[],
 ): P | undefined {
   const children = new Set([
@@ -2331,6 +2332,8 @@ export function systemPlanOf<P extends Pick<SystemPlanView, "steps" | "plan">>(
     ...runs.filter((r) => r.parent === run.runId).map((r) => r.runId),
   ]);
   return (
+    // The plan the run carries out, by its id (the planner words the plan's task its own way).
+    (run.systemPlan !== undefined ? plans.find((p) => p.plan.id === run.systemPlan) : undefined) ??
     plans.find((p) => p.steps.some((s) => s.run !== undefined && children.has(s.run))) ??
     plans.find((p) => p.plan.task === run.task)
   );

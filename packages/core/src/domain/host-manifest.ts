@@ -153,14 +153,16 @@ export const REASON_MAX = 200;
  */
 export function paneStateOf(input: PaneStateInput): PaneStateView {
   if (!input.alive) return { state: "exited", reason: `exited with ${input.exitCode ?? "no code"}` };
-  const lines = input.screen
+  // A panel the host draws at the right (Claude Code's diff) is no part of a prompt or a prompt line.
+  const screen = withoutSidePanel(input.screen);
+  const lines = screen
     .split("\n")
     .map((l) => l.trimEnd())
     .filter((l) => l.trim() !== "")
     .slice(-input.manifest.screen.lines);
   const blocked = matchLine(lines, input.manifest.screen.blocked);
   if (blocked !== undefined) {
-    const read = readHostPrompt(input.screen, blocked);
+    const read = readHostPrompt(screen, blocked);
     return {
       state: "blocked",
       reason: read.text,
@@ -189,6 +191,41 @@ function matchLine(lines: readonly string[], patterns: readonly string[]): strin
     if (regexes.some((r) => r.test(line))) return line.trim();
   }
   return undefined;
+}
+
+/** The leftmost column a side panel's border may stand in: anything left of it is a gutter or a box. */
+const PANEL_MIN_COLUMN = 20;
+/** How far a row's border may stand left of the panel's column: a wide character takes two cells, one string index. */
+const PANEL_SLACK = 2;
+
+/**
+ * The screen without a panel drawn at its right (Claude Code 2.1.330's diff panel, `│` at its
+ * left edge on every row it covers): when most rows that hold a `│` hold it in one column (from
+ * the 20th on), each such row is cut there. A `│` a few rows share is a character of the text;
+ * Claude's own gutter (column 2) and a box's left edge are never a panel's border.
+ */
+export function withoutSidePanel(screen: string): string {
+  const rows = screen.split("\n");
+  const columns = new Map<number, number>();
+  let bordered = 0;
+  for (const row of rows) {
+    let counted = false;
+    for (let i = row.indexOf("│", PANEL_MIN_COLUMN); i >= 0; i = row.indexOf("│", i + 1)) {
+      columns.set(i, (columns.get(i) ?? 0) + 1);
+      counted = true;
+    }
+    if (counted) bordered++;
+  }
+  const [column, count] = [...columns.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0] ?? [-1, 0];
+  if (column < 0 || count < 3 || count < bordered / 2) return screen;
+  return rows
+    .map((row) => {
+      for (let i = column; i >= column - PANEL_SLACK; i--)
+        if (row[i] === "│" && (i === column || /\s/.test(row[i - 1] ?? " ")))
+          return row.slice(0, i).trimEnd();
+      return row;
+    })
+    .join("\n");
 }
 
 /** Box frames and the menu's pointer: no part of a prompt's words. */
@@ -224,7 +261,7 @@ export function readHostPrompt(
   line: string,
 ): { readonly text: string; readonly options: readonly MenuChoice[]; readonly command?: string } {
   const clean = (l: string) => l.replace(FRAME, "").trim();
-  const raw = screen.split("\n");
+  const raw = withoutSidePanel(screen).split("\n");
   const rows = raw.map(clean);
   const wanted = clean(line);
   let at = -1;
@@ -325,7 +362,8 @@ function commandBetweenRules(
         body[k - 1] !== "" &&
         line !== "" &&
         above + 1 + (line.split(" ")[0] as string).length > width - 1;
-      text += wrapped ? " " : above >= width - 1 ? "" : "\n";
+      // A row the terminal wrapped goes on at the row's start: a row behind the gutter is never one.
+      text += wrapped ? " " : above >= width - 1 && !guttered[k] ? "" : "\n";
     }
     text += line;
   });
