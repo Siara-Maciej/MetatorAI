@@ -208,8 +208,9 @@ describe("the MetatorAI GitHub Action (action.yml)", () => {
       jobs: {
         build: {
           strategy: { matrix: { include: { os: string; name: string }[] } };
-          steps: { uses?: string; with?: Record<string, unknown> }[];
+          steps: { name?: string; uses?: string; with?: Record<string, unknown> }[];
         };
+        release: { steps: { name?: string; run?: string }[] };
       };
     };
     expect(wf.on.push.tags).toEqual(["desktop-v*"]);
@@ -220,9 +221,25 @@ describe("the MetatorAI GitHub Action (action.yml)", () => {
     ]);
     const tauri = wf.jobs.build.steps.find((s) => s.uses?.startsWith("tauri-apps/tauri-action"));
     expect(tauri?.with?.projectPath).toBe("packages/desktop");
-    const upload = wf.jobs.build.steps.find((s) => s.uses?.startsWith("actions/upload-artifact"));
-    expect(String(upload?.with?.path)).toContain("bundle/nsis/*.exe");
-    expect(String(upload?.with?.path)).toContain("bundle/dmg/*.dmg");
+    const upload = (name: string) =>
+      wf.jobs.build.steps.find((s) => s.uses?.startsWith("actions/upload-artifact") && s.name === name);
+    const installers = upload("Keep the installers as artifacts");
+    expect(String(installers?.with?.path)).toContain("bundle/nsis/*.exe");
+    expect(String(installers?.with?.path)).toContain("bundle/dmg/*.dmg");
+    // The CLI on its own, for a terminal without the app: kept per platform, and on the release
+    // next to the installers with the Linux bundles; a missing one fails the release.
+    expect(String(upload("Keep the CLI on its own as an artifact")?.with?.path)).toContain(
+      "cli-pack/metator-${{ matrix.name }}",
+    );
+    const collect =
+      wf.jobs.release.steps.find((s) => s.name === "Collect the installer and CLI files")?.run ?? "";
+    for (const f of [
+      "metator-windows-x64.zip",
+      "metator-macos-universal.tar.gz",
+      "metator-linux-x64.tar.gz",
+      "metator-linux-arm64.tar.gz",
+    ])
+      expect([f, collect.includes(f)]).toEqual([f, true]);
     // Bundling is on, with the icons every platform needs in place.
     const conf = JSON.parse(
       await Bun.file(join(ROOT, "packages/desktop/src-tauri/tauri.conf.json")).text(),
