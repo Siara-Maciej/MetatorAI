@@ -24,13 +24,13 @@ export class GitCliRepository implements RepositoryGit {
   }
 
   async checkout(dir: string): Promise<{ readonly top: string; readonly main: string } | undefined> {
-    const r = await this.git(
-      ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
-      dir,
-    );
+    // No --path-format=absolute: git before 2.31 (Debian 11 has 2.30) refuses it. --show-toplevel is
+    // absolute anyway; --git-common-dir may be relative to `dir`, so it is resolved against it.
+    const r = await this.git(["rev-parse", "--show-toplevel", "--git-common-dir"], dir);
     if (r.exitCode !== 0) return undefined;
-    const [top, common] = r.stdout.split("\n").map((l) => l.trim());
-    if (!top || !common) return undefined;
+    const [top, relativeCommon] = r.stdout.split("\n").map((l) => l.trim());
+    if (!top || !relativeCommon) return undefined;
+    const common = resolve(dir, relativeCommon);
     // A linked worktree shares the main checkout's `.git`: the main checkout is the folder that holds it.
     const main = basename(common) === ".git" ? dirname(common) : top;
     return { top: resolve(top), main: resolve(main) };

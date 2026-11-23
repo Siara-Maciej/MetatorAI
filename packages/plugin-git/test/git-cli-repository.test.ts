@@ -46,6 +46,32 @@ describe("GitCliRepository (ADR-0105)", () => {
     expect(await g.checkout(await temp())).toBeUndefined();
   });
 
+  test("checkout on git before 2.31 (no --path-format, e.g. Debian 11's 2.30): the same answers", async () => {
+    // git 2.30 does not know --path-format: it refuses it, as the real one did in CI's debian:bullseye.
+    const old: typeof runner = Object.assign(Object.create(runner), {
+      run: (spec: Parameters<typeof runner.run>[0]) =>
+        spec.argv.some((a) => a.startsWith("--path-format"))
+          ? Promise.resolve({
+              exitCode: 129,
+              stdout: "",
+              stderr: "error: unknown option `path-format=absolute'",
+            })
+          : runner.run(spec),
+    });
+    const dir = await temp();
+    git(dir, "init", "-q", "-b", "main");
+    await writeFile(join(dir, "a.ts"), "a\n");
+    git(dir, "add", ".");
+    git(dir, "commit", "-qm", "init");
+    await mkdir(join(dir, "src"));
+    const g = new GitCliRepository(old);
+    expect(await g.checkout(dir)).toEqual({ top: dir, main: dir });
+    expect(await g.checkout(join(dir, "src"))).toEqual({ top: dir, main: dir });
+    const wt = join(await temp(), "shop-fix");
+    git(dir, "worktree", "add", "-q", "-b", "fix", wt);
+    expect(await g.checkout(wt)).toEqual({ top: wt, main: dir });
+  });
+
   test("uncommitted: tracked and untracked files one by one, sorted, MetatorAI's state and ignored files aside", async () => {
     const dir = await temp();
     git(dir, "init", "-q", "-b", "main");

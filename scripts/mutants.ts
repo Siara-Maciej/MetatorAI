@@ -10064,4 +10064,10 @@ export const MUTANTS: readonly Mutant[] = [
     to: "finish(ok({ sent, received }));",
     why: "the tunnel ends only once everything it received is written out",
   },
+  {
+    file: "packages/plugin-git/src/git-cli-repository.ts",
+    from: "const common = resolve(dir, relativeCommon);",
+    to: "const common = relativeCommon;",
+    why: "git's common dir is relative to the folder asked about, not to the process",
+  },
 ];
