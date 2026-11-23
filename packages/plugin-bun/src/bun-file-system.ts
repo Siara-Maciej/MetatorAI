@@ -10,6 +10,7 @@ import {
   ok,
   type Result,
 } from "@metator/core";
+import { readTextIfExists } from "./read-text.ts";
 
 let writes = 0;
 
@@ -58,9 +59,9 @@ export class BunFileSystem implements FileSystem {
   async read(path: string): Promise<Result<string, MetatorError>> {
     const target = this.resolve(path);
     if (target.isErr()) return err(target.error);
-    const file = Bun.file(target.value);
-    if (!(await file.exists())) return err(MetatorError.notFound(`File ${path}`, { path }));
-    return ok(await file.text());
+    const text = await readTextIfExists(target.value);
+    if (text === undefined) return err(MetatorError.notFound(`File ${path}`, { path }));
+    return ok(text);
   }
 
   async exists(path: string): Promise<boolean> {

@@ -52,6 +52,36 @@ describe("BunFileSystem edge cases", () => {
     expect(torn).toBe(0);
   });
 
+  test("a reader never sees a file cut to the size of the one it replaced (another process renames over it)", async () => {
+    const { fs, root } = await fresh();
+    const small = JSON.stringify({ v: "s" });
+    const large = JSON.stringify({ v: "l".repeat(5_000) });
+    await fs.write("state.json", small);
+    // Another process replaces the file whole, again and again, alternating its size: what a
+    // drive does to a run's state while `run status` reads it.
+    const writer = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        `const { rename } = require("node:fs/promises");
+         const p = ${JSON.stringify(join(root, "state.json"))};
+         const texts = [${JSON.stringify(small)}, ${JSON.stringify(large)}];
+         (async () => { const end = Date.now() + 1500;
+           for (let i = 0; Date.now() < end; i++) { await Bun.write(p + ".tmp", texts[i % 2]); await rename(p + ".tmp", p); } })();`,
+      ],
+      { stdout: "ignore", stderr: "inherit" },
+    );
+    let reads = 0;
+    let torn = 0;
+    while (writer.exitCode === null) {
+      const text = (await fs.read("state.json"))._unsafeUnwrap();
+      reads++;
+      if (text !== small && text !== large) torn++;
+    }
+    await writer.exited;
+    expect([reads > 100, torn]).toEqual([true, 0]);
+  });
+
   test("glob includes dotfiles like .github/ but not .git/", async () => {
     const { fs } = await fresh();
     await fs.write(".github/workflows/ci.yml", "x");

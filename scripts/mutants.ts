@@ -1162,6 +1162,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "each module of the policy gets a card",
   },
   {
+    file: "packages/plugin-bun/src/read-text.ts",
+    from: "    return await Bun.file(path).text();",
+    to: "    const file = Bun.file(path);\n    if (!(await file.exists())) return undefined;\n    return await file.text();",
+    why: "a file read while another process renames a new one over it is never cut to the old size",
+  },
+  {
+    file: "packages/plugin-bun/src/read-text.ts",
+    from: '    if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;',
+    to: "",
+    why: "a file that is not there is not found, never an error",
+  },
+  {
     file: "packages/cli/src/run.ts",
     from: "  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));\n  return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
     to: "  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));\n  return 0;",
