@@ -6,7 +6,8 @@ Every agent works in a real terminal, a **session** of your AI host, and you can
 
 **Terminals** opens on a task: the only one, or the one you pick from **Tasks** (each with its main terminal and how many repository sessions and sub-terminals it has). A bar at the top says where you are, **Tasks › Prices in the customer's currency › shop-api**, and each part leads back.
 
-![Terminals: a task's main chat and the session of its run side by side](../public/screens/terminals.png)
+![Terminals by task: the chat where the task was given on the left, the run's conductor working in its own Claude Code terminal on the right](../public/screens/real/real-06-task-view.webp)
+*A task's terminals: the chat stays the main terminal, the run's conductor works beside it.*
 
 A task's view shows, side by side (two or three across, more wrap below):
 
@@ -15,7 +16,13 @@ A task's view shows, side by side (two or three across, more wrap below):
 
 The workers a session starts are not on this view. A session's tile has a badge, **2 sub-terminals · 1 working · 1 finished**; a click opens the session's own view: its conductor, then its sub-terminals (its workers and shells). Every tile is a live terminal: you watch, take the keyboard and type as in any pane.
 
+![A run's session: the conductor, the planner that finished with its summary, and the implementer working, each in its own terminal](../public/screens/real/real-06-session-build.webp)
+*A run's session: the conductor and its workers, each in its own terminal.*
+
 A terminal whose work is over stays on the screen, read-only, with a banner on its frame: **Finished — tests pass** (its summary, or why it ended), or, after a failure, **Ended with code 2 — …** in red with **Retry**. **Close** closes it; **Close finished (N)** in the bar closes the finished terminals of the view.
+
+![A finished run's terminals: the conductor, the planner and the implementer, each with a Finished banner and Close](../public/screens/real/real-06-done-terminals.webp)
+*When a run is done its terminals stay, each with a line that says how it ended.*
 
 **Workspaces** in the bar shows the daemon's workspaces and their tabs: your shells, and the chat of a run not started yet. **By task ›** there leads back. Closing the app, reloading it, or opening it in another window changes nothing: the runs go on, and the app shows the same terminals.
 
@@ -60,7 +67,8 @@ A shell pane takes your keys at once. In an agent's pane the app asks before it 
 
 A click on a step or a run of its own in the sidebar opens its page on its **Terminal** tab (key `t`); a finished run, and a task's page, open on **Overview**.
 
-![The Terminal tab of a run: the head with its stages, the bar that says who works, the terminal, and the boxes on the right](../public/screens/run.png)
+![The Terminal tab of a plan run: the head with its stages, Working: agent with Attach, the panes of the conductor and the planner, the planner's terminal, and the Question, Apps, Changes and Links boxes](../public/screens/real/real-07-make-plan-planner.webp)
+*A run's Terminal tab while its planner works.*
 
 The bar under the head says who types. With **Working: agent** you watch. **Attach** (key `a`) takes the keyboard; **Release to agent** (key `c`) gives it back. With **Working: nobody** no agent works on the run.
 

@@ -38,6 +38,7 @@ import {
   sinceLastAnswer,
   stagePrompt,
   stageWork,
+  taskTitle,
 } from "../src/domain/drive.ts";
 import { ok } from "../src/domain/result.ts";
 import type { StageSpec } from "../src/domain/workflow-spec.ts";
@@ -63,6 +64,19 @@ describe("drive domain", () => {
     // A long task is cut where the title still fits a card.
     const long = gateQuestion({ id: "approval" }, "a".repeat(200));
     expect([long.length, long.includes(`${"a".repeat(119)}…"`)]).toEqual([140, true]);
+    // A task with its decisions after it: the card names what was asked, never "Deci…".
+    expect(
+      gateQuestion(
+        { id: "plan-approval", description: "A person approves the system plan and this gate" },
+        "Show prices with tax in shop-web: shop-api returns grossCents beside amountCents (23% VAT) and shop-web prints it. Decisions: autonomy L0, no worktrees.",
+        "plan-gate",
+      ),
+    ).toBe(
+      'Approve the plan for "Show prices with tax in shop-web: shop-api returns grossCents beside amountCents (23% VAT) and shop-web prints it"? A person approves the system plan and this gate.',
+    );
+    // A long first sentence is cut at a word.
+    expect(taskTitle(`${"word ".repeat(40)}end.`)).toBe(`${"word ".repeat(23).trimEnd()}…`);
+    expect(taskTitle("Fix the U.S. tax. Then ship.")).toBe("Fix the U.S. tax");
   });
 
   test("a resume's note is one line for the next agent; without a note nothing is said", () => {

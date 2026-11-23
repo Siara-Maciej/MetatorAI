@@ -507,3 +507,48 @@ export const CLAUDE_APPROVAL_GUTTER_WRAPPED_SCREEN = [
 
 export const CLAUDE_GUTTER_WRAPPED_COMMAND =
   'metator run delegate review --agent mt-quick-review --card "Goal: write the review artifact for the case-insensitive SKU lookup change (working tree vs HEAD; src/catalog.ts, src/server.ts, test/server.test.ts). Summary of at most 6 lines."';
+
+/** A row of Claude Code 2.1.330's screen (120 columns): the conversation 86 wide, then its diff panel's border and words. */
+const panelRow = (left: string, panel = "") => `${left.padEnd(86)}│${panel === "" ? "" : ` ${panel}`}`;
+
+/**
+ * Claude Code 2.1.330's approval of a commit while its diff panel is open (a real run, 2026-11-23,
+ * scene 5; the rendered rows rebuilt from the card it gave and the shot of the chat): the panel's
+ * `│` border in column 86 of every row it covers, the commit's lines behind the `│` gutter, a blank
+ * line in the message. The card's heading read
+ * `… GET /prices handler │ │ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" │` and it
+ * had no reason of the guard's.
+ */
+export const CLAUDE_APPROVAL_COMMIT_PANEL_SCREEN = [
+  panelRow("", "1 file changed +1     /diff"),
+  panelRow(" The debug line is in src/server.ts:10.", ""),
+  panelRow("", "src/server.ts              +1"),
+  panelRow("", ""),
+  panelRow("", "src/server.ts         [ ask ]"),
+  panelRow(" ❯ commit this", "  9  const sku = decodeURI("),
+  panelRow("", ' 10 + console.log("[debug]",'),
+  panelRow(
+    '● Bash(git add src/server.ts && git commit -m "debug: log the sku in GET…)',
+    " 11  const amountCents =",
+  ),
+  panelRow("  ⎿  Running PreToolUse hooks…"),
+  panelRow(""),
+  panelRow("─".repeat(86)),
+  panelRow(" Bash command"),
+  panelRow(" Commit the debug log line"),
+  panelRow("╌".repeat(86)),
+  panelRow('  │ git add src/server.ts && git commit -m "debug: log the sku in GET /prices handler'),
+  panelRow("  │"),
+  panelRow('  │ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"'),
+  panelRow("╌".repeat(86)),
+  panelRow(" This command requires approval"),
+  panelRow(" Do you want to proceed?"),
+  panelRow(" ❯ 1. Yes"),
+  panelRow("   2. No"),
+  panelRow(""),
+  panelRow(" Esc to cancel · Tab to amend"),
+].join("\n");
+
+/** The command of that approval as Claude Code ran its pre-tool hook with it. */
+export const CLAUDE_PANEL_COMMIT_COMMAND =
+  'git add src/server.ts && git commit -m "debug: log the sku in GET /prices handler\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"';

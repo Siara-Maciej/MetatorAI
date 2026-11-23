@@ -27,6 +27,9 @@ metator gate full                  # every step: lint, typecheck, tests
 
 An approval comes to [Home](./inbox.md) as a card. A plan's card shows the plan in full, with **Approve** and **Ask for changes**: your words go back to the planner, which writes a new plan. Other approvals have **Approve** and **Reject**; a rejection needs your reason. The first time, the app asks for your name: every approval is recorded in `state.json` and `log.md` with it and the time.
 
+![Home: Approve the plan for Add GET /prices, with Approve, a field for changes and Ask for changes above the plan's five steps](../public/screens/real/real-06-plan-card.webp)
+*A plan-approval card: the whole plan, Approve and Ask for changes.*
+
 From a terminal:
 
 ```bash
@@ -85,6 +88,12 @@ A commit is always your decision, and so is every merge: `gh pr merge`, `glab mr
 - **A click.** The host shows its approval prompt, and Home shows it as a card whose heading is the command (`git commit -m "…"`), with **git commit needs your consent** under it. **Yes** (the host's own choice, offered on the card) lets that one command run.
 - **Your word in the chat.** Your own message that asks for it ("commit it", "push", "merge it", "zacommituj") is consent to one such command, used up by the first one, within `guard.consentMinutes` (10 by default). A question ("should we commit?"), a refusal, the agent's own words and lines MetatorAI types (`[metator] …`) are no consent.
 - **A run's delivery.** In a run, approving its `delivery` stage counts as consent to that run's commit and push, never to a merge. For a merge in a run, `metator run approve merge --by alice` is your consent.
+
+![Home: Claude Code asks to run git add and git commit; the card says git commit needs your consent, with Yes, No, Attach and answer in the pane, and Leave it](../public/screens/real/real-05-permission-card.webp)
+*A commit the agent asks for comes to Home as a card; it runs only on your Yes.*
+
+![The chat after No on the card: Claude Code did not run the commit and says nothing was committed](../public/screens/real/real-05-permission-answered.webp)
+*After No on the card: the command did not run, and the chat says so.*
 
 A session without a terminal (`metator run drive`) cannot ask you, so there a command on `ask` is denied until the run's approval covers it. A commit that would take a recorded [debug change](./quick.md#debug-changes) is stopped even after "commit": say "commit anyway", or remove the change first.
 

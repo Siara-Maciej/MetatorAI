@@ -130,8 +130,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/backlog-work.ts",
-    from: 'if (old && old.state === "open") {',
-    to: "if (old) {",
+    from: '    if (thread?.state !== "open") return ok(undefined);',
+    to: "    if (!thread) return ok(undefined);",
     why: "a closed thread is not continued: the run gets a new thread",
   },
   {
@@ -7717,7 +7717,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/host-manifest.ts",
-    from: "    const read = readHostPrompt(input.screen, blocked);",
+    from: "    const read = readHostPrompt(screen, blocked);",
     to: "    const read = { text: blocked, options: [] };",
     why: "a blocked pane's reason is its prompt in words, from the rendered screen",
   },
@@ -7855,8 +7855,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/host-manifest.ts",
-    from: 'above >= width - 1 ? "" : "\\n";',
-    to: 'above >= width - 1 ? "\\n" : "\\n";',
+    from: 'above >= width - 1 && !guttered[k] ? "" : "\\n";',
+    to: 'above >= width - 1 && !guttered[k] ? "\\n" : "\\n";',
     why: "a command the terminal wrapped is one line again",
   },
   {
@@ -7957,7 +7957,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/host-prompts.ts",
-    from: '    if (this.d.panes.latest(pane.paneId)?.text === read.text) return ok("none");\n',
+    from: '    if (latest !== undefined && sameMessage(latest, read.text)) return ok("none");\n',
     to: "",
     why: "the same message is not asked twice",
   },
@@ -8904,9 +8904,9 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the command an agent waits in is no part of its message",
   },
   {
-    file: "packages/core/src/domain/agent-question.ts",
-    from: "if (column < 20 || count < 3 || count < bordered / 2) return [...rows];",
-    to: "return [...rows];",
+    file: "packages/core/src/domain/host-manifest.ts",
+    from: "  if (column < 0 || count < 3 || count < bordered / 2) return screen;",
+    to: "  return screen;",
     why: "a panel drawn at the right of the message is cut off",
   },
   {
@@ -8929,8 +8929,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/host-manifest.ts",
-    from: '      text += wrapped ? " " : above >= width - 1 ? "" : "\\n";',
-    to: '      text += above >= width - 1 ? "" : "\\n";',
+    from: '      text += wrapped ? " " : above >= width - 1 && !guttered[k] ? "" : "\\n";',
+    to: '      text += above >= width - 1 && !guttered[k] ? "" : "\\n";',
     why: "a quoted argument Claude Code wrapped at words is one line again",
   },
   {
@@ -9595,5 +9595,67 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'e.declared === "devDependencies" && !e.testOnly && e.runtime > 0',
     to: 'e.declared === "devDependencies" && !e.testOnly',
     why: "a type-only import from devDependencies ships nothing: it is not dev-in-prod (ADR-0085)",
+  },
+  // The real Claude Code 2.1.330 run (2026-11-23): its diff panel, a text question kept through a
+  // redraw, a plan run in its item's thread, the system plan on its approval card.
+  {
+    file: "packages/core/src/domain/host-manifest.ts",
+    from: '  const raw = withoutSidePanel(screen).split("\\n");',
+    to: '  const raw = screen.split("\\n");',
+    why: "a host's diff panel at the right is no part of the command a permission card names",
+  },
+  {
+    file: "packages/core/src/domain/host-manifest.ts",
+    from: 'for (let i = row.indexOf("│", PANEL_MIN_COLUMN); i >= 0;',
+    to: 'for (let i = row.indexOf("│"); i >= 0;',
+    why: "Claude's own gutter is never taken for a side panel's border",
+  },
+  {
+    file: "packages/core/src/application/guard-asked.ts",
+    from: 'typedDigest(command.replace(/\\s+/g, ""))',
+    to: "typedDigest(command)",
+    why: "the guard's reason is found however the screen spaced the command",
+  },
+  {
+    file: "packages/core/src/application/host-prompts.ts",
+    from: "  return last === undefined || sameMessage(last, message);",
+    to: "  return false;",
+    why: "output while an agent waits on its question in words is no answer: the card stays",
+  },
+  {
+    file: "packages/core/src/application/host-prompts.ts",
+    from: '  a.replace(/\\s+/g, " ").trim() === b.replace(/\\s+/g, " ").trim();',
+    to: "  a === b;",
+    why: "a question in words rewrapped by a resize is the same question",
+  },
+  {
+    file: "packages/core/src/application/backlog-work.ts",
+    from: "    const linked = await this.inOpenThread(item, started.value.runId);",
+    to: "    const linked = ok(undefined);",
+    why: "Make plan of an item with an open thread is a run of that thread",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: "  const short = taskTitle(task);",
+    to: "  const short = task.trim().slice(0, 120);",
+    why: "a gate's question names the task's title, not its details cut mid-word",
+  },
+  {
+    file: "packages/core/src/application/overview.ts",
+    from: "    ? planId(task)\n    : undefined;",
+    to: "    ? undefined\n    : undefined;",
+    why: "a system run names the plan it carries out",
+  },
+  {
+    file: "packages/desktop/src/model.ts",
+    from: "    (run.systemPlan !== undefined ? plans.find((p) => p.plan.id === run.systemPlan) : undefined) ??",
+    to: "",
+    why: "a system run's card finds its plan by id, however the planner worded the plan's task",
+  },
+  {
+    file: "packages/desktop/src/board.ts",
+    from: "    runs.find((r) => r.systemPlan !== undefined && r.systemPlan === plan.plan.id) ??",
+    to: "",
+    why: "a plan's system run is the one the daemon names for its id",
   },
 ];

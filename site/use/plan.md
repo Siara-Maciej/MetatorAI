@@ -6,7 +6,8 @@ A step's plan shows where one run stands and what is left; it is on the step's *
 
 Open the **Overview** of a step's page (key `o`): under what the run needs from you is **Its plan**, read-only. From **Terminals**, click the stages under the tabs, or press the prefix and `p`. There is no Plan tab; its old address (`#/run/<run>/plan`) opens the Overview.
 
-![A step's Overview: what it needs from you, its plan with the stages and steps, the chosen step, and the artifacts](../public/screens/overview.png)
+![A finished run's Overview: four stages done, its plan with five steps done, the chosen step, the changes, the gates and the artifacts](../public/screens/real/real-06-overview.webp)
+*A finished run's Overview: stages, steps, the chosen step and the artifacts.*
 
 | Part | Shows |
 |---|---|
@@ -87,6 +88,12 @@ The select **a run starts on** beside the buttons names the workflow: `mt-featur
 
 A task's **Analysis** is Markdown an agent wrote, with a section of deterministic facts MetatorAI added: the files it cites, the packages they belong to, how many files depend on them, and similar code. Ask for one with **Analyse**, or in a chat: say *analyse* to the chat agent, and it answers in the chat and records the same text as a Backlog task.
 
+![The chat analyses a 10% discount for three or more mugs: what the code has today, risks and questions, recorded as Backlog item i001](../public/screens/real/real-07-analyse-chat.webp)
+*Asked to analyse, the chat answers and records the same text as a Backlog item.*
+
+![The Backlog task 10% off for 3+ mugs with its analysis and the fresh badge, and Re-analyse, Make plan, Implement, Done and Drop](../public/screens/real/real-07-backlog-analysis.webp)
+*A Backlog task with its analysis, marked fresh.*
+
 The analysis and the plan each have a badge that says whether they still describe the code:
 
 | Badge | Means |
@@ -96,6 +103,12 @@ The analysis and the plan each have a badge that says whether they still describ
 | `old: 15 days` | older than `backlog.staleDays` (default 14). Only a warning |
 
 **Make plan** plans and stops: the run's conductor writes the plan, you approve it on its card, and the run ends as **plan ready**. The plan is then on the task, with a summary and a link to its run. **Implement** with a fresh plan starts at the build; the stages before are recorded as done from that plan. With a stale plan it starts at the plan's review: the plan's lint, the plan critic, then your approval. A plan changes only through its planner, never in an editor.
+
+![Home: Approve the plan for 10% off for 3+ mugs, with the plan's decisions and steps](../public/screens/real/real-07-plan-card.webp)
+*Make plan stops at your approval, like any plan.*
+
+![The Backlog task with plan ready: its analysis, its plan marked fresh, and a link to its run](../public/screens/real/real-07-backlog-plan-ready.webp)
+*The approved plan stays on the task until you Implement it.*
 
 ### Plans in the Backlog
 

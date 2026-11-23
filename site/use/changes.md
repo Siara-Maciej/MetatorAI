@@ -10,6 +10,9 @@ Open the **Changes** tab of a run's page (key `d`), or **Changes** on a decision
 
 The left column lists the changed files, each with a letter (`A` added, `M` modified, `D` deleted, `R` renamed), its added and removed line counts, and a pencil where you left notes. Click a file to see its diff on the right. The line on top says what the change is compared against.
 
+![A finished run's Changes: five modified files on the left, the diff of openapi.yaml on the right, compared against HEAD](../public/screens/real/real-06-changes.webp)
+*A full run's change: its files and their diffs.*
+
 The lines of a diff are one stop of the Tab key: the arrow keys move from line to line, and Enter opens a note on the line.
 
 A run in its own worktree is compared with the repository's `HEAD` as it stands when you look. A run in your checkout is compared with `HEAD`. New, untracked files show whole, as added. MetatorAI's own files (`.metator/`, `.github/metator/`) are left out.

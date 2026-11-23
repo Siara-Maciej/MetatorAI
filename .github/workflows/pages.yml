@@ -3,14 +3,23 @@ name: docs
 # Builds the user documentation (site/, VitePress) on every change and publishes it to GitHub Pages
 # from the branches below. One-time setup: Settings → Pages → Source: GitHub Actions. Until Pages is
 # enabled, the site is still built and checked; only the publishing is skipped.
+#
+# The site also carries the README's badges (badges/*.json, scripts/badges.ts): the `badges`
+# artifact of the latest `ci` run of a push to main. When `ci` finishes on main this workflow runs
+# again (workflow_run) and publishes that run's badges; a badge with no artifact yet is "pending".
 on:
   push:
     branches: [main, claude/foundation]
   pull_request:
   workflow_dispatch:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
+  actions: read # download the badges artifact of a ci run
 
 concurrency:
   group: pages-${{ github.ref }}
@@ -18,6 +27,12 @@ concurrency:
 
 jobs:
   build:
+    # A ci run on main counts only when it ran for a push to this repository: a pull request from a
+    # fork whose branch is called main never reaches the site.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
       publish: ${{ steps.pages.outcome == 'success' }}
@@ -35,6 +50,27 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
         continue-on-error: true # Pages not enabled yet: build and check only
+      - name: Latest badges from ci on main
+        if: github.event_name != 'pull_request'
+        continue-on-error: true # no artifact yet: the badges stay "pending"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          # The ci run that triggered this one first, then the latest ci runs of pushes to main.
+          ids="$RUN_ID $(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --branch main \
+            --event push --status completed --limit 10 --json databaseId --jq '.[].databaseId' || true)"
+          for id in $ids; do
+            rm -rf "$RUNNER_TEMP/ci-badges"
+            if gh run download "$id" -R "$GITHUB_REPOSITORY" -n badges -D "$RUNNER_TEMP/ci-badges"; then
+              echo "badges of ci run $id"
+              exit 0
+            fi
+          done
+          rm -rf "$RUNNER_TEMP/ci-badges"
+          echo "no badges artifact found; the badges stay pending"
+      - name: Badges (checked; pending where ci left none)
+        run: bun scripts/badges.ts --publish "$RUNNER_TEMP/ci-badges" --out site/public/badges
       - name: Build (fails on dead links)
         run: bun run site:build
         env:

@@ -68,6 +68,9 @@ Open the app as for one repository. The top bar shows the folder as **3 reposito
 - **+ New chat** opens the chat in the repository the select names. The agent works there, and before a full run it asks which repository the run belongs to when the code cannot tell.
 - The page of a run always uses the run's own repository.
 
+![Home on a folder of 2 repositories: Approve the plan for Show prices with tax in shop-web, with Approve, Reject and Other](../public/screens/real/real-09-system-plan-card.webp)
+*On a folder, one Home holds the decisions of every repository.*
+
 ## Changes that cross applications
 
 When your applications call each other through APIs, describe how they relate in a system map, `docs/metator/system.yml`, kept in one repository. MetatorAI can propose it from the code of the whole folder:
@@ -89,6 +92,9 @@ metator -C shop system plan run rename-refunds     # start the steps that can st
 ```
 
 The task's page in the app draws the plan as a flow, a lane per repository, and each step's run asks its questions on the same Home ([System plans](../many/plans.md)).
+
+![Terminals for a system task: the chat, the shop-api session, its finished step, and the shop-web step working](../public/screens/real/real-09-system-task-tiles.webp)
+*A system task: one session per repository, each a tile beside the chat.*
 
 ## Next
 

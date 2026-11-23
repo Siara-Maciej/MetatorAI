@@ -115,6 +115,22 @@ describe("the steps of a system plan across repositories (defect 13)", () => {
     expect(systemPlanOf(plans, parent, [a])).toBe(plans[1]);
     expect(systemPlanOf(plans, run("sys2", { task: "Add currency" }), [])).toBe(plans[1]);
     expect(systemPlanOf(plans, run("z"), [])).toBeUndefined();
+    // At its approval, before any step runs, the planner's task is worded its own way: the plan
+    // the daemon names for the run (its id) is the one.
+    const worded = [
+      ...plans,
+      { plan: { id: "show-prices-with-tax", task: "Show prices with tax. Assumptions: …" }, steps: [] },
+    ] as never[];
+    expect(
+      systemPlanOf(
+        worded,
+        run("sys3", {
+          task: "Show prices with tax. Decisions: autonomy L0.",
+          systemPlan: "show-prices-with-tax",
+        }),
+        [],
+      ),
+    ).toBe(worded[2]);
   });
 });
 

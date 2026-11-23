@@ -480,4 +480,54 @@ describe("the Backlog's buttons through the daemon (scenario host)", () => {
     await stopDaemon();
     stopProcessesUnder(at("billing"));
   }, 120_000);
+
+  test("an item analysed in a chat: Make plan and Implement are runs of that chat's thread, not of no chat", async () => {
+    await startDaemon("billing");
+    const chat = await post("/threads", { title: "Mug discount", by: "ana", host: "scenario" });
+    expect(chat.ok).toBe(true);
+    const thread = chat.data.thread as { id: string };
+    const chatPane = (chat.data.pane as { id: string }).id;
+    // The chat records the analysis from its pane: the item belongs to its thread.
+    const recorded = await metator(
+      ["issue", "analyze", "--title", "10% off for 3+ mugs", "--text", "Prices round in src/price.ts:1."],
+      at("billing"),
+      { ...env(), METATOR_PANE_ID: chatPane },
+    );
+    const item = recorded.json.data as { id: string; threadId?: string };
+    expect(item.threadId).toBe(thread.id);
+    const planned = await post(`/issues/${item.id}/plan`, { by: "ana", host: "scenario" });
+    expect(planned.ok).toBe(true);
+    const run = planned.data.runId as string;
+    const inThread = (await api(`/threads/${thread.id}`)).data as {
+      runs: string[];
+      facts: { text: string }[];
+    };
+    expect(inThread.runs).toEqual([run]);
+    expect(inThread.facts.map((f) => f.text)).toContain(`run ${run} started: 10% off for 3+ mugs`);
+    // In the sidebar under its chat, not under "Without a chat".
+    const tree = (await api("/threads")).data as { threads: unknown[]; withoutChat: unknown[] };
+    expect(JSON.stringify(tree.withoutChat)).not.toContain(run);
+    expect(JSON.stringify(tree.threads)).toContain(run);
+    await Bun.write(join(at("billing"), `.metator/runs/${run}/plan.json`), PLAN);
+    for (const event of ["pass", "pass"])
+      expect((await mt("billing", "run", "advance", event, "--run", run)).code).toBe(0);
+    expect(
+      (await mt("billing", "run", "approve", "plan-approval", "--run", run, "--by", "ana")).json.error,
+    ).toBeUndefined();
+    // Implement while the thread is open: the same thread, no new chat.
+    const started = await post(`/issues/${item.id}/start`, {
+      by: "ana",
+      host: "scenario",
+      worktree: false,
+      allowDirty: true,
+    });
+    expect(started.ok).toBe(true);
+    expect(started.data.thread).toEqual({ id: thread.id });
+    expect(((await api(`/threads/${thread.id}`)).data as { runs: string[] }).runs).toEqual([
+      run,
+      started.data.runId as string,
+    ]);
+    await stopDaemon();
+    stopProcessesUnder(at("billing"));
+  }, 120_000);
 });

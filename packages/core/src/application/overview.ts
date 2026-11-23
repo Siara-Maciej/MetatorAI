@@ -1,5 +1,13 @@
-import { attemptsOf, type Question, type RunActivity, type RunStop, stopOf } from "../domain/drive.ts";
+import {
+  attemptsOf,
+  type Question,
+  type RunActivity,
+  type RunStop,
+  stageWork,
+  stopOf,
+} from "../domain/drive.ts";
 import type { MetatorError } from "../domain/errors.ts";
+import { planId } from "../domain/ids.ts";
 import {
   type Attention,
   type AttentionCounts,
@@ -13,6 +21,7 @@ import {
 import { err, ok, type Result } from "../domain/result.ts";
 import { resumableStages } from "../domain/run-record.ts";
 import { type WorkPhase, workPhase } from "../domain/work-phase.ts";
+import type { StageSpec } from "../domain/workflow-spec.ts";
 import type { Clock } from "../ports/index.ts";
 import type { ConversationRepository } from "./ask.ts";
 import type { EnvironmentServices, ServiceReport } from "./environments.ts";
@@ -59,6 +68,11 @@ export interface RunOverview {
   /** The run this one is a step of, and its own steps (linked runs, F7.6). */
   readonly parent?: string;
   readonly children?: readonly string[];
+  /**
+   * The system plan the run carries out (its workflow starts the plan's steps, `system plan run`):
+   * the plan's id, from the run's task, as the plan's approval finds it. Its cards show that plan.
+   */
+  readonly systemPlan?: string;
   /** The host that drives (or drove) the run. */
   readonly host?: string;
   readonly last?: Pick<RunActivity, "at" | "type" | "text" | "stage" | "agent">;
@@ -90,6 +104,12 @@ export interface Overview {
   /** Runs whose record cannot be read: left out of `runs`, with the file to restore or delete. */
   readonly unreadable: readonly UnreadableRun[];
 }
+
+/** The id of the system plan a run of these stages carries out: one of its stages starts the plan's steps. */
+export const systemPlanIdOf = (stages: readonly StageSpec[], task: string): string | undefined =>
+  stages.some((s) => stageWork(s).scripts.some((x) => /\bsystem plan run\b/.test(x)))
+    ? planId(task)
+    : undefined;
 
 /**
  * The run's host session that is alive in a pane, the conductor first: working while it printed
@@ -210,6 +230,10 @@ export class WorkOverview {
         died: active && driver.isOk() && driver.value !== null && !driver.value.alive,
         ...(r.parent ? { parent: r.parent } : {}),
         ...(r.children && r.children.length > 0 ? { children: r.children } : {}),
+        ...(() => {
+          const plan = spec.isOk() ? systemPlanIdOf(spec.value.spec.stages, r.task) : undefined;
+          return plan ? { systemPlan: plan } : {};
+        })(),
         ...(driver.isOk() && driver.value ? { host: driver.value.host } : r.host ? { host: r.host } : {}),
         ...(last
           ? {

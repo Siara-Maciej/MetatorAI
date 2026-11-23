@@ -143,6 +143,9 @@ The daemon serves every repository and worktree of the folder, on one port. Each
 - **+ New chat** opens the chat in the repository the select names, and its thread is kept there. The **Form…** has a **Repository** field.
 - The sidebar lists every task of every repository; a system task shows its steps under the repositories they work in. The page of a run always uses the run's own repository.
 
+![Home on a folder of 2 repositories: Approve the plan for Show prices with tax in shop-web, with Approve, Reject and Other](../public/screens/real/real-09-system-plan-card.webp)
+*On a folder, one Home holds the decisions of every repository.*
+
 Sessions in a folder are on [Terminals and sessions](../use/sessions.md); `metator session tell` and `interrupt` take `--repo` there.
 
 ## Folder or system map

@@ -8,6 +8,9 @@ Click **+ New chat** at the bottom of the sidebar, or press `n`. With nothing go
 
 The chat opens: its terminal fills the main area, under a bar with its title, its word and **Close chat**, and the chat is a row of the sidebar. It is called **New chat** until the agent names it. Its pane runs the repository's conversation agent, `mt-chat`, on the first host of `supervisor.hostOrder` that is installed on the daemon's machine ([Copilot and Claude Code](../guide/hosts.md#which-host-runs-what)). In a repository set up before `mt-chat` existed, the chat opens `mt-orchestrator`; `metator agents update` and `metator generate` bring the new agent. In a folder of repositories the chat opens in the repository the **repository** select names.
 
+![A new chat: Claude Code starts in the chat's terminal, with New chat in the sidebar](../public/screens/real/real-02-new-chat.webp)
+*A new chat: Claude Code runs the conversation agent in the chat's terminal.*
+
 - With no host installed, no chat opens: the app names the programs the daemon looked for. Install one and click **+ New chat** again; the daemon needs no restart.
 - When the host's program exits at once, for example because you are not logged in, the terminal keeps its last output with a red banner such as **Ended with code 3 — its process ended**, and **Retry**.
 
@@ -22,6 +25,15 @@ Text you paste from an issue, a pull request or a chat is data for the task. The
 | Full | everything else | it names the workflow and why, asks what the repository cannot tell it, then starts a [full run](./runs.md); the run's conductor works in its own terminal and the chat stays the task's main terminal |
 
 You decide: name another way ("do it as quick", "use the full workflow") and it takes yours. When `quick check` says no, the agent tells you which limits tripped and suggests the full workflow; you can still keep it quick with a sentence of your own, which is recorded word for word. The agent never commits or pushes by itself ([Approvals and consent](./approvals.md#commit-and-push)).
+
+![The chat answers how GET /prices/{sku} computes the price, citing src/server.ts and src/catalog.ts line by line, and says nothing changed](../public/screens/real/real-02-chat-answer.webp)
+*A question answered in the chat with file:line; nothing changes and nothing starts.*
+
+![The chat answers a small change with: This is too small for the full workflow: do it as quick?, naming the two files it would touch](../public/screens/real/real-04-quick-proposal.webp)
+*The chat checks the change and suggests quick; you decide.*
+
+![Terminals by task: the chat where the task was given on the left, the run's conductor working in its own Claude Code terminal on the right](../public/screens/real/real-06-task-view.webp)
+*A task's terminals: the chat stays the main terminal, the run's conductor works beside it.*
 
 A conversation can look like this:
 

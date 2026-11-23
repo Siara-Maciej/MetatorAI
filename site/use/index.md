@@ -26,7 +26,8 @@ You do not have to run `metator serve` before you open the installed app. The fi
 
 The daemon keeps running after you close the app, because the agents' terminals live in it; stop it with `kill <pid>` (the pid is in `.metator/daemon.json`). The app needs the `metator` program: it uses `METATOR_BIN` when that is set, and otherwise `metator` from your `PATH` (on macOS and Linux as your login shell sees it). When the start does not work, the panel says why under the field.
 
-![The app before the first chat: Home offers Describe a task](../public/screens/home-empty.png)
+![Home before any work: Describe a task with Start and Use the form, and + New chat at the bottom of the sidebar](../public/screens/real/real-01-home-empty.webp)
+*Home before the first chat.*
 
 ## Three levels
 
@@ -69,6 +70,9 @@ The chats follow, and the sidebar is one tree: a chat, its tasks, their reposito
 **Closed (N)**, folded, holds the chats you closed. Closing a chat ends its terminal and never stops its tasks: they go on, and stay under that chat. **▸** unfolds the group; a closed chat's row reads `closed`. Nothing is ever deleted.
 
 Finished tasks are hidden. **Show finished (N)**, at the end of each chat and of **Without a chat**, shows them; a finished run reads `done`, and its line says how it ended (`done`, `aborted`), with the reason on hover.
+
+![The sidebar: the chats Mug discount 3+ and SKU lookup and pricing with its two finished tasks, and a task without a chat](../public/screens/real/real-08-sidebar-threads.webp)
+*The sidebar: each chat with the tasks it started.*
 
 Under the chats are the places that are not a task:
 
@@ -146,3 +150,6 @@ A question that was not in the queue before raises a system notification, "Metat
 ## The Board
 
 **Board** shows every task by phase, in five columns: To do, Planning, In progress, Review and Done ([The Board](./inbox.md#the-board)).
+
+![The Board: a blocked task in To do with Start a run, empty Planning, In progress and Review, and three tasks in Done](../public/screens/real/real-08-board.webp)
+*The Board: every task in the column of its phase.*

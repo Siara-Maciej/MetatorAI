@@ -377,8 +377,25 @@ export function artifactLines(produces: readonly string[], runDir: string, runId
   );
 }
 
+/** The longest task title a card's question names. */
+const TASK_TITLE_MAX = 120;
+
 /**
- * What a human gate asks, in plain words: what is approved and for which run's task, then the
+ * A task's title as a card names it: its first line's first sentence (what the person asked for,
+ * without the details and decisions after it), its closing period off, cut at a word when longer
+ * than a card's heading takes.
+ */
+export function taskTitle(task: string): string {
+  const line = (task.split("\n").find((l) => l.trim() !== "") ?? "").trim().replace(/\s+/g, " ");
+  const sentence = (line.split(/(?<=[.!?])\s+(?=[A-Z0-9"“(])/)[0] ?? line).replace(/\.$/, "");
+  if (sentence.length <= TASK_TITLE_MAX) return sentence;
+  const cut = sentence.slice(0, TASK_TITLE_MAX - 1);
+  const word = cut.lastIndexOf(" ");
+  return `${(word > TASK_TITLE_MAX / 2 ? cut.slice(0, word) : cut).trimEnd()}…`;
+}
+
+/**
+ * What a human gate asks, in plain words: what is approved and for which run's task (its title), then the
  * stage's own description. A gate that grants an external action approves that action; a stage
  * named `<thing>-approval` approves the thing; any other approves what the stage before it did.
  */
@@ -387,8 +404,7 @@ export function gateQuestion(
   task: string,
   before?: string,
 ): string {
-  const line = (task.split("\n").find((l) => l.trim() !== "") ?? "").trim();
-  const short = line.length > 120 ? `${line.slice(0, 119)}…` : line;
+  const short = taskTitle(task);
   const grants = stage.grants ?? [];
   const named = /^(.+)-approval$/.exec(stage.id)?.[1];
   const what =

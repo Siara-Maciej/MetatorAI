@@ -11,7 +11,7 @@ export type GuardAskedDecision = "ask" | "deny";
 
 /**
  * Why the guard asked about (or refused) a pane's commands lately (`.metator/guard-asked/<pane>.json`):
- * the command's hash, never the command, with the guard's own reason. A host does not always show
+ * the command's hash (its spacing left out), never the command, with the guard's own reason. A host does not always show
  * a hook's reason in its prompt (Claude Code does not); the daemon reads it from here and puts it
  * on the card that prompt becomes.
  */
@@ -32,6 +32,12 @@ export const GuardAskedDocument = defineDocument("GuardAsked", {
 /** How long a reason is kept (a prompt is answered within minutes), and how many per pane. */
 const KEPT_MS = 10 * 60_000;
 const KEPT = 20;
+
+/**
+ * A command's hash, whatever its spacing: the hook gets the command as it runs, the daemon reads it
+ * from the host's screen, where a line break may be a space, a wrapped row or nothing at all.
+ */
+const commandHash = (command: string): string => typedDigest(command.replace(/\s+/g, ""));
 
 const fileOf = (paneId: string): string =>
   `.metator/guard-asked/${paneId.replace(/[^A-Za-z0-9._-]+/g, "-")}.json`;
@@ -69,7 +75,7 @@ export class GuardAsked {
     if (held.isErr()) return err(held.error);
     const now = this.clock.now();
     const fresh = (held.value?.asked ?? []).filter((a) => now.getTime() - Date.parse(a.at) < KEPT_MS);
-    const asked = [...fresh, { hash: typedDigest(command), at: now.toISOString(), decision, reason }].slice(
+    const asked = [...fresh, { hash: commandHash(command), at: now.toISOString(), decision, reason }].slice(
       -KEPT,
     );
     return writeDocument(this.fs, file, GuardAskedDocument, { asked }, "json");
@@ -83,7 +89,7 @@ export class GuardAsked {
     if (command.trim() === "") return undefined;
     const held = await readDocument(this.fs, fileOf(paneId), GuardAskedDocument, "json");
     if (held.isErr() || !held.value) return undefined;
-    const hash = typedDigest(command);
+    const hash = commandHash(command);
     const now = this.clock.now().getTime();
     const found = held.value.asked.findLast((a) => a.hash === hash && now - Date.parse(a.at) < KEPT_MS);
     return found ? { decision: found.decision, reason: found.reason } : undefined;

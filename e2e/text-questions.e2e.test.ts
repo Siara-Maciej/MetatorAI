@@ -24,6 +24,15 @@ agents:
       - say: "  2. Stop the run."
       - run: 'read -r line; printf "answer: %s\\n" "$line"'
       - run: 'sleep 120'
+  mt-chat:
+    - - say: "● Which rounding should the EUR price use?"
+      - say: ""
+      - say: "  1. Half-up to the nearest cent."
+      - say: "  2. Banker's rounding to the nearest cent."
+      # While it waits, the host writes to its terminal once more (Claude Code sets its title,
+      # redraws its status line): output that changes nothing on the screen.
+      - run: '(sleep 4; printf "\\033]0;mt-chat\\007") & read -r line; printf "heard: %s\\n" "$line"'
+      - run: 'sleep 120'
 `;
 
 let repo: ScratchRepo;
@@ -150,5 +159,37 @@ describe("an agent's question in words reaches the person (real daemon, scenario
     });
     expect(asHost.json).toBeNull();
     await metator(["run", "close", "--run", runId, "--aborted", "--reason", "the test ends it"], repo.root);
+  }, 60_000);
+
+  test("the chat asks in words; the host writes to its terminal while it waits: the card stays, and its words reach the chat", async () => {
+    const opened = (await (
+      await fetch(`${base}/panes`, {
+        method: "POST",
+        body: JSON.stringify({ label: "chat", role: "apps", host: "scenario", agent: "mt-chat" }),
+      })
+    ).json()) as { ok: boolean; data: { id: string } };
+    expect(opened.ok).toBe(true);
+    const paneId = opened.data.id;
+    const item = await until("the chat's question in the inbox", async () =>
+      (await items()).find((i) => i.paneId === paneId),
+    );
+    expect([item.question.source, item.question.prompt]).toEqual([
+      "agent",
+      "Which rounding should the EUR price use?",
+    ]);
+    // Past the host's late output (4 s after it started waiting): still asked.
+    await Bun.sleep(4500);
+    expect((await items()).find((i) => i.paneId === paneId)?.question.id).toBe(item.question.id);
+    const answered = (await (
+      await fetch(`${base}/panes/${paneId}/answer`, {
+        method: "POST",
+        body: JSON.stringify({ question: item.question.id, choices: [], text: "neither for now", by: "ana" }),
+      })
+    ).json()) as { ok: boolean; error?: { message: string } };
+    expect([answered.ok, answered.error?.message]).toEqual([true, undefined]);
+    await until("the chat to read the words", async () =>
+      (await text(paneId)).includes("heard: neither for now") ? true : undefined,
+    );
+    await fetch(`${base}/panes/${paneId}/close`, { method: "POST", body: "{}" });
   }, 60_000);
 });

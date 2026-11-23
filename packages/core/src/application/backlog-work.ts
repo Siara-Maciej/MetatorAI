@@ -260,6 +260,8 @@ export class BacklogWork {
         ...(input.session?.host ? { host: input.session.host } : {}),
       });
       if (planned.isErr()) return err(planned.error);
+      const linked = await this.inOpenThread(item, planned.value.run);
+      if (linked.isErr()) return err(linked.error);
       return this.planStarted(id, planned.value.run, planned.value);
     }
     const text = item.analysis ? await this.d.fs.read(item.analysis.file) : undefined;
@@ -273,6 +275,9 @@ export class BacklogWork {
       ...(input.session ? { session: input.session } : {}),
     });
     if (started.isErr()) return err(started.error);
+    // The plan is the item's next step in its thread (the chat that analysed it): the run is listed there.
+    const linked = await this.inOpenThread(item, started.value.runId);
+    if (linked.isErr()) return err(linked.error);
     return this.planStarted(id, started.value.runId, started.value);
   }
 
@@ -372,6 +377,18 @@ export class BacklogWork {
     });
   }
 
+  /** The item's thread, when it has one and it is open, lists the run (with a fact); else nothing changes. */
+  private async inOpenThread(
+    item: Pick<Issue, "threadId" | "title">,
+    runId: string,
+  ): Promise<Result<Thread | undefined, MetatorError>> {
+    const threads = this.d.threads;
+    if (!threads || !item.threadId) return ok(undefined);
+    const thread = (await threads.show(item.threadId)).unwrapOr(undefined as never);
+    if (thread?.state !== "open") return ok(undefined);
+    return threads.addRun(thread.id, runId, item.title);
+  }
+
   /** The thread the item's run belongs to: its own while open, else a new one that says where it comes from. */
   private async continueIn(
     item: Issue,
@@ -380,13 +397,12 @@ export class BacklogWork {
   ): Promise<Result<{ readonly id: string; readonly paneId?: string } | undefined, MetatorError>> {
     const threads = this.d.threads;
     if (!threads) return ok(undefined);
+    const open = await this.inOpenThread(item, runId);
+    if (open.isErr()) return err(open.error);
+    if (open.value) return ok({ id: open.value.id });
     const old: Thread | undefined = item.threadId
       ? (await threads.show(item.threadId)).unwrapOr(undefined as never)
       : undefined;
-    if (old && old.state === "open") {
-      const added = await threads.addRun(old.id, runId, item.title);
-      return added.map((t) => ({ id: t.id }));
-    }
     const made = await threads.create({
       title: item.title.slice(0, 80),
       by: input.by,

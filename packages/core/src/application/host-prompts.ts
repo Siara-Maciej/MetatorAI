@@ -1,4 +1,4 @@
-import { agentQuestionOf } from "../domain/agent-question.ts";
+import { agentQuestionOf, lastMessageOf } from "../domain/agent-question.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { MenuChoice } from "../domain/host-manifest.ts";
 import {
@@ -90,6 +90,26 @@ const OTHER_CHOICE = "Other";
 
 /** A question kept with the pane's own (a pane without a run, or an agent's question in words). */
 const inPane = (item: OpenPrompt): boolean => !item.runId || item.said !== undefined;
+
+/** The same message, however the terminal wraps it (a resize, a redraw at another width). */
+const sameMessage = (a: string, b: string): boolean =>
+  a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
+
+/**
+ * An agent's question in words still waits on this screen: its message is the agent's last one.
+ * Idle, the screen must ask it; at work (output just now: a redraw, a status line, a title, a
+ * hook), only another last message (the person's words under it, the agent's next one) says it
+ * was answered, never the output alone.
+ */
+function stillAsks(state: string, rendered: string, message: string): boolean {
+  if (state === "exited" || state === "blocked") return false;
+  if (state === "idle") {
+    const asks = agentQuestionOf(rendered);
+    return asks !== undefined && sameMessage(asks.text, message);
+  }
+  const last = lastMessageOf(rendered);
+  return last === undefined || sameMessage(last, message);
+}
 
 export class HostPrompts {
   /** The inbox item per blocked pane; `handled` once the person answered it (attached or left it). */
@@ -274,24 +294,26 @@ export class HostPrompts {
   ): Promise<Result<"asking" | "closed" | "none", MetatorError>> {
     const item = this.open.get(pane.paneId);
     if (!this.d.panes || !this.d.rendered || !AGENT_ROLES.has(pane.role)) return ok("none");
-    const read =
-      pane.state === "idle" ? agentQuestionOf((await this.d.rendered(pane.paneId)) ?? "") : undefined;
+    const rendered = pane.state === "idle" || item?.said ? ((await this.d.rendered(pane.paneId)) ?? "") : "";
+    const read = pane.state === "idle" ? agentQuestionOf(rendered) : undefined;
     if (item?.said) {
-      if (read && read.text === item.prompt) {
-        if (!item.handled) {
+      if (stillAsks(pane.state, rendered, item.prompt)) {
+        // Typed only once the agent waits at its prompt again.
+        if (!item.handled && pane.state === "idle") {
           const done = await this.followUp(pane.paneId, item, []);
           if (done.isErr()) return err(done.error);
         }
         return ok("asking");
       }
-      // The agent works again, or asks something else: the question was answered.
+      // The agent works on another message, or asks something else: the question was answered.
       const closed = await this.close(pane.paneId, item);
       if (closed.isErr()) return err(closed.error);
       if (!read) return ok("closed");
     } else if (item) return ok("none");
     if (!read) return ok("none");
     // The same message again (answered, or left): not asked twice.
-    if (this.d.panes.latest(pane.paneId)?.text === read.text) return ok("none");
+    const latest = this.d.panes.latest(pane.paneId)?.text;
+    if (latest !== undefined && sameMessage(latest, read.text)) return ok("none");
     const who = await this.d.identity?.of(pane.paneId);
     const q = this.d.panes.ask({
       paneId: pane.paneId,
@@ -348,7 +370,7 @@ export class HostPrompts {
       if (panes.isErr()) return err(panes.error);
       const pane = panes.value.find((p) => p.paneId === input.paneId);
       const gone = item.said
-        ? pane?.state !== "idle"
+        ? !pane || !stillAsks(pane.state, (await this.d.rendered?.(input.paneId)) ?? "", item.prompt)
         : pane?.state !== "blocked" || pane.reason !== item.prompt || this.answeredThere(input.paneId, item);
       if (gone) {
         const closed = await this.close(input.paneId, item);

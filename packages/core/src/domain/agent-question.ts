@@ -1,3 +1,5 @@
+import { withoutSidePanel } from "./host-manifest.ts";
+
 /**
  * A question an agent asks the person in its own words, at the end of its turn (ADR-0091): its
  * last message, read from the rendered screen, ends with a question mark, offers numbered,
@@ -60,28 +62,22 @@ const LABELLED = /^\(([a-h]|\d{1,2})\)\s/;
 const FACT = /^[^:"“”]{2,40}:\s/;
 const SENTENCE_END = /(?<=[.!?])\s+(?=["“(A-Z0-9])/;
 
-/**
- * The rows without a panel drawn at their right (Claude Code's diff panel): when most rows have
- * the border `│` in one column, everything from that column on is no part of the message.
- */
-function withoutSidePanel(rows: readonly string[]): string[] {
-  const columns = new Map<number, number>();
-  let bordered = 0;
-  for (const row of rows) {
-    const at = row.indexOf("│");
-    if (at < 0) continue;
-    bordered++;
-    for (let i = at; i >= 0; i = row.indexOf("│", i + 1)) columns.set(i, (columns.get(i) ?? 0) + 1);
-  }
-  const [column, count] = [...columns.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0] ?? [-1, 0];
-  // A column only a few rows share is a character of the text, not a border.
-  if (column < 20 || count < 3 || count < bordered / 2) return [...rows];
-  return rows.map((row) => (row[column] === "│" ? row.slice(0, column).trimEnd() : row));
+/** The agent's last message on the screen, its lines as shown (indent taken off). */
+interface LastMessage {
+  readonly lines: readonly string[];
+  readonly text: string;
+  /** Its start is not on the screen (a message longer than its pane, another host). */
+  readonly cut: boolean;
 }
 
-/** The question the agent's last message asks the person, if it asks one. */
-export function agentQuestionOf(screen: string): AgentQuestionRead | undefined {
-  const rows = withoutSidePanel(screen.split("\n").map((r) => r.trimEnd()));
+/**
+ * The agent's last message on a rendered screen, above its input box, without the status lines
+ * under it (a spinner, a tool's output); undefined when the screen shows none.
+ */
+function lastMessage(screen: string): LastMessage | undefined {
+  const rows = withoutSidePanel(screen)
+    .split("\n")
+    .map((r) => r.trimEnd());
   // Above the input box, when there is one; else to the end.
   let end = rows.length - 1;
   for (let i = rows.length - 1; i >= 0; i--)
@@ -113,7 +109,22 @@ export function agentQuestionOf(screen: string): AgentQuestionRead | undefined {
   );
   const lines = block.map((l) => l.slice(indent));
   const text = lines.join("\n").trim();
-  if (text === "") return undefined;
+  return text === "" ? undefined : { lines, text, cut };
+}
+
+/**
+ * The words of the agent's last message on the screen, whatever it says (a question, a report, a
+ * tool call); undefined when the screen shows none (cleared, mid-redraw).
+ */
+export function lastMessageOf(screen: string): string | undefined {
+  return lastMessage(screen)?.text;
+}
+
+/** The question the agent's last message asks the person, if it asks one. */
+export function agentQuestionOf(screen: string): AgentQuestionRead | undefined {
+  const last = lastMessage(screen);
+  if (!last) return undefined;
+  const { lines, text, cut } = last;
   // A cut message begins inside something: the lines under an item that scrolled off say nothing alone.
   const margin = cut ? lines.findIndex((l) => l !== "" && !l.startsWith(" ")) : 0;
   const parts = partsOf(lines.slice(Math.max(0, margin)));

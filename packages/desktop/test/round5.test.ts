@@ -411,6 +411,13 @@ describe("the board", () => {
       systemRunOf(owner(), [run("sys2", { workflow: "mt-system-change", task: "Add a currency to prices" })])
         ?.runId,
     ).toBe("sys2");
+    // Its task worded otherwise than the plan's: the run the daemon names for the plan's id.
+    const named = owner();
+    expect(
+      systemRunOf(named, [
+        run("sys3", { workflow: "mt-system-change", task: "Another wording", systemPlan: named.plan.id }),
+      ])?.runId,
+    ).toBe("sys3");
     const list = [
       { id: "a", status: "running", updatedAt: null },
       { id: "b", status: "done", updatedAt: "2026-11-18T01:00:00.000Z" },

@@ -1,99 +1,101 @@
+[![build](https://github.com/Siara-Maciej/MetatorAI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Siara-Maciej/MetatorAI/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/endpoint?url=https://siara-maciej.github.io/MetatorAI/badges/tests.json)](https://siara-maciej.github.io/MetatorAI/repo/gates-ci#the-metatorai-readme-badges)
+[![coverage](https://img.shields.io/endpoint?url=https://siara-maciej.github.io/MetatorAI/badges/coverage.json)](https://siara-maciej.github.io/MetatorAI/repo/gates-ci#the-metatorai-readme-badges)
+[![mutants killed](https://img.shields.io/endpoint?url=https://siara-maciej.github.io/MetatorAI/badges/mutation.json)](https://siara-maciej.github.io/MetatorAI/repo/gates-ci#the-metatorai-readme-badges)
+[![docs](https://img.shields.io/badge/docs-siara--maciej.github.io%2FMetatorAI-blue)](https://siara-maciej.github.io/MetatorAI/)
+
 # MetatorAI
 
-MetatorAI is a desktop app for working with AI coding agents on Claude Code or GitHub Copilot CLI. You talk to an agent in a chat. It answers from the code, edits directly what is not meant for a commit, or carries a change through a workflow with a plan, tests, gates and a review, in terminals you can watch. It stops where the decision is yours: the plan, a commit, a push, a comment on a pull request. It works in one repository or across many.
+MetatorAI is a desktop app where you talk to AI coding agents on Claude Code or GitHub Copilot CLI, watch them work in real terminals, and decide yourself everything that matters: the plan, a commit, a push.
 
-![The app: a chat and its tasks in the sidebar, and a plan to approve on Home](site/public/screens/home.png)
+Everything runs on your machine, in your own repositories. The pictures below are the real app with real Claude Code sessions.
 
-Status: pre-alpha. Commands and file formats can still change.
+## What it does for you
 
-## Install
+### Talk to an agent about your code
 
-MetatorAI runs from a checkout and needs [Bun](https://bun.sh) 1.4 or newer and git. Your own project can use npm, pnpm, Yarn or Bun. The agents run on the Claude Code CLI (`claude`) or the GitHub Copilot CLI (`copilot`), installed and logged in.
+Click **+ New chat** and ask, as you would ask a colleague. The agent reads your code and answers with the file and line it found the answer in. A question changes nothing and starts nothing.
+
+![A chat in the app: Claude Code answers how a price is computed, citing src/server.ts and src/catalog.ts line by line](site/public/screens/real/real-02-chat-answer.webp)
+
+### A quick fix or a full workflow: you decide
+
+For each request the agent suggests the lightest way that fits, and asks. A small change meant to stay can be a **quick** change: it is made, your own checks run on it, one reviewer reads it, and you get the diff to look at. Anything bigger goes through a **full** workflow: a plan, your approval, tests and code, your checks, a review, and your approval before it ships. Whether a change is small enough is decided by a command, not by the model, and you can always pick the other way.
+
+![The chat suggests a quick change: "This is too small for the full workflow: do it as quick?", with the two files it would touch](site/public/screens/real/real-04-quick-proposal.webp)
+
+### Debug edits, removed in one click
+
+Ask for a temporary `console.log` and the agent adds it at once, and records it. Home shows **Debug changes** until you are done; **Remove debug changes** takes the lines back out of your files and leaves the rest of your work alone. A commit that would take a debug line by accident is stopped.
+
+![The Debug changes list: the file, what the edit was for and when, with Remove and Remove debug changes](site/public/screens/real/real-03-debug-changes-list.webp)
+
+### Nothing is committed or pushed without your yes
+
+A `git commit`, `push`, `merge` or `rebase` runs only when you say so: **Yes** on its card, your own words in the chat ("commit it"), or your approval of a finished run. Destructive commands such as `git push --force` or `git reset --hard` are refused outright. This holds for every agent, on Claude Code and on Copilot CLI.
+
+![Home: Claude Code asks to run git commit; the card says it needs your consent, with Yes, No, Attach and answer in the pane, and Leave it](site/public/screens/real/real-05-permission-card.webp)
+
+### Questions and approvals come to you as cards
+
+You do not have to watch the agents. When one needs you (a plan to approve, a question, a permission prompt from Claude Code or Copilot, a quick change to look at), it comes to **Home** as a card, one at a time, with a recommended answer. Answer there and the agent goes on; a system notification tells you when something new waits.
+
+![Home: "Quick change ready: look at the diff", with Open diff, Fine and Other, and 2 waiting](site/public/screens/real/real-04-quick-ready-card.webp)
+
+### Watch every agent's real terminal, task by task
+
+Every agent works in a real terminal of your AI tool. **Terminals** shows a task's terminals side by side: the run's conductor, the planner that finished, the implementer at work. Read along, take the keyboard, or type to an agent yourself. A finished terminal stays on screen with a line that says how it ended.
+
+![Terminals: the conductor, the finished planner and the implementer working, each in its own Claude Code terminal](site/public/screens/real/real-06-session-build.webp)
+
+### Plans you approve
+
+A full run writes a plan before it touches the code: each step with its file, what changes and which test comes first. The run stops until you read it. **Approve** lets it build; **Ask for changes** sends your words back to the planner, which writes a new plan.
+
+![Home: the plan to approve, five steps with their files and tests, Approve and Ask for changes above it](site/public/screens/real/real-06-plan-card.webp)
+
+### A Backlog with analysis and plans on demand
+
+Keep tasks for later in the **Backlog**. **Analyse** has an agent read the code for a task and write down what exists today, what the change touches and its risks. **Make plan** has the plan written and approved without building anything yet. A badge says whether the analysis and the plan still match the code. **Implement** starts the work from that plan when you are ready.
+
+![The Backlog: a task with its fresh analysis and its plan ready, with Re-analyse, Make plan and Implement](site/public/screens/real/real-07-backlog-plan-ready.webp)
+
+### One task across several repositories
+
+Work from a folder that holds several repositories with one app and one Home. When a change crosses applications that call each other, MetatorAI makes it a system plan: one step per repository, in the order they must ship, each step a run in its own repository with a terminal you can watch.
+
+![Terminals for a task over two repositories: the chat, and one session each for shop-api and shop-web](site/public/screens/real/real-09-system-task-tiles.webp)
+
+### Works with Claude Code or GitHub Copilot CLI
+
+MetatorAI does not replace your AI tool: it runs it. Setup finds the tool your repository already uses, or the one installed on your machine, and writes the agents, skills and safety hooks for Claude Code, Copilot CLI, or both.
+
+![A new chat: Claude Code starts in the app's terminal, ready for the first question](site/public/screens/real/real-02-new-chat.webp)
+
+## Get started
+
+You need [Bun](https://bun.sh) 1.4 or newer, git, and Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), installed and logged in.
 
 ```bash
 git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
 cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)   # puts `metator` on your PATH
-metator version
+
+cd ~/code/your-project
+metator setup     # once per repository; commit the result
+metator serve     # the local service the app talks to
 ```
 
-The desktop app's installers (Windows, macOS, Linux) are built by this repository's `desktop` workflow and kept as its artifacts; a `desktop-v*` tag puts them on a release. From the checkout, `cd packages/desktop && bun run tauri dev` runs the window, and `bun run dev` serves it to a browser. See [Get the desktop app](https://siara-maciej.github.io/MetatorAI/guide/desktop-app).
-
-## One repository
-
-```bash
-cd ~/code/shop
-metator setup      # config, agents, skills, workflows, host files and hooks; commit the result
-metator doctor     # what a run can and cannot do here, and the fix for each
-metator serve      # the local daemon the app talks to, on http://127.0.0.1:4310
-```
-
-Open the app and click **+ New chat** (or press `n`). Tell the agent what you want. For each request it suggests the lightest way that fits, and you decide:
-
-| Way | For | What happens |
-|---|---|---|
-| Direct | questions, and edits not meant for a commit (debug output) | an answer with `file:line`, or an edit recorded so `metator scratch drop` takes it out again |
-| Quick | a small change meant to stay | `metator quick start`: the change, the quick gate, one short review; it ends with an uncommitted diff you look at |
-| Full | everything else | a workflow (`mt-feature`, `mt-bugfix`, `mt-refactor`, …): plan, your approval, tests and code, gates, review, your approval of the delivery |
-
-The agent never commits or pushes by itself: a commit or a push runs only on your word in the chat or your **Yes** on its card. Decisions that wait for you come to **Home**, one at a time.
-
-## Many repositories
-
-Set up each repository, then work from the folder that holds them:
-
-```bash
-cd ~/work/shop    && metator setup
-cd ~/work/billing && metator setup
-cd ~/work
-metator repos init     # writes metator.repos.yml from the repositories below; never overwrites
-metator repos list     # each repository, whether MetatorAI is set up in it, and its worktrees
-metator serve          # one daemon for the whole folder
-```
-
-The app then shows every repository's decisions on one Home, with a repository select on Terminals, Backlog, Reviews and Settings. Your own git worktrees in the folder (`git worktree add ../shop-fix`) are counted under their repository, not as new ones. In the folder, `metator status`, `inbox`, `ask` and `repos status` cover every repository; any other command runs inside one repository or with `-C <repository>`.
-
-When applications depend on each other through APIs, describe them in a system map (`metator system discover`, `docs/metator/system.yml`). A change that crosses them becomes a system plan: one step per application, in deploy order, each step a run in its own repository that you can watch.
-
-```bash
-metator -C shop system plan new "Rename refunds"          # a draft from the map's policies
-metator -C shop system plan approve rename-refunds        # you, never an agent
-metator -C shop system plan run rename-refunds            # start the steps that can start
-```
-
-## Everything is also a command
-
-The app is a window over the `metator` command, which agents and CI call too:
-
-```bash
-metator status                          # every run and what it needs now
-metator inbox                           # every decision that waits for you
-metator quick start --task "Round prices half-up" --files src/price.ts
-metator run                             # start a full run in the terminal and follow it
-metator ask "How is the discount computed?"
-metator help --verbs                    # the commands a person types, by what you want to do
-```
+Then open the desktop app and click **+ New chat**. Installers for Windows, macOS and Linux, and other ways to run the app, are on [Get the desktop app](https://siara-maciej.github.io/MetatorAI/guide/desktop-app). [Start with one repository](https://siara-maciej.github.io/MetatorAI/guide/first-run) walks you through the first chat.
 
 ## Documentation
 
 **[siara-maciej.github.io/MetatorAI](https://siara-maciej.github.io/MetatorAI/)**
 
-| To | Read |
-|---|---|
-| Install and take a first task through | [Install](https://siara-maciej.github.io/MetatorAI/guide/install), [Start with one repository](https://siara-maciej.github.io/MetatorAI/guide/first-run) |
-| Work across several repositories | [Start with many repositories](https://siara-maciej.github.io/MetatorAI/guide/many), [Folder of repositories](https://siara-maciej.github.io/MetatorAI/many/), [System plans](https://siara-maciej.github.io/MetatorAI/many/plans) |
-| Use the app day to day | [The app](https://siara-maciej.github.io/MetatorAI/use/), [Chats and the three ways](https://siara-maciej.github.io/MetatorAI/use/start), [Home and the Board](https://siara-maciej.github.io/MetatorAI/use/inbox) |
-| Approvals, consent and guards | [Approvals and consent](https://siara-maciej.github.io/MetatorAI/use/approvals), [Hooks and guardrails](https://siara-maciej.github.io/MetatorAI/repo/hooks) |
-| Teach MetatorAI your repository | [Rules](https://siara-maciej.github.io/MetatorAI/repo/), [Gates and CI](https://siara-maciej.github.io/MetatorAI/repo/gates-ci) |
-| Look up a command, a setting or a route | [Reference](https://siara-maciej.github.io/MetatorAI/reference/) |
+- [Install](https://siara-maciej.github.io/MetatorAI/guide/install) and [Start with one repository](https://siara-maciej.github.io/MetatorAI/guide/first-run)
+- [Start with many repositories](https://siara-maciej.github.io/MetatorAI/guide/many) and [System plans](https://siara-maciej.github.io/MetatorAI/many/plans)
+- [The app](https://siara-maciej.github.io/MetatorAI/use/), [Chats and the three ways](https://siara-maciej.github.io/MetatorAI/use/start), [Home and the Board](https://siara-maciej.github.io/MetatorAI/use/inbox)
+- [Approvals and consent](https://siara-maciej.github.io/MetatorAI/use/approvals)
+- [Teach MetatorAI your repository](https://siara-maciej.github.io/MetatorAI/repo/)
+- [Reference](https://siara-maciej.github.io/MetatorAI/reference/): commands, configuration, troubleshooting
 
-## Contributing
-
-```bash
-bun install
-bun run check        # lint, types, architecture rules, canon, unit and end-to-end tests, mutation smoke
-bun run site:dev     # the documentation at http://localhost:5173/MetatorAI/
-```
-
-The code is a Bun monorepo built as ports and adapters: `core` holds the domain and use cases, plugins implement ports and import only `@metator/core`, `runtime` wires them, `cli` and `desktop` are the entry points. Architecture rules (`bun run arch`) enforce the direction in CI. Every file MetatorAI reads as data is a versioned document, and nothing is done until it is proven with unit tests, an end-to-end test on a real repository, and a green `bun run check`.
-
-Instructions for working in this repository are in [`AGENTS.md`](AGENTS.md). Design documents (in Polish) are in [`docs/`](docs/README.md), decisions in [`docs/adr/`](docs/adr/README.md).
+Want to work on MetatorAI itself? Start with [`AGENTS.md`](AGENTS.md).

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  CLAUDE_APPROVAL_COMMIT_PANEL_SCREEN,
   CLAUDE_APPROVAL_COMMIT_SCREEN,
   CLAUDE_APPROVAL_GUTTER_WRAPPED_SCREEN,
   CLAUDE_APPROVAL_MULTILINE_SCREEN,
@@ -9,9 +10,10 @@ import {
   CLAUDE_COMMIT_COMMAND,
   CLAUDE_GUTTER_WRAPPED_COMMAND,
   CLAUDE_MULTILINE_COMMAND,
+  CLAUDE_PANEL_COMMIT_COMMAND,
   CLAUDE_WRAPPED_COMMAND,
 } from "@metator/testing";
-import { readHostPrompt } from "../src/domain/host-manifest.ts";
+import { readHostPrompt, withoutSidePanel } from "../src/domain/host-manifest.ts";
 
 // The screens as rendered rows; rendering bytes is the ScreenRenderer's (its contract, and the
 // real Claude screens through @xterm/headless, are in plugin-node's tests).
@@ -64,6 +66,32 @@ describe("readHostPrompt: a host's prompt as one readable line and its numbered 
       'git add src/server.ts && git commit -m "Log sku in GET /prices handler (debug) — This command requires approval',
     );
     expect(read.text).not.toContain("│");
+  });
+
+  test("Claude Code 2.1.330 with its diff panel open: the panel's border is no part of the command, nor the gutter, and the message's blank line is kept", () => {
+    const read = readHostPrompt(CLAUDE_APPROVAL_COMMIT_PANEL_SCREEN, "Do you want to proceed?");
+    expect(read.command).toBe(CLAUDE_PANEL_COMMIT_COMMAND);
+    expect(read.text).toBe(
+      'git add src/server.ts && git commit -m "debug: log the sku in GET /prices handler — This command requires approval',
+    );
+    expect(read.options.map((o) => o.label)).toEqual(["Yes", "No"]);
+    // A panel with words on the command's rows too: still the command alone.
+    const busy = CLAUDE_APPROVAL_COMMIT_PANEL_SCREEN.split("\n")
+      .map((row) => (row.endsWith("│") ? `${row} 12    if (amountCents === undefined)` : row))
+      .join("\n");
+    expect(readHostPrompt(busy, "Do you want to proceed?").command).toBe(CLAUDE_PANEL_COMMIT_COMMAND);
+  });
+
+  test("withoutSidePanel: rows cut at a border most rows share; a gutter, a box or a stray bar is kept", () => {
+    const panel = ["first line".padEnd(30), "second".padEnd(30), "third".padEnd(30)].map((r) => `${r}│ diff`);
+    expect(withoutSidePanel(panel.join("\n"))).toBe("first line\nsecond\nthird");
+    // A wide character before the border: the border one string index to the left.
+    expect(withoutSidePanel([...panel, `${"日本".padEnd(29)}│ diff`].join("\n")).split("\n")[3]).toBe("日本");
+    // Claude's gutter (column 2) is no panel; nor is one bar in the text.
+    const gutter = ['  │ git commit -m "a', "  │", '  │ b"'].join("\n");
+    expect(withoutSidePanel(gutter)).toBe(gutter);
+    const stray = ["a table | with one │ in it, far enough to the right of the screen", "plain"].join("\n");
+    expect(withoutSidePanel(stray)).toBe(stray);
   });
 
   test("a quoted argument Claude wrapped at words behind its gutter is one line again, its words apart", () => {

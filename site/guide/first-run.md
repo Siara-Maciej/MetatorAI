@@ -55,11 +55,15 @@ metator serve
 
 The installed desktop app starts the daemon itself once you named the repository's folder in it ([The app](../use/index.md#the-app-starts-the-daemon-itself)), so this step is for the browser and for scripts. The daemon listens on `http://127.0.0.1:4310`. Leave it running and open the app. The top bar reads **connected**, and Home offers **Describe a task**.
 
+![Home before any work: Describe a task with Start and Use the form, and + New chat at the bottom of the sidebar](../public/screens/real/real-01-home-empty.webp)
+*Home before the first chat.*
+
 ## Open a chat
 
 Click **+ New chat** at the bottom of the sidebar (or press `n`). The chat opens: a terminal in which the conversation agent, `mt-chat`, runs on your AI tool. The daemon takes the first installed host of `supervisor.hostOrder` (`copilot`, `claude`, `opencode` by default). When none is installed, no chat opens and the app says which programs it looked for.
 
-![A chat: the conversation agent in its terminal, with the tasks it started under it](../public/screens/chat.png)
+![A new chat: Claude Code starts in the chat's terminal, with New chat in the sidebar](../public/screens/real/real-02-new-chat.webp)
+*A new chat: Claude Code runs the conversation agent in the chat's terminal.*
 
 Write in the terminal as you would talk to a colleague. For each thing you ask, the agent suggests one of three ways, and you decide.
 
@@ -71,6 +75,12 @@ Write in the terminal as you would talk to a colleague. For each thing you ask, 
 
 The answer cites `file:line` and starts nothing. If you ask for a change that is not meant for a commit, such as a `console.log` to trace a call, the agent makes it at once and records it as a debug change: **Debug changes (N)** on Home lists it, with **Remove debug changes**, and no commit can take it by accident ([Quick and debug changes](../use/quick.md#debug-changes)).
 
+![The chat answers how GET /prices/{sku} computes the price, citing src/server.ts and src/catalog.ts line by line, and says nothing changed](../public/screens/real/real-02-chat-answer.webp)
+*A question answered in the chat with file:line; nothing changes and nothing starts.*
+
+![The chat adds a console.log to src/server.ts at once, shows the one-line diff, and says it is recorded as a temporary edit](../public/screens/real/real-03-debug-edit.webp)
+*A debug line made at once and recorded, so it can be taken out again.*
+
 ### A small change: quick
 
 ```text
@@ -81,6 +91,12 @@ The answer cites `file:line` and starts nothing. If you ask for a change that is
 
 Before it asks, the agent runs `metator quick check`: a command, not the model, decides whether the change is small enough (at most 5 files and 150 changed lines by default, no new dependency, no public API, and more). On yes it starts `metator quick start`. A worker makes the change in its own terminal, the quick gate runs on the changed files, and one reviewer reads the diff once. Then Home shows **Quick change ready: look at the diff**: **Open diff** shows it, **Fine** ends the run. Nothing is committed; commit it yourself, or ask the agent to ([commit and push](../use/approvals.md#commit-and-push)).
 
+![The chat answers a small change with: This is too small for the full workflow: do it as quick?, naming the two files it would touch](../public/screens/real/real-04-quick-proposal.webp)
+*The chat checks the change and suggests quick; you decide.*
+
+![Home: Quick change ready: look at the diff, with Open diff, Fine and Other](../public/screens/real/real-04-quick-ready-card.webp)
+*The quick run's last card: look at the diff, then Fine.*
+
 ### A larger change: full
 
 ```text
@@ -89,11 +105,18 @@ Before it asks, the agent runs `metator quick check`: a command, not the model, 
 
 The agent names the workflow that fits, here `mt-feature`, says why, and asks only what the repository cannot tell it, with the recommended answer first: the autonomy, and whether the run gets its own worktree. Answer, and it starts the run. The run's conductor opens in its own terminal and the chat stays where you talk.
 
+![Terminals by task: the chat where the task was given on the left, the run's conductor working in its own Claude Code terminal on the right](../public/screens/real/real-06-task-view.webp)
+*A task's terminals: the chat stays the main terminal, the run's conductor works beside it.*
+
 The run surveys the code and writes a plan. Then it stops, and **Needs you** at the top of the sidebar goes to 1. Home shows the plan in full, with **Approve** and **Ask for changes**:
 
-![Home: a plan to approve, with Approve and Ask for changes above the plan](../public/screens/home.png)
+![Home: Approve the plan for Add GET /prices, with Approve, a field for changes and Ask for changes above the plan's five steps](../public/screens/real/real-06-plan-card.webp)
+*A plan-approval card: the whole plan, Approve and Ask for changes.*
 
 **Approve**, and the run builds: tests first, then the code, then your own `lint`, `typecheck` and `test` scripts, then the review agents. **Terminals** shows its sessions while they work. The run stops again at `delivery`; read its **Changes** first, and leave notes on lines for the agent if you want ([Read the change](../use/changes.md)). Nothing is pushed until you approve the delivery, at any autonomy level.
+
+![A run's session: the conductor, the planner that finished with its summary, and the implementer working, each in its own terminal](../public/screens/real/real-06-session-build.webp)
+*A run's session: the conductor and its workers, each in its own terminal.*
 
 ### How to decide
 

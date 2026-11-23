@@ -26,6 +26,15 @@
   border-radius: 8px;
 }
 
+/* A screenshot's caption: the emphasised line right under the picture, in the same paragraph. */
+.vp-doc p > img + em {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  font-style: normal;
+  color: var(--vp-c-text-2);
+}
+
 /* The home page shows the app, so its pictures get the room a text column does not need. */
 .mx-home .VPDoc .container,
 .mx-home .VPDoc .content,

@@ -177,3 +177,16 @@ The checks compare against the merge base, so the checkout needs history. On a s
 ## Decision records in CI
 
 `adr lint` (part of `check-all`) reads the decision log where `paths.adr` points (default `docs/adr`). It checks numbering, status, sections and the index, and that an accepted record names the rules it implies.
+
+## The MetatorAI README badges
+
+The badges at the top of MetatorAI's README show the state of its own `main` branch. They are not something MetatorAI adds to your repository.
+
+| Badge | Shows | Green when |
+|---|---|---|
+| build | the `ci` workflow on `main` (lint, typecheck, architecture, canon, unit and e2e tests, mutation smoke) | the last run passed |
+| coverage | the share of source lines the unit tests run, from Bun's LCOV report (`LH` over `LF`, rounded down) | 80% or more (bright green from 90%) |
+| tests | the passing unit and e2e tests, from `bun test`'s summary | both suites ran and nothing failed |
+| mutants killed | the injected bugs the unit tests caught, out of all of them (`bun run test:mutation`) | every mutant is killed |
+
+The build badge is GitHub's own. The other three are [shields.io endpoint badges](https://shields.io/badges/endpoint-badge) that read JSON from this site (`badges/coverage.json`, `badges/tests.json`, `badges/mutation.json`). On every push to `main`, `ci` keeps the output of its test steps, measures the unit tests' coverage and runs `scripts/badges.ts`, which writes the three files and uploads them as the artifact `badges`. It does this after a failed step too, so a badge shows the failure, and it never changes whether the job passes. When `ci` finishes, the `docs` workflow publishes the site again with that run's badges. Until a run has made them, the badges say `pending`.

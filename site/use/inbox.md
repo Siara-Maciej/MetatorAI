@@ -18,7 +18,8 @@ An agent works without asking when it runs the MetatorAI commands its definition
 
 Home shows one decision at a time, as a big card: the question, or the plan to approve, and its answers. Above the card, **3 waiting · 1 of 3** says how many decisions wait, with **‹ Previous** and **Next ›**; `k` and `j`, or the arrow keys, do the same. The sidebar only counts them (**Needs you · N**). Each decision has its own address, `#/inbox/<repository>/<run>/<question>`: a step that asks in the sidebar, **its card on Home ›** on a step's page and **on Home ›** on a task's page open exactly that card, and **‹ Previous** and **Next ›** go on from it. Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
 
-![Home with the decision card of a plan approval: Approve and Ask for changes above the plan](../public/screens/home.png)
+![Home: Approve the plan for Add GET /prices, with Approve, a field for changes and Ask for changes above the plan's five steps](../public/screens/real/real-06-plan-card.webp)
+*A plan-approval card: the whole plan, Approve and Ask for changes.*
 
 The card's face has only the question and how to answer it. An approval's question says what is decided in plain words: what is approved and for which task (`Approve the plan for "Add a combined discount"?`). Everything else is folded under **Details** at the bottom of the card:
 
@@ -77,6 +78,9 @@ What a chat leaves for you to decide comes here too:
 - **Quick change ready: look at the diff**: **Open diff** opens the run's **Changes** and leaves the card; **Fine** ends the quick run ([Quick and debug changes](./quick.md)).
 - **This grew past quick: …**: **Continue as full** or **Keep as quick**.
 - **Debug changes (N)** on Home lists the [debug changes](./quick.md#debug-changes) still in your files, with **Remove debug changes**.
+
+![Home: Claude Code asks to run git add and git commit; the card says git commit needs your consent, with Yes, No, Attach and answer in the pane, and Leave it](../public/screens/real/real-05-permission-card.webp)
+*A commit the agent asks for comes to Home as a card; it runs only on your Yes.*
 
 ### Review cards
 
@@ -164,7 +168,8 @@ To make an answer you always give a policy, add `--always` ([Answers that repeat
 
 **Board** in the sidebar shows the work in five columns by phase: **To do**, **Planning**, **In progress**, **Review** and **Done**.
 
-![The Board: tasks by phase, each card with its word and how many of its steps are done](../public/screens/board.png)
+![The Board: a blocked task in To do with Start a run, empty Planning, In progress and Review, and three tasks in Done](../public/screens/real/real-08-board.webp)
+*The Board: every task in the column of its phase.*
 
 - Its top level shows only parent tasks, each once: a system task, a run with child runs, a run of its own, a backlog task or an agent's proposal.
 - A task is in the column of its own phase. A system task is in Planning until its plan is approved, In progress while its steps run, Review at its delivery and Done at the end. A run's phase comes from its workflow and stage: understanding, planning and the plan's approval are Planning; the work is In progress; checks, reviews, delivery and publishing are Review; a done or aborted run, and one that only planned (`plan ready`), is Done.

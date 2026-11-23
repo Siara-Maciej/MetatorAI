@@ -30,10 +30,11 @@ contracts:
 # The plan says the order itself: the price tag is built alongside the API, its integration after both.
 policies: { deployOrder: none, breaking: expand-contract }
 `;
+// The planner words the plan's task its own way: the card still finds the plan, by its id.
 const SYSTEM_PLAN = `kind: SystemPlan
 schemaVersion: 1
 id: ${PLAN_ID}
-task: ${TASK}
+task: "${TASK}: the API sends the currency, the web shows it"
 status: draft
 createdBy: mt-system-planner
 strategies: []
@@ -341,9 +342,22 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
     const box = await bar.getByRole("button", { name: "Ask for changes" }).boundingBox();
     expect(box && box.y + box.height).toBeLessThanOrEqual(900);
     expect(await bar.locator(".actions .primary").textContent()).toContain("Approve");
-    const tables = page.getByRole("article", { name: "decision card" }).getByTestId("system-plan-steps");
-    expect(await tables.getAttribute("open")).toBeNull();
+    // The plan always in sight on its approval: the flow, then its steps per repository, unfolded,
+    // with what each waits for and its contracts.
+    const card = page.getByRole("article", { name: "decision card" });
+    expect(await card.locator("h1").textContent()).toContain(
+      'Approve the plan for "Add a currency to prices"?',
+    );
+    const tables = card.getByTestId("system-plan-steps");
+    expect(await tables.getAttribute("open")).not.toBeNull();
     expect(await tables.locator("summary").textContent()).toBe("4 steps in 2 repositories");
+    expect(await card.getByTestId("system-step-web-integration").isVisible()).toBe(true);
+    expect(await card.getByTestId("system-step-web-integration").textContent()).toContain(
+      "api-model, api-endpoint, web-price-tag",
+    );
+    expect(await card.getByTestId("system-step-api-model").textContent()).toContain(
+      "contracts: prices-api (change)",
+    );
     await until("four pending steps", async () => {
       const s = await flowStates();
       return Object.values(s).length === 4 && Object.values(s).every((v) => v === "pending")

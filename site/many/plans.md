@@ -84,6 +84,9 @@ The system run's page is the task's page. Its **Overview** has the one thing to 
 
 Each step runs where its application's code is, as an `mt-feature` run. It opens as soon as it starts as a conductor session of its own, a terminal in **Terminals**: on the system run's host when that is an interactive host installed here, else the first installed host of `supervisor.hostOrder`. Its conductor starts its workers in panes of their own. The session needs the daemon of that repository or its folder. With no daemon, or no interactive host, the child is driven in the background instead, and says why: `metator system plan run` prints each step with `session in pane w1:p1 on claude` or `driven in the background on claude: no daemon runs for this repository`.
 
+![Terminals for a system task: the chat, the shop-api session, its finished step, and the shop-web step working](../public/screens/real/real-09-system-task-tiles.webp)
+*A system task: one session per repository, each a tile beside the chat.*
+
 Every child works on a branch of its own (`metator/<worktree>`) in a worktree of its own, made from the repository's HEAD (or `--base`), so its agents never commit on the default branch and two steps of one repository never share a checkout. You answer a child run's questions like those of any run; they are on the same Home when the repositories are in one folder.
 
 A step can run only in a checkout on this machine: this repository, or a checkout named for the application under `system.roots` in `metator.config.yml` (`metator config set system.roots ~/code --scope repo`, or **Save roots** in the app). An application is found in `<directory>/<its id>` or `<directory>/<its repository's name>`. A step whose application has no checkout stops with a hint.
