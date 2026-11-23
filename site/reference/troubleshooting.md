@@ -10,6 +10,18 @@ metator doctor
 
 It lists what a run cannot do in this repository (configuration, agents, git, workflows, gates, AI hosts, uncommitted changes, dependencies, environment, remote) and the fix for each.
 
+## metator: command not found
+
+`bun link` linked `metator` into Bun's global bin folder, but that folder is not on your `PATH`. It happens in containers and when Bun came from npm or Homebrew. Find the folder and put it on your `PATH` in your shell profile:
+
+```bash
+bun pm bin -g                          # where the link is
+export PATH="$(bun pm bin -g):$PATH"   # add this line to ~/.bashrc or ~/.zshrc
+metator version
+```
+
+An alias is not enough on its own: the hooks and agents call `metator` from their own shells. Without the folder on `PATH`, set `hosts.metatorCommand` as [Install](../guide/install.md#without-bun-link) shows.
+
 ## BIN_NOT_FOUND: ast-grep is not installed
 
 MetatorAI runs the tools installed in your repository. Install the missing one as a development dependency.

@@ -78,7 +78,8 @@ You need [Bun](https://bun.sh) 1.4 or newer, git, and Claude Code (`claude`) or 
 
 ```bash
 git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
-cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)   # puts `metator` on your PATH
+cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)   # links `metator` into Bun's global bin folder
+export PATH="$(bun pm bin -g):$PATH"   # once, in your shell profile, if `metator` is not found
 
 cd ~/code/your-project
 metator setup     # once per repository; commit the result
