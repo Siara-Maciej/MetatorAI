@@ -10,6 +10,7 @@
  * Anything missing stops the script with the file it looked for: a build never ships without it.
  *
  * Usage: bun scripts/compile-cli.ts [--triple <rust target triple>] [--out packages/desktop/src-tauri]
+ *        bun scripts/compile-cli.ts --sidecars <triple>   (the sidecar triples a Tauri build of it looks for)
  */
 
 import { existsSync } from "node:fs";
@@ -52,6 +53,16 @@ export function hostTriple(platform = process.platform, arch = process.arch): st
   if (platform === "darwin") return `${cpu}-apple-darwin`;
   if (platform === "win32") return `${cpu}-pc-windows-msvc`;
   return `${cpu}-unknown-linux-gnu`;
+}
+
+/**
+ * The sidecars a Tauri build of `triple` looks for, by triple. A universal macOS app is built once
+ * per architecture, each looking for its own sidecar, and then joined: it needs those two besides
+ * the universal one.
+ */
+export function sidecarTriples(triple: string): readonly string[] {
+  const platforms = TRIPLES[triple] ?? [];
+  return platforms.length > 1 ? [triple, ...platforms.map((p) => hostTriple(p.platform, p.arch))] : [triple];
 }
 
 /** The napi-rs binding package and file of an oxc addon for a platform (`@oxc-parser/binding-linux-x64-gnu`). */
@@ -238,16 +249,16 @@ export async function compileCli(o: { readonly triple: string; readonly out: str
   await mkdir(dirname(binary), { recursive: true });
   if (platforms.length === 1) await compile(platforms[0] as Platform, binary);
   else {
-    // A universal macOS executable: one per architecture, joined by lipo.
+    // A universal macOS executable: one per architecture, joined by lipo. Each architecture's
+    // stays beside it, under its own triple: Tauri builds the app once per architecture first.
     const parts: string[] = [];
     for (const p of platforms) {
-      const part = `${binary}.${p.arch}`;
+      const part = join(o.out, "binaries", `metator-${hostTriple(p.platform, p.arch)}`);
       await compile(p, part);
       parts.push(part);
     }
     const lipo = Bun.spawnSync(["lipo", "-create", "-output", binary, ...parts]);
     if (lipo.exitCode !== 0) throw new Error(`lipo failed: ${lipo.stderr.toString()}`);
-    for (const part of parts) await rm(part);
   }
   await nativeAddons(resources, platforms);
   await nodePty(resources, platforms);
@@ -270,6 +281,12 @@ if (import.meta.main) {
     const i = args.indexOf(name);
     return i >= 0 ? args[i + 1] : undefined;
   };
+  const sidecars = opt("--sidecars");
+  if (sidecars !== undefined) {
+    // What a build of that triple looks for, one per line (desktop.yml checks they are there).
+    console.log(sidecarTriples(sidecars).join("\n"));
+    process.exit(0);
+  }
   const triple = opt("--triple") ?? hostTriple();
   const out = resolve(ROOT, opt("--out") ?? "packages/desktop/src-tauri");
   const r = await compileCli({ triple, out });

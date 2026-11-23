@@ -195,7 +195,9 @@ jobs:
           cd packages/desktop/src-tauri
           exe=""
           if [ "$RUNNER" = "Windows" ]; then exe=".exe"; fi
-          need=("binaries/metator-$TRIPLE$exe" metator-resources/node-pty/package.json metator-resources/canon/metator)
+          need=(metator-resources/node-pty/package.json metator-resources/canon/metator)
+          # A universal macOS app is built once per architecture first, each with its own sidecar.
+          for t in $(bun "$GITHUB_WORKSPACE/scripts/compile-cli.ts" --sidecars "$TRIPLE"); do need+=("binaries/metator-$t$exe"); done
           for f in metator-resources/native/*/oxc-parser.node metator-resources/native/*/oxc-resolver.node; do need+=("$f"); done
           if [ "$RUNNER" != "Windows" ]; then need+=(metator-resources/sandbox-runtime/dist/cli.js); fi
           if [ "$RUNNER" != "Linux" ]; then
