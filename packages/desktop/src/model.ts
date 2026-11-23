@@ -362,6 +362,15 @@ function runRoute(runId: string, tab: RunTab, rest: readonly string[]): Route {
   };
 }
 
+/**
+ * Where Home goes once a card's answer is through: back to its queue, but only while the person is
+ * still on Home. The daemon's answer can come late (a loaded machine); a person who went elsewhere
+ * meanwhile stays where they went.
+ */
+export function afterAnswer(hash: string): Route | undefined {
+  return parseRoute(hash).screen === "inbox" ? { screen: "inbox" } : undefined;
+}
+
 export function parseRoute(hash: string): Route {
   const parts = hash
     .replace(/^#\/?/, "")

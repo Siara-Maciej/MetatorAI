@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { InboxItem, RunOverview } from "../src/api.ts";
 import {
   actionOf,
+  afterAnswer,
   answerCommand,
   answeredText,
   autonomyLabel,
@@ -1327,5 +1328,16 @@ describe("autostart (ADR-0101): the app starts the daemon itself", () => {
     expect(autostart({ ...base, shell: false })).toBe("none");
     expect(autostart({ ...base, shell: false, folder: undefined })).toBe("none");
     expect(autostart({ ...base, down: false })).toBe("none");
+  });
+});
+
+describe("afterAnswer: a late answer does not take the person back to Home", () => {
+  test("on Home, the answer goes back to the queue (the picked card closes)", () => {
+    expect(afterAnswer("#/inbox/pick/q-1")).toEqual({ screen: "inbox" });
+    expect(afterAnswer("")).toEqual({ screen: "inbox" });
+  });
+  test("gone elsewhere meanwhile: the app stays there", () => {
+    expect(afterAnswer("#/reviews")).toBeUndefined();
+    expect(afterAnswer("#/backlog")).toBeUndefined();
   });
 });

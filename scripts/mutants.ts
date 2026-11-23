@@ -3034,6 +3034,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "an inbox row says whether the decision is reversible",
   },
   {
+    file: "packages/desktop/src/model.ts",
+    from: '  return parseRoute(hash).screen === "inbox" ? { screen: "inbox" } : undefined;',
+    to: '  return { screen: "inbox" };',
+    why: "a late answer does not take the person back to Home",
+  },
+  {
     file: "packages/core/src/domain/telemetry.ts",
     from: "        : ((delays[mid - 1] as number) + (delays[mid] as number)) / 2;",
     to: "        : (delays[mid] as number);",

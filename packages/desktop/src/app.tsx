@@ -14,6 +14,7 @@ import { sendLine } from "./components/terminal.tsx";
 import { createConfirmer } from "./confirm.ts";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import {
+  afterAnswer,
   flattenState,
   folderLabel,
   goesToPane,
@@ -356,7 +357,8 @@ function Shell() {
               });
               return;
             }
-            go({ screen: "inbox" });
+            const back = afterAnswer(window.location.hash);
+            if (back) go(back);
             if (!choices || !item) {
               setNotice(undefined);
               return;
