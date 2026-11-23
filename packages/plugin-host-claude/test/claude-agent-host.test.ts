@@ -65,6 +65,14 @@ describe("ClaudeAgentHost", () => {
     const inRepo = fakeQuery(async () => [init, success]);
     await collect(new ClaudeAgentHost(inRepo.query), { ...task, cwd: "/repo" });
     expect(inRepo.calls[0]?.options.projectConfigRoot).toBeUndefined();
+    // The SDK's own Claude Code unless a program is named (the desktop app names the person's).
+    expect(calls[0]?.options.pathToClaudeCodeExecutable).toBeUndefined();
+  });
+
+  test("a named claude program is the one the Agent SDK runs (ADR-0105)", async () => {
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(query, undefined, "/usr/local/bin/claude"), task);
+    expect(calls[0]?.options.pathToClaudeCodeExecutable).toBe("/usr/local/bin/claude");
   });
 
   test("a reader that stops early aborts the agent's process; one that reads to the end does not", async () => {

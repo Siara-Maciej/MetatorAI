@@ -335,7 +335,11 @@ export type Route =
   | { readonly screen: "backlog"; readonly id?: string }
   | { readonly screen: "board"; readonly task?: string }
   /** A thread (round 16): its chat terminal as the main view. */
-  | { readonly screen: "thread"; readonly id: string };
+  | { readonly screen: "thread"; readonly id: string }
+  /** Add repository (round 20): pick a folder, inspect it, set it up, open it. */
+  | { readonly screen: "add" }
+  /** The app's own settings (round 20): the metator command and the repositories it knows. */
+  | { readonly screen: "app" };
 
 /** The tab an old run route showed. */
 const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
@@ -421,6 +425,10 @@ export function parseRoute(hash: string): Route {
     case "mrs":
     case "reviews":
       return arg ? { screen: "reviews", id: arg } : { screen: "reviews" };
+    case "add":
+      return { screen: "add" };
+    case "app":
+      return { screen: "app" };
     case "inbox": {
       // A decision's address has its repository, run and question as parts (`decisionKey`).
       const pick = parts.slice(1).join("/");

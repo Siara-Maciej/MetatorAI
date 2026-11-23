@@ -29,6 +29,17 @@ interface NativePty {
   resize(fd: number, cols: number, rows: number): void;
 }
 
+/** Where node-pty's `pty.node` is in its package: the build of this machine, else its prebuild for the platform. */
+export function nativeDir(
+  root: string,
+  platform: string,
+  arch: string,
+  exists: (path: string) => boolean,
+): string | undefined {
+  const dirs = [join(root, "build", "Release"), join(root, "prebuilds", `${platform}-${arch}`)];
+  return dirs.find((d) => exists(join(d, "pty.node")));
+}
+
 /** How often the master side is read when nothing arrived (the fd is non-blocking). */
 const POLL_MS = 10;
 const READ_BYTES = 65_536;
@@ -63,6 +74,16 @@ export function ptyDone(s: {
 export class NodePtyTerminal implements Terminal {
   private native: NativePty | undefined;
   private helper = "";
+
+  /**
+   * `packageDir`: node-pty's package folder, when it is not in node_modules (a compiled `metator`
+   * takes it from the desktop app's resources, ADR-0105); `beBun`: on Windows, around a kill, makes
+   * the compiled executable act as `bun` for the helper node-pty forks with it.
+   */
+  constructor(
+    private readonly packageDir?: string,
+    private readonly beBun?: <T>(f: () => T) => T,
+  ) {}
 
   spawn(
     argv: readonly string[],
@@ -180,7 +201,7 @@ export class NodePtyTerminal implements Terminal {
     size: PtySize,
   ): Result<PtyHandle, MetatorError> {
     try {
-      const pty = createRequire(import.meta.url)("node-pty") as typeof import("node-pty");
+      const pty = createRequire(import.meta.url)(this.packageDir ?? "node-pty") as typeof import("node-pty");
       const handle = pty.spawn(file, args, {
         name: "xterm-256color",
         cols: size.cols,
@@ -200,7 +221,8 @@ export class NodePtyTerminal implements Terminal {
           const d = handle.onExit(({ exitCode }) => listener(exitCode));
           return () => d.dispose();
         },
-        kill: () => handle.kill(),
+        // node-pty forks a helper with the runtime to find the console's processes.
+        kill: () => (this.beBun ? this.beBun(() => handle.kill()) : handle.kill()),
       });
     } catch (e) {
       return err(
@@ -214,13 +236,14 @@ export class NodePtyTerminal implements Terminal {
     if (this.native) return ok(this.native);
     try {
       const require = createRequire(import.meta.url);
-      const root = dirname(require.resolve("node-pty/package.json"));
-      const dirs = [join(root, "build/Release"), join(root, `prebuilds/${process.platform}-${process.arch}`)];
-      const dir = dirs.find((d) => existsSync(join(d, "pty.node")));
+      const root = this.packageDir ?? dirname(require.resolve("node-pty/package.json"));
+      const dir = nativeDir(root, process.platform, process.arch, existsSync);
       if (!dir)
         return err(
-          new MetatorError("COMMAND_FAILED", "node-pty has no native build for this machine", {
-            hint: "Run the package manager's install again (node-pty builds on install), or `bun pm trust node-pty`.",
+          new MetatorError("COMMAND_FAILED", `node-pty has no native build for this machine in ${root}`, {
+            hint: this.packageDir
+              ? "Reinstall the MetatorAI app: its node-pty is incomplete."
+              : "Run the package manager's install again (node-pty builds on install), or `bun pm trust node-pty`.",
           }),
         );
       this.native = require(join(dir, "pty.node")) as NativePty;

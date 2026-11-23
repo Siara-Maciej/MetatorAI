@@ -3646,3 +3646,303 @@ ul.resumes {
   margin: 0;
   padding: 0;
 }
+
+/* Round 20: the first run, Add repository, the switcher and the app's settings. */
+.shell.solo {
+  grid-template-columns: 1fr;
+}
+a.button-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--edge-control);
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--panel);
+}
+a.button-link:hover {
+  background: var(--hover);
+}
+a.button-link.primary {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: var(--on-teal);
+  font-weight: 600;
+}
+a.button-link.big {
+  min-height: 38px;
+  padding: 6px 18px;
+  font-size: var(--fs-head);
+  margin: var(--sp-5) 0 var(--sp-3);
+}
+.refusal {
+  color: var(--red);
+  overflow-wrap: anywhere;
+}
+.said {
+  color: var(--green);
+}
+.setup-page {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 24px;
+}
+.setup-page .panel {
+  width: 600px;
+  max-width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.setup-page h1 {
+  font-size: 18px;
+}
+.setup-page h2 {
+  margin-top: var(--sp-2);
+}
+.setup-page h3 {
+  margin-top: var(--sp-5);
+}
+.setup-page p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.setup-page section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  border-top: 1px solid var(--edge);
+  padding-top: var(--sp-5);
+}
+.setup-page .addr {
+  display: flex;
+  gap: var(--sp-3);
+}
+.setup-page .addr input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+}
+.setup-page .where {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.setup-page .where code {
+  color: var(--teal);
+  overflow-wrap: anywhere;
+}
+.setup-page .busy {
+  color: var(--muted);
+}
+.setup-page .actions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.setup-page ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.setup-page .files {
+  max-height: 180px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.setup-page .files li {
+  line-height: 1.6;
+}
+.setup-page details summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: var(--sp-2);
+}
+.setup-page .progress .line {
+  font-family: var(--mono);
+  font-size: var(--fs-code);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.setup-page .output {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.setup-page .output button {
+  padding-left: 0;
+  color: var(--blue);
+}
+.setup-page pre {
+  margin: 0;
+  width: 100%;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--term-bg);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: var(--fs-code);
+  white-space: pre-wrap;
+}
+.setup-page .cmds {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+.setup-page .cmds pre {
+  color: var(--teal);
+}
+.setup-page .hosts {
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 6px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.setup-page .hosts legend {
+  color: var(--muted);
+  padding: 0 4px;
+}
+.setup-page .hosts label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.setup-page .hosts label.off {
+  color: var(--grey);
+}
+.setup-page .children li,
+.requirements li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: 30px;
+}
+.setup-page .children .name,
+.requirements .name {
+  min-width: 140px;
+  font-weight: 600;
+}
+.requirements {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+.requirements .mark {
+  width: 14px;
+}
+.requirements .ok .mark {
+  color: var(--green);
+}
+.requirements .missing .mark {
+  color: var(--red);
+}
+.setup-page .commit-card {
+  border: 1px solid var(--teal-line);
+  background: var(--teal-wash);
+  border-radius: 8px;
+  padding: var(--sp-5) var(--sp-6);
+}
+.topbar .switcher {
+  color: var(--text);
+  font-weight: 600;
+}
+.topbar .switcher-refusal {
+  font-size: var(--fs-small);
+}
+.app-settings {
+  padding: 18px 24px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 760px;
+}
+.app-settings section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.app-settings p {
+  margin: 0;
+}
+.app-settings fieldset {
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 6px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.app-settings fieldset label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.app-settings .addr {
+  display: flex;
+  gap: var(--sp-3);
+}
+.app-settings .addr input {
+  flex: 1;
+  font-family: var(--mono);
+}
+.app-settings .actions {
+  display: flex;
+  gap: var(--sp-3);
+}
+.app-settings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-settings .known-repos li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--edge);
+}
+.app-settings .known-repos .name {
+  min-width: 140px;
+  font-weight: 600;
+}
+.app-settings .known-repos .path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-settings a.button-link {
+  align-self: flex-start;
+}
+.no-daemon a.button-link {
+  margin-left: auto;
+}
+.setup-page a.button-link,
+.setup-page .requirements button {
+  align-self: flex-start;
+}
+.setup-page input[type="radio"],
+.app-settings input[type="radio"] {
+  accent-color: var(--teal);
+}

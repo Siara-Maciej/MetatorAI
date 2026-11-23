@@ -1,20 +1,63 @@
 # Install
 
-This page puts the `metator` command on your machine. The desktop app is on its own page, [Get the desktop app](./desktop-app.md). MetatorAI works in repositories that use npm, pnpm, Yarn or Bun, and it runs your `lint`, `typecheck` and `test` scripts with the package manager it detects. Pick yours once and every tabbed command on this site follows it.
+MetatorAI is one desktop app, and the `metator` command is inside it. Install the app, then **Add repository** in it: that is all. MetatorAI works in repositories that use npm, pnpm, Yarn or Bun, and it runs your `lint`, `typecheck` and `test` scripts with the package manager it detects. Pick yours once and every tabbed command on this site follows it.
 
 <PmSwitch />
-
-MetatorAI is not published to npm. You install it from a checkout of its repository.
 
 ## Requirements
 
 | Tool | Why |
 |---|---|
-| [Bun](https://bun.sh) 1.4 or newer | the `metator` CLI runs on Bun, whatever your project uses |
-| git | changed files, history, worktrees |
+| [The desktop app](./desktop-app.md) | MetatorAI itself: the window, the `metator` command, the daemon |
+| [git](https://git-scm.com/downloads) | changed files, history, worktrees |
 | Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), installed and logged in | the AI tool that runs the agents. The daemon starts the command-line program in a terminal; Copilot Chat inside an IDE does not run a chat of the app |
 
-## Install Bun
+The app cannot install git or the AI tool for you. When you add a repository it checks both, and for one that is missing it shows how to install it, with a link and **Retry**:
+
+| Tool | Install | Log in |
+|---|---|---|
+| git | [git-scm.com/downloads](https://git-scm.com/downloads) | |
+| Claude Code | `npm install -g @anthropic-ai/claude-code`, or [code.claude.com/docs/en/setup](https://code.claude.com/docs/en/setup) | run `claude` in a terminal, then type `/login` |
+| GitHub Copilot CLI | `npm install -g @github/copilot`, or [the Copilot CLI docs](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) | run `copilot` in a terminal, then type `/login` |
+
+You do not need Bun or Node.js for MetatorAI itself.
+
+## Install the app
+
+Download the installer for Windows, macOS or Linux: [Get the desktop app](./desktop-app.md). Open it and click **Add repository**; [Start with one repository](./first-run.md) goes on from there.
+
+## The `metator` command in your terminal
+
+Everything the app starts finds `metator` by itself: the daemon, the agents' sessions and the hooks in them. You need the command in your own terminal only to run `metator` yourself, or for a `claude` or `copilot` you start by hand outside the app.
+
+In the app, open **Settings**, then **Install the metator command**. The app writes a small launcher and says where:
+
+| Platform | Launcher |
+|---|---|
+| Linux, macOS | `~/.local/bin/metator` |
+| Windows | `%LOCALAPPDATA%\MetatorAI\bin\metator.cmd`, a folder the app adds to your user `PATH` |
+
+When `~/.local/bin` is not on your `PATH`, the app says so; add it in your shell profile (`~/.bashrc`, `~/.zshrc`):
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Then, in a new terminal:
+
+```bash
+metator version
+```
+
+```json
+{"ok":true,"data":{"name":"metator-ai","version":"0.0.0"}}
+```
+
+**Remove it** in the same place deletes the launcher again. The app only ever writes or removes its own launcher: a `metator` you installed yourself stays where it is. The `.AppImage` cannot install the command, because its files move each time it starts; use the `.deb` for it.
+
+## From a checkout (for developers of MetatorAI)
+
+To run MetatorAI from its sources you need [Bun](https://bun.sh) 1.4 or newer:
 
 ::: code-group
 
@@ -36,9 +79,7 @@ curl -fsSL https://bun.sh/install | bash     # skip if `bun --version` works
 
 :::
 
-`bun --version` must print 1.4 or newer.
-
-## Install MetatorAI
+`bun --version` must print 1.4 or newer. Then:
 
 ```bash
 git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
@@ -47,41 +88,13 @@ bun install
 cd packages/cli && bun link
 ```
 
-`bun link` links `metator` into Bun's global bin folder; it does not change your `PATH`. Where that folder is depends on how Bun was installed (`~/.bun/bin` with the install script; somewhere else with npm, Homebrew or a container image), and `bun pm bin -g` prints it. If `metator` is not found, put that folder on your `PATH`, in your shell profile (`~/.bashrc`, `~/.zshrc`) so new shells and containers have it too:
+`bun link` links `metator` into Bun's global bin folder; it does not change your `PATH`. `bun pm bin -g` prints where that folder is; put it on your `PATH` in your shell profile if `metator` is not found:
 
 ```bash
-bun pm bin -g                                    # where Bun put metator
-ls "$(bun pm bin -g)/metator"                    # the link bun link made
-export PATH="$(bun pm bin -g):$PATH"             # add it to your shell profile
+export PATH="$(bun pm bin -g):$PATH"
 ```
 
-Then check from any directory:
-
-```bash
-metator version
-```
-
-```json
-{"ok":true,"data":{"name":"metator-ai","version":"0.0.0"}}
-```
-
-The command has to be on your `PATH` because the hooks and the generated agents call plain `metator`.
-
-### Without `bun link`
-
-Define an alias for yourself:
-
-```bash
-alias metator="bun ~/tools/metatorai/packages/cli/src/main.ts"
-```
-
-Then, after you [set up the repository](./first-run.md), tell the generated agents and hooks how to call the CLI and run `metator generate --hooks`:
-
-```yaml
-# metator.config.yml
-hosts:
-  metatorCommand: bun ~/tools/metatorai/packages/cli/src/main.ts
-```
+Then tell the app to use it: **Settings**, **Where it comes from**, **The metator on your PATH** (or **A metator you chose**, with the path of a program). The app uses the `metator` it ships with (**Bundled with the app**) until you choose another.
 
 ## Rule engines in your project
 
@@ -135,9 +148,9 @@ Without the binary, `metator rules check` fails with the error code `BIN_NOT_FOU
 
 ## Update
 
-```bash
-cd ~/tools/metatorai && git pull && bun install
-```
+Install the newer app over the old one: the app and its `metator` have one version. When a repository was set up by a newer MetatorAI than the app's, the app says so and asks you to update the app; it never writes older files over newer ones.
+
+From a checkout: `cd ~/tools/metatorai && git pull && bun install`.
 
 Files written by an older version are migrated when they are read. To take the newer agents, skills and workflows into a repository you already set up, run `metator agents update` there (see [Start with one repository](./first-run.md#update-the-shipped-files)).
 

@@ -235,6 +235,7 @@ const TOOLS_NOT_QUERIES: string[] = [
   "env status",
   "help",
   "inbox",
+  "inspect",
   "issue list",
   "issue show",
   "memory budget",
@@ -273,7 +274,10 @@ describe("what a command says of itself (meta)", () => {
   const program = buildProgram(() => {});
 
   test("the MCP tools, with the options refused and always passed, are the ones listed before", () => {
-    expect(mcpTools(program).map((t) => t.command)).toEqual(BEFORE.tools);
+    // Round 20 (ADR-0105): `inspect`, what a folder is before setup (the desktop app's Add repository).
+    const tools = [...BEFORE.tools];
+    tools.splice(tools.indexOf("config show") + 1, 0, "inspect");
+    expect(mcpTools(program).map((t) => t.command)).toEqual(tools);
     expect(refusedOptions(program)).toEqual(BEFORE.refused);
     expect(alwaysOptions(program)).toEqual(BEFORE.always);
   });
@@ -299,7 +303,10 @@ describe("what a command says of itself (meta)", () => {
 
   test("the commands of a folder of repositories are the ones listed before", () => {
     // `metator ui` was one of them; the full-screen view is withdrawn (ADR-0086).
-    expect(folderCommands(program).sort()).toEqual(BEFORE.folder.filter((c) => c !== "ui").sort());
+    // Round 20 (ADR-0105): `inspect` looks at any folder, a folder of repositories included.
+    expect(folderCommands(program).sort()).toEqual(
+      [...BEFORE.folder.filter((c) => c !== "ui"), "inspect"].sort(),
+    );
   });
 
   test("meta check-all runs the checks listed before, in the tree's order", () => {
@@ -315,7 +322,9 @@ describe("what a command says of itself (meta)", () => {
     const before = BEFORE.verbs.filter((v) => v !== "ui").map((v) => (v === "run init" ? "run new" : v));
     // Round 19 (ADR-0098): the host conformance suite, after the host files it checks.
     const at = before.indexOf("generate") + 1;
+    // Round 20 (ADR-0105): `inspect` first, what a folder is before setup.
     expect(verbs).toEqual([
+      "inspect",
       ...before.slice(0, at),
       "host conformance",
       "host conformance diff",

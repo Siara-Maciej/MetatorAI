@@ -63,6 +63,7 @@ import { registerWorktreeCommands } from "./commands/worktree.ts";
 import { conformanceLab } from "./conformance-lab.ts";
 import type { CommandContext, Folder, Outcome } from "./context.ts";
 import { readFolder } from "./folder.ts";
+import { installationPaths } from "./installation.ts";
 import { conductorSessions, detachedDrive, runPanes } from "./sessions.ts";
 
 export interface ProgramOptions {
@@ -125,6 +126,8 @@ export function buildProgram(
       conductorSessions: conductorSessions(),
       conformanceLab: conformanceLab(env),
       ...(env.METATOR_HOST ? { defaultHost: env.METATOR_HOST } : {}),
+      // A compiled metator (the desktop app's) takes node-pty and the sandbox runtime from its resources.
+      installation: installationPaths(env),
     });
   };
   const root = () => (program.opts() as { root?: string }).root;

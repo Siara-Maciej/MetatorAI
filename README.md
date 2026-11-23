@@ -75,19 +75,12 @@ MetatorAI does not replace your AI tool: it runs it. Setup finds the tool your r
 
 ## Get started
 
-You need [Bun](https://bun.sh) 1.4 or newer, git, and Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), installed and logged in.
+1. Download the desktop app for Windows, macOS or Linux from [Releases](https://github.com/Siara-Maciej/MetatorAI/releases/tag/desktop-latest). The `metator` command is inside it.
+2. Open it and click **Add repository**: choose your project's folder, choose the AI host, **Set up**, and **Commit** the files setup wrote when you want them in your history.
 
-```bash
-git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
-cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)   # links `metator` into Bun's global bin folder
-export PATH="$(bun pm bin -g):$PATH"   # once, in your shell profile, if `metator` is not found
+That is all, plus git and Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), installed and logged in. The app checks both and says how to install what is missing. Nothing comes from npm.
 
-cd ~/code/your-project
-metator setup     # once per repository; commit the result
-metator serve     # the local service the app talks to
-```
-
-Then open the desktop app and click **+ New chat**. Download the installer for Windows, macOS or Linux from [Releases](https://github.com/Siara-Maciej/MetatorAI/releases/tag/desktop-latest); other ways to run the app are on [Get the desktop app](https://siara-maciej.github.io/MetatorAI/guide/desktop-app). [Start with one repository](https://siara-maciej.github.io/MetatorAI/guide/first-run) walks you through the first chat.
+The app starts the repository's daemon itself; click **+ New chat**. [Get the desktop app](https://siara-maciej.github.io/MetatorAI/guide/desktop-app) has the details, [Install](https://siara-maciej.github.io/MetatorAI/guide/install) puts `metator` in your terminal too, and [Start with one repository](https://siara-maciej.github.io/MetatorAI/guide/first-run) walks you through the first chat.
 
 ## Documentation
 

@@ -109,6 +109,8 @@ export class CheckReadiness {
       readonly quickGate?: () => Promise<Result<GateReport, MetatorError>>;
       /** The host conformance suite's kept runs (`.metator/conformance/`), by host (ADR-0098). */
       readonly conformance?: () => Promise<readonly ConformanceSeen[]>;
+      /** Why the sandbox runtime cannot start from this installation; undefined when it can (ADR-0105). */
+      readonly sandboxRuntime?: () => string | undefined;
     } = {},
   ) {}
 
@@ -362,7 +364,12 @@ export class CheckReadiness {
       if (!(await this.mcp.hasCommand(program))) missing.push(program);
     return {
       id: "isolation",
-      ...sandboxIsolation(sandboxPolicy(this.config.config), this.here.platform?.() ?? "", missing),
+      ...sandboxIsolation(
+        sandboxPolicy(this.config.config),
+        this.here.platform?.() ?? "",
+        missing,
+        this.here.sandboxRuntime?.(),
+      ),
     };
   }
 

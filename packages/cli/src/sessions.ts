@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { err, MetatorError, ok, type PaneView, type Result } from "@metator/core";
 import type { BootstrapOptions, MetatorContainer } from "@metator/runtime";
 import { callDaemon, findDaemon, inRepo } from "./daemon-client.ts";
+import { selfCommand } from "./installation.ts";
 import { type FollowResult, follow } from "./live.ts";
 import type { Terminal } from "./terminal.ts";
 import { who } from "./who.ts";
@@ -38,8 +39,7 @@ export const detachedDrive =
         runId,
         host,
         argv: [
-          process.argv[0] as string,
-          process.argv[1] as string,
+          ...selfCommand(),
           "--root",
           root,
           "run",

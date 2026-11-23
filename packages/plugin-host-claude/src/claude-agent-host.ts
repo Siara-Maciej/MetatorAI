@@ -178,6 +178,8 @@ export class ClaudeAgentHost implements AgentHost {
     private readonly query?: ClaudeQuery,
     /** How the `claude` program starts: in the sandbox when the repository has one (ADR-0104). */
     private readonly launch?: SandboxLaunch,
+    /** The `claude` program to run instead of the SDK's own (`pathToClaudeCodeExecutable`, ADR-0105). */
+    private readonly executable?: string,
   ) {}
 
   async *run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent> {
@@ -332,6 +334,7 @@ export class ClaudeAgentHost implements AgentHost {
       },
       ...(task.resume ? { resume: task.resume } : {}),
       abortController: stop,
+      ...(this.executable ? { pathToClaudeCodeExecutable: this.executable } : {}),
       ...(this.launch ? { spawnClaudeCodeProcess: sandboxedSpawn(this.launch) } : {}),
     };
     // A drive that stops reading (its run's directory is gone) ends the agent's process with it.
@@ -442,7 +445,8 @@ export function sandboxedSpawn(launch: SandboxLaunch) {
         ];
     return spawn(command, args, {
       cwd,
-      env: o.env,
+      // The runtime that says why is this program itself: a compiled one acts as bun for it (ADR-0105).
+      env: launched.isOk() ? o.env : { ...o.env, BUN_BE_BUN: "1" },
       stdio: ["pipe", "pipe", "pipe"],
       ...(o.signal ? { signal: o.signal } : {}),
     });

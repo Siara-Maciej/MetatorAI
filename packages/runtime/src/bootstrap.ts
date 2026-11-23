@@ -395,6 +395,16 @@ export interface BootstrapOptions {
   readonly conformanceLab?: (deps: { readonly root: string }) => ConformanceLab;
   /** The host a new drive uses when nothing names one (METATOR_HOST), when the runtime holds it. */
   readonly defaultHost?: string;
+  /**
+   * What a compiled `metator` (the desktop app's, ADR-0105) takes from its installation instead of
+   * node_modules: node-pty's package folder, the sandbox runtime's command line and how to run it,
+   * and on Windows how node-pty's helper runs (`beBun`). Omitted: node_modules has them.
+   */
+  readonly installation?: {
+    readonly nodePty?: string;
+    readonly sandboxRuntime?: { readonly runtime: readonly string[]; readonly cli: string };
+    readonly beBun?: <T>(f: () => T) => T;
+  };
 }
 
 /**
@@ -643,6 +653,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         checkoutReader,
         workingTree,
         conformanceHistory,
+        hostSandbox,
       }) =>
         new CheckReadiness(
           fileSystem,
@@ -663,6 +674,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             platform: () => process.platform,
             quickGate: () => runGate.execute({ gate: "quick" }),
             conformance: () => conformanceHistory.seen(),
+            sandboxRuntime: () => hostSandbox.missing?.(),
           },
         ),
     ),
@@ -740,7 +752,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     knownHosts: asValue(options.noRealHosts ? withoutRealHosts(HOSTS, options.bins ?? {}) : HOSTS),
     // Every host session this repository starts goes through its host's launch: in the
     // operating system's sandbox while `sandbox.enabled` is on (ADR-0104), read at each start.
-    hostSandbox: asFunction(() => new SrtSandbox()).singleton(),
+    hostSandbox: asFunction(() => {
+      const srt = options.installation?.sandboxRuntime;
+      return srt ? new SrtSandbox(undefined, srt.runtime, () => srt.cli) : new SrtSandbox();
+    }).singleton(),
     sandboxLaunches: asFunction(({ hostSandbox, root }: { hostSandbox: HostSandbox; root: string }) => {
       const launches = new Map<string, SandboxLaunch>();
       const policy = () => sandboxPolicy(currentConfig(root, config).config);
@@ -769,7 +784,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id], hostGuard(config.config), sandboxLaunches(h)));
       return hosts;
     }).singleton(),
-    terminal: asFunction(() => new NodePtyTerminal()).singleton(),
+    terminal: asFunction(
+      () => new NodePtyTerminal(options.installation?.nodePty, options.installation?.beBun),
+    ).singleton(),
     // A pane's screen as a person sees it (@xterm/headless, ADR-0091): prompts are read from it.
     screenRenderer: asFunction(() => new XtermScreenRenderer()).singleton(),
     // The first host is the default of a new session: the scenario when a test plays one, else
@@ -1406,7 +1423,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       new AstGrepEngine(processRunner, root, toolBins),
       new BiomeEngine(processRunner, root, toolBins),
       new TscEngine(processRunner, root, toolBins),
-      new BunTestEngine(processRunner, root),
+      new BunTestEngine(
+        processRunner,
+        root,
+        undefined,
+        options.installation?.beBun ? { BUN_BE_BUN: "1" } : undefined,
+      ),
     ]).singleton(),
     ruleScaffolders: asFunction(({ root }) => [new AstGrepScaffolder(root)]).singleton(),
     ruleCatalog: asFunction(({ fileSystem, paths }) => new RuleCatalog(fileSystem, paths)).singleton(),

@@ -143,6 +143,7 @@ describe("metator CLI (process e2e)", () => {
       "config get",
       "config set",
       "config unset",
+      "inspect",
       "agents install",
       "agents update",
       "setup",

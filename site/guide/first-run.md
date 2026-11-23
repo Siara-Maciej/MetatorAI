@@ -1,8 +1,10 @@
 # Start with one repository
 
-This page sets MetatorAI up in one repository and takes you through your first chat: a question, a quick change and a full run. It needs the [`metator` command](./install.md), [the desktop app](./desktop-app.md), and Claude Code (`claude`) or GitHub Copilot CLI (`copilot`) installed and logged in.
+This page sets MetatorAI up in one repository and takes you through your first chat: a question, a quick change and a full run. It needs [the desktop app](./desktop-app.md), git, and Claude Code (`claude`) or GitHub Copilot CLI (`copilot`) installed and logged in.
 
 ## Set up the repository
+
+In the app, **Add repository** does this whole section for you: choose the folder, choose the AI host, **Set up**, then **Commit** what setup wrote ([Add a repository](./desktop-app.md#add-a-repository)). The rest of this section is the same in a terminal, with the [`metator` command](./install.md#the-metator-command-in-your-terminal).
 
 In the root of a git repository with at least one commit:
 

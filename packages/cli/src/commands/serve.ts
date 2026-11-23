@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { liveDaemonAt } from "../daemon-client.ts";
+import { selfCommand } from "../installation.ts";
 import { nonNegativeInt, positiveInt } from "../options.ts";
 import { ensureDaemon } from "../serve/ensure.ts";
 import { daemonInTheWay, servedRoots, startServer } from "../serve/server.ts";
@@ -68,8 +69,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
             // of its own process (ADR-0101).
             const given = root();
             const argv = [
-              process.argv[0] as string,
-              process.argv[1] as string,
+              ...selfCommand(),
               ...(given ? ["--root", given] : []),
               "serve",
               "--port",

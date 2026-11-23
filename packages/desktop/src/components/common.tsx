@@ -67,8 +67,6 @@ export function NoDaemon() {
   const { url, error, setUrl, retry, startable, folder, starting, startError, start } = useDaemon();
   const [address, setAddress] = useState(url);
   useEffect(() => setAddress(url), [url]);
-  const [dir, setDir] = useState(folder);
-  useEffect(() => setDir(folder), [folder]);
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard
@@ -89,35 +87,34 @@ export function NoDaemon() {
         {startable ? (
           <>
             <p className="muted">
-              The app starts the daemon itself. Name your repository, or a folder of repositories; the app
-              remembers it and starts the daemon there every time it opens.
+              The app starts the daemon of {folder ? <code>{folder}</code> : "your repository"} itself, every
+              time it opens.
             </p>
-            <form
-              className="addr"
-              onSubmit={(e) => {
-                e.preventDefault();
-                start(dir);
-              }}
-            >
-              <input
-                aria-label="folder to serve"
-                value={dir}
-                onChange={(e) => setDir(e.target.value)}
-                placeholder="/path/to/your/repository"
-              />
-              <button type="submit" className="primary" disabled={starting || dir.trim() === ""}>
-                {starting ? "Starting…" : "Start the daemon"}
-              </button>
-            </form>
             {startError ? (
               <p className="dim" data-testid="start-error">
                 The daemon did not start: {startError}
               </p>
             ) : null}
+            <div className="addr">
+              <button
+                type="button"
+                className="primary"
+                disabled={starting || folder === ""}
+                onClick={() => void start(folder)}
+              >
+                {starting ? "Starting…" : "Start it again"}
+              </button>
+              <a className="button-link" href="#/add">
+                Add repository…
+              </a>
+            </div>
           </>
         ) : (
           <>
-            <p className="muted">In a terminal, in your repository or in a folder of repositories:</p>
+            <p className="muted">
+              In a terminal, in your repository or in a folder of repositories (new here?{" "}
+              <a href="#/add">Add repository</a> lists every step):
+            </p>
             <div className="cmd">
               <code>metator serve</code>
               <button type="button" className="ghost" onClick={copy}>

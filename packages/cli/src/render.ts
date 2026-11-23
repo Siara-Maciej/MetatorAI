@@ -2,6 +2,7 @@ import type {
   Attention,
   EscalatedItem,
   InboxItem,
+  Inspection,
   Overview,
   RunOverview,
   StageProgress,
@@ -287,6 +288,35 @@ export function renderDoctor(r: {
     lines.push(`  ${CHECK_MARK[c.status] ?? "·"} ${c.id.padEnd(width)}  ${c.message}`);
     if (c.fix) lines.push(`  ${" ".repeat(width + 2)}  fix: ${c.fix}`);
   }
+  return lines.join("\n");
+}
+
+const NEXT: Readonly<Record<Inspection["next"], string>> = {
+  "choose-another": "nothing is there: choose another folder",
+  "install-git": "install git first",
+  "git-init": "not a git repository: `git init` makes it one",
+  setup: "not set up: `metator setup` sets it up",
+  add: "set up: open it in the app, or `metator serve`",
+  "setup-repos": "set up each repository that is not (`metator -C <repository> setup`)",
+  "update-app": "written by a newer MetatorAI: update the app (or metator-ai) before using it here",
+};
+
+/** `metator inspect` as a person reads it: what the folder is, the machine's git and hosts, what comes next. */
+export function renderInspection(i: Inspection): string {
+  const mark = (ok: boolean | null) => (ok === null ? "·" : ok ? "✓" : "✗");
+  const repo = (r: NonNullable<Inspection["repository"]>) =>
+    `${r.name} (${r.root})${r.worktree ? ", from its worktree" : ""}: set up ${r.setUp}${r.uncommitted.length > 0 ? `, ${r.uncommitted.length} uncommitted file(s)` : ""}`;
+  const lines = [`${i.path}: ${i.kind}`];
+  if (i.repository) lines.push(`  ${repo(i.repository)}`);
+  for (const r of i.folder?.repos ?? []) lines.push(`  ${repo(r)}`);
+  lines.push("", `  ${mark(i.git.installed)} git ${i.git.version ?? `not installed (${i.git.install.url})`}`);
+  for (const h of i.hosts)
+    lines.push(
+      `  ${mark(h.installed)} ${h.program} ${h.installed ? (h.loggedIn ? "logged in" : `no login found: ${h.login}`) : `not installed: ${h.install.command}`}`,
+    );
+  const writes = i.defaultHost ? i.writes[i.defaultHost] : undefined;
+  if (writes) lines.push("", `  setup --host ${i.defaultHost} writes ${writes.length} file(s)`);
+  lines.push("", `next: ${NEXT[i.next]}`);
   return lines.join("\n");
 }
 

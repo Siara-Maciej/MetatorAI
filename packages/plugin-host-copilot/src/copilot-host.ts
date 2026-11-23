@@ -16,6 +16,19 @@ export const copilotHost: HostDescriptor = {
     domains: ["api.githubcopilot.com", "*.githubcopilot.com", "github.com", "api.github.com"],
     writable: ["~/.copilot"],
   },
+  // The desktop app cannot install Copilot CLI: it shows these (ADR-0105). A login is a token in the
+  // environment, or the users Copilot CLI records in ~/.copilot/config.json.
+  setup: {
+    install: {
+      url: "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli",
+      command: "npm install -g @github/copilot",
+    },
+    login: "run copilot in a terminal, then type /login",
+    credentials: {
+      env: ["COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"],
+      files: [{ path: ".copilot/config.json", key: "logged_in_users" }],
+    },
+  },
   files: {
     generator: () => new CopilotGenerator(),
     skills: () => new CopilotSkillGenerator(),

@@ -119,6 +119,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
   {
     verb: "Set up a repository",
     commands: [
+      ["inspect", "what a folder is before setup: set up or not, git, the AI hosts, what setup would write"],
       ["setup", "AI hosts, workflows and hooks, asked in the terminal (or --host … --yes)"],
       ["init", "the config from the repository's own scripts, with the evidence"],
       ["doctor", "what a run will not be able to do here, and the fix for each"],

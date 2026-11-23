@@ -1168,6 +1168,20 @@ metator config unset [options] <key>
 | `--scope <scope>` | which file holds the value (one of: user, repo, run) **Required.** |  |
 | `--run <id>` | the run, for --scope run |  |
 
+## inspect
+
+### `metator inspect`
+
+Say what a folder is before setup: a repository (set up or not), a folder of repositories, git and the AI hosts on this machine, and what setup would write
+
+```bash
+metator inspect [options] [path]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[path]` | the folder to look at (default: this one) | |
+
 ## agents
 
 ### `metator agents install`
@@ -1217,6 +1231,8 @@ metator setup [options]
 | `--hooks` | install the hooks (`metator guard`) for each host without asking (the default) |  |
 | `--no-hooks` | do not install the hooks: nothing then guards commits and pushes, and a word in the chat is no consent |  |
 | `--yes` | do not ask; take the options and what was found |  |
+| `--commit` | commit the files a setup wrote (--files, as `written` names them) as "Set up MetatorAI", and nothing else |  |
+| `--files <files...>` | with --commit: the files to commit, relative to the repository |  |
 
 ## gate
 

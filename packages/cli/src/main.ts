@@ -1,6 +1,10 @@
 #!/usr/bin/env bun
+import { adoptInstallation } from "./installation.ts";
 import { run } from "./run.ts";
 import { clackTerminal } from "./terminal.ts";
+
+// A compiled executable (the desktop app's) names its installation for every process it starts (ADR-0105).
+adoptInstallation();
 
 // The last write is awaited before exit (writes to stdout complete in order): `process.exit` would cut output a slow pipe has not read
 // yet (64 KiB is a pipe's buffer).

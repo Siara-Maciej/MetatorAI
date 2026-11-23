@@ -1,8 +1,12 @@
 name: desktop
 
-# Builds the MetatorAI Desktop installers (Tauri) for Windows, macOS (universal) and Linux.
-# Every run keeps them as workflow artifacts (Actions → the run → Artifacts). Once every platform
-# has built, the `release` job puts them on the repository's Releases page:
+# Builds the MetatorAI Desktop installers (Tauri) for Windows, macOS (universal) and Linux, with
+# the metator CLI inside (ADR-0105): each build compiles it for its platform (`bun build
+# --compile`, scripts/compile-cli.ts) into the app's sidecar and its `metator-resources`. First,
+# the portable Linux CLI bundle (scripts/linux-cli-bundle.ts) is built and proven once per
+# architecture; the Windows and macOS apps carry it in `linux-cli/<arch>/` for Dev Containers.
+# Every run keeps the installers as workflow artifacts (Actions → the run → Artifacts). Once every
+# platform has built, the `release` job puts them on the repository's Releases page:
 # - a push to main (or a manual run on main) replaces the pre-release "desktop-latest", the latest build of main;
 # - a tag `desktop-v*` publishes a release of that version.
 # Pull requests only build.
@@ -11,11 +15,27 @@ on:
     branches: [main, claude/foundation]
     tags: ["desktop-v*"]
     paths:
-      - packages/desktop/**
+      - packages/**
+      - metator/**
+      - docs/metator/**
+      - .github/metator/**
+      - scripts/compile-cli.ts
+      - scripts/linux-cli-bundle.ts
+      - scripts/pack.ts
+      - e2e/linux-cli-bundle.e2e.test.ts
+      - bun.lock
       - .github/workflows/desktop.yml
   pull_request:
     paths:
-      - packages/desktop/**
+      - packages/**
+      - metator/**
+      - docs/metator/**
+      - .github/metator/**
+      - scripts/compile-cli.ts
+      - scripts/linux-cli-bundle.ts
+      - scripts/pack.ts
+      - e2e/linux-cli-bundle.e2e.test.ts
+      - bun.lock
       - .github/workflows/desktop.yml
   workflow_dispatch:
 
@@ -27,22 +47,73 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The metator CLI for Linux (glibc) with its native addons and launcher, as one tarball per
+  # architecture, built on a machine of that architecture (node-pty is built by `bun install`).
+  # In Debian 11, so node-pty is built against an old glibc (2.31) and the bundle runs in the
+  # containers of Debian 11, Ubuntu 20.04 and later; its manifest and launcher name the glibc it
+  # needs. It is unpacked and run with a clean environment before anything carries it
+  # (e2e/linux-cli-bundle.e2e.test.ts).
+  linux-cli:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: x64
+          - os: ubuntu-22.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    container: debian:bullseye
+    steps:
+      - name: Build tools (git, a C++ compiler for node-pty, binutils for the glibc check)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl unzip xz-utils git python3 make g++ binutils
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: Build the Linux CLI bundle
+        run: bun scripts/linux-cli-bundle.ts --arch ${{ matrix.arch }} --out linux-cli/${{ matrix.arch }}
+      - name: Prove it unpacked, with a clean environment (version, inspect, setup, serve, a PTY, an oxc parse)
+        env:
+          METATOR_NO_REAL_HOSTS: "1"
+          METATOR_LINUX_BUNDLE: linux-cli/${{ matrix.arch }}
+        run: bun test e2e/linux-cli-bundle.e2e.test.ts
+      - name: Keep the bundle for the app builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: metator-linux-cli-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            linux-cli/${{ matrix.arch }}/metator-bundle.json
+            linux-cli/${{ matrix.arch }}/metator-linux-${{ matrix.arch }}.tar.gz
+
   build:
+    needs: linux-cli
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             name: windows-x64
-            args: ""
+            triple: x86_64-pc-windows-msvc
+            install: ""
+            args: --config src-tauri/tauri.bundle.conf.json --config src-tauri/tauri.linux-cli.conf.json
           # One universal .dmg for Apple Silicon and Intel, built on the current macOS runner
-          # (the Intel runners are retired, so the x64 half is cross-compiled).
+          # (the Intel runners are retired, so the x64 half is cross-compiled). Both halves of the
+          # CLI need their addons: `--cpu='*'` installs every architecture's.
           - os: macos-latest
             name: macos-universal
-            args: --target universal-apple-darwin
+            triple: universal-apple-darwin
+            install: --cpu='*'
+            args: --target universal-apple-darwin --config src-tauri/tauri.bundle.conf.json --config src-tauri/tauri.linux-cli.conf.json
           - os: ubuntu-22.04
             name: linux-x64
-            args: ""
+            triple: x86_64-unknown-linux-gnu
+            install: ""
+            args: --config src-tauri/tauri.bundle.conf.json
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +131,60 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile ${{ matrix.install }}
+      - name: The shell's Rust tests
+        if: runner.os == 'Linux'
+        working-directory: packages/desktop/src-tauri
+        run: cargo test
+      # The sidecar `binaries/metator-<triple>` and `metator-resources/` (native addons, node-pty,
+      # the sandbox runtime, the canon). The script stops on anything missing.
+      - name: Compile the metator CLI the app ships with
+        run: bun scripts/compile-cli.ts --triple ${{ matrix.triple }}
+      - name: The Linux CLI bundle, x64
+        if: runner.os != 'Linux'
+        uses: actions/download-artifact@v4
+        with:
+          name: metator-linux-cli-x64
+          path: packages/desktop/src-tauri/linux-cli/x64
+      - name: The Linux CLI bundle, arm64
+        if: runner.os != 'Linux'
+        uses: actions/download-artifact@v4
+        with:
+          name: metator-linux-cli-arm64
+          path: packages/desktop/src-tauri/linux-cli/arm64
+      # Loudly, before Tauri: an app is never built without its CLI (Tauri's build fails too on a
+      # missing resource, with less to say).
+      - name: Check every file the app carries is there
+        shell: bash
+        env:
+          TRIPLE: ${{ matrix.triple }}
+          RUNNER: ${{ runner.os }}
+        run: |
+          cd packages/desktop/src-tauri
+          exe=""
+          if [ "$RUNNER" = "Windows" ]; then exe=".exe"; fi
+          need=("binaries/metator-$TRIPLE$exe" metator-resources/node-pty/package.json metator-resources/canon/metator)
+          for f in metator-resources/native/*/oxc-parser.node metator-resources/native/*/oxc-resolver.node; do need+=("$f"); done
+          if [ "$RUNNER" != "Windows" ]; then need+=(metator-resources/sandbox-runtime/dist/cli.js); fi
+          if [ "$RUNNER" != "Linux" ]; then
+            for a in x64 arm64; do need+=("linux-cli/$a/metator-bundle.json" "linux-cli/$a/metator-linux-$a.tar.gz"); done
+          fi
+          missing=0
+          for f in "${need[@]}"; do
+            if [ ! -e "$f" ]; then echo "::error::the app would ship without $f"; missing=1; else echo "ok $f"; fi
+          done
+          exit "$missing"
+      # The addons load from the resources on this platform: an oxc parse in this checkout.
+      - name: The compiled CLI answers
+        shell: bash
+        env:
+          TRIPLE: ${{ matrix.triple }}
+          METATOR_RESOURCES: ${{ github.workspace }}/packages/desktop/src-tauri/metator-resources
+        run: |
+          bin="packages/desktop/src-tauri/binaries/metator-$TRIPLE"
+          if [ -e "$bin.exe" ]; then bin="$bin.exe"; fi
+          "$bin" version --json
+          "$bin" -C "$GITHUB_WORKSPACE" symbols find compileCli --json | tee /dev/stderr | grep -q '"file":"scripts/compile-cli.ts"'
       - name: Build the installers
         uses: tauri-apps/tauri-action@v0
         env:
@@ -105,7 +229,7 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
         run: |
-          notes="Installers for Windows (.exe, .msi), macOS (.dmg, Apple Silicon and Intel) and Linux (.deb, .AppImage), built from ${SHA}. The app needs the metator command and \`metator serve\` running: see https://siara-maciej.github.io/MetatorAI/guide/desktop-app"
+          notes="Installers for Windows (.exe, .msi), macOS (.dmg, Apple Silicon and Intel) and Linux (.deb, .AppImage), built from ${SHA}. The metator CLI is inside the app: install it, then Add repository. You need git and Claude Code or GitHub Copilot CLI. See https://siara-maciej.github.io/MetatorAI/guide/desktop-app"
           if [[ "$REF" == refs/tags/desktop-v* ]]; then
             gh release create "$REF_NAME" upload/* --verify-tag --title "MetatorAI Desktop ${REF_NAME#desktop-}" --notes "$notes"
           else

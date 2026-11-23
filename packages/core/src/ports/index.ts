@@ -171,6 +171,8 @@ export interface Terminal {
  */
 export interface HostSandbox {
   command(argv: readonly string[], settings: SandboxSettings): Result<string[], MetatorError>;
+  /** Why the sandbox runtime cannot start from this installation (it is not there); undefined when it can. */
+  missing?(): string | undefined;
 }
 
 /**
@@ -352,6 +354,24 @@ export interface Vcs {
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
   /** Whether there is a commit yet (a worktree and a merge base need one); assumed when absent. */
   hasCommits?(): Promise<Result<boolean, MetatorError>>;
+}
+
+/**
+ * Git as the desktop app's "Add repository" needs it (ADR-0105): what a folder is, what is not
+ * committed there, and the commit of a setup, which only ever takes the files named.
+ */
+export interface RepositoryGit {
+  /** git's version (`2.43.0`); undefined when git is not installed. */
+  version(): Promise<string | undefined>;
+  /**
+   * The checkout `dir` is in: its top level, and its main checkout (another folder only for a
+   * linked worktree); undefined outside a repository.
+   */
+  checkout(dir: string): Promise<{ readonly top: string; readonly main: string } | undefined>;
+  /** Files with uncommitted changes at `root`, tracked and untracked (ignored ones and MetatorAI's state aside), sorted. */
+  uncommitted(root: string): Promise<Result<readonly string[], MetatorError>>;
+  /** Stages exactly `files` and commits only them with `message` (what else is staged stays staged); the new commit's id. */
+  commit(root: string, files: readonly string[], message: string): Promise<Result<string, MetatorError>>;
 }
 
 /** What a checkout's working tree looks like now: asked before a run starts and between worktrees. */

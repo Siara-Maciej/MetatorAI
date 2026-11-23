@@ -34,7 +34,16 @@ describe("SrtSandbox: a host session's command line inside the sandbox runtime",
       .command(["copilot", "-i", "say hi"], settings)
       ._unsafeUnwrap();
     expect(argv.slice(0, 3)).toEqual(["/usr/bin/bun", "/x/srt/cli.js", "--settings"]);
-    expect(argv.slice(4)).toEqual(["--", "env", "METATOR_SANDBOX=1", "copilot", "-i", "say hi"]);
+    expect(argv.slice(4)).toEqual([
+      "--",
+      "env",
+      "-u",
+      "BUN_BE_BUN",
+      "METATOR_SANDBOX=1",
+      "copilot",
+      "-i",
+      "say hi",
+    ]);
     // The file is named by what it holds, outside the session's own reach, and holds the settings.
     const file = argv[3] as string;
     expect(file.startsWith(dir)).toBe(true);
@@ -47,6 +56,25 @@ describe("SrtSandbox: a host session's command line inside the sandbox runtime",
     expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(settings);
   });
 
+  test("a compiled metator runs srt as itself acting as bun, and the session inside does not inherit that", async () => {
+    const dir = await temp();
+    const argv = new SrtSandbox(
+      dir,
+      ["env", "BUN_BE_BUN=1", "/app/metator"],
+      () => "/r/sandbox-runtime/dist/cli.js",
+    )
+      .command(["claude"], settings)
+      ._unsafeUnwrap();
+    expect(argv.slice(0, 5)).toEqual([
+      "env",
+      "BUN_BE_BUN=1",
+      "/app/metator",
+      "/r/sandbox-runtime/dist/cli.js",
+      "--settings",
+    ]);
+    expect(argv.slice(6)).toEqual(["--", "env", "-u", "BUN_BE_BUN", "METATOR_SANDBOX=1", "claude"]);
+  });
+
   test("nothing to start, or no runtime to start it with, is an error and starts nothing", async () => {
     const dir = await temp();
     expect(new SrtSandbox(dir).command([], settings)._unsafeUnwrapErr().code).toBe("USAGE");
@@ -54,6 +82,17 @@ describe("SrtSandbox: a host session's command line inside the sandbox runtime",
       throw new Error("Cannot find module '@anthropic-ai/sandbox-runtime/package.json'");
     }).command(["claude"], settings);
     expect(missing._unsafeUnwrapErr().message).toContain("cannot prepare the sandbox");
+  });
+
+  test("missing: nothing when the runtime's command line is there, else where it was looked for", async () => {
+    expect(new SrtSandbox().missing()).toBeUndefined();
+    expect(new SrtSandbox(await temp(), "bun", () => "/nowhere/cli.js").missing()).toBe(
+      "the sandbox runtime is not at /nowhere/cli.js",
+    );
+    const thrown = new SrtSandbox(await temp(), "bun", () => {
+      throw new Error("Cannot find module");
+    }).missing();
+    expect(thrown).toContain("cannot be found (Cannot find module)");
   });
 
   test("the runtime's command line ships with MetatorAI", () => {

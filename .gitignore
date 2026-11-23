@@ -5,3 +5,7 @@ __pycache__/
 site/.vitepress/cache/
 site/.vitepress/dist/
 site/public/badges/
+# The desktop app's bundled CLI (scripts/compile-cli.ts, scripts/linux-cli-bundle.ts; ADR-0105)
+packages/desktop/src-tauri/binaries/
+packages/desktop/src-tauri/metator-resources/
+packages/desktop/src-tauri/linux-cli/
