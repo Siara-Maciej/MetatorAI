@@ -12,7 +12,8 @@ MetatorAI is a desktop app for working with AI coding agents on Claude Code or G
 
 Everything runs on your machine, in your repositories.
 
-![The app: a chat and its tasks in the sidebar, and a plan to approve on Home](./public/screens/home.png)
+![Terminals by task: the chat where the task was given on the left, the run's conductor working in its own Claude Code terminal on the right](./public/screens/real/real-06-task-view.webp)
+*A task's terminals: the chat stays the main terminal, the run's conductor works beside it.*
 
 ## Two ways in
 
@@ -33,17 +34,28 @@ Click **+ New chat** and say what you want. For each request the agent suggests 
 | Quick | a small change meant to stay | build, the quick gate, one short review; it ends with a diff you look at |
 | Full | everything else | a workflow: plan, your approval, tests and code, gates, review, your approval of the delivery |
 
-![A chat: the conversation agent in its terminal, with the tasks it started under it](./public/screens/chat.png)
+![The chat answers how GET /prices/{sku} computes the price, citing src/server.ts and src/catalog.ts line by line, and says nothing changed](./public/screens/real/real-02-chat-answer.webp)
+*A question answered in the chat with file:line; nothing changes and nothing starts.*
+
+![The chat answers a small change with: This is too small for the full workflow: do it as quick?, naming the two files it would touch](./public/screens/real/real-04-quick-proposal.webp)
+*The chat checks the change and suggests quick; you decide.*
 
 ### 2. Watch the agents, or do something else
 
 Every agent works in a real terminal. **Terminals** shows a task's terminals side by side: you can read along, take the keyboard, or open a shell. You do not have to watch: the app tells you when something needs you.
 
-![Terminals: a task's main chat and the session of its run side by side](./public/screens/terminals.png)
+![A run's session: the conductor, the planner that finished with its summary, and the implementer working, each in its own terminal](./public/screens/real/real-06-session-build.webp)
+*A run's session: the conductor and its workers, each in its own terminal.*
 
 ### 3. Decide when it asks
 
 **Home** shows every decision that waits for you, one at a time: the question or the plan, and its answers, with a recommended one. A commit or a push runs only on your word in the chat or your **Yes** on its card.
+
+![Home: Approve the plan for Add GET /prices, with Approve, a field for changes and Ask for changes above the plan's five steps](./public/screens/real/real-06-plan-card.webp)
+*A plan-approval card: the whole plan, Approve and Ask for changes.*
+
+![Home: Claude Code asks to run git add and git commit; the card says git commit needs your consent, with Yes, No, Attach and answer in the pane, and Leave it](./public/screens/real/real-05-permission-card.webp)
+*A commit the agent asks for comes to Home as a card; it runs only on your Yes.*
 
 ### 4. Read the change
 

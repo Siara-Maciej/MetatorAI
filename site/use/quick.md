@@ -2,6 +2,9 @@
 
 Two of the three ways in a chat are lighter than a full run. A **quick change** is a small change meant to stay: no plan, one short review, and it ends with a diff you look at. A **debug change** is an edit not meant for a commit, such as a `console.log`: made at once, and recorded so it can be taken out again. This page covers both.
 
+![The chat answers a small change with: This is too small for the full workflow: do it as quick?, naming the two files it would touch](../public/screens/real/real-04-quick-proposal.webp)
+*The chat checks the change and suggests quick; you decide.*
+
 ## Quick changes
 
 The chat suggests quick when `metator quick check` says the change is small enough: "This is too small for the full workflow: do it as quick?" On yes it starts `metator quick start`. A quick run then:
@@ -15,6 +18,12 @@ The chat suggests quick when `metator quick check` says the change is small enou
 <WorkflowDiagram id="mt-quick" />
 
 On the last card, **Open diff** opens the run's **Changes** and leaves the card where it is; **Fine** ends the run. Nothing is committed: the diff stays in your working tree. Commit it yourself, or tell the chat "commit it" ([Approvals and consent](./approvals.md#commit-and-push)).
+
+![Home: Quick change ready: look at the diff, with Open diff, Fine and Other](../public/screens/real/real-04-quick-ready-card.webp)
+*The quick run's last card: look at the diff, then Fine.*
+
+![The quick run's Changes: src/catalog.ts and test/server.test.ts, and the one-line diff that lowercases the SKU](../public/screens/real/real-04-quick-diff.webp)
+*Open diff: the quick run's change, uncommitted in your working tree.*
 
 ### Small enough
 
@@ -72,6 +81,9 @@ metator scratch drop --all                     # take them out again (or --id s0
 
 `drop` reverse-applies each record's patch and leaves your other work in the same files. Nothing is forced.
 
+![The chat adds a console.log to src/server.ts at once, shows the one-line diff, and says it is recorded as a temporary edit](../public/screens/real/real-03-debug-edit.webp)
+*A debug line made at once and recorded, so it can be taken out again.*
+
 ### In the app
 
 While there are some, **Debug changes (N)** shows on Home and in the bar of a task's terminals. A click lists them: the files, what each was for, and when.
@@ -82,6 +94,18 @@ While there are some, **Debug changes (N)** shows on Home and in the bar of a ta
 
 A recorded change never leaves the list without a line that says why.
 
+![The Debug changes dialog: src/server.ts with its note and time, Remove, Remove debug changes and Close](../public/screens/real/real-03-debug-changes-list.webp)
+*Debug changes: each recorded edit with its file, its note and its time.*
+
+![Home after Remove debug changes: a line says Removed 1 debug change (src/server.ts)](../public/screens/real/real-03-debug-changes-removed.webp)
+*After Remove debug changes: the app says what it took out.*
+
 ### A commit that would take one
 
 A `git commit` an agent runs that would take a recorded change is stopped: `this commit holds debug changes: src/price.ts`. That covers a staged change, `git commit -a`, paths named on the commit, and a `git add` in the same command line. Say "commit anyway", or remove them first.
+
+![Home: Claude Code asks to run git add and git commit; the card says git commit needs your consent, with Yes, No, Attach and answer in the pane, and Leave it](../public/screens/real/real-05-permission-card.webp)
+*A commit the agent asks for comes to Home as a card; it runs only on your Yes.*
+
+![The chat after No on the card: Claude Code did not run the commit and says nothing was committed](../public/screens/real/real-05-permission-answered.webp)
+*After No on the card: the command did not run, and the chat says so.*

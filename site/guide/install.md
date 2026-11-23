@@ -4,7 +4,7 @@ This page puts the `metator` command on your machine. The desktop app is on its 
 
 <PmSwitch />
 
-MetatorAI is pre-alpha and is not published to npm. You install it from a checkout of its repository.
+MetatorAI is not published to npm. You install it from a checkout of its repository.
 
 ## Requirements
 

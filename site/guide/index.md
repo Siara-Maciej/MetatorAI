@@ -12,7 +12,8 @@ It does not replace your AI tool, your linter or your tests. It runs them.
 | The daemon, `metator serve` | a local process in your repository, or in a folder of repositories. It holds the terminals, the runs and the questions; the app is a window on it |
 | The `metator` command | what the app, the agents, the hooks and CI call. Everything the app does is also a command |
 
-![The app: a chat and its tasks in the sidebar, and a plan to approve on Home](../public/screens/home.png)
+![Terminals by task: the chat where the task was given on the left, the run's conductor working in its own Claude Code terminal on the right](../public/screens/real/real-06-task-view.webp)
+*A task's terminals: the chat stays the main terminal, the run's conductor works beside it.*
 
 ## Who does what
 

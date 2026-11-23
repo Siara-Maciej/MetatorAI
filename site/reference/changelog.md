@@ -1,6 +1,6 @@
 # Changelog
 
-What changed on the default branch, newest first, in terms a user sees. MetatorAI is pre-alpha and installed from a checkout, so there are no numbered releases yet.
+What changed on the default branch, newest first, in terms a user sees. MetatorAI is installed from a checkout, so there are no numbered releases yet.
 
 Every file MetatorAI writes carries a `schemaVersion`. When a document gets a new version, it is named here. Older files keep loading.
 
