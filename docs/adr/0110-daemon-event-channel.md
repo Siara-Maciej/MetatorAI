@@ -50,7 +50,8 @@ Forma: nazwa, dla `activity` z przebiegiem po dwukropku. W demonie, który obsł
 
 ## Stan realizacji
 - Zrobione: hub, tematy, tabela tras, źródła (żądania, zegary, broker PTY, wspólny przegląd), gniazdo `/ws/events`, `/ws/state` i `/ws/inbox` na wspólnym przeglądzie; testy jednostkowe (`packages/cli/test/serve-events.test.ts`, `packages/core/test/pty-broker.test.ts`), e2e (`e2e/serve-events.e2e.test.ts`), mutanty.
-- Nie zrobione: klient w `packages/desktop` (osobna runda; pakiet jest teraz przebudowywany). Zmiany planów, opcji i Backlogu wprowadzone przez inne procesy nie są przeglądane: dochodzą przez `state`, gdy zmieniają przebieg, albo przy następnym `hello`.
+- Zrobione też: klient w `packages/desktop` (`shared/api/events.ts`, `shared/daemon/events.ts`): wiadomość sprawdzona schematem Zod; po zmianie tuż po poprzedniej czytane są ponownie zapytania jej tematów, po luce w `seq` albo nowym `epoch` wszystkie. Zapytania tematów, które demon zgłasza po każdej zmianie, kto by jej nie zrobił (`layout`, `threads`, zbiór `SWEPT`), są przy żywym kanale odpytywane tylko awaryjnie (dziesięć razy rzadziej, co najmniej co 30 s); pozostałe zachowują swój interwał, bo zmian planów, opcji i Backlogu wprowadzonych przez inne procesy demon nie przegląda. Demon bez kanału (trzy nieudane próby bez `hello`) nie jest pytany ponownie. Dowód: `e2e/desktop-push.e2e.test.ts`.
+- Nie zrobione: przegląd planów, opcji i Backlogu zmienianych przez inne procesy; dopóki go nie ma, te tematy dochodzą przez `state`, gdy zmieniają przebieg, przy następnym `hello` albo przez interwał klienta.
 
 ## Konsekwencje
 ### Pozytywne
