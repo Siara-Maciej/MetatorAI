@@ -1,5 +1,12 @@
-import { type MetatorError, type Result, reviewSourcesOf, type Supervisor } from "@metator/core";
+import {
+  type MetatorError,
+  type Result,
+  reviewSourcesOf,
+  type Supervisor,
+  type SupervisorReport,
+} from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
+import { type TopicName, topic } from "./events.ts";
 
 /**
  * What the daemon does on its own, on a clock: the supervisor's tick (dead drives, idle agents),
@@ -32,6 +39,31 @@ export interface TimerDeps {
     c: MetatorContainer,
     runId: string,
   ) => Promise<Result<{ readonly stage: string }, MetatorError>>;
+  /** Told what a clock changed, as the event channel's topics (ADR-0110). */
+  readonly changed?: (topics: readonly string[]) => void;
+}
+
+/** The topics of these names, and the activity of each run, in a repository (a folder's name). */
+export function topicsOf(names: readonly TopicName[], runIds: readonly string[], repo?: string): string[] {
+  const at = repo ? { repo } : {};
+  return [...names.map((n) => topic(n, at)), ...runIds.map((runId) => topic("activity", { runId, ...at }))];
+}
+
+/**
+ * What a supervisor's tick changed: a drive revived or given up and a pane resumed are the run's
+ * work; a nudge, a question, a closed session or a host prompt is a pane and the inbox. A tick
+ * that did nothing publishes nothing.
+ */
+export function supervisorTopics(r: SupervisorReport, repo?: string): string[] {
+  const runs = [...r.revived.map((x) => x.runId), ...r.gaveUp, ...r.resumed.map((x) => x.runId)];
+  const prompts = r.prompts;
+  const panes =
+    r.nudged.length +
+    r.asked.length +
+    r.closed.length +
+    (prompts ? prompts.asked.length + prompts.attached.length + prompts.resolved.length : 0);
+  if (runs.length === 0 && panes === 0) return [];
+  return topicsOf(["state", "inbox", "layout"], [...new Set(runs)], repo);
 }
 
 /** One repository's interval: the fixed one, or what its own config says (`own`). */
@@ -40,11 +72,18 @@ export function intervalOf(given: number | "own", own: number): number {
 }
 
 export function startTimers(deps: TimerDeps): { stop(): void } {
-  const each = (work: (key: string, c: MetatorContainer) => void, repos = deps.repos) => {
+  const each = (
+    work: (key: string, c: MetatorContainer, repo: string | undefined) => void,
+    repos = deps.repos,
+  ) => {
     for (const repo of repos()) {
       const c = deps.containerFor(repo);
-      if (c.isOk()) work(repo ?? ".", c.value);
+      if (c.isOk()) work(repo ?? ".", c.value, repo);
     }
+  };
+  /** What a clock changed in a repository, to the event channel. */
+  const publish = (repo: string | undefined, names: readonly TopicName[], runIds: readonly string[] = []) => {
+    if (names.length > 0 || runIds.length > 0) deps.changed?.(topicsOf(names, runIds, repo));
   };
   const say = (what: string, key: string) => (o: object) =>
     process.stderr.write(`${JSON.stringify({ [what]: { repo: key, ...o } })}\n`);
@@ -57,11 +96,13 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
     timers.push(
       setInterval(
         () =>
-          each((key, c) => {
+          each((key, c, repo) => {
             const s = supervisors.get(key) ?? c.resolve("supervisor")((runId) => restart(c, runId));
             supervisors.set(key, s);
             void s.tick().then((r) => {
-              if (r.isErr()) say("supervisor", key)({ error: r.error.message });
+              if (r.isErr()) return say("supervisor", key)({ error: r.error.message });
+              const topics = supervisorTopics(r.value, repo);
+              if (topics.length > 0) deps.changed?.(topics);
             });
           }),
         deps.superviseMs,
@@ -77,7 +118,7 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
     busy.add(k);
     void work().finally(() => busy.delete(k));
   };
-  const intake = (key: string, c: MetatorContainer) =>
+  const intake = (key: string, c: MetatorContainer, repo: string | undefined) =>
     once("intake", key, async () => {
       const tell = say("intake", key);
       const r = await c.resolve("scanIntake").execute();
@@ -86,9 +127,10 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
       for (const s of r.value.rules.flatMap((x) => x.started)) {
         tell({ started: s.runId, issue: s.issue });
         await c.resolve("ensureDriven").execute({ runId: s.runId });
+        publish(repo, ["state", "inbox", "layout", "backlog"], [s.runId]);
       }
     });
-  const reviews = (key: string, c: MetatorContainer) =>
+  const reviews = (key: string, c: MetatorContainer, repo: string | undefined) =>
     once("reviews", key, async () => {
       const tell = say("reviews", key);
       const r = await c.resolve("myReviews").scan();
@@ -98,11 +140,12 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
         if (!q.started) continue;
         tell({ started: q.started, request: q.id, threads: q.fresh.length });
         await c.resolve("ensureDriven").execute({ runId: q.started });
+        publish(repo, ["state", "inbox", "layout", "reviews"], [q.started]);
       }
     });
   // Someone else's MRs (ADR-0097): new commits, the author's replies, merged or closed, and the
   // requests that ask me for a review. Nothing starts by itself: what is new becomes a card.
-  const watched = (key: string, c: MetatorContainer) =>
+  const watched = (key: string, c: MetatorContainer, repo: string | undefined) =>
     once("watch", key, async () => {
       const tell = say("reviews", key);
       const r = await c.resolve("watchedReviews").check();
@@ -111,18 +154,20 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
       for (const id of r.value.news) tell({ news: id });
       for (const id of r.value.requested) tell({ requested: id });
       for (const id of r.value.ended) tell({ ended: id });
+      const news = r.value.news.length + r.value.requested.length + r.value.ended.length;
+      if (news > 0) publish(repo, ["reviews", "inbox"]);
     });
-  each((key, c) => {
+  each((key, c, repo) => {
     const config = c.resolve("config").config;
     const intakeEvery = intervalOf(deps.intakeMs, config.intake.everyMs);
     if (config.intake.rules.length > 0 && intakeEvery > 0)
-      timers.push(setInterval(() => intake(key, c), intakeEvery));
+      timers.push(setInterval(() => intake(key, c, repo), intakeEvery));
     const reviewsEvery = intervalOf(deps.reviewsMs, config.reviews.everyMs);
     if (reviewSourcesOf(config.codehost).length > 0 && reviewsEvery > 0)
-      timers.push(setInterval(() => reviews(key, c), reviewsEvery));
+      timers.push(setInterval(() => reviews(key, c, repo), reviewsEvery));
     const watchEvery = intervalOf(deps.watchMs ?? "own", config.codehost.review.everyMs);
     if (config.codehost.review.watch && watchEvery > 0)
-      timers.push(setInterval(() => watched(key, c), watchEvery));
+      timers.push(setInterval(() => watched(key, c, repo), watchEvery));
   }, deps.scans ?? deps.repos);
 
   // Every live pane's screen on disk: a paused session shows what it left, even after a SIGKILL.
@@ -146,29 +191,38 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
     timers.push(
       setInterval(
         () =>
-          each((key, c) =>
+          each((key, c, repo) =>
             once("sweep", key, async () => {
               const r = await c.resolve("panes").endFinished();
               if (r.isErr()) return say("panes", key)({ error: r.error.message });
               for (const x of r.value) say("panes", key)({ ended: x.ended, finished: x.runId });
+              publish(repo, r.value.length > 0 ? ["layout", "state"] : []);
               // The chat a task was given in learns what became of it.
               const told = await c.resolve("chatNotices").tick();
               if (told.isErr()) return say("chat", key)({ error: told.error.message });
               for (const t of told.value) say("chat", key)({ told: t.paneId, run: t.runId, event: t.event });
+              publish(repo, told.value.length > 0 ? ["layout"] : []);
               // A thread keeps what became of its runs (ADR-0095): one fact per event.
               const noted = await c.resolve("threads").noteRuns();
               if (noted.isErr()) return say("threads", key)({ error: noted.error.message });
               for (const n of noted.value)
                 say("threads", key)({ noted: n.thread, run: n.runId, event: n.event });
+              publish(repo, noted.value.length > 0 ? ["threads", "state"] : []);
               // Lines that wait for an idle agent (the person's words relayed by the task's main
               // chat, the chat's note that the person talked to a session directly).
               const mailed = await c.resolve("paneMail").tick();
               if (mailed.isErr()) return say("mail", key)({ error: mailed.error.message });
               for (const m of mailed.value) say("mail", key)({ told: m.paneId, kind: m.kind });
+              publish(repo, mailed.value.length > 0 ? ["layout"] : []);
               // A session the daemon resumed is told to go on, once it is idle at its prompt.
               const resumed = await c.resolve("resumeNotices").tick();
               if (resumed.isErr()) return say("resumed", key)({ error: resumed.error.message });
               for (const t of resumed.value) say("resumed", key)({ told: t.paneId, run: t.runId });
+              publish(
+                repo,
+                resumed.value.length > 0 ? ["layout", "state"] : [],
+                resumed.value.map((t) => t.runId),
+              );
             }),
           ),
         deps.sweepMs,

@@ -4,6 +4,7 @@ import {
   DriverLock,
   InitRun,
   NUDGE_ENTER_MS,
+  type PaneChange,
   PtyBroker,
   type PtyEvent,
   RunJournal,
@@ -147,6 +148,34 @@ describe("PtyBroker", () => {
     expect([again.pid, again.alive]).toEqual([1002, true]);
     const activity = (await w.journal.activity(run.runId))._unsafeUnwrap();
     expect(activity.map((a) => a.text)).toEqual(["session fake-1 exited with 3 (pane w1:p1)"]);
+  });
+
+  test("a watcher hears every pane start, go idle, print again, exit and close; never its output (ADR-0110)", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const seen: PaneChange[] = [];
+    const stop = w.broker.watch((c) => seen.push(c));
+    const pty = new FakePty(1001);
+    w.start("w1:p1", run.runId, pty);
+    const shell = new FakePty(1002);
+    w.start("w1:p2", undefined, shell, "shell");
+    w.timers[0]?.fn();
+    await Bun.sleep(5);
+    pty.print("again");
+    pty.print("and again");
+    pty.exit(0);
+    w.broker.close("w1:p2");
+    expect(seen).toEqual([
+      { paneId: "w1:p1", runId: run.runId, change: "started" },
+      { paneId: "w1:p2", change: "started" },
+      { paneId: "w1:p1", runId: run.runId, change: "idle" },
+      { paneId: "w1:p1", runId: run.runId, change: "working" },
+      { paneId: "w1:p1", runId: run.runId, change: "exited" },
+      { paneId: "w1:p2", change: "closed" },
+    ]);
+    stop();
+    w.start("w1:p3", undefined, new FakePty(1003), "shell");
+    expect(seen).toHaveLength(6);
   });
 
   test("no output for the threshold with no open question is idleness, once; output ends it", async () => {

@@ -3058,7 +3058,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "an inbox row says whether the decision is reversible",
   },
   {
-    file: "packages/desktop/src/app/model.ts",
+    file: "packages/desktop/src/features/inbox/model.ts",
     from: '  return parseRoute(hash).screen === "inbox" ? { screen: "inbox" } : undefined;',
     to: '  return { screen: "inbox" };',
     why: "a late answer does not take the person back to Home",
@@ -7530,7 +7530,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a record a removal found gone is said: nothing leaves silently",
   },
   {
-    file: "packages/desktop/src/app/confirm.ts",
+    file: "packages/desktop/src/features/inbox/confirm.ts",
     from: "const mine = ++latest;",
     to: "const mine = latest;",
     why: "only the latest answer's confirmation speaks (a stale one named the earlier answer)",
@@ -10452,8 +10452,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/desktop/src/shared/api/events.ts",
-    from: "if (!same || e.seq !== channel.seq + 1) return { channel: next, read: \"all\" };",
-    to: "if (!same) return { channel: next, read: \"all\" };",
+    from: 'if (!same || e.seq !== channel.seq + 1) return { channel: next, read: "all" };',
+    to: 'if (!same) return { channel: next, read: "all" };',
     why: "a change after a missed one reads everything again, not only its own topics",
   },
   {
@@ -10461,5 +10461,36 @@ export const MUTANTS: readonly Mutant[] = [
     from: "ms > 0 ? (live ? Math.max(ms * 10, 30_000) : ms) : false;",
     to: "ms > 0 ? ms : false;",
     why: "while the daemon pushes what changed, polling is only a fallback",
+  },
+  // The daemon's event channel (ADR-0110).
+  {
+    file: "packages/cli/src/serve/events.ts",
+    from: "topics: [...pending].sort() };",
+    to: "topics: [...pending] };",
+    why: "a changed message's topics are sorted",
+  },
+  {
+    file: "packages/cli/src/serve/route-topics.ts",
+    from: "?.topics ?? UNKNOWN_ROUTE;",
+    to: "?.topics ?? [];",
+    why: "a request whose route has no row still announces the state, the inbox and the layout",
+  },
+  {
+    file: "packages/cli/src/serve/sweep.ts",
+    from: "if (before !== undefined) changed.push(topic);",
+    to: "changed.push(topic);",
+    why: "the sweep's first look only learns the texts; it announces nothing",
+  },
+  {
+    file: "packages/cli/src/serve/timers.ts",
+    from: "if (runs.length === 0 && panes === 0) return [];",
+    to: "if (runs.length === 0) return [];",
+    why: "a supervisor's nudge or host prompt is news of the layout and the inbox",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: 'if (this.live.get(input.paneId) === entry) this.tell(input.paneId, entry, "exited");',
+    to: 'this.tell(input.paneId, entry, "exited");',
+    why: "a closed pane's kill is no exit a watcher hears",
   },
 ];
