@@ -64,6 +64,8 @@ jobs:
           git checkout -B "$branch"
           git add -A
           git reset -q drift.md || true
+          # The drift report goes to an issue, not into the PR: when it is all that is new, there is nothing to commit.
+          if git diff --cached --quiet; then echo "nothing regenerated"; exit 0; fi
           git commit -qm "Knowledge refresh: regenerated index, cards, patterns, host files and adapters (nightly W10)"
           git push -f origin "$branch"
           if gh pr view "$branch" --json number >/dev/null 2>&1; then

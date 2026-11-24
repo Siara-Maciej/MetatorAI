@@ -2,25 +2,27 @@
 kind: Skill
 schemaVersion: 1
 name: mt-grill
-description: Use when a task is ambiguous at intake (unclear scope, conflicting requirements, missing acceptance criteria) and the run must not guess. Do not use once the plan is approved or for questions the code can answer.
+description: Interviews the person about what a task leaves open, in rounds of numbered questions with a recommended answer each, until no decision is left assumed, and records every decision. Use when a task is ambiguous at intake (unclear scope, conflicting requirements, missing acceptance criteria) and the run must not guess. Do not use once the plan is approved, or for a fact the repository can answer; read the code, or use skill mt-read-java for Java.
 ---
 # When
-The intake stage finds a requirement that allows two readings, or the task has no acceptance criteria.
+The intake stage finds a requirement that allows two readings, or a task without acceptance criteria. Finding facts is your job; the decisions are the person's.
 
 # Steps
-1. Answer what the code can answer yourself: `metator symbols find`, `metator graph`, module cards.
-   When the code already does what the task asks (or the task asks for no change), do not ask: finish with `STATUS: nothing to do: <file:line and why>`. The person gets one decision (finish the stage, so its gates judge what is there, or do it anyway) instead of a question in prose; only a person closes a run.
-2. List the remaining ambiguities; for each give the readings you see and what each would change in the plan.
-3. Ask them in one message, numbered, each with options (the first one your recommendation). In a run's terminal, ask each with `metator run ask "<question>" --option <recommended> --option <other> --wait`: it reaches the person's inbox and prints the answer.
-4. Record the answers in `task.md` under "Decisions", with who decided.
+1. **Settle the facts yourself.** `metator symbols find`, `metator graph`, the module cards; Java through skill mt-read-java. When the code already does what the task asks (or the task asks for no change), finish with `STATUS: nothing to do: <file:line and why>`: the person gets one decision (finish the stage, so its gates judge what is there, or do it anyway) instead of a question in prose; only a person closes a run.
+   Done when everything still open is a decision, not a fact.
+2. **Map the decisions** as a tree: each open decision and the decisions that depend on it. The frontier is every decision whose prerequisites are settled.
+3. **Ask the frontier, one round.** Numbered questions, each with its options and your recommendation first, worded so that "yes" accepts the recommendation. A question that depends on another one still open waits for a later round. In a run's terminal, ask each with `metator run ask "<question>" --option <recommended> --option <other> --wait`: it reaches the person's inbox and prints the answer.
+4. **Record and recompute.** Write each answer in `task.md` under "Decisions", with the option and who decided. The answers move the frontier: ask the next round.
+   Done when the frontier is empty: every decision answered, none silently assumed.
 
 # Output
-`task.md` with acceptance criteria and decisions; the run continues only after the answers.
+`task.md` with acceptance criteria and every decision with who made it; the run continues only after the last round.
 
 # Checklist
 - [ ] no question the repository could answer
-- [ ] every question has options and a recommendation
-- [ ] the answers are written down, not only remembered
+- [ ] every question has options, the recommendation first, and "yes" accepts it
+- [ ] no question asked before the answers it depends on
+- [ ] every answer written in `task.md` with who decided
 
 # Errors
-No answer in reasonable time: stop the run with `metator run advance abort --reason "waiting for decisions"`; never pick an option yourself.
+No answer in reasonable time: stop the run with `metator run advance abort --reason "waiting for decisions"`. The options are the person's to pick, every one of them.

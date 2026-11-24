@@ -2,15 +2,7 @@ import { GENERATED_MARKER, withMetatorCommand } from "../domain/agent.ts";
 import type { MetatorConfig } from "../domain/config.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import {
-  ANTI_TRIGGER,
-  referencedFiles,
-  SKILL_BODY_LINES,
-  SKILL_SECTIONS,
-  type Skill,
-  SkillDocument,
-  TRIGGER,
-} from "../domain/skill.ts";
+import { frontMatterRule, lintSkill, type Skill, SkillDocument, type SkillRuleId } from "../domain/skill.ts";
 import type { FileSystem, GeneratedFile, ReadonlyFileSystem, SkillGenerator } from "../ports/index.ts";
 import type { GenerateReport } from "./agents.ts";
 import { scanDocuments } from "./document-io.ts";
@@ -57,13 +49,16 @@ export class SkillCatalog {
 export interface SkillProblem {
   readonly source: string;
   readonly skill?: string;
+  /** The canon rule it breaks (`docs/metator/rules/skill.yml`); the message starts with it too. */
+  readonly rule: SkillRuleId;
   readonly severity: "error" | "warning";
   readonly message: string;
 }
 
 /**
- * `meta skills-lint` (04-commands §I): name = directory and prefix, a description with a trigger
- * and an anti-trigger, the template's sections, ≤ 300 lines, and every file it uses exists.
+ * `meta skills-lint` (04-commands §I): every canonical skill against the rules MT-SKILL-001..005
+ * (name, description, body, supporting files, skills it names). A front matter that does not
+ * parse breaks the rule of the field it gets wrong.
  */
 export class LintSkills {
   constructor(
@@ -76,30 +71,26 @@ export class LintSkills {
     Result<{ readonly skills: number; readonly problems: readonly SkillProblem[] }, MetatorError>
   > {
     const scan = await this.catalog.scan();
-    const problems: SkillProblem[] = scan.problems.map((p) => ({
-      source: p.source,
-      severity: "error",
-      message: p.error.message,
-    }));
+    const problems: SkillProblem[] = scan.problems.map((p) => {
+      const issues = p.error.details?.issues as readonly { readonly path?: string }[] | undefined;
+      const rule = frontMatterRule(issues?.[0]?.path);
+      return { source: p.source, rule, severity: "error", message: `[${rule}] ${p.error.message}` };
+    });
+    // A skill whose front matter is broken is still a skill of the canon: naming it is no new problem.
+    const skills = new Set([
+      ...scan.skills.map((s) => s.skill.name),
+      ...scan.problems.map((p) => p.source.split("/").slice(-2)[0] as string),
+    ]);
     for (const { skill, body, source, dir } of scan.skills) {
-      const error = (message: string) =>
-        problems.push({ source, skill: skill.name, severity: "error", message });
-      if (dir.split("/").pop() !== skill.name)
-        error(`name must match its directory (${dir.split("/").pop()})`);
-      if (!skill.name.startsWith(this.prefix)) error(`name must start with "${this.prefix}"`);
-      if (!TRIGGER.test(skill.description)) error('description must say when to use it ("Use when …")');
-      if (!ANTI_TRIGGER.test(skill.description))
-        error('description must say when not to use it ("Do not use …")');
-      const headings = [...body.matchAll(/^#{1,2}\s+(.+?)\s*$/gm)].map((m) => (m[1] as string).toLowerCase());
-      for (const names of SKILL_SECTIONS)
-        if (!names.some((n) => headings.includes(n.toLowerCase())))
-          error(`missing section "# ${names.join('" or "# ')}"`);
-      const lines = body.trimEnd().split("\n").length;
-      if (lines > SKILL_BODY_LINES) error(`body has ${lines} lines, the budget is ${SKILL_BODY_LINES}`);
-      for (const f of skill.files)
-        if (!(await this.fs.exists(`${dir}/${f}`))) error(`file ${f} does not exist`);
-      for (const f of referencedFiles(body))
-        if (!skill.files.includes(f)) error(`uses ${f}; list it in files (and ship it next to SKILL.md)`);
+      const files = new Map<string, string | undefined>();
+      for (const f of skill.files) {
+        const path = `${dir}/${f}`;
+        const text = (await this.fs.exists(path)) ? await this.fs.read(path) : undefined;
+        files.set(f, text === undefined ? undefined : text.isOk() ? text.value : "");
+      }
+      const dirName = dir.split("/").pop() as string;
+      for (const finding of lintSkill(skill, body, { prefix: this.prefix, dir: dirName, files, skills }))
+        problems.push({ source, skill: skill.name, severity: "error", ...finding });
     }
     return ok({ skills: scan.skills.length, problems });
   }

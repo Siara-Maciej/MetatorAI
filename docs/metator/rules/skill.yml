@@ -1,0 +1,82 @@
+kind: RuleSet
+schemaVersion: 1
+area: SKILL
+description: How a canonical skill (metator/skills/<name>/SKILL.md) is written, so a host loads it at the right moment and reads what it needs. `metator meta skills-lint` decides every rule; the guidance no tool can decide is in the skill mt-write-skill.
+rules:
+  - id: MT-SKILL-001
+    title: A skill's name is kebab-case, its directory, prefixed, with no reserved word
+    applyTo: ["metator/skills/**"]
+    enforcement: E1
+    implementation: test:mt-skill-001
+    summary: The front matter is a Skill document whose name is kebab-case (`^[a-z][a-z0-9-]*$`), at most 64 characters, equal to its directory, starts with the repository's prefix (`mt-`) and never contains the reserved words `claude` or `anthropic`.
+    rationale: docs/adr/0039-skills-audit-check-all.md
+    source:
+      {
+        ref: "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
+        verified: 2026-11-23,
+      }
+    do:
+      - "metator/skills/mt-find-patterns/SKILL.md with name: mt-find-patterns"
+    dont:
+      - "metator/skills/patterns/SKILL.md with name: claude-patterns"
+  - id: MT-SKILL-002
+    title: A skill's description says what it does, when to use it and when not
+    applyTo: ["metator/skills/**"]
+    enforcement: E1
+    implementation: test:mt-skill-002
+    summary: The description has at most 1024 characters and no `<` or `>`; it opens with what the skill does in the third person (never "Use when", "Use it", "I ", "You ", "We " or "This skill", since it is injected into the system prompt), then says when to use it ("Use when …") and when not ("Do not use …").
+    rationale: docs/adr/0039-skills-audit-check-all.md
+    source:
+      {
+        ref: "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
+        verified: 2026-11-23,
+      }
+    do:
+      - "description: Finds the exemplar a new file follows (pattern and file:line). Use when a plan creates a file or symbol. Do not use for plain text search; that is grep."
+    dont:
+      - "description: Use when you need an exemplar for a new <file>."
+  - id: MT-SKILL-003
+    title: A skill's body has the template's sections, in order, within 300 lines
+    applyTo: ["metator/skills/**"]
+    enforcement: E1
+    implementation: test:mt-skill-003
+    summary: The body has the sections When, Steps, Output, Checklist and Errors (English or Polish headings) in that order, Steps right after When so the instructions sit near the top (after compaction a host keeps only the start of an invoked skill), and at most 300 lines.
+    rationale: docs/design/05-templates.md
+    source: { ref: "https://code.claude.com/docs/en/skills", verified: 2026-11-23 }
+    do:
+      - "# When … # Steps … # Output … # Checklist … # Errors"
+    dont:
+      - "# When … # Background … # Steps (the steps pushed down by context)"
+  - id: MT-SKILL-004
+    title: A skill's supporting files are listed, named, one level deep and navigable
+    applyTo: ["metator/skills/**"]
+    enforcement: E1
+    implementation: test:mt-skill-004
+    summary: Every file in `files` exists and is named in the body, every `scripts/`, `references/` or `assets/` path the body uses is listed, paths use forward slashes, a supporting Markdown file names no other supporting file (references stay one level deep from SKILL.md), and one over 100 lines has a `## Contents` heading within its first 10 lines.
+    rationale: docs/adr/0039-skills-audit-check-all.md
+    source:
+      {
+        ref: "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
+        verified: 2026-11-23,
+      }
+    do:
+      - "files: [references/feedback-loops.md] and a step that says: read references/feedback-loops.md"
+    dont:
+      - "references/a.md that says: for details read references/b.md"
+      - 'a path written as references\feedback-loops.md'
+  - id: MT-SKILL-005
+    title: A skill names only skills that exist
+    applyTo: ["metator/skills/**"]
+    enforcement: E1
+    implementation: test:mt-skill-005
+    summary: A skill refers to another skill as "skill mt-xxx" (or "skill `mt-xxx`") and every name referred to that way is a skill of this repository's canon; a step that needs another skill says to use it instead of repeating its steps.
+    rationale: docs/adr/0039-skills-audit-check-all.md
+    source:
+      {
+        ref: "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
+        verified: 2026-11-23,
+      }
+    do:
+      - "2. Find the exemplar: use skill mt-find-patterns."
+    dont:
+      - "2. Use skill mt-patterns (no such skill), or copy mt-find-patterns' steps here."

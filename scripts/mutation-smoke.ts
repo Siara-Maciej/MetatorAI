@@ -12,7 +12,7 @@
  *
  * Usage: bun scripts/mutation-smoke.ts [file filter] [--jobs N] [--full]
  */
-import { lstatSync, readdirSync, readlinkSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readlinkSync } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -38,10 +38,13 @@ for (const m of selected) {
   } else queue.push(m);
 }
 
-/** Files of the working tree: tracked and untracked, without what git ignores. */
+/** Files of the working tree: tracked and untracked, without what git ignores or a deleted file. */
 function sourceFiles(): string[] {
   const out = Bun.spawnSync(["git", "ls-files", "-co", "--exclude-standard", "-z"], { cwd: ROOT });
-  return out.stdout.toString().split("\0").filter(Boolean);
+  return out.stdout
+    .toString()
+    .split("\0")
+    .filter((f) => f !== "" && existsSync(join(ROOT, f)));
 }
 
 /**

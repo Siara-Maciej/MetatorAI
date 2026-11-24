@@ -108,6 +108,6 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0102](0102-local-sandbox.md) | Sandbox lokalny: środowisko ogranicza zasięg komend agenta | Accepted |
 | [0103](0103-build-checkpoints.md) | Punkty kontrolne w buildzie: krok jest zrobiony, gdy jego testy przeszły | Proposed |
 | [0104](0104-sandbox-wraps-every-host-session.md) | Sandbox obejmuje każdą sesję hosta, którą uruchamia MetatorAI, na obu hostach (zmienia 0102) | Proposed |
-| [0105](0105-desktop-app-ships-the-cli.md) | Aplikacja desktopowa to wszystko, co osoba instaluje: CLI w środku, „Add repository" i przenośna paczka CLI dla Linuksa | Proposed |
-| [0106](0106-dev-containers.md) | Dev Containers: aplikacja na Windows (albo macOS) jest tylko oknem, wszystko inne działa w kontenerze deweloperskim | Proposed |
-| [0107](0107-java-repositories.md) | Repozytoria Java: deterministyczne czytanie kodu, buildu i faktów frameworków | Proposed |
+| [0105](0105-desktop-app-ships-the-cli.md) | Aplikacja desktopowa to wszystko, co osoba instaluje: CLI w środku, „Add repository" i przenośna paczka CLI dla Linuksa | Accepted |
+| [0106](0106-dev-containers.md) | Dev Containers: aplikacja na Windows (albo macOS) jest tylko oknem, wszystko inne działa w kontenerze deweloperskim | Accepted |
+| [0107](0107-java-repositories.md) | Repozytoria Java: deterministyczne czytanie kodu, buildu i faktów frameworków | Accepted |
