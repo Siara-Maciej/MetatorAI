@@ -40,7 +40,10 @@ A terminal you go to is scrolled to, flashes for a moment and gets the keyboard,
 ![All terminals grouped by task: the main terminal in shop-api with "? 1 asks", the billing session with its conductor and workers, the web-app session whose conductor asks, highlighted](../public/screens/terminals/terminals-asks.webp)
 *"? 1 asks" on the main terminal went to web-app's conductor: it flashes and holds the keyboard.*
 
-The **tree** on the left lists every terminal, task → main terminal → sessions → workers, each with its repository's letters and its state; a click goes to it. **«** folds it to a narrow column of the same marks and states (named on hover), so the tiles get the room; **»** unfolds it. The app's own sidebar folds the same way; the window remembers both.
+The **tree** on the left lists every terminal, task → main terminal → sessions → workers, each with its repository's letters and its state; a click goes to it. Hover a row and its **eye** shows: a click hides that terminal and every terminal below it (on a session's conductor, the whole session); the eye on a task's title hides the whole task. A hidden row stays in the tree, struck through and dimmed, and counts in **X hidden**; a click on it shows it again and gives it the keyboard; the eye again, or **Reset**, shows the whole branch. **«** folds it to a narrow column of the same marks and states (named on hover), so the tiles get the room; **»** unfolds it. The app's own sidebar folds the same way; the window remembers both.
+
+![The tree with billing's session hidden by its eye, struck through and dimmed, the eye shown on hover over web-app, and "Showing 4 of 7 · 3 hidden"](../public/screens/terminals/terminals-eye.webp)
+*billing's session hidden with its eye; the eye shows on the row under the pointer.*
 
 ![Both sidebars folded: the app's sidebar as a column of glyphs with the count of what needs you, the tree as a column of repository marks and states, the tiles across the window](../public/screens/terminals/terminals-narrow.webp)
 *The sidebar and the tree folded: the terminals take the window.*

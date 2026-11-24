@@ -50,7 +50,8 @@ export function TerminalFilters({
 }) {
   const shown = rows.filter((r) => passes(r, filter)).length;
   const hidden = rows.length - shown;
-  const filtered = filter.text !== "" || Object.values(filter.hide).some((v) => v.length > 0);
+  const filtered =
+    filter.text !== "" || filter.panes.length > 0 || Object.values(filter.hide).some((v) => v.length > 0);
   return (
     <div
       className="terminal-filters"

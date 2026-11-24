@@ -451,15 +451,18 @@ export type FilterDimension = "repo" | "state" | "role";
 export interface TerminalFilter {
   readonly hide: Readonly<Record<FilterDimension, readonly string[]>>;
   readonly text: string;
+  /** Terminals hidden one by one with the tree's eye (their keys), whatever the chips say. */
+  readonly panes: readonly string[];
 }
 
-export const NO_FILTER: TerminalFilter = { hide: { repo: [], state: [], role: [] }, text: "" };
+export const NO_FILTER: TerminalFilter = { hide: { repo: [], state: [], role: [] }, text: "", panes: [] };
 
 const rowValue = (r: TerminalRow, d: FilterDimension): string =>
   d === "repo" ? r.repo : d === "state" ? r.state : r.role;
 
 /** Whether a row passes the filter: none of its values hidden, and every word of the text in it. */
 export function passes(r: TerminalRow, f: TerminalFilter): boolean {
+  if (f.panes.includes(r.key)) return false;
   for (const d of ["repo", "state", "role"] as const) if (f.hide[d].includes(rowValue(r, d))) return false;
   const hay = `${r.name} ${r.repo} ${r.task.title} ${r.role} ${r.state} ${paneLabel(r.pane)}`.toLowerCase();
   return f.text
@@ -494,7 +497,34 @@ export function toggleFilter(
 export function showing(f: TerminalFilter, r: TerminalRow): TerminalFilter {
   const hide = { ...f.hide };
   for (const d of ["repo", "state", "role"] as const) hide[d] = hide[d].filter((v) => v !== rowValue(r, d));
-  return { hide, text: passes(r, { hide, text: f.text }) ? f.text : "" };
+  const panes = f.panes.filter((k) => k !== r.key);
+  return { hide, panes, text: passes(r, { hide, panes, text: f.text }) ? f.text : "" };
+}
+
+/**
+ * The tree's eye on a terminal (round 22): it hides the terminal and every terminal started from
+ * it, or, when the terminal is hidden by its eye already, shows them all again.
+ */
+export function toggleHidden(f: TerminalFilter, rows: readonly TerminalRow[], key: string): TerminalFilter {
+  const branch = [key, ...rowsBelow(rows, key).map((r) => r.key)];
+  const panes = f.panes.includes(key)
+    ? f.panes.filter((k) => !branch.includes(k))
+    : [...f.panes, ...branch.filter((k) => !f.panes.includes(k))];
+  return { ...f, panes };
+}
+
+/** The eye on a task's title: every terminal of the task hidden, or, when all are, shown again. */
+export function toggleTaskHidden(
+  f: TerminalFilter,
+  rows: readonly TerminalRow[],
+  runId: string,
+): TerminalFilter {
+  const keys = rows.filter((r) => r.task.runId === runId).map((r) => r.key);
+  const all = keys.length > 0 && keys.every((k) => f.panes.includes(k));
+  const panes = all
+    ? f.panes.filter((k) => !keys.includes(k))
+    : [...f.panes, ...keys.filter((k) => !f.panes.includes(k))];
+  return { ...f, panes };
 }
 
 /** Each value of a dimension among the rows, in the order first met, with how many rows have it. */
@@ -616,7 +646,7 @@ export function terminalViewFromStorage(raw: string | null | undefined): {
   if (!raw) return none;
   try {
     const v = JSON.parse(raw) as {
-      filter?: { hide?: Record<string, unknown>; text?: unknown };
+      filter?: { hide?: Record<string, unknown>; text?: unknown; panes?: unknown };
       grouping?: unknown;
     };
     const strings = (x: unknown) =>
@@ -627,6 +657,7 @@ export function terminalViewFromStorage(raw: string | null | undefined): {
       filter: {
         hide: { repo: strings(hide.repo), state: strings(hide.state), role: strings(hide.role) },
         text: typeof v.filter?.text === "string" ? v.filter.text : "",
+        panes: strings(v.filter?.panes),
       },
       grouping,
     };

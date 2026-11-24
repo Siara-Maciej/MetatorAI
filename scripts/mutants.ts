@@ -10445,4 +10445,10 @@ export const MUTANTS: readonly Mutant[] = [
     to: "level = [];",
     why: "what asks below a terminal counts its sub-terminals' terminals too, not only its children",
   },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "const branch = [key, ...rowsBelow(rows, key).map((r) => r.key)];",
+    to: "const branch = [key];",
+    why: "the tree's eye hides a terminal with every terminal below it",
+  },
 ];

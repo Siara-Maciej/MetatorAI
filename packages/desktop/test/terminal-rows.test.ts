@@ -15,6 +15,8 @@ import {
   terminalTasks,
   terminalViewFromStorage,
   toggleFilter,
+  toggleHidden,
+  toggleTaskHidden,
 } from "../src/terminals.ts";
 
 const run = (runId: string, extra: Partial<Run> = {}): Run =>
@@ -172,9 +174,14 @@ describe("the filter bar", () => {
     const f: TerminalFilter = {
       hide: { repo: ["shop-api", "billing"], state: ["asks"], role: [] },
       text: "web",
+      panes: [keyOf(asking), keyOf(bill)],
     };
     const shown = showing(f, byPane(asking) as never);
-    expect(shown).toEqual({ hide: { repo: ["billing"], state: [], role: [] }, text: "" });
+    expect(shown).toEqual({
+      hide: { repo: ["billing"], state: [], role: [] },
+      text: "",
+      panes: [keyOf(bill)],
+    });
     expect(passes(byPane(asking) as never, shown)).toBe(true);
     // Words it holds stay.
     expect(showing({ ...NO_FILTER, text: "implementer" }, byPane(asking) as never).text).toBe("implementer");
@@ -186,6 +193,41 @@ describe("the filter bar", () => {
       { value: "asks", count: 1 },
       { value: "finished", count: 1 },
     ]);
+  });
+});
+
+describe("the tree's eye", () => {
+  test("on a terminal: it and every terminal below it hidden; again: all shown", () => {
+    const hidden = toggleHidden(NO_FILTER, rows, keyOf(api));
+    expect(hidden.panes).toEqual([keyOf(api), keyOf(asking), keyOf(done)]);
+    expect(rows.filter((r) => passes(r, hidden)).map((r) => r.name)).toEqual([
+      "main terminal",
+      "billing · conductor",
+      "main terminal",
+      "mt-diagnostician-1",
+    ]);
+    expect(toggleHidden(hidden, rows, keyOf(api)).panes).toEqual([]);
+  });
+
+  test("on the main terminal: the whole task's tree; a branch shown again leaves the rest hidden", () => {
+    const all = toggleHidden(NO_FILTER, rows, keyOf(chat));
+    expect(all.panes).toHaveLength(5);
+    expect(toggleHidden(all, rows, keyOf(api)).panes).toEqual([keyOf(chat), keyOf(bill)]);
+  });
+
+  test("a click on a hidden terminal shows only it, the rest of its branch stays hidden", () => {
+    const hidden = toggleHidden(NO_FILTER, rows, keyOf(api));
+    expect(showing(hidden, byPane(asking) as never).panes).toEqual([keyOf(api), keyOf(done)]);
+  });
+
+  test("on a task: every terminal of the task, or all of them shown when all are hidden", () => {
+    const one = toggleTaskHidden(NO_FILTER, rows, "web");
+    expect(one.panes).toEqual([keyOf(web), keyOf(webWorker)]);
+    expect(toggleTaskHidden(one, rows, "web").panes).toEqual([]);
+    // Partly hidden: the eye hides the rest.
+    const partly = toggleHidden(NO_FILTER, rows, keyOf(webWorker));
+    expect(toggleTaskHidden(partly, rows, "web").panes).toEqual([keyOf(webWorker), keyOf(web)]);
+    expect(toggleTaskHidden(NO_FILTER, rows, "nothing").panes).toEqual([]);
   });
 });
 
@@ -241,7 +283,7 @@ describe("a repository's mark", () => {
 describe("the filter kept by the window", () => {
   test("read back as written; anything unreadable is no filter, grouped by task", () => {
     const kept = {
-      filter: { hide: { repo: ["billing"], state: ["finished"], role: [] }, text: "api" },
+      filter: { hide: { repo: ["billing"], state: ["finished"], role: [] }, text: "api", panes: ["x|w1:p1"] },
       grouping: "state",
     };
     expect(terminalViewFromStorage(JSON.stringify(kept))).toEqual(kept as never);
@@ -253,9 +295,12 @@ describe("the filter kept by the window", () => {
       '{"grouping":"sideways","filter":{"hide":{"repo":[1,"x"]},"text":3}}',
     ])
       expect(terminalViewFromStorage(raw).grouping).toBe("task");
-    expect(terminalViewFromStorage('{"filter":{"hide":{"repo":[1,"x"]},"text":3}}').filter).toEqual({
+    expect(
+      terminalViewFromStorage('{"filter":{"hide":{"repo":[1,"x"]},"text":3,"panes":["a",2]}}').filter,
+    ).toEqual({
       hide: { repo: ["x"], state: [], role: [] },
       text: "",
+      panes: ["a"],
     });
   });
 });

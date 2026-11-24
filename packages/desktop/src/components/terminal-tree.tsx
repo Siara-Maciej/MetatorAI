@@ -4,7 +4,7 @@
  * in the tree, dimmed, so nothing goes missing; a click shows it (the filter opens just enough).
  */
 import { paneLabel } from "../model.ts";
-import { passes, type TerminalFilter, type TerminalRow } from "../terminals.ts";
+import { passes, rowsBelow, type TerminalFilter, type TerminalRow } from "../terminals.ts";
 import { Glyph } from "./glyph.tsx";
 import { RepoMark } from "./terminal-filters.tsx";
 
@@ -17,7 +17,13 @@ export function TerminalTree({
   known,
   narrow,
   onNarrow,
+  onEye,
+  onTaskEye,
 }: {
+  /** The eye on a terminal: it and the terminals below it hidden, or shown again. */
+  onEye(key: string): void;
+  /** The eye on a task's title: every terminal of the task hidden, or shown again. */
+  onTaskEye(runId: string): void;
   /** Folded to its narrow version: a column of marks and states, each named on hover. */
   readonly narrow: boolean;
   onNarrow(narrow: boolean): void;
@@ -41,6 +47,10 @@ export function TerminalTree({
     return depth;
   };
   const tasks = [...new Set(rows.map((r) => r.task))];
+  const whatOf = (r: TerminalRow) => {
+    const n = rowsBelow(rows, r.key).length;
+    return n > 0 ? `${r.name} and the ${n} terminal${n === 1 ? "" : "s"} below it` : r.name;
+  };
   const fold = (
     <button
       type="button"
@@ -93,41 +103,100 @@ export function TerminalTree({
         const own = rows.filter((r) => r.task === t);
         return (
           <div key={t.runId} className="ttask">
-            <div className="ttitle" title={t.title}>
+            <div className="ttitle trow" title={t.title}>
               <span className="name">{t.title}</span>
               <span className="faint">{own.length}</span>
+              <Eye
+                shut={own.length > 0 && own.every((r) => filter.panes.includes(r.key))}
+                what={`every terminal of ${t.title}`}
+                testId={`eye-task-${t.runId}`}
+                onClick={() => onTaskEye(t.runId)}
+              />
             </div>
             {own.map((r) => {
               const below = rows.filter((x) => x.parent === r.key).length;
+              const eyeShut = filter.panes.includes(r.key);
               return (
-                <button
-                  key={r.key}
-                  type="button"
-                  className={classOf(r, "tnode")}
-                  style={{ paddingLeft: `${6 + depthOf(r) * 12}px` }}
-                  title={`${r.repo} · ${r.role} · ${r.state}${passes(r, filter) ? "" : " (hidden by the filter)"}`}
-                  data-testid={`tree-${r.key}`}
-                  onClick={() => onPick(r.key)}
-                >
-                  <RepoMark repo={r.repo} known={known} />
-                  <span className="name">
-                    {r.role === "conductor"
-                      ? r.repo
-                      : r.name === "main terminal"
-                        ? r.name
-                        : paneLabel(r.pane)}
-                  </span>
-                  {fresh.has(r.key) ? <span className="new">new</span> : null}
-                  <span className="end">
-                    <Glyph kind="pane" state={r.state} />
-                    {below > 0 ? <span className="faint"> {below}</span> : null}
-                  </span>
-                </button>
+                <div key={r.key} className={`trow${eyeShut ? " shut" : ""}`}>
+                  <button
+                    type="button"
+                    className={classOf(r, "tnode")}
+                    style={{ paddingLeft: `${6 + depthOf(r) * 12}px` }}
+                    title={`${r.repo} · ${r.role} · ${r.state}${
+                      eyeShut
+                        ? " (hidden: a click shows it)"
+                        : passes(r, filter)
+                          ? ""
+                          : " (hidden by the filter)"
+                    }`}
+                    data-testid={`tree-${r.key}`}
+                    onClick={() => onPick(r.key)}
+                  >
+                    <RepoMark repo={r.repo} known={known} />
+                    <span className="name">
+                      {r.role === "conductor"
+                        ? r.repo
+                        : r.name === "main terminal"
+                          ? r.name
+                          : paneLabel(r.pane)}
+                    </span>
+                    {fresh.has(r.key) ? <span className="new">new</span> : null}
+                    <span className="end">
+                      <Glyph kind="pane" state={r.state} />
+                      {below > 0 ? <span className="faint"> {below}</span> : null}
+                    </span>
+                  </button>
+                  <Eye shut={eyeShut} what={whatOf(r)} testId={`eye-${r.key}`} onClick={() => onEye(r.key)} />
+                </div>
               );
             })}
           </div>
         );
       })}
     </nav>
+  );
+}
+
+/**
+ * The eye of a tree row (round 22): shown while the row is hovered or focused, and always while
+ * what it hides is hidden (struck through). A click hides or shows.
+ */
+function Eye({
+  shut,
+  what,
+  testId,
+  onClick,
+}: {
+  readonly shut: boolean;
+  readonly what: string;
+  readonly testId: string;
+  onClick(): void;
+}) {
+  const label = `${shut ? "Show" : "Hide"} ${what}`;
+  return (
+    <button
+      type="button"
+      className={`ghost teye${shut ? " shut" : ""}`}
+      title={label}
+      aria-label={label}
+      aria-pressed={shut}
+      data-testid={testId}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+        <path
+          d="M1 8s2.6-5 7-5 7 5 7 5-2.6 5-7 5-7-5-7-5Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+        <circle cx="8" cy="8" r="2.2" fill="currentColor" />
+        {shut ? <path d="M2 14 14 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /> : null}
+      </svg>
+    </button>
   );
 }

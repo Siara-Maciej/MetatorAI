@@ -4528,3 +4528,41 @@ a.button-link.big {
     grid-template-columns: 1fr;
   }
 }
+/* The tree's eye (round 22): only while its row is hovered or holds the keyboard's focus. */
+.terminal-tree .trow {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.terminal-tree .trow > .tnode {
+  flex: 1;
+  min-width: 0;
+}
+.terminal-tree .ttitle.trow {
+  padding-right: 0;
+}
+.terminal-tree .teye {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  color: var(--muted);
+  opacity: 0;
+}
+.terminal-tree .trow:hover .teye,
+.terminal-tree .teye:focus-visible {
+  opacity: 1;
+}
+.terminal-tree .teye:hover {
+  color: var(--text);
+}
+.terminal-tree .teye.shut {
+  color: var(--amber);
+}
+.terminal-tree .trow.shut .tnode .name {
+  text-decoration: line-through;
+  text-decoration-color: var(--grey);
+}

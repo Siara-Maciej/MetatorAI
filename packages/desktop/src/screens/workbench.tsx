@@ -85,6 +85,8 @@ import {
   terminalTasks,
   terminalViewFromStorage,
   toContinue,
+  toggleHidden,
+  toggleTaskHidden,
   whereIs,
 } from "../terminals.ts";
 
@@ -917,6 +919,8 @@ export function WorkbenchScreen({
         />
         <div className={`terminals-body${treeNarrow ? " tree-narrow" : ""}`}>
           <TerminalTree
+            onEye={(k) => setFilter(toggleHidden(filter, rows, k))}
+            onTaskEye={(id) => setFilter(toggleTaskHidden(filter, rows, id))}
             narrow={treeNarrow}
             onNarrow={setTreeNarrow}
             known={folderRepos}

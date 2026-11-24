@@ -4,7 +4,8 @@
  * groups them by task and session; "? N asks" on the main terminal goes to each asking terminal
  * (it flashes and gets the keyboard); "↑ parent" goes to the terminal that started one; Alt+click
  * on a filter chip shows only that value (again: all); the tree shows a hidden terminal; a
- * terminal that appears is marked new with a toast; the sidebar and the tree fold to their narrow
+ * terminal that appears is marked new with a toast; the tree's eye hides a branch or a task; the
+ * sidebar and the tree fold to their narrow
  * versions and stay folded after a reload.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -270,6 +271,30 @@ describe("every terminal at once (real daemon, real Chromium)", () => {
     if (SHOTS) await page.screenshot({ path: join(SHOTS, "terminals-all-new.png") });
     await toast.getByRole("button", { name: "Show" }).click();
     await flashed(opened.data.id);
+    // The tree's eye: shown only while its row is hovered; it hides a terminal with every terminal
+    // below it; a click on a hidden one shows it and focuses it; the task's eye hides the task.
+    const eye = page.getByTestId(`eye-${childConductor}`);
+    const opacity = () => eye.evaluate((e) => getComputedStyle(e).opacity);
+    expect(await opacity()).toBe("0");
+    await page.getByTestId(`tree-${childConductor}`).hover();
+    await until("the eye on hover", async () => ((await opacity()) === "1" ? true : undefined));
+    await eye.click();
+    await until("the session hidden", async () =>
+      (await page.locator("[data-tile]").count()) === 1 ? true : undefined,
+    );
+    expect(await page.getByTestId("filter-shown").textContent()).toBe("Showing 1 of 4 · 3 hidden");
+    await page.getByTestId(`tree-${worker}`).click();
+    await flashed(worker);
+    expect(await page.locator("[data-tile]").count()).toBe(2);
+    await page.getByTestId(`tree-${taskConductor}`).hover();
+    await page.getByTestId(`eye-task-${task}`).click();
+    await until("the task hidden", async () =>
+      (await page.locator("[data-tile]").count()) === 0 ? true : undefined,
+    );
+    await page.getByTestId("filter-reset").click();
+    await until("every terminal again", async () =>
+      (await page.locator("[data-tile]").count()) === 4 ? true : undefined,
+    );
     // Both sidebars fold to their narrow versions, are used folded, and stay folded after a reload.
     const area = () => page.getByTestId("all-view").evaluate((e) => e.getBoundingClientRect().width);
     const before = await area();
