@@ -9,7 +9,7 @@
  * (model.ts `WORKBENCH_COMMANDS`). The daemon owns the layout; this screen only draws and asks.
  */
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import type { PaneView, SplitNode } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
@@ -18,7 +18,6 @@ import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction, useOption } from "../../shared/hooks.ts";
 import {
   type CommandContext,
-  chordOf,
   type KeyMap,
   keyLabel,
   keyMapOf,
@@ -40,9 +39,9 @@ import { useHostEditor } from "../repos/repos-context.tsx";
 import { DebugChanges } from "../runs/debug-changes.tsx";
 import { runControls } from "../runs/run-controls.ts";
 import { useNewChat } from "../threads/chat-actions.ts";
+import { ContinueTask, useContinue } from "./continue.tsx";
 import { GotoPicker } from "./goto.tsx";
 import {
-  actionOf,
   closesWorkspace,
   evenTree,
   type GotoRow,
@@ -66,7 +65,6 @@ import { QuestionToast } from "./question-toast.tsx";
 import { SplitGrid } from "./split-grid.tsx";
 import type { TerminalHandle } from "./terminal.tsx";
 import {
-  continueText,
   finishedOf,
   paneKey,
   type Session,
@@ -80,25 +78,7 @@ import {
   toContinue,
   whereIs,
 } from "./terminals.ts";
-
-/** What the keys mean right now: one thing at a time. */
-type Mode =
-  | { readonly kind: "none" }
-  /** The prefix was pressed: the next chord is a command. */
-  | { readonly kind: "prefix" }
-  /** "Take the keyboard?" on a pane: Enter says yes, Escape no. */
-  | { readonly kind: "ask"; readonly pane: string }
-  | { readonly kind: "copy"; readonly pane: string }
-  | { readonly kind: "goto" }
-  | {
-      readonly kind: "menu";
-      readonly x: number;
-      readonly y: number;
-      readonly items: readonly MenuItem[];
-      readonly label: string;
-    };
-
-const IDLE: Mode = { kind: "none" };
+import { IDLE, type Mode, useWorkbenchKeys } from "./workbench-keys.ts";
 
 export function WorkbenchScreen({
   showPane,
@@ -447,37 +427,17 @@ export function WorkbenchScreen({
   const endedHere =
     chosen && view !== "tabs" ? finishedOf(chosen, session) : tabPanes.filter((p) => p.ended !== undefined);
   // Continue (round 11): the whole task, or one paused pane, started again where it stopped.
-  const continueThe = async (
-    what: { readonly runId: string } | { readonly paneId: string },
-    repo: string | undefined,
-  ) => {
-    let said: string | undefined;
-    await action.run(
-      async (by) => {
-        const r =
-          "runId" in what
-            ? await client.continueRun(what.runId, by, repo)
-            : await client.continuePane(what.paneId, by, repo);
-        if (r.ok && r.data) said = continueText(r.data);
-        return r;
-      },
-      { who: true, refused: "Nothing was continued" },
-    );
-    if (said) action.say(said, "info");
-  };
+  const continueThe = useContinue(action);
   /** A paused pane's own Continue: only that pane (`POST /panes/:pane/continue`). */
   const continuePane = (p: PaneView) => void continueThe({ paneId: p.id }, repoOf(p));
   const pending = chosen ? toContinue(chosen, runs) : { paused: 0, undriven: 0 };
   const continueTask = (where: "bar" | "tile") =>
-    chosen && view !== "tabs" && pending.paused + pending.undriven > 0 ? (
-      <Button
-        variant="primary"
-        data-testid={where === "bar" ? "continue-task" : "continue-task-tile"}
-        title={`${pending.paused} paused terminal(s), ${pending.undriven} run(s) nothing drives`}
-        onClick={() => void continueThe({ runId: chosen.runId }, chosen.repo)}
-      >
-        Continue task
-      </Button>
+    chosen && view !== "tabs" ? (
+      <ContinueTask
+        where={where}
+        pending={pending}
+        onContinue={() => void continueThe({ runId: chosen.runId }, chosen.repo)}
+      />
     ) : null;
   const closeFinished = async () => {
     for (const p of endedHere) await action.run(() => client.closePane(p.id, repoOf(p)));
@@ -504,58 +464,18 @@ export function WorkbenchScreen({
     else setMode({ kind: "ask", pane: keyOf(p) });
   };
   // Keys: the prefix, then one chord; the terminals' own keys are left alone otherwise.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const onKey = (e: KeyboardEvent) => {
-      const chord = chordOf(e);
-      if (chord === "") return;
-      // A dialog (the go-to picker, the help, the name) has the keys while it is open.
-      if (mode.kind === "goto" || mode.kind === "menu" || document.querySelector("dialog[open]")) return;
-      if (mode.kind === "ask") {
-        if (chord === "enter") {
-          const p = byKey(mode.pane) ?? panes.find((x) => x.id === mode.pane);
-          setMode(IDLE);
-          if (p) void attach(p);
-        } else if (chord === "escape") setMode(IDLE);
-        e.preventDefault();
-        return;
-      }
-      if (mode.kind === "copy") {
-        const h = handles.current.get(mode.pane);
-        if (chord === "escape") {
-          h?.clearSearch();
-          setMode(IDLE);
-          e.preventDefault();
-        } else if (chord === "y" && !(e.target instanceof HTMLInputElement)) {
-          const text = h?.copySelection();
-          action.say(text ? `copied ${text.length} characters` : "nothing selected", "info");
-          e.preventDefault();
-        }
-        return;
-      }
-      if (mode.kind === "none") {
-        if (actionOf(keymap, chord, false) === "prefix") {
-          e.preventDefault();
-          e.stopPropagation();
-          setMode({ kind: "prefix" });
-          timer = setTimeout(() => setMode((m) => (m.kind === "prefix" ? IDLE : m)), 2000);
-        }
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      setMode(IDLE);
-      if (timer) clearTimeout(timer);
-      const name = actionOf(keymap, chord, true);
-      const command = name ? commands[name] : undefined;
-      if (command) command(focused, tab);
-      else action.say(name ? `${name}: not on this screen yet` : `no command for ${chord}`, "info");
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      window.removeEventListener("keydown", onKey, true);
-      if (timer) clearTimeout(timer);
-    };
+  useWorkbenchKeys({
+    mode,
+    setMode,
+    byKey,
+    panes,
+    attach,
+    handles,
+    say: action.say,
+    keymap,
+    commands,
+    focused,
+    tab,
   });
   // A task's tiles have their own border and head: their frames draw none.
   const framed = view === "tabs" && (borders === "always" || (borders === "auto" && tabPanes.length > 1));
