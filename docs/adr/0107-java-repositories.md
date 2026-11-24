@@ -71,6 +71,12 @@ Każdy fakt ma `at` (`plik:linia`) i `evidence` (adnotacja, element XML albo wyw
 ### 8. Fikstura e2e
 `e2e/fixtures/java/maven` („shop", wielomodułowy Maven: `shop-common` (Java 21, testy JUnit), `shop-domain` (JPA, Spring Data, źródło generowane), `shop-api` (Spring MVC, rekordy DTO, `@Value`, `@ConfigurationProperties`, `application.yml` z dwoma profilami), `shop-reactive` (WebFlux i `RouterFunction`), `legacy-ejb` (`war`: JAX-RS, EJB, CDI, Servlety, `web.xml`, `persistence.xml`, `applicationContext.xml`)) oraz `e2e/fixtures/java/gradle` („inventory", Kotlin DSL, dwa projekty). Plik z błędem składni (`shop-experimental/.../Broken.java`) jest w module wymienionym tylko w profilu `experimental`, nieaktywnym domyślnie, więc `mvn compile` i `mvn test` go nie budują, a czytanie go zgłasza. Oba buildy kompilują się prawdziwym Mavenem 3.9 i Gradle 8.14 z JDK 21. Repozytorium MetatorAI ignoruje `e2e/fixtures/**` w swoim grafie (encje fikstury mają cykl celowo).
 
+## Implikacje dla kodu
+- Reguły kanonu: `packages/plugin-java` zależy tylko od `@metator/core` (MT-ARCH-005), porty `JavaSourceParser`, `JavaBuildReader`, `JavaDescriptorParser` są małe i rozdzielone (MT-ARCH-008), a `ImportAnalyzer` na Javie przechodzi zestaw kontraktowy (MT-TEST-002). `JavaIndex` v1 to dokument wersjonowany z zamrożonym schematem (MT-CODE-002, MT-CODE-003); `web-tree-sitter` i `tree-sitter-java` są w rejestrze zależności (MT-CODE-005). Polecenia `metator java` mają e2e na prawdziwym CLI (MT-TEST-001), a decyzje ekstraktorów mutanty (MT-TEST-003).
+- `packages/core/src/domain/java-*.ts`, `jvm-build.ts`; `packages/core/src/application/java-reading.ts`, `language-analyzers.ts`, `gate.ts`, `readiness.ts`.
+- `packages/plugin-java/src/*`; `packages/runtime/src/java-here.ts`; `packages/cli/src/commands/java.ts`, `java-render.ts`; `scripts/compile-cli.ts` (gramatyka `.wasm` w `metator-resources/wasm/`), `scripts/java-corpus.ts`.
+- e2e: `e2e/java.e2e.test.ts`, `e2e/java-setup.e2e.test.ts` (prawdziwy `mvn` i `gradle`), przykład w `e2e/fixtures/java/`.
+
 ## Konsekwencje
 - Agenci i ludzie dostają deterministyczne fakty o repozytorium Java z `plik:linia`; model jest wystarczająco bogaty dla późniejszego planu portowania (typy z członkami, encje z relacjami, endpointy z typami, wiązania beanów, klucze konfiguracji).
 - Dwa pliki WebAssembly więcej w zasobach aplikacji i paczki Linux; brak ich psuje tylko komendy `java`.
