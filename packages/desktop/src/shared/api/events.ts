@@ -102,6 +102,13 @@ export function topicOfKey(key: string): Topic {
   return BY_PREFIX[key.split(/[:\n]/)[0] ?? ""] ?? "state";
 }
 
+/**
+ * The topics the daemon names after every change, whoever made it (its sweep reads what other
+ * processes write): their queries need polling only as a fallback. The others it names only after
+ * a request it answered, so their queries keep their own interval as well.
+ */
+export const SWEPT: ReadonlySet<Topic> = new Set<Topic>(["layout", "threads"]);
+
 /** A query of `topic` is read again for these changed topics. */
 export function readsAgain(topic: Topic, changed: readonly string[]): boolean {
   return changed.includes(topic);

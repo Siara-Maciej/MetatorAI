@@ -8,7 +8,7 @@ import { useCallback } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import type { Envelope } from "./api.ts";
-import { readsAgain, type Topic, topicOfKey } from "./events.ts";
+import { readsAgain, SWEPT, type Topic, topicOfKey } from "./events.ts";
 
 /**
  * The window's query cache. The daemon is on this computer: a request never waits for the browser
@@ -40,9 +40,12 @@ export const shared = <T>(before: T | undefined, next: T): T => replaceEqualDeep
 export const pushStore = createStore<{ readonly live: boolean }>(() => ({ live: false }));
 export const setPushLive = (live: boolean): void => pushStore.setState({ live });
 
-/** How often a request is asked: its own interval, or a fallback while the push channel is live. */
-export const intervalOf = (ms: number, live: boolean): number | false =>
-  ms > 0 ? (live ? Math.max(ms * 10, 30_000) : ms) : false;
+/**
+ * How often a request is asked: its own interval, or, while the push channel is live and the daemon
+ * names every change of its topic (`SWEPT`), only as a fallback.
+ */
+export const intervalOf = (ms: number, live: boolean, topic: Topic): number | false =>
+  ms > 0 ? (live && SWEPT.has(topic) ? Math.max(ms * 10, 30_000) : ms) : false;
 
 /** Reads again what the daemon said changed, or everything ("all"), of the daemon at `scope`. */
 export function readAgain(
@@ -79,7 +82,7 @@ export function polledOptions<T>(
       if (r.ok && r.data !== undefined) return r.data;
       throw new Error(r.error?.message ?? "the daemon did not answer");
     },
-    refetchInterval: intervalOf(ms, live),
+    refetchInterval: intervalOf(ms, live, topicOfKey(key)),
   });
 }
 

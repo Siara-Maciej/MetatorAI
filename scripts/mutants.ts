@@ -10458,7 +10458,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/desktop/src/shared/api/query.ts",
-    from: "ms > 0 ? (live ? Math.max(ms * 10, 30_000) : ms) : false;",
+    from: "ms > 0 ? (live && SWEPT.has(topic) ? Math.max(ms * 10, 30_000) : ms) : false;",
     to: "ms > 0 ? ms : false;",
     why: "while the daemon pushes what changed, polling is only a fallback",
   },

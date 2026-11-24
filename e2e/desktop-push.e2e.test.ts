@@ -1,8 +1,8 @@
 /**
  * The desktop app reads again what the daemon says changed (ADR-0110), end to end: the built app in
- * a real Chromium over the real daemon. On the Backlog, with `/ws/events` live, the list of issues
- * is asked only as a fallback (once in 30 s at most, not every 2 s); an issue another client adds
- * is on the screen within seconds, because the daemon said `backlog` changed.
+ * a real Chromium over the real daemon. With `/ws/events` live, the layout (which the daemon sweeps)
+ * is asked only as a fallback (once in 30 s at most, not every second), and read again within
+ * moments when another client opens a pane; an issue another client adds is on the Backlog at once.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
@@ -109,22 +109,33 @@ afterAll(async () => {
 }, 60_000);
 
 describe("the app hears of changes from the daemon (ADR-0110)", () => {
-  test("the Backlog asks for issues only as a fallback, and shows a new one at once", async () => {
+  test("the layout is asked only as a fallback, and read again at once when the daemon says it changed", async () => {
     const asked: number[] = [];
     page.on("request", (r) => {
-      const url = new URL(r.url());
-      if (r.method() === "GET" && url.pathname === "/issues") asked.push(Date.now());
+      if (r.method() === "GET" && new URL(r.url()).pathname === "/layout") asked.push(Date.now());
     });
-    await page.goto(app("backlog"));
+    await page.goto(app("inbox"));
     await page.getByTestId("connection").getByText("connected").waitFor();
-    await page.locator(".backlog").waitFor();
-    // Once the channel said hello, the 2-second poll of the list is a 30-second fallback.
+    // Once the channel said hello, the one-second poll of the layout is a 30-second fallback.
     await page.waitForTimeout(3000);
     const before = asked.length;
     await page.waitForTimeout(8000);
     expect(asked.length - before).toBeLessThanOrEqual(1);
 
-    // Another client adds an issue: the daemon says `backlog` changed and the list is read again.
+    // Another client opens a pane: the daemon says `layout` changed and the app reads it again.
+    const opened = Date.now();
+    const r = await fetch(`${base}/panes`, {
+      method: "POST",
+      body: JSON.stringify({ role: "shell", label: "pushed", argv: ["sh", "-c", "sleep 30"] }),
+    });
+    expect(((await r.json()) as { ok: boolean }).ok).toBe(true);
+    const next = await until("the layout read again", () => asked.find((t) => t > opened), 5000);
+    expect(next - opened).toBeLessThan(3000);
+  }, 60_000);
+
+  test("an issue another client adds is on the Backlog at once", async () => {
+    await page.goto(app("backlog"));
+    await page.locator(".backlog").waitFor();
     const added = Date.now();
     const r = await fetch(`${base}/issues`, {
       method: "POST",

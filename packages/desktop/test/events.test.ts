@@ -76,11 +76,13 @@ describe("a polled request and the channel", () => {
     ]);
   });
 
-  test("while the channel is live a request is asked only as a fallback", () => {
-    expect(intervalOf(1000, false)).toBe(1000);
-    expect(intervalOf(1000, true)).toBe(30_000);
-    expect(intervalOf(5000, true)).toBe(50_000);
-    expect(intervalOf(0, true)).toBe(false);
+  test("while the channel is live, a topic the daemon sweeps is asked only as a fallback", () => {
+    expect(intervalOf(1000, false, "layout")).toBe(1000);
+    expect(intervalOf(1000, true, "layout")).toBe(30_000);
+    expect(intervalOf(5000, true, "threads")).toBe(50_000);
+    // Another process can change the backlog without the daemon saying so: it keeps its interval.
+    expect(intervalOf(2000, true, "backlog")).toBe(2000);
+    expect(intervalOf(0, true, "layout")).toBe(false);
   });
 
   test("a change reads again the queries of its topics, of this daemon only", async () => {
