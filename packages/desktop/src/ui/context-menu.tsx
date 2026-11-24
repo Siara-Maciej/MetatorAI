@@ -2,6 +2,7 @@
  * A right-click menu (S6), opened at the point of the click (ADR-0111): Radix's menu gives the
  * `menu` with its `menuitem`s, the arrow keys and type-ahead, the focus kept inside, and the close
  * on a click outside or Escape (in the capture phase, before a focused terminal takes the key).
+ * Not modal: a click outside closes the menu and still reaches what it was on, as before Radix.
  * It stays inside the window by itself.
  */
 import { DropdownMenu } from "radix-ui";
@@ -28,7 +29,7 @@ export function ContextMenu({
   onClose(): void;
 }) {
   return (
-    <DropdownMenu.Root open modal onOpenChange={(open) => (open ? undefined : onClose())}>
+    <DropdownMenu.Root open modal={false} onOpenChange={(open) => (open ? undefined : onClose())}>
       {/* The menu's anchor: the point of the click. */}
       <DropdownMenu.Trigger asChild>
         <span aria-hidden="true" style={{ position: "fixed", left: at.x, top: at.y, width: 0, height: 0 }} />

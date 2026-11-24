@@ -58,6 +58,9 @@ export function readAgain(
     predicate: (q) =>
       q.queryKey[0] === "polled" &&
       q.queryKey[1] === scope &&
+      // A request asked once (`ms` 0) is read when its screen opens, never again by itself: some
+      // answers are said only once (`GET /scratch` names a gone record in one answer).
+      q.meta?.once !== true &&
       (read === "all" || readsAgain(q.queryKey[2] as Topic, read)),
   });
 }
@@ -83,6 +86,7 @@ export function polledOptions<T>(
       throw new Error(r.error?.message ?? "the daemon did not answer");
     },
     refetchInterval: intervalOf(ms, live, topicOfKey(key)),
+    meta: { once: ms <= 0 },
   });
 }
 

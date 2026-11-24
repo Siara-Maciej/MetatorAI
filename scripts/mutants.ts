@@ -10493,4 +10493,10 @@ export const MUTANTS: readonly Mutant[] = [
     to: 'this.tell(input.paneId, entry, "exited");',
     why: "a closed pane's kill is no exit a watcher hears",
   },
+  {
+    file: "packages/desktop/src/shared/api/query.ts",
+    from: "q.meta?.once !== true &&",
+    to: "true &&",
+    why: "a request asked once is never read again by the push channel (GET /scratch says a gone record once)",
+  },
 ];

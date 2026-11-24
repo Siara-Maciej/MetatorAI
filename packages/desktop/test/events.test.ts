@@ -85,6 +85,30 @@ describe("a polled request and the channel", () => {
     expect(intervalOf(0, true, "layout")).toBe(false);
   });
 
+  test("a request asked once is not read again by a change, nor after a hello", async () => {
+    const client = createQueryClient();
+    let asked = 0;
+    const stop = new QueryObserver(
+      client,
+      polledOptions(
+        "http://d",
+        "scratch:shop",
+        async () => {
+          asked++;
+          return { ok: true, data: asked };
+        },
+        0,
+      ),
+    ).subscribe(() => {});
+    await Bun.sleep(10);
+    expect(asked).toBe(1);
+    await readAgain(client, "http://d", ["state"]);
+    await readAgain(client, "http://d", "all");
+    expect(asked).toBe(1);
+    stop();
+    client.clear();
+  });
+
   test("a change reads again the queries of its topics, of this daemon only", async () => {
     const client = createQueryClient();
     let asked = { layout: 0, reviews: 0, other: 0 };
@@ -98,7 +122,7 @@ describe("a polled request and the channel", () => {
             asked = { ...asked, [count]: asked[count] + 1 };
             return { ok: true, data: 1 };
           },
-          0,
+          60_000,
         ),
       ).subscribe(() => {});
     const stops = [
