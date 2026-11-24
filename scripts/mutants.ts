@@ -10420,4 +10420,35 @@ export const MUTANTS: readonly Mutant[] = [
     to: "start = 1;",
     why: "an XML element's line is where it starts (evidence of POMs and descriptors)",
   },
+  // The daemon's event channel (ADR-0110).
+  {
+    file: "packages/cli/src/serve/events.ts",
+    from: "topics: [...pending].sort() };",
+    to: "topics: [...pending] };",
+    why: "a changed message's topics are sorted",
+  },
+  {
+    file: "packages/cli/src/serve/route-topics.ts",
+    from: "?.topics ?? UNKNOWN_ROUTE;",
+    to: "?.topics ?? [];",
+    why: "a request whose route has no row still announces the state, the inbox and the layout",
+  },
+  {
+    file: "packages/cli/src/serve/sweep.ts",
+    from: "if (before !== undefined) changed.push(topic);",
+    to: "changed.push(topic);",
+    why: "the sweep's first look only learns the texts; it announces nothing",
+  },
+  {
+    file: "packages/cli/src/serve/timers.ts",
+    from: "if (runs.length === 0 && panes === 0) return [];",
+    to: "if (runs.length === 0) return [];",
+    why: "a supervisor's nudge or host prompt is news of the layout and the inbox",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: 'if (this.live.get(input.paneId) === entry) this.tell(input.paneId, entry, "exited");',
+    to: 'this.tell(input.paneId, entry, "exited");',
+    why: "a closed pane's kill is no exit a watcher hears",
+  },
 ];

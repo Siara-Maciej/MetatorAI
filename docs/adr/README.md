@@ -111,3 +111,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0105](0105-desktop-app-ships-the-cli.md) | Aplikacja desktopowa to wszystko, co osoba instaluje: CLI w środku, „Add repository" i przenośna paczka CLI dla Linuksa | Proposed |
 | [0106](0106-dev-containers.md) | Dev Containers: aplikacja na Windows (albo macOS) jest tylko oknem, wszystko inne działa w kontenerze deweloperskim | Proposed |
 | [0107](0107-java-repositories.md) | Repozytoria Java: deterministyczne czytanie kodu, buildu i faktów frameworków | Proposed |
+| [0110](0110-daemon-event-channel.md) | Kanał zdarzeń demona: `/ws/events` mówi, które tematy się zmieniły | Proposed |

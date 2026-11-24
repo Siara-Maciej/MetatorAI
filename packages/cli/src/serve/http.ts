@@ -170,6 +170,8 @@ export interface Dispatch {
   ) => Result<MetatorContainer, { readonly code: string; readonly message: string }>;
   /** Lifts the server's idle timeout for one request: a long poll's. */
   readonly untimed?: (req: Request) => void;
+  /** Told of every request that is not a GET once its handler answered (the event channel, ADR-0110). */
+  readonly answered?: (route: Route, call: Call) => void;
 }
 
 /** What is wrong with a body, as one line a person can act on: `by: expected string`. */
@@ -186,7 +188,7 @@ function problems(error: z.ZodError): string {
  */
 export function dispatcher(
   routes: readonly Route[],
-  { daemon, containerFor, repoOfToken, untimed }: Dispatch,
+  { daemon, containerFor, repoOfToken, untimed, answered }: Dispatch,
 ) {
   const table = routes.map(compile);
   return async (req: Request, url: URL, path: string): Promise<Response> => {
@@ -240,6 +242,8 @@ export function dispatcher(
     const refused = await found.route.guard?.(call);
     if (refused) return respond(err(refused), { forbidden: true });
     const answer = await found.route.handler(call);
+    // Even a refusal may have changed something on its way (a pane opened, then a step failed).
+    if (req.method !== "GET") answered?.(found.route, call);
     return "result" in answer
       ? respond(answer.result, answer.warnings ? { warnings: answer.warnings } : {})
       : respond(answer);
