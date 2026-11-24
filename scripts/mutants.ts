@@ -10433,4 +10433,16 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "a shell that printed much after leaving vim keeps its own output",
   },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "if (only) next = shown.length === 1 && shown[0] === value ? [] : values.filter((v) => v !== value);",
+    to: "if (only) next = values.filter((v) => v !== value);",
+    why: "Alt+click on the only value shown shows them all again",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "level = rows.filter((r) => r.parent !== undefined && keys.has(r.parent) && !out.includes(r));",
+    to: "level = [];",
+    why: "what asks below a terminal counts its sub-terminals' terminals too, not only its children",
+  },
 ];

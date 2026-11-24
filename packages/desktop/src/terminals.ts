@@ -354,3 +354,273 @@ export function endedWhen(p: Pick<PaneView, "createdAt" | "ended">): string | un
         : `${Math.floor(s / 3600)}h ${two(Math.floor((s % 3600) / 60))}m`;
   return `${at} · ${took}`;
 }
+
+/* ---------- every terminal at once: rows, filters, groups (round 22) ---------- */
+
+/** One terminal of the All view: its pane, where it sits in its task, and what the filters read. */
+export interface TerminalRow {
+  /** The pane's key (`paneKey`): repository and id. */
+  readonly key: string;
+  readonly pane: TPane;
+  readonly task: TerminalTask;
+  /** Its repository's label (`shop-api`), `this repository` without one. */
+  readonly repo: string;
+  readonly role: PaneView["role"];
+  readonly state: PaneShown;
+  /** The terminal that started it: a session's conductor for its sub-terminals, the main terminal for a session. */
+  readonly parent?: string | undefined;
+  /** The session it belongs to, when it is a session's (its conductor or a sub-terminal). */
+  readonly session?: Session | undefined;
+  /** What it is in its task: `main terminal`, `<repo> · conductor`, a worker's name. */
+  readonly name: string;
+}
+
+const HERE = "this repository";
+
+/** A row's state: paused and ended first (a pane the daemon ended keeps its own tone), then the pane's own. */
+const shownOf = (p: TPane, now: number): PaneShown =>
+  pausedOf(p) && !p.ended
+    ? "paused"
+    : isEnded(p)
+      ? endedBanner(p).tone === "error"
+        ? "exited"
+        : "finished"
+      : paneStateOf(p, now);
+
+/**
+ * Every terminal of every task as rows, in the tasks' order: the main terminal, then per session
+ * its conductor and its sub-terminals. Each row knows its parent: a session's conductor was
+ * started from the main terminal, a sub-terminal from its session's conductor.
+ */
+export function terminalRows(tasks: readonly TerminalTask[], now: number = Date.now()): TerminalRow[] {
+  const rows: TerminalRow[] = [];
+  const seen = new Set<string>();
+  const add = (row: Omit<TerminalRow, "key" | "repo" | "role" | "state">) => {
+    const key = paneKey(row.pane);
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push({
+      ...row,
+      key,
+      repo: repoLabel(row.pane.repo ?? row.task.repo ?? "") || HERE,
+      role: row.pane.role,
+      state: shownOf(row.pane, now),
+    });
+  };
+  for (const t of tasks) {
+    const main = t.main ? paneKey(t.main) : undefined;
+    if (t.main) add({ pane: t.main, task: t, name: "main terminal" });
+    // The task run's own sub-terminals, when its session is not one of the tiles (its conductor is the main terminal).
+    if (!t.sessions.includes(t.own))
+      for (const p of t.own.subs) add({ pane: p, task: t, parent: main, session: t.own, name: paneLabel(p) });
+    for (const s of t.sessions) {
+      const head = s.pane ? paneKey(s.pane) : main;
+      if (s.pane)
+        add({
+          pane: s.pane,
+          task: t,
+          parent: main !== head ? main : undefined,
+          session: s,
+          name: `${s.label} · conductor`,
+        });
+      for (const p of s.subs) add({ pane: p, task: t, parent: head, session: s, name: paneLabel(p) });
+    }
+  }
+  return rows;
+}
+
+/** The rows started from a row, and from those, nearest first. */
+export function rowsBelow(rows: readonly TerminalRow[], key: string): TerminalRow[] {
+  const out: TerminalRow[] = [];
+  let level = rows.filter((r) => r.parent === key);
+  while (level.length > 0) {
+    out.push(...level);
+    const keys = new Set(level.map((r) => r.key));
+    level = rows.filter((r) => r.parent !== undefined && keys.has(r.parent) && !out.includes(r));
+  }
+  return out;
+}
+
+/** The three things the filter bar chooses by. */
+export type FilterDimension = "repo" | "state" | "role";
+
+/**
+ * What the filter bar hides (round 22): values per dimension, and words a row must hold. What is
+ * hidden is kept rather than what is shown, so a repository or a state that appears later shows.
+ */
+export interface TerminalFilter {
+  readonly hide: Readonly<Record<FilterDimension, readonly string[]>>;
+  readonly text: string;
+}
+
+export const NO_FILTER: TerminalFilter = { hide: { repo: [], state: [], role: [] }, text: "" };
+
+const rowValue = (r: TerminalRow, d: FilterDimension): string =>
+  d === "repo" ? r.repo : d === "state" ? r.state : r.role;
+
+/** Whether a row passes the filter: none of its values hidden, and every word of the text in it. */
+export function passes(r: TerminalRow, f: TerminalFilter): boolean {
+  for (const d of ["repo", "state", "role"] as const) if (f.hide[d].includes(rowValue(r, d))) return false;
+  const hay = `${r.name} ${r.repo} ${r.task.title} ${r.role} ${r.state} ${paneLabel(r.pane)}`.toLowerCase();
+  return f.text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w !== "")
+    .every((w) => hay.includes(w));
+}
+
+/**
+ * A click on a chip of the filter bar. A plain click hides or shows that value; hiding the last
+ * shown one shows them all again, so the bar never hides everything. Alt+click shows only that
+ * value; an Alt+click on the only one shown shows them all again.
+ */
+export function toggleFilter(
+  f: TerminalFilter,
+  d: FilterDimension,
+  value: string,
+  only: boolean,
+  values: readonly string[],
+): TerminalFilter {
+  const hidden = f.hide[d];
+  const shown = values.filter((v) => !hidden.includes(v));
+  let next: string[];
+  if (only) next = shown.length === 1 && shown[0] === value ? [] : values.filter((v) => v !== value);
+  else if (hidden.includes(value)) next = hidden.filter((v) => v !== value);
+  else next = shown.length === 1 && shown[0] === value ? [] : [...hidden, value];
+  return { ...f, hide: { ...f.hide, [d]: next } };
+}
+
+/** The filter changed just enough to show a row (a link to a terminal the filter hides). */
+export function showing(f: TerminalFilter, r: TerminalRow): TerminalFilter {
+  const hide = { ...f.hide };
+  for (const d of ["repo", "state", "role"] as const) hide[d] = hide[d].filter((v) => v !== rowValue(r, d));
+  return { hide, text: passes(r, { hide, text: f.text }) ? f.text : "" };
+}
+
+/** Each value of a dimension among the rows, in the order first met, with how many rows have it. */
+export function filterValues(
+  rows: readonly TerminalRow[],
+  d: FilterDimension,
+): { value: string; count: number }[] {
+  const out: { value: string; count: number }[] = [];
+  for (const r of rows) {
+    const v = rowValue(r, d);
+    const known = out.find((x) => x.value === v);
+    if (known) known.count++;
+    else out.push({ value: v, count: 1 });
+  }
+  return out;
+}
+
+/** How the All view groups its tiles. */
+export type TerminalGrouping = "task" | "repo" | "state" | "flat";
+
+export interface TerminalGroup {
+  readonly key: string;
+  readonly title: string;
+  /** Set when the group is one repository's (its band's colour). */
+  readonly repo?: string | undefined;
+  /** A task's group holds its sessions as sub-groups. */
+  readonly sessions?: readonly TerminalGroup[] | undefined;
+  readonly rows: readonly TerminalRow[];
+}
+
+/** The states in the order a person deals with them: what asks first, what is finished last. */
+const STATE_ORDER: readonly PaneShown[] = ["asks", "exited", "working", "paused", "idle", "finished"];
+
+/**
+ * The shown rows in groups: by task (its main terminal, then a sub-group per repository session),
+ * by repository, by state (what asks first) or one flat group. Empty groups are left out.
+ */
+export function groupRows(rows: readonly TerminalRow[], by: TerminalGrouping): TerminalGroup[] {
+  if (by === "flat") return rows.length > 0 ? [{ key: "all", title: "All terminals", rows }] : [];
+  if (by === "state")
+    return STATE_ORDER.map((s) => ({
+      key: `state:${s}`,
+      title: s,
+      rows: rows.filter((r) => r.state === s),
+    })).filter((g) => g.rows.length > 0);
+  if (by === "repo") {
+    const repos = [...new Set(rows.map((r) => r.repo))];
+    return repos.map((repo) => ({
+      key: `repo:${repo}`,
+      title: repo,
+      repo,
+      rows: rows.filter((r) => r.repo === repo),
+    }));
+  }
+  const groups: TerminalGroup[] = [];
+  for (const task of [...new Set(rows.map((r) => r.task))]) {
+    const own = rows.filter((r) => r.task === task);
+    const sessions = [...new Set(own.map((r) => r.session).filter((s): s is Session => s !== undefined))];
+    groups.push({
+      key: `task:${task.runId}`,
+      title: task.title,
+      rows: own.filter((r) => r.session === undefined),
+      sessions: sessions.map((s) => ({
+        key: `session:${task.runId}:${s.runId}`,
+        title: `${s.label} session`,
+        repo: repoLabel(s.repo ?? task.repo ?? "") || HERE,
+        rows: own.filter((r) => r.session === s),
+      })),
+    });
+  }
+  return groups;
+}
+
+/** The hues a repository's band takes: light tints, apart from the states' violet, amber, green, red, blue and teal. */
+export const REPO_HUES = [
+  "#f472b6",
+  "#7dd3fc",
+  "#d6c7a1",
+  "#fda4af",
+  "#bef264",
+  "#fdba74",
+  "#cbd5e1",
+  "#f0abfc",
+];
+
+/**
+ * A repository's mark (round 22): its two letters and its hue, the same on every screen. The hue
+ * comes from the name, so it does not change when other repositories come and go.
+ */
+export function repoMark(repo: string): { readonly letters: string; readonly hue: string } {
+  const words = repo.split(/[^A-Za-z0-9]+/).filter((w) => w !== "");
+  const letters =
+    repo === HERE
+      ? "··"
+      : words.length > 1
+        ? `${words[0]?.[0] ?? ""}${words[1]?.[0] ?? ""}`
+        : (words[0] ?? repo).slice(0, 2);
+  let h = 0;
+  for (let i = 0; i < repo.length; i++) h = (h * 31 + repo.charCodeAt(i)) >>> 0;
+  return { letters: letters.toUpperCase(), hue: REPO_HUES[h % REPO_HUES.length] as string };
+}
+
+/** The filter as the window keeps it (`metator.terminals`), read back; anything unreadable is no filter. */
+export function terminalViewFromStorage(raw: string | null | undefined): {
+  readonly filter: TerminalFilter;
+  readonly grouping: TerminalGrouping;
+} {
+  const none = { filter: NO_FILTER, grouping: "task" as const };
+  if (!raw) return none;
+  try {
+    const v = JSON.parse(raw) as {
+      filter?: { hide?: Record<string, unknown>; text?: unknown };
+      grouping?: unknown;
+    };
+    const strings = (x: unknown) =>
+      Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : [];
+    const hide = v.filter?.hide ?? {};
+    const grouping = (["task", "repo", "state", "flat"] as const).find((g) => g === v.grouping) ?? "task";
+    return {
+      filter: {
+        hide: { repo: strings(hide.repo), state: strings(hide.state), role: strings(hide.role) },
+        text: typeof v.filter?.text === "string" ? v.filter.text : "",
+      },
+      grouping,
+    };
+  } catch {
+    return none;
+  }
+}

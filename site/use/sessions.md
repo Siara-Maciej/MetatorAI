@@ -4,7 +4,7 @@ Every agent works in a real terminal, a **session** of your AI host, and you can
 
 ## Terminals by task
 
-**Terminals** opens on a task: the only one, or the one you pick from **Tasks** (each with its main terminal and how many repository sessions and sub-terminals it has). A bar at the top says where you are, **Tasks › Prices in the customer's currency › shop-api**, and each part leads back.
+**Terminals** opens on **All terminals**: every terminal of every task at once (with a single task, on that task). A bar at the top says where you are, **All terminals › Prices in the customer's currency › shop-api**, and each part leads back.
 
 ![Terminals by task: the chat where the task was given on the left, the run's conductor working in its own Claude Code terminal on the right](../public/screens/real/real-06-task-view.webp)
 *A task's terminals: the chat stays the main terminal, the run's conductor works beside it.*
@@ -19,12 +19,28 @@ The workers a session starts are not on this view. A session's tile has a badge,
 ![A run's session: the conductor, the planner that finished with its summary, and the implementer working, each in its own terminal](../public/screens/real/real-06-session-build.webp)
 *A run's session: the conductor and its workers, each in its own terminal.*
 
-A terminal whose work is over stays on the screen, read-only, with a banner on its frame: **Finished — tests pass** (its summary, or why it ended), or, after a failure, **Ended with code 2 — …** in red with **Retry**. **Close** closes it; **Close finished (N)** in the bar closes the finished terminals of the view.
+A terminal whose work is over stays on the screen, read-only, with its last screen: what the agent printed last stays readable, scrollable and searchable, also for Claude Code, which clears its screen as it exits. Under it a green line says **✓ Finished — tests pass** (its summary, or why it ended), when it ended and how long it ran (`14:32 · 12m 04s`); after a failure the line is red, **✗ Ended with code 2 — …**, with **Retry**. On a Claude Code terminal **⧉ resume command** copies `claude --resume <session>`, to carry the conversation on in a terminal of your own. **Close** closes it; **Close finished (N)** in the bar closes the finished terminals of the view.
 
 ![A finished run's terminals: the conductor, the planner and the implementer, each with a Finished banner and Close](../public/screens/real/real-06-done-terminals.webp)
 *When a run is done its terminals stay, each with a line that says how it ended.*
 
-**Workspaces** in the bar shows the daemon's workspaces and their tabs: your shells, and the chat of a run not started yet. **By task ›** there leads back. Closing the app, reloading it, or opening it in another window changes nothing: the runs go on, and the app shows the same terminals.
+### Every terminal at once
+
+**All terminals** shows every terminal of every task, grouped **by task** (its main terminal, then a band per repository session, in the repository's colour), **by repo**, **by state** (what asks first) or **flat**. Each tile opens with its repository's band: its two letters and its name in its own colour, the same in the tree, the filters and every tile, then its role (`conductor`, `worker`, `shell`) and its state. Under the band:
+
+- what the terminal is (`main terminal`, `shop-api · conductor`, a worker's name), and on the All view grouped otherwise, its task;
+- **↑ parent: …**: the terminal that started it (a session's conductor for its workers, the main terminal for a session); a click goes there;
+- **? 2 asks ›**: how many terminals started from this one, or from those, wait for you; a click goes to the first, the next click to the next.
+
+A terminal you go to is scrolled to, flashes for a moment and gets the keyboard, so you can answer at once.
+
+The **tree** on the left lists every terminal, task → main terminal → sessions → workers, each with its repository's letters and its state; a click goes to it.
+
+The **filter bar** chooses what shows, on every view of Terminals: **Repo**, **State** and **Role**, a chip per value with its count. A click hides or shows a value; **Alt+click** shows only that value, and Alt+click on it again shows all. Words narrow it further (a worker, a repository, a task). **Showing 4 of 9 · 5 hidden** says what the filter hides, and **Reset** shows everything. A hidden terminal stays in the tree, dimmed; going to it opens the filter just enough to show it. The window keeps the filter and the grouping.
+
+A terminal that appears while you look (an agent started a worker) is marked **new** in the tree, its tile pulses, and a note in the corner says what it is, where and who started it, with **Show**.
+
+**Workspaces** in the bar shows the daemon's workspaces and their tabs: your shells, and the chat of a run not started yet. **All terminals ›** there leads back. Closing the app, reloading it, or opening it in another window changes nothing: the runs go on, and the app shows the same terminals.
 
 ### Tabs and panes
 
