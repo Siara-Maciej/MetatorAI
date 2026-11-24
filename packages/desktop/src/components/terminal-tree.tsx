@@ -14,7 +14,10 @@ export function TerminalTree({
   focused,
   fresh,
   onPick,
+  known,
 }: {
+  /** The folder's repositories: they take distinct hues (`repoMark`). */
+  readonly known: readonly string[];
   readonly rows: readonly TerminalRow[];
   readonly filter: TerminalFilter;
   /** The key of the focused terminal. */
@@ -57,7 +60,7 @@ export function TerminalTree({
                   data-testid={`tree-${r.key}`}
                   onClick={() => onPick(r.key)}
                 >
-                  <RepoMark repo={r.repo} />
+                  <RepoMark repo={r.repo} known={known} />
                   <span className="name">
                     {r.role === "conductor"
                       ? r.repo

@@ -570,21 +570,25 @@ export function groupRows(rows: readonly TerminalRow[], by: TerminalGrouping): T
 
 /** The hues a repository's band takes: light tints, apart from the states' violet, amber, green, red, blue and teal. */
 export const REPO_HUES = [
-  "#f472b6",
   "#7dd3fc",
-  "#d6c7a1",
-  "#fda4af",
-  "#bef264",
+  "#f472b6",
   "#fdba74",
+  "#bef264",
+  "#d6c7a1",
   "#cbd5e1",
   "#f0abfc",
+  "#fda4af",
 ];
 
 /**
- * A repository's mark (round 22): its two letters and its hue, the same on every screen. The hue
- * comes from the name, so it does not change when other repositories come and go.
+ * A repository's mark (round 22): its two letters and its hue, the same on every screen. In a
+ * folder the repositories it holds (`known`) take the hues in their sorted order, so up to eight
+ * never share one; a repository not among them takes a hue from its name.
  */
-export function repoMark(repo: string): { readonly letters: string; readonly hue: string } {
+export function repoMark(
+  repo: string,
+  known: readonly string[] = [],
+): { readonly letters: string; readonly hue: string } {
   const words = repo.split(/[^A-Za-z0-9]+/).filter((w) => w !== "");
   const letters =
     repo === HERE
@@ -592,9 +596,15 @@ export function repoMark(repo: string): { readonly letters: string; readonly hue
       : words.length > 1
         ? `${words[0]?.[0] ?? ""}${words[1]?.[0] ?? ""}`
         : (words[0] ?? repo).slice(0, 2);
-  let h = 0;
-  for (let i = 0; i < repo.length; i++) h = (h * 31 + repo.charCodeAt(i)) >>> 0;
-  return { letters: letters.toUpperCase(), hue: REPO_HUES[h % REPO_HUES.length] as string };
+  const sorted = [...new Set(known)].sort();
+  let at = sorted.indexOf(repo);
+  if (at < 0) {
+    // FNV-1a: close names (shop-api, shop-web) still spread.
+    let h = 0x811c9dc5;
+    for (let i = 0; i < repo.length; i++) h = Math.imul(h ^ repo.charCodeAt(i), 0x01000193) >>> 0;
+    at = h;
+  }
+  return { letters: letters.toUpperCase(), hue: REPO_HUES[at % REPO_HUES.length] as string };
 }
 
 /** The filter as the window keeps it (`metator.terminals`), read back; anything unreadable is no filter. */

@@ -36,7 +36,10 @@ export function TerminalFilters({
   onFilter,
   grouping,
   onGrouping,
+  known,
 }: {
+  /** The folder's repositories: they take distinct hues (`repoMark`). */
+  readonly known: readonly string[];
   /** Every terminal of the view, before the filter. */
   readonly rows: readonly TerminalRow[];
   readonly filter: TerminalFilter;
@@ -72,7 +75,9 @@ export function TerminalFilters({
                   title={CHIP_TITLE}
                   data-testid={`filter-${d}-${value}`}
                   style={
-                    d === "repo" ? ({ "--chip": repoMark(value).hue } as React.CSSProperties) : undefined
+                    d === "repo"
+                      ? ({ "--chip": repoMark(value, known).hue } as React.CSSProperties)
+                      : undefined
                   }
                   onClick={(e) =>
                     onFilter(
@@ -86,7 +91,7 @@ export function TerminalFilters({
                     )
                   }
                 >
-                  {d === "repo" ? <RepoMark repo={value} /> : null}
+                  {d === "repo" ? <RepoMark repo={value} known={known} /> : null}
                   {d === "state" ? <Glyph kind="pane" state={value} /> : null}
                   {value}
                   <span className="n">{count}</span>
@@ -143,8 +148,8 @@ export function TerminalFilters({
 }
 
 /** A repository's two letters on its hue (`repoMark`): the same on the chips, the tree and the tiles. */
-export const RepoMark = ({ repo }: { readonly repo: string }) => {
-  const m = repoMark(repo);
+export const RepoMark = ({ repo, known }: { readonly repo: string; readonly known: readonly string[] }) => {
+  const m = repoMark(repo, known);
   return (
     <span className="repo-mark" style={{ background: m.hue }} aria-hidden="true">
       {m.letters}

@@ -21,12 +21,15 @@ The workers a session starts are not on this view. A session's tile has a badge,
 
 A terminal whose work is over stays on the screen, read-only, with its last screen: what the agent printed last stays readable, scrollable and searchable, also for Claude Code, which clears its screen as it exits. Under it a green line says **✓ Finished — tests pass** (its summary, or why it ended), when it ended and how long it ran (`14:32 · 12m 04s`); after a failure the line is red, **✗ Ended with code 2 — …**, with **Retry**. On a Claude Code terminal **⧉ resume command** copies `claude --resume <session>`, to carry the conversation on in a terminal of your own. **Close** closes it; **Close finished (N)** in the bar closes the finished terminals of the view.
 
+![A finished worker: what it printed last stays, under it the green line with its summary, when it ended and how long it ran, and Close](../public/screens/terminals/terminals-finished.webp)
+*A finished worker keeps its last screen; the line under it says how it ended.*
+
 ![A finished run's terminals: the conductor, the planner and the implementer, each with a Finished banner and Close](../public/screens/real/real-06-done-terminals.webp)
 *When a run is done its terminals stay, each with a line that says how it ended.*
 
 ### Every terminal at once
 
-**All terminals** shows every terminal of every task, grouped **by task** (its main terminal, then a band per repository session, in the repository's colour), **by repo**, **by state** (what asks first) or **flat**. Each tile opens with its repository's band: its two letters and its name in its own colour, the same in the tree, the filters and every tile, then its role (`conductor`, `worker`, `shell`) and its state. Under the band:
+**All terminals** shows every terminal of every task, grouped **by task** (its main terminal, then a band per repository session, in the repository's colour), **by repo**, **by state** (what asks first) or **flat**. Each tile opens with its repository's band: its two letters and its name in its own colour (in a folder, no two repositories share one), the same in the tree, the filters and every tile, then its role (`conductor`, `worker`, `shell`) and its state. Under the band:
 
 - what the terminal is (`main terminal`, `shop-api · conductor`, a worker's name), and on the All view grouped otherwise, its task;
 - **↑ parent: …**: the terminal that started it (a session's conductor for its workers, the main terminal for a session); a click goes there;
@@ -34,9 +37,18 @@ A terminal whose work is over stays on the screen, read-only, with its last scre
 
 A terminal you go to is scrolled to, flashes for a moment and gets the keyboard, so you can answer at once.
 
+![All terminals grouped by task: the main terminal in shop-api with "? 1 asks", the billing session with its conductor and workers, the web-app session whose conductor asks, highlighted](../public/screens/terminals/terminals-asks.webp)
+*"? 1 asks" on the main terminal went to web-app's conductor: it flashes and holds the keyboard.*
+
 The **tree** on the left lists every terminal, task → main terminal → sessions → workers, each with its repository's letters and its state; a click goes to it.
 
 The **filter bar** chooses what shows, on every view of Terminals: **Repo**, **State** and **Role**, a chip per value with its count. A click hides or shows a value; **Alt+click** shows only that value, and Alt+click on it again shows all. Words narrow it further (a worker, a repository, a task). **Showing 4 of 9 · 5 hidden** says what the filter hides, and **Reset** shows everything. A hidden terminal stays in the tree, dimmed; going to it opens the filter just enough to show it. The window keeps the filter and the grouping.
+
+![Alt+click on billing: only billing's session shows, "Showing 3 of 7 · 4 hidden", the other repositories dimmed in the tree](../public/screens/terminals/terminals-filter.webp)
+*Alt+click on **billing**: its terminals only; the others stay in the tree, dimmed.*
+
+![Grouped by state: the terminal that asks first, then the idle ones, the finished one last](../public/screens/terminals/terminals-by-state.webp)
+*Grouped by state, what asks comes first.*
 
 A terminal that appears while you look (an agent started a worker) is marked **new** in the tree, its tile pulses, and a note in the corner says what it is, where and who started it, with **Show**.
 

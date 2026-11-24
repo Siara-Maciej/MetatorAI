@@ -60,6 +60,7 @@ import {
   workbenchRepos,
   workspaceOfPane,
 } from "../model.ts";
+import { repoLabel } from "../plan-flow.ts";
 import { useHostEditor } from "../repos-context.tsx";
 import {
   continueText,
@@ -212,6 +213,8 @@ export function WorkbenchScreen({
   // Every terminal of every task as rows (round 22): repository, role, state and parent each.
   const rows: TerminalRow[] = useMemo(() => terminalRows(tasks), [tasks]);
   const rowOf = (key: string | undefined) => rows.find((r) => r.key === key);
+  // The folder's repositories, so each takes a hue of its own.
+  const folderRepos = useMemo(() => d.repos.map((p) => repoLabel(p.name)), [d.repos]);
   // The filter and the grouping are the window's (kept in its storage, read under try/catch).
   const [kept, keep] = useState(readTerminalView);
   const filter = kept.filter;
@@ -757,10 +760,10 @@ export function WorkbenchScreen({
           data-testid={`tile-${p.id}`}
           data-tile={key}
           data-repo={p.repo}
-          style={{ "--repo": repoMark(repoName).hue } as React.CSSProperties}
+          style={{ "--repo": repoMark(repoName, folderRepos).hue } as React.CSSProperties}
         >
           <div className="tile-band">
-            <RepoMark repo={repoName} />
+            <RepoMark repo={repoName} known={folderRepos} />
             <span className="repo-name">{repoName}</span>
             <span className="role">{p.role}</span>
             <span className="spacer" />
@@ -906,11 +909,13 @@ export function WorkbenchScreen({
           rows={view === "all" ? rows : viewRows}
           filter={filter}
           onFilter={setFilter}
+          known={folderRepos}
           grouping={view === "all" ? grouping : undefined}
           onGrouping={view === "all" ? setGrouping : undefined}
         />
         <div className="terminals-body">
           <TerminalTree
+            known={folderRepos}
             rows={rows}
             filter={filter}
             focused={focusKey}
@@ -922,7 +927,7 @@ export function WorkbenchScreen({
               {groups.map((g) => (
                 <section key={g.key} className="tgroup" data-testid={`group-${g.key}`}>
                   <header className="ghead">
-                    {g.repo ? <RepoMark repo={g.repo} /> : null}
+                    {g.repo ? <RepoMark repo={g.repo} known={folderRepos} /> : null}
                     {grouping === "state" ? <Glyph kind="pane" state={g.title} /> : null}
                     <span className="gt">{g.title}</span>
                     <span className="faint">
@@ -934,10 +939,10 @@ export function WorkbenchScreen({
                     <section
                       key={x.key}
                       className="tgroup lane"
-                      style={{ "--lane": repoMark(x.repo ?? "").hue } as React.CSSProperties}
+                      style={{ "--lane": repoMark(x.repo ?? "", folderRepos).hue } as React.CSSProperties}
                     >
                       <header className="ghead">
-                        <RepoMark repo={x.repo ?? ""} />
+                        <RepoMark repo={x.repo ?? ""} known={folderRepos} />
                         <span className="gt">{x.title}</span>
                         <span className="faint">{x.rows.length}</span>
                       </header>

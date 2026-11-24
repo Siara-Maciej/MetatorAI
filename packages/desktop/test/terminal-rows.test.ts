@@ -219,15 +219,22 @@ describe("groups", () => {
 });
 
 describe("a repository's mark", () => {
-  test("two letters from its words, the same hue every time, never a state's colour", () => {
+  test("two letters from its words, the same hue every time, from the hues of repositories", () => {
     expect(repoMark("shop-api").letters).toBe("SA");
     expect(repoMark("billing").letters).toBe("BI");
     expect(repoMark("this repository").letters).toBe("··");
     expect(repoMark("shop-api").hue).toBe(repoMark("shop-api").hue);
     expect(REPO_HUES).toContain(repoMark("web-app").hue);
-    expect(
-      new Set(["shop-api", "billing", "web-app", "platform"].map((r) => repoMark(r).hue)).size,
-    ).toBeGreaterThan(1);
+  });
+
+  test("the folder's repositories never share a hue, whatever order they are given in", () => {
+    const folder = ["web-app", "shop-api", "billing", "platform", "shop-web"];
+    const hues = folder.map((r) => repoMark(r, folder).hue);
+    expect(new Set(hues).size).toBe(folder.length);
+    expect(repoMark("billing", folder).hue).toBe(REPO_HUES[0] as string);
+    expect(repoMark("shop-api", [...folder].reverse()).hue).toBe(repoMark("shop-api", folder).hue);
+    // One the folder does not list takes a hue from its name.
+    expect(REPO_HUES).toContain(repoMark("elsewhere", folder).hue);
   });
 });
 
