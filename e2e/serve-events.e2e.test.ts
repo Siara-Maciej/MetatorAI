@@ -125,10 +125,13 @@ describe("/ws/events (real daemon)", () => {
     expect(seqs).toEqual(seqs.map((_, i) => hello.seq + i + 1));
     events.ws.close();
 
-    // A socket that connects later starts from the last seq sent, in the same epoch.
+    // A socket that connects later starts from the last seq sent, in the same epoch. The daemon
+    // goes on numbering while nobody listens (a pane may still change after the close), so the
+    // second hello is at least where the first socket left off.
     const again = listen("/ws/events");
     const second = await until("the second hello", () => (again.got as Message[])[0]);
-    expect(second).toEqual({ type: "hello", epoch: hello.epoch, seq: seqs.at(-1) as number });
+    expect({ type: second.type, epoch: second.epoch }).toEqual({ type: "hello", epoch: hello.epoch });
+    expect(second.seq).toBeGreaterThanOrEqual(seqs.at(-1) as number);
     again.ws.close();
   }, 60_000);
 
