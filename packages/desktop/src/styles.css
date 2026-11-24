@@ -2320,6 +2320,16 @@ dialog.goto {
 }
 .pane-frame .pane-ended .msg.done {
   color: var(--green);
+  font-weight: 600;
+}
+/* A finished pane: its last screen above, the strip under it says when it ended (round 22). */
+.pane-frame .finished-banner .msg {
+  flex: 0 1 auto;
+}
+.pane-frame .finished-banner .when {
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .fold-list ul {
   margin: 0;
@@ -3252,9 +3262,13 @@ dialog.goto {
   color: var(--muted);
   margin: 8px 0;
 }
-/* Terminals by task: a bar with where you are, then the tiles side by side (2 or 3, more wrap). */
+/* Terminals by task: a bar with where you are, the filters, then the tree beside the tiles. */
 .workbench.by-task {
-  grid-template-rows: auto auto 1fr;
+  display: flex;
+  flex-direction: column;
+}
+.workbench.by-task > .terminals-body {
+  flex: 1;
 }
 .workbench .terminals-bar {
   display: flex;
@@ -4031,4 +4045,524 @@ a.button-link.big {
 .setup-page input[type="radio"],
 .app-settings input[type="radio"] {
   accent-color: var(--teal);
+}
+.pane-frame .resume-command {
+  font-family: var(--mono);
+  font-size: var(--fs-code);
+  user-select: all;
+}
+
+/* ---------- Terminals, round 22: repository bands, lineage, filters, the tree, the All view ---------- */
+.repo-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font: 700 var(--fs-micro) / 1 var(--mono);
+  color: var(--term-bg);
+}
+.workbench .tile-band {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 5px 8px;
+  background: color-mix(in srgb, var(--repo) 14%, var(--panel));
+  border-bottom: 1px solid color-mix(in srgb, var(--repo) 45%, transparent);
+  min-width: 0;
+}
+.workbench .tile-band .repo-name {
+  font-weight: 700;
+  font-size: var(--fs-head);
+  color: var(--repo);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workbench .tile-band .role {
+  font-size: var(--fs-small);
+  color: var(--muted);
+  border: 1px solid var(--edge-control);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+.workbench .tile-band .spacer {
+  flex: 1;
+}
+.workbench .tile-band .tstate {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.workbench .tile-head {
+  border-bottom: 1px solid var(--edge);
+  min-width: 0;
+}
+.workbench .tile-head .lineage {
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workbench .tile-head .tile-label {
+  flex: 1 1 auto;
+  min-width: 80px;
+  color: var(--text);
+  font-family: var(--mono);
+}
+.workbench .tile-head .parent-link,
+.workbench .tile-head .asks-link {
+  flex: none;
+  font-size: var(--fs-small);
+  padding: 0 6px;
+  min-height: 0;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.workbench .tile-head .parent-link {
+  border: 1px dashed var(--edge-control);
+  background: transparent;
+  color: var(--muted);
+}
+.workbench .tile-head .parent-link:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+.workbench .tile-head .asks-link {
+  font-weight: 600;
+  color: var(--amber);
+  background: var(--amber-wash);
+  border: 1px solid var(--amber-line);
+}
+.workbench .tile-head .asks-link:hover {
+  border-color: var(--amber);
+}
+.workbench .tile-head .below {
+  white-space: nowrap;
+}
+.workbench .tile.flash {
+  border-color: var(--amber);
+  animation: tile-flash 1.4s ease-out 2;
+}
+.workbench .tile.fresh {
+  border-color: var(--teal);
+  animation: tile-fresh 1.6s ease-out 3;
+}
+@keyframes tile-flash {
+  0% {
+    box-shadow: 0 0 0 0 var(--amber-line);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+@keyframes tile-fresh {
+  0% {
+    box-shadow: 0 0 0 0 var(--teal-line);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench .tile.flash,
+  .workbench .tile.fresh {
+    animation: none;
+  }
+}
+.terminal-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-6);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--edge);
+  background: color-mix(in srgb, var(--panel) 55%, var(--bg));
+  font-size: var(--fs-compact);
+}
+.terminal-filters .frow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.terminal-filters .frow:last-child {
+  flex: 1 1 360px;
+}
+.terminal-filters .flabel {
+  flex: none;
+  font-size: var(--fs-chip);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--grey);
+  font-weight: 600;
+}
+.terminal-filters .fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 0;
+  padding: 1px 9px 1px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--edge-control);
+  background: transparent;
+  color: var(--muted);
+}
+.terminal-filters .fchip.on {
+  color: var(--text);
+  background: var(--hover);
+  border-color: var(--chip, var(--muted));
+}
+.terminal-filters .fchip:not(.on) .repo-mark,
+.terminal-filters .fchip:not(.on) .g {
+  opacity: 0.35;
+}
+.terminal-filters .fchip .n {
+  color: var(--grey);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.terminal-filters .seg {
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--edge-control);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.terminal-filters .seg button {
+  border: 0;
+  border-radius: 0;
+  min-height: 0;
+  padding: 2px 10px;
+  background: transparent;
+  color: var(--muted);
+}
+.terminal-filters .seg button + button {
+  border-left: 1px solid var(--edge-control);
+}
+.terminal-filters .seg button[aria-pressed="true"] {
+  background: var(--hover);
+  color: var(--text);
+  font-weight: 600;
+}
+.terminal-filters .ftext {
+  width: 200px;
+  max-width: 100%;
+}
+.terminal-filters .shown {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.terminal-filters .shown b {
+  color: var(--text);
+}
+.workbench .terminals-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 0;
+}
+.terminal-tree {
+  border-right: 1px solid var(--edge);
+  background: var(--panel);
+  overflow: auto;
+  padding: 4px 4px 12px;
+  font-size: var(--fs-compact);
+}
+.terminal-tree .ttitle {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 8px 6px 2px;
+  font-weight: 600;
+}
+.terminal-tree .ttitle .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal-tree .tnode {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 0;
+  padding-block: 2px;
+  padding-right: 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.terminal-tree .tnode:hover {
+  background: var(--hover);
+}
+.terminal-tree .tnode.focus {
+  background: var(--blue-wash);
+}
+.terminal-tree .tnode.hidden {
+  opacity: 0.4;
+}
+.terminal-tree .tnode .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal-tree .tnode .new {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--on-teal);
+  background: var(--teal);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.workbench .all-terminals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  padding: 10px;
+  overflow: auto;
+  min-height: 0;
+}
+.workbench .tgroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.workbench .tgroup.lane {
+  border-left: 3px solid var(--lane, var(--edge));
+  padding-left: 10px;
+}
+.workbench .ghead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-compact);
+  color: var(--muted);
+}
+.workbench .ghead .gt {
+  color: var(--text);
+  font-weight: 600;
+}
+.workbench .task-tiles.flow {
+  padding: 0;
+  overflow: visible;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  grid-auto-rows: 340px;
+}
+.workbench .fresh-toast {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--teal);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px var(--shadow);
+  font-size: var(--fs-compact);
+}
+.workbench .fresh-toast b {
+  color: var(--teal);
+}
+@media (max-width: 900px) {
+  .workbench .terminals-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .terminal-tree {
+    display: none;
+  }
+  .workbench .task-tiles.flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Round 22: the sidebar and the tree of terminals fold to their narrow versions ---------- */
+.shell.side-narrow {
+  grid-template-columns: 52px 1fr;
+}
+.sessions .side-head {
+  display: flex;
+  align-items: center;
+}
+.sessions .side-head .needs-head {
+  flex: 1;
+}
+.sessions .side-fold,
+.terminal-tree .tree-fold {
+  min-height: 0;
+  padding: 2px 8px;
+  margin: 8px 6px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-head);
+}
+.sessions .side-fold:hover,
+.terminal-tree .tree-fold:hover {
+  color: var(--text);
+}
+.sessions.narrow {
+  align-items: center;
+}
+.sessions.narrow .side-fold {
+  margin: 6px 0 2px;
+}
+.sessions.narrow .list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding-top: 4px;
+}
+.sessions.narrow hr,
+.terminal-tree.narrow hr {
+  width: 60%;
+  margin: 4px auto;
+  border: 0;
+  border-top: 1px solid var(--edge);
+}
+.sessions .nicon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  text-decoration: none;
+  font-size: var(--fs-head);
+}
+.sessions .nicon:hover {
+  background: var(--hover);
+}
+.sessions .nicon[aria-current] {
+  background: var(--hover);
+  box-shadow: inset 2px 0 0 var(--teal);
+}
+.sessions .nicon.place {
+  color: var(--muted);
+}
+.sessions .nicon .ncount {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--amber);
+  color: var(--term-bg);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  line-height: 14px;
+}
+.sessions.narrow .places {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.sessions.narrow .new-run {
+  padding: 8px 0 12px;
+}
+.sessions.narrow .new-run .primary {
+  width: 36px;
+  padding: 0;
+  border-radius: 6px;
+}
+.terminal-tree .tree-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 6px;
+  font-size: var(--fs-small);
+}
+.terminal-tree .tree-head .tree-fold {
+  margin: 4px 0 0;
+}
+.workbench .terminals-body.tree-narrow {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+.terminal-tree.narrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 0 12px;
+}
+.terminal-tree.narrow .tree-fold {
+  margin: 4px 0 0;
+}
+.terminal-tree.narrow .ttask {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.terminal-tree.narrow .tnode {
+  flex-direction: column;
+  gap: 1px;
+  width: 40px;
+  padding: 3px 0;
+  justify-content: center;
+}
+.terminal-tree.narrow .tnode.fresh {
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+@media (max-width: 1000px) {
+  .shell.side-narrow {
+    grid-template-columns: 1fr;
+  }
+}
+/* The tree's eye (round 22): only while its row is hovered or holds the keyboard's focus. */
+.terminal-tree .trow {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.terminal-tree .trow > .tnode {
+  flex: 1;
+  min-width: 0;
+}
+.terminal-tree .ttitle.trow {
+  padding-right: 0;
+}
+.terminal-tree .teye {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  color: var(--muted);
+  opacity: 0;
+}
+.terminal-tree .trow:hover .teye,
+.terminal-tree .teye:focus-visible {
+  opacity: 1;
+}
+.terminal-tree .teye:hover {
+  color: var(--text);
+}
+.terminal-tree .teye.shut {
+  color: var(--amber);
+}
+.terminal-tree .trow.shut .tnode .name {
+  text-decoration: line-through;
+  text-decoration-color: var(--grey);
 }

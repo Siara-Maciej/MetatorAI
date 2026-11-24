@@ -10517,4 +10517,35 @@ export const MUTANTS: readonly Mutant[] = [
     to: "start = 1;",
     why: "an XML element's line is where it starts (evidence of POMs and descriptors)",
   },
+  // Round 22: Terminals keep a finished full-screen program's last screen.
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "if (enter.at < 0 || leave.at < enter.at) return stream;",
+    to: "if (enter.at < 0) return stream;",
+    why: "a program still in the alternate screen keeps its stream (only a left screen is cut)",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "if (printed(stream.slice(leave.at + leave.length)).length > maxAfter) return stream;",
+    to: "",
+    why: "a shell that printed much after leaving vim keeps its own output",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "if (only) next = shown.length === 1 && shown[0] === value ? [] : values.filter((v) => v !== value);",
+    to: "if (only) next = values.filter((v) => v !== value);",
+    why: "Alt+click on the only value shown shows them all again",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "level = rows.filter((r) => r.parent !== undefined && keys.has(r.parent) && !out.includes(r));",
+    to: "level = [];",
+    why: "what asks below a terminal counts its sub-terminals' terminals too, not only its children",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "const branch = [key, ...rowsBelow(rows, key).map((r) => r.key)];",
+    to: "const branch = [key];",
+    why: "the tree's eye hides a terminal with every terminal below it",
+  },
 ];

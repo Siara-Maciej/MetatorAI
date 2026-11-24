@@ -109,7 +109,12 @@ export function Sidebar({
   onThread,
   onCloseThread,
   onReopenThread,
+  narrow = false,
+  onNarrow,
 }: {
+  /** Folded to its narrow version (round 22): a column of glyphs, each named on hover. */
+  readonly narrow?: boolean | undefined;
+  onNarrow?: ((narrow: boolean) => void) | undefined;
   readonly route: Route;
   /** Everything that needs the person (model.ts `needsQueue`). */
   readonly needs: readonly NeedRow[];
@@ -364,6 +369,114 @@ export function Sidebar({
     );
   };
   const openCount = tree.threads.length;
+  const fold = onNarrow ? (
+    <button
+      type="button"
+      className="ghost side-fold"
+      data-testid="side-fold"
+      aria-label={narrow ? "Expand the sidebar" : "Collapse the sidebar"}
+      title={narrow ? "Expand the sidebar" : "Collapse the sidebar to its icons"}
+      aria-expanded={!narrow}
+      onClick={() => onNarrow(!narrow)}
+    >
+      {narrow ? "»" : "«"}
+    </button>
+  ) : null;
+  if (narrow) {
+    // The narrow version: what needs you, a glyph per open chat and per task without one, the
+    // places, a new chat; each named in full on hover.
+    const icon = (
+      key: string,
+      glyph: React.ReactNode,
+      title: string,
+      onClick: () => void,
+      current = false,
+    ) => (
+      <button
+        key={key}
+        type="button"
+        className="nicon"
+        title={title}
+        aria-label={title}
+        aria-current={current ? "true" : undefined}
+        onClick={onClick}
+      >
+        {glyph}
+      </button>
+    );
+    const loose = tree.without?.open ?? [];
+    return (
+      <aside className="sessions narrow" aria-label="runs" data-testid="sidebar-narrow">
+        {fold}
+        <div className="list">
+          {down
+            ? null
+            : [
+                icon(
+                  "needs",
+                  <>
+                    <Glyph kind="first" state={needs.length > 0 ? "needs you" : undefined} />
+                    {needs.length > 0 ? <span className="ncount">{needs.length}</span> : null}
+                  </>,
+                  `Needs you · ${needs.length}`,
+                  onInbox,
+                ),
+                <hr key="sep1" />,
+                ...tree.threads.map((g) => {
+                  const th = g.thread;
+                  if (!th) return null;
+                  const kind = g.word === "chat" ? "chat" : "first";
+                  return icon(
+                    g.key,
+                    <Glyph kind={kind} state={g.word} />,
+                    `${th.title} · ${g.word}`,
+                    () => onThread(th),
+                    route.screen === "thread" && route.id === th.id,
+                  );
+                }),
+                ...loose.map((t) =>
+                  icon(
+                    t.key,
+                    <Glyph kind="first" state={wordOf(t)} />,
+                    `${t.title} · ${wordOf(t)}`,
+                    () => {
+                      const headRun = t.head ? runOf(t.head) : undefined;
+                      if (headRun) openDecisionOr(headRun);
+                    },
+                    holds(t),
+                  ),
+                ),
+              ]}
+        </div>
+        <nav className="places" aria-label="places">
+          {PLACES.map((p) => (
+            <a
+              key={p.label}
+              className="nicon place"
+              href={routeHash(p.route)}
+              title={p.label}
+              aria-label={p.label}
+              aria-current={p.holds.includes(route.screen) ? "page" : undefined}
+            >
+              {p.glyph}
+            </a>
+          ))}
+        </nav>
+        <div className="new-run">
+          <button
+            type="button"
+            className="primary"
+            title="A new chat (key n)"
+            aria-label="New chat"
+            disabled={down}
+            onClick={onNew}
+          >
+            +
+          </button>
+        </div>
+      </aside>
+    );
+  }
   return (
     <aside className="sessions" aria-label="runs" onKeyDown={(e) => moveInList(e, ".row")}>
       <div className="list">
@@ -371,10 +484,18 @@ export function Sidebar({
           <div className="section">No daemon: nothing to list</div>
         ) : (
           <>
-            <button type="button" className="section needs-head" data-testid="needs-count" onClick={onInbox}>
-              <Glyph kind="first" state={needs.length > 0 ? "needs you" : undefined} />
-              Needs you · {needs.length}
-            </button>
+            <div className="side-head">
+              <button
+                type="button"
+                className="section needs-head"
+                data-testid="needs-count"
+                onClick={onInbox}
+              >
+                <Glyph kind="first" state={needs.length > 0 ? "needs you" : undefined} />
+                Needs you · {needs.length}
+              </button>
+              {fold}
+            </div>
             <section className="threads" aria-label="chats">
               {tree.threads.map((g) => threadRows(g))}
               {openCount === 0 && !tree.without ? (

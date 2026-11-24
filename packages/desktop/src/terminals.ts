@@ -271,3 +271,397 @@ export function continueText(r: ContinueResult): string {
     .map((s) => `${s.paneId ?? s.runId ?? "?"} (${s.why})`)
     .join("; ")}.`;
 }
+
+/** The sequences a full-screen program (Claude Code, vim) enters and leaves the alternate screen with. */
+const ALT_ENTER = ["\u001b[?1049h", "\u001b[?1047h", "\u001b[?47h"];
+const ALT_LEAVE = ["\u001b[?1049l", "\u001b[?1047l", "\u001b[?47l"];
+
+/** Where the last of the sequences is in the text, and how long it is (-1 when none is). */
+function lastOf(text: string, seqs: readonly string[]): { readonly at: number; readonly length: number } {
+  let best = { at: -1, length: 0 };
+  for (const s of seqs) {
+    const at = text.lastIndexOf(s);
+    if (at > best.at) best = { at, length: s.length };
+  }
+  return best;
+}
+
+/** The text a terminal shows of a stream: escapes and control characters removed, blanks trimmed. */
+function printed(stream: string): string {
+  let out = "";
+  for (let i = 0; i < stream.length; i++) {
+    const c = stream.charCodeAt(i);
+    if (c === 0x1b) {
+      // CSI (ESC [ … final byte) and OSC (ESC ] … BEL or ESC \); any other escape is two characters.
+      const kind = stream[i + 1];
+      if (kind === "[") {
+        i += 2;
+        while (i < stream.length && !/[@-~]/.test(stream[i] as string)) i++;
+      } else if (kind === "]") {
+        const bel = stream.indexOf("\u0007", i);
+        const st = stream.indexOf("\u001b\\", i + 2);
+        if (bel >= 0 && (st < 0 || bel < st)) i = bel;
+        else i = st >= 0 ? st + 1 : stream.length;
+      } else i++;
+    } else if (c >= 0x20) out += stream[i];
+  }
+  return out.trim();
+}
+
+/**
+ * What a finished pane shows (round 22): the last screen its full-screen program drew. Claude Code
+ * draws in the alternate screen and leaves it when it exits, so a replay of its output ends on the
+ * empty main screen with one line ("Resume this session with …"). When the stream's last
+ * alternate screen was left after it was entered, and little was printed after (at most
+ * `maxAfter` characters, so a shell that ran vim long ago keeps its own output), the stream is cut
+ * where it left: the terminal stays on that last screen. Any other stream is returned as it is.
+ */
+export function lastScreen(stream: string, maxAfter = 600): string {
+  const enter = lastOf(stream, ALT_ENTER);
+  const leave = lastOf(stream, ALT_LEAVE);
+  if (enter.at < 0 || leave.at < enter.at) return stream;
+  if (printed(stream.slice(leave.at + leave.length)).length > maxAfter) return stream;
+  return stream.slice(0, leave.at);
+}
+
+/**
+ * The command that resumes an ended agent's session by hand (round 22), when its host can: the
+ * session id a Claude Code pane was started with (`--session-id`). Another host, or none, says nothing.
+ */
+export function resumeCommand(
+  p: Pick<PaneView, "process"> & { readonly live?: { readonly sessionId?: string } | undefined },
+): string | undefined {
+  if (p.process.kind !== "host" || p.process.host !== "claude") return undefined;
+  const id = p.live?.sessionId ?? p.process.sessionId;
+  return id ? `claude --resume ${id}` : undefined;
+}
+
+/** When an ended pane ended and how long it ran (round 22): `14:32 · 12m 04s`, local time. */
+export function endedWhen(p: Pick<PaneView, "createdAt" | "ended">): string | undefined {
+  if (!p.ended) return undefined;
+  const end = new Date(p.ended.at);
+  if (Number.isNaN(end.getTime())) return undefined;
+  const two = (n: number) => String(n).padStart(2, "0");
+  const at = `${two(end.getHours())}:${two(end.getMinutes())}`;
+  const ms = end.getTime() - new Date(p.createdAt).getTime();
+  if (!(ms >= 0)) return at;
+  const s = Math.round(ms / 1000);
+  const took =
+    s < 60
+      ? `${s}s`
+      : s < 3600
+        ? `${Math.floor(s / 60)}m ${two(s % 60)}s`
+        : `${Math.floor(s / 3600)}h ${two(Math.floor((s % 3600) / 60))}m`;
+  return `${at} · ${took}`;
+}
+
+/* ---------- every terminal at once: rows, filters, groups (round 22) ---------- */
+
+/** One terminal of the All view: its pane, where it sits in its task, and what the filters read. */
+export interface TerminalRow {
+  /** The pane's key (`paneKey`): repository and id. */
+  readonly key: string;
+  readonly pane: TPane;
+  readonly task: TerminalTask;
+  /** Its repository's label (`shop-api`), `this repository` without one. */
+  readonly repo: string;
+  readonly role: PaneView["role"];
+  readonly state: PaneShown;
+  /** The terminal that started it: a session's conductor for its sub-terminals, the main terminal for a session. */
+  readonly parent?: string | undefined;
+  /** The session it belongs to, when it is a session's (its conductor or a sub-terminal). */
+  readonly session?: Session | undefined;
+  /** What it is in its task: `main terminal`, `<repo> · conductor`, a worker's name. */
+  readonly name: string;
+}
+
+const HERE = "this repository";
+
+/** A row's state: paused and ended first (a pane the daemon ended keeps its own tone), then the pane's own. */
+const shownOf = (p: TPane, now: number): PaneShown =>
+  pausedOf(p) && !p.ended
+    ? "paused"
+    : isEnded(p)
+      ? endedBanner(p).tone === "error"
+        ? "exited"
+        : "finished"
+      : paneStateOf(p, now);
+
+/**
+ * Every terminal of every task as rows, in the tasks' order: the main terminal, then per session
+ * its conductor and its sub-terminals. Each row knows its parent: a session's conductor was
+ * started from the main terminal, a sub-terminal from its session's conductor.
+ */
+export function terminalRows(tasks: readonly TerminalTask[], now: number = Date.now()): TerminalRow[] {
+  const rows: TerminalRow[] = [];
+  const seen = new Set<string>();
+  const add = (row: Omit<TerminalRow, "key" | "repo" | "role" | "state">) => {
+    const key = paneKey(row.pane);
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push({
+      ...row,
+      key,
+      repo: repoLabel(row.pane.repo ?? row.task.repo ?? "") || HERE,
+      role: row.pane.role,
+      state: shownOf(row.pane, now),
+    });
+  };
+  for (const t of tasks) {
+    const main = t.main ? paneKey(t.main) : undefined;
+    if (t.main) add({ pane: t.main, task: t, name: "main terminal" });
+    // The task run's own sub-terminals, when its session is not one of the tiles (its conductor is the main terminal).
+    if (!t.sessions.includes(t.own))
+      for (const p of t.own.subs) add({ pane: p, task: t, parent: main, session: t.own, name: paneLabel(p) });
+    for (const s of t.sessions) {
+      const head = s.pane ? paneKey(s.pane) : main;
+      if (s.pane)
+        add({
+          pane: s.pane,
+          task: t,
+          parent: main !== head ? main : undefined,
+          session: s,
+          name: `${s.label} · conductor`,
+        });
+      for (const p of s.subs) add({ pane: p, task: t, parent: head, session: s, name: paneLabel(p) });
+    }
+  }
+  return rows;
+}
+
+/** The rows started from a row, and from those, nearest first. */
+export function rowsBelow(rows: readonly TerminalRow[], key: string): TerminalRow[] {
+  const out: TerminalRow[] = [];
+  let level = rows.filter((r) => r.parent === key);
+  while (level.length > 0) {
+    out.push(...level);
+    const keys = new Set(level.map((r) => r.key));
+    level = rows.filter((r) => r.parent !== undefined && keys.has(r.parent) && !out.includes(r));
+  }
+  return out;
+}
+
+/** The three things the filter bar chooses by. */
+export type FilterDimension = "repo" | "state" | "role";
+
+/**
+ * What the filter bar hides (round 22): values per dimension, and words a row must hold. What is
+ * hidden is kept rather than what is shown, so a repository or a state that appears later shows.
+ */
+export interface TerminalFilter {
+  readonly hide: Readonly<Record<FilterDimension, readonly string[]>>;
+  readonly text: string;
+  /** Terminals hidden one by one with the tree's eye (their keys), whatever the chips say. */
+  readonly panes: readonly string[];
+}
+
+export const NO_FILTER: TerminalFilter = { hide: { repo: [], state: [], role: [] }, text: "", panes: [] };
+
+const rowValue = (r: TerminalRow, d: FilterDimension): string =>
+  d === "repo" ? r.repo : d === "state" ? r.state : r.role;
+
+/** Whether a row passes the filter: none of its values hidden, and every word of the text in it. */
+export function passes(r: TerminalRow, f: TerminalFilter): boolean {
+  if (f.panes.includes(r.key)) return false;
+  for (const d of ["repo", "state", "role"] as const) if (f.hide[d].includes(rowValue(r, d))) return false;
+  const hay = `${r.name} ${r.repo} ${r.task.title} ${r.role} ${r.state} ${paneLabel(r.pane)}`.toLowerCase();
+  return f.text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w !== "")
+    .every((w) => hay.includes(w));
+}
+
+/**
+ * A click on a chip of the filter bar. A plain click hides or shows that value; hiding the last
+ * shown one shows them all again, so the bar never hides everything. Alt+click shows only that
+ * value; an Alt+click on the only one shown shows them all again.
+ */
+export function toggleFilter(
+  f: TerminalFilter,
+  d: FilterDimension,
+  value: string,
+  only: boolean,
+  values: readonly string[],
+): TerminalFilter {
+  const hidden = f.hide[d];
+  const shown = values.filter((v) => !hidden.includes(v));
+  let next: string[];
+  if (only) next = shown.length === 1 && shown[0] === value ? [] : values.filter((v) => v !== value);
+  else if (hidden.includes(value)) next = hidden.filter((v) => v !== value);
+  else next = shown.length === 1 && shown[0] === value ? [] : [...hidden, value];
+  return { ...f, hide: { ...f.hide, [d]: next } };
+}
+
+/** The filter changed just enough to show a row (a link to a terminal the filter hides). */
+export function showing(f: TerminalFilter, r: TerminalRow): TerminalFilter {
+  const hide = { ...f.hide };
+  for (const d of ["repo", "state", "role"] as const) hide[d] = hide[d].filter((v) => v !== rowValue(r, d));
+  const panes = f.panes.filter((k) => k !== r.key);
+  return { hide, panes, text: passes(r, { hide, panes, text: f.text }) ? f.text : "" };
+}
+
+/**
+ * The tree's eye on a terminal (round 22): it hides the terminal and every terminal started from
+ * it, or, when the terminal is hidden by its eye already, shows them all again.
+ */
+export function toggleHidden(f: TerminalFilter, rows: readonly TerminalRow[], key: string): TerminalFilter {
+  const branch = [key, ...rowsBelow(rows, key).map((r) => r.key)];
+  const panes = f.panes.includes(key)
+    ? f.panes.filter((k) => !branch.includes(k))
+    : [...f.panes, ...branch.filter((k) => !f.panes.includes(k))];
+  return { ...f, panes };
+}
+
+/** The eye on a task's title: every terminal of the task hidden, or, when all are, shown again. */
+export function toggleTaskHidden(
+  f: TerminalFilter,
+  rows: readonly TerminalRow[],
+  runId: string,
+): TerminalFilter {
+  const keys = rows.filter((r) => r.task.runId === runId).map((r) => r.key);
+  const all = keys.length > 0 && keys.every((k) => f.panes.includes(k));
+  const panes = all
+    ? f.panes.filter((k) => !keys.includes(k))
+    : [...f.panes, ...keys.filter((k) => !f.panes.includes(k))];
+  return { ...f, panes };
+}
+
+/** Each value of a dimension among the rows, in the order first met, with how many rows have it. */
+export function filterValues(
+  rows: readonly TerminalRow[],
+  d: FilterDimension,
+): { value: string; count: number }[] {
+  const out: { value: string; count: number }[] = [];
+  for (const r of rows) {
+    const v = rowValue(r, d);
+    const known = out.find((x) => x.value === v);
+    if (known) known.count++;
+    else out.push({ value: v, count: 1 });
+  }
+  return out;
+}
+
+/** How the All view groups its tiles. */
+export type TerminalGrouping = "task" | "repo" | "state" | "flat";
+
+export interface TerminalGroup {
+  readonly key: string;
+  readonly title: string;
+  /** Set when the group is one repository's (its band's colour). */
+  readonly repo?: string | undefined;
+  /** A task's group holds its sessions as sub-groups. */
+  readonly sessions?: readonly TerminalGroup[] | undefined;
+  readonly rows: readonly TerminalRow[];
+}
+
+/** The states in the order a person deals with them: what asks first, what is finished last. */
+const STATE_ORDER: readonly PaneShown[] = ["asks", "exited", "working", "paused", "idle", "finished"];
+
+/**
+ * The shown rows in groups: by task (its main terminal, then a sub-group per repository session),
+ * by repository, by state (what asks first) or one flat group. Empty groups are left out.
+ */
+export function groupRows(rows: readonly TerminalRow[], by: TerminalGrouping): TerminalGroup[] {
+  if (by === "flat") return rows.length > 0 ? [{ key: "all", title: "All terminals", rows }] : [];
+  if (by === "state")
+    return STATE_ORDER.map((s) => ({
+      key: `state:${s}`,
+      title: s,
+      rows: rows.filter((r) => r.state === s),
+    })).filter((g) => g.rows.length > 0);
+  if (by === "repo") {
+    const repos = [...new Set(rows.map((r) => r.repo))];
+    return repos.map((repo) => ({
+      key: `repo:${repo}`,
+      title: repo,
+      repo,
+      rows: rows.filter((r) => r.repo === repo),
+    }));
+  }
+  const groups: TerminalGroup[] = [];
+  for (const task of [...new Set(rows.map((r) => r.task))]) {
+    const own = rows.filter((r) => r.task === task);
+    const sessions = [...new Set(own.map((r) => r.session).filter((s): s is Session => s !== undefined))];
+    groups.push({
+      key: `task:${task.runId}`,
+      title: task.title,
+      rows: own.filter((r) => r.session === undefined),
+      sessions: sessions.map((s) => ({
+        key: `session:${task.runId}:${s.runId}`,
+        title: `${s.label} session`,
+        repo: repoLabel(s.repo ?? task.repo ?? "") || HERE,
+        rows: own.filter((r) => r.session === s),
+      })),
+    });
+  }
+  return groups;
+}
+
+/** The hues a repository's band takes: light tints, apart from the states' violet, amber, green, red, blue and teal. */
+export const REPO_HUES = [
+  "#7dd3fc",
+  "#f472b6",
+  "#fdba74",
+  "#bef264",
+  "#d6c7a1",
+  "#cbd5e1",
+  "#f0abfc",
+  "#fda4af",
+];
+
+/**
+ * A repository's mark (round 22): its two letters and its hue, the same on every screen. In a
+ * folder the repositories it holds (`known`) take the hues in their sorted order, so up to eight
+ * never share one; a repository not among them takes a hue from its name.
+ */
+export function repoMark(
+  repo: string,
+  known: readonly string[] = [],
+): { readonly letters: string; readonly hue: string } {
+  const words = repo.split(/[^A-Za-z0-9]+/).filter((w) => w !== "");
+  const letters =
+    repo === HERE
+      ? "··"
+      : words.length > 1
+        ? `${words[0]?.[0] ?? ""}${words[1]?.[0] ?? ""}`
+        : (words[0] ?? repo).slice(0, 2);
+  const sorted = [...new Set(known)].sort();
+  let at = sorted.indexOf(repo);
+  if (at < 0) {
+    // FNV-1a: close names (shop-api, shop-web) still spread.
+    let h = 0x811c9dc5;
+    for (let i = 0; i < repo.length; i++) h = Math.imul(h ^ repo.charCodeAt(i), 0x01000193) >>> 0;
+    at = h;
+  }
+  return { letters: letters.toUpperCase(), hue: REPO_HUES[at % REPO_HUES.length] as string };
+}
+
+/** The filter as the window keeps it (`metator.terminals`), read back; anything unreadable is no filter. */
+export function terminalViewFromStorage(raw: string | null | undefined): {
+  readonly filter: TerminalFilter;
+  readonly grouping: TerminalGrouping;
+} {
+  const none = { filter: NO_FILTER, grouping: "task" as const };
+  if (!raw) return none;
+  try {
+    const v = JSON.parse(raw) as {
+      filter?: { hide?: Record<string, unknown>; text?: unknown; panes?: unknown };
+      grouping?: unknown;
+    };
+    const strings = (x: unknown) =>
+      Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : [];
+    const hide = v.filter?.hide ?? {};
+    const grouping = (["task", "repo", "state", "flat"] as const).find((g) => g === v.grouping) ?? "task";
+    return {
+      filter: {
+        hide: { repo: strings(hide.repo), state: strings(hide.state), role: strings(hide.role) },
+        text: typeof v.filter?.text === "string" ? v.filter.text : "",
+        panes: strings(v.filter?.panes),
+      },
+      grouping,
+    };
+  } catch {
+    return none;
+  }
+}

@@ -13,6 +13,7 @@ import { Sidebar } from "./components/sidebar.tsx";
 import { sendLine } from "./components/terminal.tsx";
 import { createConfirmer } from "./confirm.ts";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
+import { useKeptFlag } from "./hooks.ts";
 import {
   afterAnswer,
   flattenState,
@@ -284,6 +285,8 @@ function Shell() {
   });
   // With no repository yet there is nothing for the sidebar: the first run and Add stand alone.
   const solo = repos.commands !== undefined && repos.known?.length === 0;
+  // The sidebar folded to its narrow version (round 22), kept by the window.
+  const [sideNarrow, setSideNarrow] = useKeptFlag("metator.sidebar.narrow", false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Escape closes the runs drawer; a dialog closes itself (the browser's own <dialog>, D7).
@@ -428,7 +431,9 @@ function Shell() {
     </>
   );
   return (
-    <div className={`shell${panelOpen ? " panel-open" : ""}${solo ? " solo" : ""}`}>
+    <div
+      className={`shell${panelOpen ? " panel-open" : ""}${solo ? " solo" : ""}${sideNarrow ? " side-narrow" : ""}`}
+    >
       <header className="topbar">
         <span className="logo">MetatorAI</span>
         {solo ? null : <RepoSwitcher served={folder} />}
@@ -482,6 +487,8 @@ function Shell() {
           onThread={(t) => go({ screen: "thread", id: t.id })}
           onCloseThread={(t) => void threadAct(t, "close")}
           onReopenThread={(t) => void threadAct(t, "reopen")}
+          narrow={sideNarrow}
+          onNarrow={setSideNarrow}
         />
       )}
       <main className="content">
