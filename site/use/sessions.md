@@ -40,7 +40,10 @@ A terminal you go to is scrolled to, flashes for a moment and gets the keyboard,
 ![All terminals grouped by task: the main terminal in shop-api with "? 1 asks", the billing session with its conductor and workers, the web-app session whose conductor asks, highlighted](../public/screens/terminals/terminals-asks.webp)
 *"? 1 asks" on the main terminal went to web-app's conductor: it flashes and holds the keyboard.*
 
-The **tree** on the left lists every terminal, task → main terminal → sessions → workers, each with its repository's letters and its state; a click goes to it.
+The **tree** on the left lists every terminal, task → main terminal → sessions → workers, each with its repository's letters and its state; a click goes to it. **«** folds it to a narrow column of the same marks and states (named on hover), so the tiles get the room; **»** unfolds it. The app's own sidebar folds the same way; the window remembers both.
+
+![Both sidebars folded: the app's sidebar as a column of glyphs with the count of what needs you, the tree as a column of repository marks and states, the tiles across the window](../public/screens/terminals/terminals-narrow.webp)
+*The sidebar and the tree folded: the terminals take the window.*
 
 The **filter bar** chooses what shows, on every view of Terminals: **Repo**, **State** and **Role**, a chip per value with its count. A click hides or shows a value; **Alt+click** shows only that value, and Alt+click on it again shows all. Words narrow it further (a worker, a repository, a task). **Showing 4 of 9 · 5 hidden** says what the filter hides, and **Reset** shows everything. A hidden terminal stays in the tree, dimmed; going to it opens the filter just enough to show it. The window keeps the filter and the grouping.
 

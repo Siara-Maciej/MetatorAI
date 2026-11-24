@@ -4388,3 +4388,143 @@ a.button-link.big {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- Round 22: the sidebar and the tree of terminals fold to their narrow versions ---------- */
+.shell.side-narrow {
+  grid-template-columns: 52px 1fr;
+}
+.sessions .side-head {
+  display: flex;
+  align-items: center;
+}
+.sessions .side-head .needs-head {
+  flex: 1;
+}
+.sessions .side-fold,
+.terminal-tree .tree-fold {
+  min-height: 0;
+  padding: 2px 8px;
+  margin: 8px 6px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-head);
+}
+.sessions .side-fold:hover,
+.terminal-tree .tree-fold:hover {
+  color: var(--text);
+}
+.sessions.narrow {
+  align-items: center;
+}
+.sessions.narrow .side-fold {
+  margin: 6px 0 2px;
+}
+.sessions.narrow .list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding-top: 4px;
+}
+.sessions.narrow hr,
+.terminal-tree.narrow hr {
+  width: 60%;
+  margin: 4px auto;
+  border: 0;
+  border-top: 1px solid var(--edge);
+}
+.sessions .nicon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  text-decoration: none;
+  font-size: var(--fs-head);
+}
+.sessions .nicon:hover {
+  background: var(--hover);
+}
+.sessions .nicon[aria-current] {
+  background: var(--hover);
+  box-shadow: inset 2px 0 0 var(--teal);
+}
+.sessions .nicon.place {
+  color: var(--muted);
+}
+.sessions .nicon .ncount {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--amber);
+  color: var(--term-bg);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  line-height: 14px;
+}
+.sessions.narrow .places {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.sessions.narrow .new-run {
+  padding: 8px 0 12px;
+}
+.sessions.narrow .new-run .primary {
+  width: 36px;
+  padding: 0;
+  border-radius: 6px;
+}
+.terminal-tree .tree-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 6px;
+  font-size: var(--fs-small);
+}
+.terminal-tree .tree-head .tree-fold {
+  margin: 4px 0 0;
+}
+.workbench .terminals-body.tree-narrow {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+.terminal-tree.narrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 0 12px;
+}
+.terminal-tree.narrow .tree-fold {
+  margin: 4px 0 0;
+}
+.terminal-tree.narrow .ttask {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.terminal-tree.narrow .tnode {
+  flex-direction: column;
+  gap: 1px;
+  width: 40px;
+  padding: 3px 0;
+  justify-content: center;
+}
+.terminal-tree.narrow .tnode.fresh {
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+@media (max-width: 1000px) {
+  .shell.side-narrow {
+    grid-template-columns: 1fr;
+  }
+}

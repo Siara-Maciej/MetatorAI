@@ -4,7 +4,8 @@
  * groups them by task and session; "? N asks" on the main terminal goes to each asking terminal
  * (it flashes and gets the keyboard); "↑ parent" goes to the terminal that started one; Alt+click
  * on a filter chip shows only that value (again: all); the tree shows a hidden terminal; a
- * terminal that appears is marked new with a toast.
+ * terminal that appears is marked new with a toast; the sidebar and the tree fold to their narrow
+ * versions and stay folded after a reload.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
@@ -269,6 +270,33 @@ describe("every terminal at once (real daemon, real Chromium)", () => {
     if (SHOTS) await page.screenshot({ path: join(SHOTS, "terminals-all-new.png") });
     await toast.getByRole("button", { name: "Show" }).click();
     await flashed(opened.data.id);
+    // Both sidebars fold to their narrow versions, are used folded, and stay folded after a reload.
+    const area = () => page.getByTestId("all-view").evaluate((e) => e.getBoundingClientRect().width);
+    const before = await area();
+    await page.getByTestId("tree-fold").click();
+    await until("the narrow tree", async () =>
+      (await page.locator(".terminal-tree.narrow").count()) === 1 ? true : undefined,
+    );
+    await page.getByTestId(`tree-${worker}`).click();
+    await flashed(worker);
+    await page.getByTestId("side-fold").click();
+    await page.getByTestId("sidebar-narrow").waitFor({ timeout: 5000 });
+    expect(await page.getByTestId("sidebar-narrow").getByRole("link", { name: "Board" }).count()).toBe(1);
+    // The tiles take the room (the sidebar 288 → 52 px, the tree 240 → 48 px); the window keeps both.
+    await until("the tiles wider", async () => ((await area()) > before + 400 ? true : undefined));
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "terminals-narrow.png") });
+    await page.reload();
+    await page.getByTestId("sidebar-narrow").waitFor({ timeout: 20_000 });
+    await page.locator(".terminal-tree.narrow").waitFor({ timeout: 20_000 });
+    await page.getByTestId("sidebar-narrow").getByRole("link", { name: "Board" }).click();
+    await until("the Board", async () => (page.url().includes("#/board") ? true : undefined));
+    await page.goto(app("grid/all"));
+    await page.getByTestId("side-fold").click();
+    await page.getByTestId("needs-count").waitFor({ timeout: 5000 });
+    await page.getByTestId("tree-fold").click();
+    await until("the wide tree", async () =>
+      (await page.locator(".terminal-tree.narrow").count()) === 0 ? true : undefined,
+    );
     for (const id of [task, child])
       await metator(
         ["run", "close", "--run", id, "--aborted", "--reason", "the test ends here"],

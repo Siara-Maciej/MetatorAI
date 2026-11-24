@@ -24,7 +24,7 @@ import type { TerminalHandle } from "../components/terminal.tsx";
 import { RepoMark, TerminalFilters } from "../components/terminal-filters.tsx";
 import { TerminalTree } from "../components/terminal-tree.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { runControls, useAction, useOption } from "../hooks.ts";
+import { runControls, useAction, useKeptFlag, useOption } from "../hooks.ts";
 import {
   actionOf,
   type CommandContext,
@@ -217,6 +217,8 @@ export function WorkbenchScreen({
   const folderRepos = useMemo(() => d.repos.map((p) => repoLabel(p.name)), [d.repos]);
   // The filter and the grouping are the window's (kept in its storage, read under try/catch).
   const [kept, keep] = useState(readTerminalView);
+  // The tree of terminals folded to its narrow version, kept by the window.
+  const [treeNarrow, setTreeNarrow] = useKeptFlag("metator.terminals.tree.narrow", false);
   const filter = kept.filter;
   const grouping = kept.grouping;
   const setFilter = (f: TerminalFilter) => keep((k) => saveTerminalView({ ...k, filter: f }));
@@ -913,8 +915,10 @@ export function WorkbenchScreen({
           grouping={view === "all" ? grouping : undefined}
           onGrouping={view === "all" ? setGrouping : undefined}
         />
-        <div className="terminals-body">
+        <div className={`terminals-body${treeNarrow ? " tree-narrow" : ""}`}>
           <TerminalTree
+            narrow={treeNarrow}
+            onNarrow={setTreeNarrow}
             known={folderRepos}
             rows={rows}
             filter={filter}
@@ -982,7 +986,13 @@ export function WorkbenchScreen({
               {rowOf(freshToast.parent) ? ` · started by ${rowOf(freshToast.parent)?.name}` : ""}
               {passes(freshToast, filter) ? "" : " · hidden by the filter"}
             </span>
-            <button type="button" onClick={() => goTo(freshToast.key, true)}>
+            <button
+              type="button"
+              onClick={() => {
+                goTo(freshToast.key, true);
+                setFreshToast(undefined);
+              }}
+            >
               Show
             </button>
             <button

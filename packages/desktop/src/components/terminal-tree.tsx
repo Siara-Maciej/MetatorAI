@@ -15,7 +15,12 @@ export function TerminalTree({
   fresh,
   onPick,
   known,
+  narrow,
+  onNarrow,
 }: {
+  /** Folded to its narrow version: a column of marks and states, each named on hover. */
+  readonly narrow: boolean;
+  onNarrow(narrow: boolean): void;
   /** The folder's repositories: they take distinct hues (`repoMark`). */
   readonly known: readonly string[];
   readonly rows: readonly TerminalRow[];
@@ -36,8 +41,54 @@ export function TerminalTree({
     return depth;
   };
   const tasks = [...new Set(rows.map((r) => r.task))];
+  const fold = (
+    <button
+      type="button"
+      className="ghost tree-fold"
+      data-testid="tree-fold"
+      aria-label={narrow ? "Expand the tree" : "Collapse the tree"}
+      title={narrow ? "Expand the tree of terminals" : "Collapse the tree to its marks"}
+      aria-expanded={!narrow}
+      onClick={() => onNarrow(!narrow)}
+    >
+      {narrow ? "»" : "«"}
+    </button>
+  );
+  const classOf = (r: TerminalRow, base: string) =>
+    `${base}${passes(r, filter) ? "" : " hidden"}${focused === r.key ? " focus" : ""}${fresh.has(r.key) ? " fresh" : ""}`;
+  if (narrow)
+    return (
+      <nav className="terminal-tree narrow" aria-label="every terminal" data-testid="terminal-tree">
+        {fold}
+        {tasks.map((t) => (
+          <div key={t.runId} className="ttask" title={t.title}>
+            <hr />
+            {rows
+              .filter((r) => r.task === t)
+              .map((r) => (
+                <button
+                  key={r.key}
+                  type="button"
+                  className={classOf(r, "tnode")}
+                  title={`${t.title} › ${r.name} · ${r.repo} · ${r.state}`}
+                  aria-label={`${r.name} in ${r.repo}, ${r.state}`}
+                  data-testid={`tree-${r.key}`}
+                  onClick={() => onPick(r.key)}
+                >
+                  <RepoMark repo={r.repo} known={known} />
+                  <Glyph kind="pane" state={r.state} />
+                </button>
+              ))}
+          </div>
+        ))}
+      </nav>
+    );
   return (
     <nav className="terminal-tree" aria-label="every terminal" data-testid="terminal-tree">
+      <div className="tree-head">
+        <span className="faint">Terminals · {rows.length}</span>
+        {fold}
+      </div>
       {tasks.map((t) => {
         const own = rows.filter((r) => r.task === t);
         return (
@@ -52,9 +103,7 @@ export function TerminalTree({
                 <button
                   key={r.key}
                   type="button"
-                  className={`tnode${passes(r, filter) ? "" : " hidden"}${focused === r.key ? " focus" : ""}${
-                    fresh.has(r.key) ? " fresh" : ""
-                  }`}
+                  className={classOf(r, "tnode")}
                   style={{ paddingLeft: `${6 + depthOf(r) * 12}px` }}
                   title={`${r.repo} · ${r.role} · ${r.state}${passes(r, filter) ? "" : " (hidden by the filter)"}`}
                   data-testid={`tree-${r.key}`}
