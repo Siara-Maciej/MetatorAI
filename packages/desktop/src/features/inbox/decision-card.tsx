@@ -5,18 +5,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { InboxItem } from "../../shared/api/api.ts";
-import { Chip } from "../../shared/components/chips.tsx";
 import { CommandText, commandOf } from "../../shared/components/command-text.tsx";
-import { FoldList } from "../../shared/components/fold-list.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
-import { duration } from "../../shared/model/format.ts";
-import {
-  hostPromptOf,
-  humanPrompt,
-  isTerminalQuestion,
-  paneOfQuestion,
-  questionKind,
-} from "../../shared/model/needs.ts";
+import { hostPromptOf, humanPrompt, isTerminalQuestion, paneOfQuestion } from "../../shared/model/needs.ts";
 import { isFinished } from "../../shared/model/runs.ts";
 import { askWhy, consentOf } from "../../shared/model/stage1.ts";
 import { groupStepText, systemPlanOf } from "../../shared/model/system-plans.ts";
@@ -26,7 +17,8 @@ import { AskForChanges, lintRequest, RunPlanFull, SystemPlanFull } from "../plan
 import { isPublishGate, NOT_PUBLISHED } from "../reviews/model.ts";
 import { ArtifactViewer } from "../runs/artifact-viewer.tsx";
 import { useAnswer } from "./answer.tsx";
-import { answerCommand, goalShown, needsReason, optionClosed } from "./model.ts";
+import { CardDetails } from "./card-details.tsx";
+import { needsReason, optionClosed } from "./model.ts";
 
 export function DecisionCard({
   item,
@@ -287,108 +279,16 @@ export function DecisionCard({
       ) : null}
       {planGate ? null : actions}
       <Notice text={a.error} onClose={a.clearError} />
-      <details className="card-details" data-testid="card-details">
-        <summary>Details</summary>
-        <div className="ctx">
-          <span className="mono">{q.id}</span>
-          <span>{questionKind(q)}</span>
-          <span>{item.stage}</span>
-          {item.repo ? <span>{item.repo}</span> : null}
-          <span className="mono">{q.runId}</span>
-          {q.agent ? <span>{q.agent}</span> : null}
-          {askPane ? <span className="mono">pane {askPane}</span> : null}
-          {host ? <span className="mono">pane {host.pane}</span> : null}
-        </div>
-        <div className="chips">
-          {card ? (
-            <Chip tone={card.reversible ? "green" : "red"}>
-              {card.reversible ? "reversible" : "not reversible"}
-            </Chip>
-          ) : null}
-          {card?.blastRadius ? (
-            <Chip tone="violet">
-              touches {card.blastRadius.files} file{card.blastRadius.files === 1 ? "" : "s"}
-              {card.blastRadius.areas.length > 0 ? ` · ${card.blastRadius.areas.join(", ")}` : ""}
-            </Chip>
-          ) : null}
-          <Chip tone="amber">waiting {duration(item.waitedMs)}</Chip>
-          {item.driving ? <Chip tone="amber">agent idle</Chip> : null}
-          {card?.costOfDelay?.map((c) => (
-            <Chip key={c}>{c}</Chip>
-          ))}
-          {card?.group ? <Chip tone="blue">{groupText(card.group)}</Chip> : null}
-        </div>
-        {card && goalShown(q.prompt, card.task) ? (
-          <section>
-            <h3>Goal</h3>
-            <div>{card.task}</div>
-          </section>
-        ) : null}
-        {card?.soFar?.length ? (
-          <section>
-            <h3>Since you left</h3>
-            <FoldList lines={card.soFar} label="since you left" />
-          </section>
-        ) : null}
-        {card && (card.done.length > 0 || card.artifacts.length > 0) ? (
-          <section>
-            <h3>Proposal and evidence</h3>
-            {card.done.length > 0 ? <div className="muted">done: {card.done.join(" → ")}</div> : null}
-            {card.artifacts.length > 0 ? (
-              <div className="muted">
-                see:{" "}
-                {card.artifacts.map((name, i) => (
-                  <span key={name}>
-                    {i > 0 ? " · " : null}
-                    <Button
-                      variant="ghost"
-                      className="link mono"
-                      onClick={() => setViewing(name)}
-                      title={`read ${name}`}
-                    >
-                      {name}
-                    </Button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {card.evidence?.length ? <FoldList lines={card.evidence} keep={3} label="evidence" /> : null}
-          </section>
-        ) : null}
-        <section>
-          <h3>What each answer does</h3>
-          <ul className="consequences" data-testid="consequences">
-            {q.options.map((o) => (
-              <li key={o.label}>
-                <strong>{o.label}</strong>
-                {o.description ? <span className="muted"> · {o.description}</span> : null}
-                {card?.consequences?.[o.label] ? (
-                  <span className="cons"> → {card.consequences[o.label]}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-        {a.reason ? null : (
-          <label className="reason">
-            <span className="dim">Note (optional)</span>
-            <input
-              aria-label="note"
-              placeholder="a note for the log"
-              value={a.text}
-              onChange={(e) => a.setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && a.ready) void a.send();
-              }}
-            />
-          </label>
-        )}
-        <div className="actions">
-          <Button onClick={() => onOpenChanges(q.runId)}>Changes</Button>
-          <Button onClick={() => onOpenSession(q.runId)}>Open run · o</Button>
-        </div>
-        <div className="footer-cmd mono">writes: {answerCommand(q, a.choices, me, a.text)}</div>
-      </details>
+      <CardDetails
+        item={item}
+        askPane={askPane}
+        host={host}
+        groupText={groupText}
+        onView={setViewing}
+        answer={a}
+        onOpenChanges={onOpenChanges}
+        onOpenSession={onOpenSession}
+      />
       {viewing ? (
         <ArtifactViewer
           runId={q.runId}
