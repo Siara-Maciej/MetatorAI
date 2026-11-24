@@ -35,7 +35,7 @@ const PLAN_LOOK: Record<string, string> = {
 };
 
 export function SystemPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
-  const { client, repo, runs } = useDaemon();
+  const { client, repo, runs } = useDaemon("client", "repo", "runs");
   const list = usePolled(`system-plans-all:${repo ?? ""}`, () => client.systemPlans(repo), 5000);
   const [chosen, setChosen] = useState<string>();
   const plans = Array.isArray(list.data) ? list.data : [];
@@ -100,7 +100,12 @@ export function SystemPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
 }
 
 function SystemMapEditor() {
-  const { client, repo, optionsView, reloadOptions } = useDaemon();
+  const { client, repo, optionsView, reloadOptions } = useDaemon(
+    "client",
+    "repo",
+    "optionsView",
+    "reloadOptions",
+  );
   const map = usePolled(`system-map:${repo ?? ""}`, () => client.systemMap(repo), 5000);
   const action = useAction(map.reload);
   const source: DocSource<SystemMapView, SystemMap> = {

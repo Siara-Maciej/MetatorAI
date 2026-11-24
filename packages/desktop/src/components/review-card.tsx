@@ -48,7 +48,7 @@ export function ReviewCard({
   /** A button's request went through and started nothing to show: Home goes on. */
   onDone(): void;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const { start, action } = useStartAgent();
   return (
     <article className="card review-card" aria-label="review card" data-testid={`review-card-${card.kind}`}>

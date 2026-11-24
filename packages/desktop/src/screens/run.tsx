@@ -61,7 +61,7 @@ export function RunScreen({
   /** Another run's page (a parent, a step), or this one's terminal with the keyboard taken. */
   onOpenRun(runId: string, attach?: boolean): void;
 }) {
-  const { run: runOf, markSeen, panesOf } = useDaemon();
+  const { run: runOf, markSeen, panesOf } = useDaemon("run", "markSeen", "panesOf");
   const run = runOf(runId);
   const tasks = useTasks();
   const fine = run
@@ -231,7 +231,7 @@ export function RunScreen({
 
 /** Everything the run did, newest last: the time, the type, where it came from, what happened. */
 function ActivityTab({ runId, repo }: { readonly runId: string; readonly repo: string | undefined }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const { data, error } = usePolled(
     `activity:${repo ?? ""}:${runId}`,
     () => client.activity(runId, repo),

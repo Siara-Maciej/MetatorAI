@@ -33,7 +33,7 @@ const TONE_VAR: Record<Tone, string> = {
 };
 
 export function DependenciesPanel(_props: { onOpenRun?: ((runId: string) => void) | undefined } = {}) {
-  const { runs, repos, client, systemPlans } = useDaemon();
+  const { runs, repos, client, systemPlans } = useDaemon("runs", "repos", "client", "systemPlans");
   // Every run that is not finished, escalated ones included: what the panel and the top bar count.
   const active = openRuns(runs);
   // Asked again when the set of runs changes, not on every refresh of the state.

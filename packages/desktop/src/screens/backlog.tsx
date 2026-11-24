@@ -58,7 +58,7 @@ export function BacklogScreen({
   /** A task started from a pane or a step: the form opens with these refs. */
   readonly initialDraft?: { readonly title?: string; readonly refs?: readonly IssueRef[] } | undefined;
 }) {
-  const { client, repo, run: runOf } = useDaemon();
+  const { client, repo, run: runOf } = useDaemon("client", "repo", "run");
   const list = usePolled(`issues:${repo ?? ""}`, () => client.issues(repo), 2000);
   const issues = list.data?.issues ?? NO_ISSUES;
   // What an action answered stays until closed: the list's refresh never clears it (D5).
@@ -482,7 +482,7 @@ function FreshnessBadge({ item, of }: { readonly item: BacklogItem; readonly of:
 
 /** The item's detail (`GET /issues/:id`): its analysis text and its plan in short, read when they change. */
 function useIssueDetail(item: IssueView, repo: string | undefined) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   return usePolled(
     `issue-detail:${repo ?? ""}:${item.id}:${item.analysis?.at ?? ""}:${item.plan?.at ?? ""}`,
     () => (item.analysis || item.plan ? client.issue(item.id, repo) : Promise.resolve({ ok: true })),

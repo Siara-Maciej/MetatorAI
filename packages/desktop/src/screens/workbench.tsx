@@ -129,7 +129,20 @@ export function WorkbenchScreen({
   /** A pane to show first (from the plan screen): its tab is selected and it gets the focus. */
   readonly showPane?: string | undefined;
 }) {
-  const d = useDaemon();
+  const d = useDaemon(
+    "client",
+    "runs",
+    "inbox",
+    "me",
+    "options",
+    "paneAsks",
+    "panes",
+    "panesOf",
+    "repo",
+    "run",
+    "systemPlans",
+    "workspaces",
+  );
   const { client, runs, inbox, me, options } = d;
   // The repository this screen shows (D10): the one chosen in a folder, the daemon's own otherwise.
   const repoName = d.repo;

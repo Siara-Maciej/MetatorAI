@@ -8,7 +8,7 @@ import { placeLabel, plural, worktreeCount } from "../model.ts";
  * The choice is the app's, remembered, and the same on every list screen.
  */
 export function RepoSelect() {
-  const { repos, repo, setRepo } = useDaemon();
+  const { repos, repo, setRepo } = useDaemon("repos", "repo", "setRepo");
   if (repos.length === 0) return null;
   // A worktree is a place of its own (`shop (fix-tax)`); its repository's count of them stays dim.
   const worktrees = worktreeCount(repos, repo);
@@ -64,7 +64,17 @@ export function Notice({
  * that starts the daemon, the address to try, and Retry. No screen draws over stale or empty data.
  */
 export function NoDaemon() {
-  const { url, error, setUrl, retry, startable, folder, starting, startError, start } = useDaemon();
+  const { url, error, setUrl, retry, startable, folder, starting, startError, start } = useDaemon(
+    "url",
+    "error",
+    "setUrl",
+    "retry",
+    "startable",
+    "folder",
+    "starting",
+    "startError",
+    "start",
+  );
   const [address, setAddress] = useState(url);
   useEffect(() => setAddress(url), [url]);
   const [copied, setCopied] = useState(false);

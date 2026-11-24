@@ -10420,4 +10420,22 @@ export const MUTANTS: readonly Mutant[] = [
     to: "start = 1;",
     why: "an XML element's line is where it starts (evidence of POMs and descriptors)",
   },
+  {
+    file: "packages/desktop/src/query.ts",
+    from: "replaceEqualDeep(before, next) as T",
+    to: "next",
+    why: "an answer equal to the last one keeps the last one's objects, so nothing draws again",
+  },
+  {
+    file: "packages/desktop/src/query.ts",
+    from: "if (r.ok && r.data !== undefined) return r.data;",
+    to: "if (r.data !== undefined) return r.data;",
+    why: "an envelope that refuses is the query's error, never its data",
+  },
+  {
+    file: "packages/desktop/src/daemon-store.ts",
+    from: "for (const k of keys) out[k] = state[k];",
+    to: "for (const k of Object.keys(state) as K[]) out[k] = state[k];",
+    why: "a component hears only of the fields it names",
+  },
 ];

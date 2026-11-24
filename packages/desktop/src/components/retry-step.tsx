@@ -20,7 +20,7 @@ export function RetryStepButton({
   readonly repo: string | undefined;
   onRetried?: (() => void) | undefined;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const action = useAction(onRetried);
   return (
     <span className="retry-step">
@@ -45,7 +45,7 @@ export function RetryStepButton({
 
 /** On a system run's escalated card and bar: each step whose child run was aborted, with its Retry. */
 export function RetryAbortedSteps({ run }: { readonly run: Run }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const system = run.workflow === "mt-system-change";
   const plans = usePolled(
     `retry-steps-of:${run.runId}`,

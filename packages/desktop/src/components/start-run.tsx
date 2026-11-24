@@ -27,7 +27,7 @@ export function StartRun({
   /** The session was opened: the caller shows its terminal. */
   onStarted?: ((how: "session" | "drive") => void) | undefined;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const { openSession, drive } = useRunControls(run, action);
   const s = usePolled(`hosts:${run.repo ?? ""}`, () => client.supervisor(run.repo), 30_000);
   const hosts: readonly HostStatus[] =

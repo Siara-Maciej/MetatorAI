@@ -25,7 +25,7 @@ export function useAnswer(
     onRefused?(message: string): void;
   },
 ) {
-  const { client, who } = useDaemon();
+  const { client, who } = useDaemon("client", "who");
   const initial = (options.initial ?? []).join("\n");
   const [choices, setChoices] = useState<readonly string[]>(options.initial ?? []);
   const [text, setText] = useState("");

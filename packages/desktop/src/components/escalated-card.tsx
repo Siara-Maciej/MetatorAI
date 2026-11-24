@@ -24,7 +24,7 @@ export function EscalatedActions({
   /** More buttons on the same row (the card: Briefing, Changes). */
   readonly children?: React.ReactNode;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const action = useAction();
   const [closing, setClosing] = useState(false);
   const [reason, setReason] = useState("");

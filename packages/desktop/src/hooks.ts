@@ -13,7 +13,7 @@ import { type WorkTask, workTasks } from "./tasks.ts";
 
 /** The work as parent tasks (tasks.ts), from the runs and system plans: the sidebar's, Home's and a page's. */
 export function useTasks(): WorkTask[] {
-  const { runs, systemPlans } = useDaemon();
+  const { runs, systemPlans } = useDaemon("runs", "systemPlans");
   return useMemo(
     () => workTasks(boardCards({ runs, issues: [], plans: systemPlans, now: Date.now() }), systemPlans),
     [runs, systemPlans],
@@ -22,7 +22,7 @@ export function useTasks(): WorkTask[] {
 
 /** The value of one option (S1), or the fallback while the options are not here yet. */
 export function useOption<T>(key: string, fallback: T): T {
-  const { options } = useDaemon();
+  const { options } = useDaemon("options");
   return (options.find((o) => o.key === key)?.value as T | undefined) ?? fallback;
 }
 
@@ -72,7 +72,7 @@ export interface Action {
 
 /** One action at a time with one notice: the request, the refusal that stays, the reload after. */
 export function useAction(reload?: () => Promise<unknown> | unknown): Action {
-  const { me, who } = useDaemon();
+  const { me, who } = useDaemon("me", "who");
   const [note, setNote] = useState<{ text: string; tone: "error" | "info" }>();
   const [busy, setBusy] = useState(false);
   const latest = useRef(reload);
@@ -167,6 +167,6 @@ export function runControls(
 
 /** `runControls` of one run, for a screen that is about that run. */
 export function useRunControls(run: RunRef | undefined, action: Action) {
-  const { client, me } = useDaemon();
+  const { client, me } = useDaemon("client", "me");
   return runControls(client, action, me, run, useHostEditor());
 }

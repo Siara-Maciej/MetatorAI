@@ -31,7 +31,7 @@ export function TaskOverview({
   onOpenRun(runId: string): void;
   onOpenChanges(runId: string): void;
 }) {
-  const { inbox, systemPlans, runs } = useDaemon();
+  const { inbox, systemPlans, runs } = useDaemon("inbox", "systemPlans", "runs");
   const tasks = useTasks();
   const [said, setSaid] = useState<string>();
   const own = tasks.find((t) => (t.kind === "system" || t.kind === "parent") && t.head?.runId === run.runId);
@@ -79,7 +79,7 @@ export function TaskOverview({
 
 /** A task's child runs by repository: the first level's word, and why one is blocked. */
 function TaskSteps({ task }: { readonly task: WorkTask }) {
-  const { runs } = useDaemon();
+  const { runs } = useDaemon("runs");
   return (
     <section className="box task-steps" aria-label="its steps" data-testid="task-steps">
       <h3>Its steps</h3>

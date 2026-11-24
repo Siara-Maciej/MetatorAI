@@ -21,7 +21,7 @@ export function ThreadScreen({
   onClose(thread: ThreadView): void;
   onReopen(thread: ThreadView): void;
 }) {
-  const { panes, paneAsks, threads } = useDaemon();
+  const { panes, paneAsks, threads } = useDaemon("panes", "paneAsks", "threads");
   const tasks = byAttentionFirst(useTasks());
   const thread = threads.find((t) => t.id === id);
   if (!thread) return <div className="empty">No chat {id} here: it may still be on its way.</div>;

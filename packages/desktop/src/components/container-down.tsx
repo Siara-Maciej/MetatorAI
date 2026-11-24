@@ -11,7 +11,7 @@ import { useRepos } from "../repos-context.tsx";
 
 export function ContainerDown() {
   const repos = useRepos();
-  const d = useDaemon();
+  const d = useDaemon("start", "startError");
   const [busy, setBusy] = useState<"start" | "reconnect">();
   const [why, setWhy] = useState<string>();
   const current = repos.current;

@@ -30,7 +30,7 @@ export function DebugChanges({
   /** Only these repositories' (a task's); every repository's when left out. */
   readonly repos?: readonly (string | undefined)[] | undefined;
 }) {
-  const d = useDaemon();
+  const d = useDaemon("scratchCount", "scratchRepos");
   const count = d.scratchCount(repos);
   const [open, setOpen] = useState(false);
   // What the last removal did stays in the entry's place when nothing is left to list.
@@ -77,7 +77,7 @@ function DebugChangesList({
   readonly repos: readonly (string | undefined)[];
   onClose(said?: { text: string; ok: boolean }): void;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const action = useAction();
   // Records the daemon says are gone (no file holds them any more): said once, by the answer
   // that removed them, so they are kept here while the list is open.

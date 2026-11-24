@@ -29,7 +29,7 @@ export function ChangesTab({
   readonly file?: string | undefined;
   onOpenFile(runId: string, file?: string): void;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   // The run's own repository (D10): in a folder the change is read where the run lives.
   const repo = run?.repo;
   const key = `review:${repo ?? ""}:${runId}:${file ?? ""}`;

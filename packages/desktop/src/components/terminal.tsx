@@ -113,7 +113,7 @@ function SocketTerminal({
   onReady?: ((handle: TerminalHandle) => void) | undefined;
   readonly scrollback?: number | undefined;
 }) {
-  const { url, me } = useDaemon();
+  const { url, me } = useDaemon("url", "me");
   const host = useRef<HTMLDivElement>(null);
   const status = useRef<TerminalStatus>({});
   const report = useRef(onStatus);

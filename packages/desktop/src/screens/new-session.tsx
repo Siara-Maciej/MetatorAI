@@ -24,7 +24,7 @@ export function NewSessionDialog({
   onClose(): void;
   onCreated(runId: string, attach: boolean): void;
 }) {
-  const { client, repos, repo: listRepo, runs } = useDaemon();
+  const { client, repos, repo: listRepo, runs } = useDaemon("client", "repos", "repo", "runs");
   const [repo, setRepo] = useState(listRepo ?? "");
   // What the form offers, asked once per repository: its workflows, its hosts and its limit.
   const offered = usePolled(

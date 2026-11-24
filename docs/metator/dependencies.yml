@@ -124,6 +124,21 @@ packages:
     }
   - { package: react, need: "the desktop app's component model", adr: 0078-desktop-app-tauri-xterm.md }
   - {
+      package: "@tanstack/react-query",
+      need: "the daemon's data in the desktop app: one query cache, polling, answers shared structurally",
+      adr: 0108-desktop-state-query-and-store.md,
+    }
+  - {
+      package: zustand,
+      need: "the desktop app's state as a store a component subscribes to by field",
+      adr: 0108-desktop-state-query-and-store.md,
+    }
+  - {
+      package: "@happy-dom/global-registrator",
+      need: "a DOM in bun test for the desktop app's component tests",
+      adr: 0108-desktop-state-query-and-store.md,
+    }
+  - {
       package: "@modelcontextprotocol/sdk",
       need: "MetatorAI as an MCP server over stdio (`metator mcp`); the MCP client that reads code hosts for intake (ADR-0083)",
       adr: 0081-mcp-server.md,

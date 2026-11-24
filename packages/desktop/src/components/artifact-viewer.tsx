@@ -17,7 +17,7 @@ export function ArtifactViewer({
   readonly name: string;
   onClose(): void;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const { data, error } = usePolled(
     `artifact:${repo ?? ""}:${runId}:${name}`,
     () => client.artifact(runId, name, repo),

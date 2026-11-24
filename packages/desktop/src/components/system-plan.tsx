@@ -35,7 +35,7 @@ export function SystemPlanPanel({
   /** Its flow: shown on the task's own page only. */
   readonly flow?: boolean | undefined;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   // A finished system run's plan is not among the open ones: it is found in the repository's list.
   const list = usePolled(
     `system-plans-of:${repo ?? ""}:${planOfRun?.runId ?? ""}`,
@@ -71,7 +71,7 @@ function SystemPlanBody({
   onOpenRun?: ((runId: string) => void) | undefined;
   readonly flow?: boolean | undefined;
 }) {
-  const { client, runs } = useDaemon();
+  const { client, runs } = useDaemon("client", "runs");
   const plan = usePolled(`system-plan:${repo ?? ""}:${id}`, () => client.systemPlan(id, repo), 3000);
   const action = useAction(plan.reload);
   const view = plan.data;
@@ -153,7 +153,7 @@ export function SystemPlanContent({
   /** Folded tables open at first (a plan's approval card: the plan in full, foldable). */
   readonly stepsOpen?: boolean | undefined;
 }) {
-  const { runs } = useDaemon();
+  const { runs } = useDaemon("runs");
   // The step whose tile was clicked: its detail.
   const [step, setStep] = useState<string>();
   const repos = [...new Set(view.steps.map((s) => s.repo))];

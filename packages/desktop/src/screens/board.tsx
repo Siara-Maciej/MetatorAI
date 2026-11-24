@@ -70,7 +70,7 @@ export function BoardScreen({
   readonly task?: string | undefined;
   onOpenRun(runId: string): void;
 }) {
-  const { runs, repos, systemPlans, client } = useDaemon();
+  const { runs, repos, systemPlans, client } = useDaemon("runs", "repos", "systemPlans", "client");
   const names = repos.length > 0 ? repos.map((r) => r.name) : [undefined];
   const issues = usePolled(
     `board-issues:${names.join(",")}`,

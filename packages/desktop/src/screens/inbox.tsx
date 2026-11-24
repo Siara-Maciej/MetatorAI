@@ -67,7 +67,7 @@ export function InboxScreen({
   onStart(task: string): void;
   onForm(): void;
 }) {
-  const { inbox, runs, paneAsks, reviewCards } = useDaemon();
+  const { inbox, runs, paneAsks, reviewCards } = useDaemon("inbox", "runs", "paneAsks", "reviewCards");
   const item = picked ? inbox.find((i) => decisionKey(i) === picked.key) : undefined;
   // A pane without a run that asks (the intake chat): its own card, answered into the pane.
   const paneAsk = picked && isPaneAsk(picked) ? paneAskOf(paneAsks, picked.key) : undefined;
@@ -223,7 +223,7 @@ function QuietHome({
   onStart(task: string): void;
   onForm(): void;
 }) {
-  const { runs, panes, threads } = useDaemon();
+  const { runs, panes, threads } = useDaemon("runs", "panes", "threads");
   const tasks = byAttentionFirst(useTasks()).filter((t) => t.column !== "done");
   const action = useAction();
   const open = openRuns(runs);

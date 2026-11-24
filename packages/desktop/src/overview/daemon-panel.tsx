@@ -13,7 +13,7 @@ import {
 } from "../model.ts";
 
 export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
-  const { client, runs, repo, url } = useDaemon();
+  const { client, runs, repo, url } = useDaemon("client", "runs", "repo", "url");
   const { data: view, error } = usePolled(`supervisor:${repo ?? ""}`, () => client.supervisor(repo), 5000);
   const a = view?.acceptance;
   const fromInboxPct = a && a.answered > 0 ? Math.round((100 * a.fromInbox) / a.answered) : undefined;

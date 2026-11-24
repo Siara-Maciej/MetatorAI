@@ -50,7 +50,6 @@ export const useRepos = (): Repos => {
 };
 
 export function ReposProvider({ children }: { readonly children: React.ReactNode }) {
-  const d = useDaemon();
   const commands = useMemo(() => appCommands(), []);
   const [known, setKnown] = useState<readonly KnownRepo[]>();
   const [error, setError] = useState<string>();
@@ -92,7 +91,7 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
     },
     [commands, refreshContainers],
   );
-  const { folder, start, forgetFolder } = d;
+  const { folder, start, forgetFolder } = useDaemon("folder", "start", "forgetFolder");
   // The folder an older app remembered becomes the first known repository, once, when the app opens.
   const remembered = useRef(folder);
   useEffect(() => {

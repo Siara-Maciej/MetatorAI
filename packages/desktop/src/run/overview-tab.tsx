@@ -27,7 +27,7 @@ export function OverviewTab({
   /** Shows a pane in Terminals (a step's worker). */
   onOpenPane(paneId: string, runId: string): void;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const repo = run?.repo;
   const {
     data,

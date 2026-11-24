@@ -20,7 +20,7 @@ export function FromPlanButton({
   /** The screen's own action (its notice); else the button keeps its own. */
   readonly action?: Action | undefined;
 }) {
-  const { client, setRepo, repos } = useDaemon();
+  const { client, setRepo, repos } = useDaemon("client", "setRepo", "repos");
   const items = usePolled(`from-plan:${repo ?? ""}`, () => client.issues(repo), 5000);
   const own = useAction(items.reload);
   const action = outer ?? own;

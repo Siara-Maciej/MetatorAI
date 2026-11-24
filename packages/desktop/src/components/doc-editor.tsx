@@ -64,7 +64,7 @@ export interface DocEditor<V, D> {
  * plan" from an approval card lands here).
  */
 export function useDocEditor<V, D>(source: DocSource<V, D>, startEditing = false): DocEditor<V, D> {
-  const { who } = useDaemon();
+  const { who } = useDaemon("who");
   const [mode, setMode] = useState<EditMode>("view");
   const [draft, setDraftState] = useState<D>();
   const [base, setBase] = useState<{ doc: D | null; digest: string | null }>();

@@ -4,7 +4,17 @@
  * the list screens show and the daemon's address from local storage. `usePolled` (a request
  * repeated on an interval) lives here too; the hooks built on it are in `hooks.ts`.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   DaemonClient,
   daemonUrl,
@@ -22,6 +32,7 @@ import {
   wsUrl,
 } from "./api.ts";
 import { Modal } from "./components/modal.tsx";
+import { createStateStore, publish, type Store, useFields } from "./daemon-store.ts";
 import {
   autostart,
   flattenState,
@@ -41,6 +52,7 @@ import {
   withSeen,
   withTerminalAsks,
 } from "./model.ts";
+import { type Polled, queryClient, shared, usePolledAt } from "./query.ts";
 import { appShell } from "./shell.ts";
 import { scratchCount, scratchRepos } from "./stage1.ts";
 import { errorText } from "./tauri-commands.ts";
@@ -135,13 +147,17 @@ export interface Daemon {
   changeName(): void;
 }
 
-const Ctx = createContext<Daemon | undefined>(undefined);
+const Ctx = createContext<Store<Daemon> | undefined>(undefined);
 
-export const useDaemon = (): Daemon => {
-  const d = useContext(Ctx);
-  if (!d) throw new Error("useDaemon outside <DaemonProvider>");
-  return d;
-};
+/**
+ * The fields of the daemon's state this part of the app reads: it draws again only when one of
+ * them changed. Name what is used, nothing more.
+ */
+export function useDaemon<K extends keyof Daemon>(...keys: readonly [K, ...K[]]): Pick<Daemon, K> {
+  const store = useContext(Ctx);
+  if (!store) throw new Error("useDaemon outside <DaemonProvider>");
+  return useFields(store, keys);
+}
 
 const read = (key: string): string | null => {
   try {
@@ -160,43 +176,13 @@ const write = (key: string, value: string) => {
 
 /**
  * A request repeated on an interval (D11): the last good answer, the last failure, and a way to
- * ask again now. A new `key` (another run, another repository) starts over with nothing; `ms` 0
- * asks once. A failure keeps the data that was there: the screen says it is stale, not empty.
+ * ask again now. A new `key` (another run, another repository) starts over with what the app last
+ * read for it, or nothing; `ms` 0 asks once. A failure keeps the data that was there: the screen
+ * says it is stale, not empty. An answer equal to the last one draws nothing again.
  */
-export function usePolled<T>(
-  key: string,
-  fn: () => Promise<Envelope<T>>,
-  ms: number,
-): { readonly data: T | undefined; readonly error: string | undefined; reload(): Promise<void> } {
-  const latest = useRef(fn);
-  latest.current = fn;
-  const [state, setState] = useState<{ key: string; data?: T; error?: string }>({ key });
-  const current = useRef(key);
-  current.current = key;
-  const reload = useCallback(async () => {
-    const asked = current.current;
-    const r = await latest.current();
-    if (current.current !== asked) return;
-    setState((s) =>
-      r.ok && r.data !== undefined
-        ? { key: asked, data: r.data }
-        : {
-            key: asked,
-            ...(s.key === asked && s.data !== undefined ? { data: s.data } : {}),
-            error: r.error?.message ?? "the daemon did not answer",
-          },
-    );
-  }, []);
-  useEffect(() => {
-    // The key is what the effect is about: a new one asks again at once.
-    void key;
-    void reload();
-    if (ms <= 0) return;
-    const t = setInterval(() => void reload(), ms);
-    return () => clearInterval(t);
-  }, [key, ms, reload]);
-  const mine = state.key === key;
-  return { data: mine ? state.data : undefined, error: mine ? state.error : undefined, reload };
+export function usePolled<T>(key: string, fn: () => Promise<Envelope<T>>, ms: number): Polled<T> {
+  const { url } = useDaemon("url");
+  return usePolledAt(url, key, fn, ms);
 }
 
 /** A socket that is opened again after it drops, with a fetch meanwhile. */
@@ -251,7 +237,13 @@ function useStream<T>(
   return up;
 }
 
-export function DaemonProvider({ children }: { readonly children: React.ReactNode }) {
+export const DaemonProvider = ({ children }: { readonly children: React.ReactNode }) => (
+  <QueryClientProvider client={queryClient}>
+    <DaemonState>{children}</DaemonState>
+  </QueryClientProvider>
+);
+
+function DaemonState({ children }: { readonly children: React.ReactNode }) {
   const [url, setUrlState] = useState(() => daemonUrl(window.location.search, read("metator.daemon")));
   const [me, setMeState] = useState(() => read("metator.me") ?? "");
   const client = useMemo(() => new DaemonClient(url), [url]);
@@ -286,7 +278,8 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     },
     (env) => {
       if (env.ok && env.data) {
-        setState(env.data);
+        const next = env.data;
+        setState((before) => shared(before, next));
         setError(undefined);
       } else if (env.error) setError(env.error.message);
     },
@@ -301,17 +294,19 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     },
     (env) => {
       if (env.ok && env.data) {
-        setInbox(env.data.decisions);
-        setPaneAsks(env.data.panes ?? []);
-        setReviewCards(env.data.reviews ?? []);
+        const next = env.data;
+        setInbox((before) => shared(before, next.decisions));
+        setPaneAsks((before) => shared(before, next.panes ?? NO_PANE_ASKS));
+        setReviewCards((before) => shared(before, next.reviews ?? NO_REVIEW_CARDS));
       }
     },
   );
   const { runs: stateRuns, repos, unreadable } = useMemo(() => flattenState(state), [state]);
   // The layout has no socket: it is read every second, for every repository the daemon serves.
   const names = repos.map((r) => r.name).join("\n");
-  const layout = usePolled(
-    `${url}\n${names}`,
+  const layout = usePolledAt(
+    url,
+    `layout:${names}`,
     async () => {
       const all = await Promise.all(
         (repos.length > 0 ? repos.map((r) => r.name) : [undefined]).map(async (repo) => {
@@ -418,11 +413,12 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
       void start(folder);
   }, [shell, down, stateUp, folder, starting, start]);
   const repo = repoChoice(repos, savedRepo);
-  const options = usePolled(`options:${url}:${repo ?? ""}`, () => client.options(repo), 3000);
+  const options = usePolledAt(url, `options:${repo ?? ""}`, () => client.options(repo), 3000);
   // The system plans that are not done, every few seconds: the sidebar counts a plan's steps from
   // them (a step not started yet still counts), and the Plan tab of a system run shows one.
-  const plans = usePolled(
-    `system-plans:${url}\n${names}`,
+  const plans = usePolledAt(
+    url,
+    `system-plans:${names}`,
     async () => {
       const all = await Promise.all(
         (repos.length > 0 ? repos.map((r) => r.name) : [undefined]).map(async (name) => {
@@ -443,8 +439,9 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   const systemPlans = plans.data ?? NO_PLANS;
   // The threads: read again whenever the state says one changed (`threads.updatedAt`), and every
   // two seconds for their tasks' states and a new chat pane.
-  const threadList = usePolled(
-    `threads:${url}`,
+  const threadList = usePolledAt(
+    url,
+    "threads",
     async () => {
       const r = await client.threads();
       return r.ok && r.data
@@ -462,6 +459,40 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   }, [stamp, reloadThreadList]);
   const shownRuns = down ? NO_RUNS : runs;
   const shownPanes = down ? NO_PANES : panes;
+  // What reads the state is given the same function until what it reads from changes.
+  const run = useCallback<Daemon["run"]>(
+    (runId, ofRepo) =>
+      runId === undefined
+        ? undefined
+        : shownRuns.find((r) => r.runId === runId && (ofRepo === undefined || sameRepo(r.repo, ofRepo))),
+    [shownRuns],
+  );
+  const panesOf = useCallback<Daemon["panesOf"]>(
+    (ofRepo) => shownPanes.filter((p) => sameRepo(p.repo, ofRepo)),
+    [shownPanes],
+  );
+  const planStepsOf = useCallback<Daemon["planStepsOf"]>(
+    (r) => systemPlanOf(systemPlans, r, shownRuns)?.steps.length,
+    [systemPlans, shownRuns],
+  );
+  const stepPlaceOf = useCallback<Daemon["stepPlaceOf"]>(
+    (runId) => stepPlace(systemPlans, runId),
+    [systemPlans],
+  );
+  const setRepo = useCallback((name: string) => {
+    write("metator.repo", name);
+    setSavedRepo(name);
+  }, []);
+  const countScratch = useCallback<Daemon["scratchCount"]>(
+    (of) => (down ? 0 : scratchCount(state, of)),
+    [down, state],
+  );
+  const reposWithScratch = useCallback<Daemon["scratchRepos"]>(
+    (of) => (down ? [] : scratchRepos(state, of)),
+    [down, state],
+  );
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const changeName = useCallback(() => setAsking(true), []);
   const value: Daemon = {
     client,
     url,
@@ -471,25 +502,19 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     runs: shownRuns,
     repos,
     repo,
-    run: (runId, ofRepo) =>
-      runId === undefined
-        ? undefined
-        : shownRuns.find((r) => r.runId === runId && (ofRepo === undefined || sameRepo(r.repo, ofRepo))),
-    panesOf: (ofRepo) => shownPanes.filter((p) => sameRepo(p.repo, ofRepo)),
+    run,
+    panesOf,
     unreadable: down ? NO_UNREADABLE : unreadable,
     options: options.data?.options ?? NO_OPTIONS,
     optionsView: options.data,
     optionsError: options.error,
     reloadOptions: options.reload,
     systemPlans,
-    planStepsOf: (r) => systemPlanOf(systemPlans, r, shownRuns)?.steps.length,
-    stepPlaceOf: (runId) => stepPlace(systemPlans, runId),
-    setRepo: (name) => {
-      write("metator.repo", name);
-      setSavedRepo(name);
-    },
-    scratchCount: (of) => (down ? 0 : scratchCount(state, of)),
-    scratchRepos: (of) => (down ? [] : scratchRepos(state, of)),
+    planStepsOf,
+    stepPlaceOf,
+    setRepo,
+    scratchCount: countScratch,
+    scratchRepos: reposWithScratch,
     inbox: down ? NO_INBOX : inbox,
     paneAsks: down ? NO_PANE_ASKS : paneAsks,
     reviewCards: down ? NO_REVIEW_CARDS : reviewCards,
@@ -508,12 +533,15 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     ...(startError ? { startError } : {}),
     start,
     forgetFolder,
-    retry: () => setAttempt((n) => n + 1),
+    retry,
+    changeName,
     who,
-    changeName: () => setAsking(true),
   };
+  // The store holds what this render made; whoever reads a field hears only of that field's change.
+  const [store] = useState(() => createStateStore(value));
+  useLayoutEffect(() => publish(store, value));
   return (
-    <Ctx.Provider value={value}>
+    <Ctx.Provider value={store}>
       {children}
       {asking ? <NameDialog initial={me} onDone={settle} /> : null}
     </Ctx.Provider>

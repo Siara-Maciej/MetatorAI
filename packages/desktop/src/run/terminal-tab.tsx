@@ -49,7 +49,7 @@ export function TerminalTab({
   onOpenRun(runId: string): void;
   onOpenChanges(runId: string): void;
 }) {
-  const { client, panesOf, url, me } = useDaemon();
+  const { client, panesOf, url, me } = useDaemon("client", "panesOf", "url", "me");
   const runId = run.runId;
   const repo = run.repo;
   // In a folder two repositories may use the same pane ids: only the run's repository counts.

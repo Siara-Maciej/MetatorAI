@@ -12,7 +12,7 @@ export function RunLink({
   readonly repo?: string | undefined;
   onOpen(runId: string): void;
 }) {
-  const { run: runOf, runs } = useDaemon();
+  const { run: runOf, runs } = useDaemon("run", "runs");
   const run = runOf(runId, repo) ?? runs.find((r) => r.runId === runId);
   const state = run ? runStateOf(run) : undefined;
   return (

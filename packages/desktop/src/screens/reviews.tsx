@@ -43,7 +43,7 @@ export function ReviewsScreen({
   onOpen(id: string): void;
   onOpenSession(runId: string): void;
 }) {
-  const { client, repo } = useDaemon();
+  const { client, repo } = useDaemon("client", "repo");
   const watchedList = usePolled(`reviews:${repo ?? ""}`, () => client.reviews(repo), 2000);
   const mineList = usePolled(`mrs:${repo ?? ""}`, () => client.mrs(repo), 2000);
   const watched = watchedList.data?.reviews ?? NO_WATCHED;
@@ -152,7 +152,7 @@ function WatchedDetail({
   reload(): Promise<void>;
   onOpenSession(runId: string): void;
 }) {
-  const { client, repo } = useDaemon();
+  const { client, repo } = useDaemon("client", "repo");
   const { start, action } = useStartAgent(reload);
   const unwatch = useAction(reload);
   const word = watchedWord(w.status);
@@ -245,7 +245,7 @@ function MineDetail({
   reload(): Promise<void>;
   onOpenSession(runId: string): void;
 }) {
-  const { client, repo, run: runOf } = useDaemon();
+  const { client, repo, run: runOf } = useDaemon("client", "repo", "run");
   const action = useAction(reload);
   const { start, action: analyse } = useStartAgent(reload);
   // Every reply to send is checked until the person unchecks it.

@@ -53,7 +53,7 @@ export function PaneAskCard({
   /** Opens the pane in Terminals (Attach). */
   onOpenPane(ask: PaneAsk): void;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const action = useAction();
   const [choice, setChoice] = useState<string>();
   const [words, setWords] = useState("");

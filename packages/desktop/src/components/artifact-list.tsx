@@ -17,7 +17,7 @@ export function ArtifactList({
   /** Also the run's own files (its record, its log, its questions). */
   readonly bookkeeping?: boolean;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const { data, error } = usePolled(
     `artifacts:${repo ?? ""}:${runId}`,
     () => client.artifacts(runId, repo),

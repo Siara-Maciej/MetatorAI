@@ -124,7 +124,17 @@ export function Sidebar({
   onCloseThread(thread: ThreadView): void;
   onReopenThread(thread: ThreadView): void;
 }) {
-  const { runs, panes, panesOf, down, unreadable, systemPlans, inbox, threads, paneAsks } = useDaemon();
+  const { runs, panes, panesOf, down, unreadable, systemPlans, inbox, threads, paneAsks } = useDaemon(
+    "runs",
+    "panes",
+    "panesOf",
+    "down",
+    "unreadable",
+    "systemPlans",
+    "inbox",
+    "threads",
+    "paneAsks",
+  );
   // A run that asks on a card opens that decision on Home, exactly that one.
   const decisionOf = (r: Run) => inbox.find((i) => i.runId === r.runId && sameRepo(i.repo, r.repo));
   const openDecisionOr = (r: Run, pane?: string) => {

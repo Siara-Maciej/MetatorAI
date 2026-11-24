@@ -67,7 +67,28 @@ export const App = () => (
 const notifier = systemNotifier();
 
 function Shell() {
-  const d = useDaemon();
+  const d = useDaemon(
+    "changeName",
+    "client",
+    "connected",
+    "down",
+    "inbox",
+    "me",
+    "options",
+    "paneAsks",
+    "panes",
+    "reloadThreads",
+    "repo",
+    "repos",
+    "reviewCards",
+    "run",
+    "runs",
+    "startError",
+    "starting",
+    "threads",
+    "url",
+    "who",
+  );
   const repos = useRepos();
   // The folder in the top bar: its repositories, counted once however many worktrees each has.
   const folder = folderLabel(d.repos);
@@ -243,9 +264,10 @@ function Shell() {
       sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
     }),
   );
+  const runOf = d.run;
   const openRun = useCallback(
     (runId: string, attach = false, pane?: string) => {
-      const run = d.run(runId);
+      const run = runOf(runId);
       go({
         screen: "run",
         runId,
@@ -254,7 +276,7 @@ function Shell() {
       });
       if (attach) setAnswerIn({ runId, pane });
     },
-    [go, d],
+    [go, runOf],
   );
   // Everything that needs the person: the sidebar counts it, Home shows one at a time. The
   // reviews' cards (round 18) come after the runs' questions.

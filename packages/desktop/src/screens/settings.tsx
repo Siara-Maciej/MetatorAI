@@ -22,7 +22,17 @@ export function SettingsScreen() {
     optionsView: view,
     optionsError,
     reloadOptions,
-  } = useDaemon();
+  } = useDaemon(
+    "client",
+    "repo",
+    "url",
+    "me",
+    "setMe",
+    "setUrl",
+    "optionsView",
+    "optionsError",
+    "reloadOptions",
+  );
   // What a change answered stays until closed: the refresh never clears a refusal (D5).
   const action = useAction(reloadOptions);
   const [section, setSection] = useState<string>("ui");

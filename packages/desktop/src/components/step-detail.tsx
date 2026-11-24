@@ -25,7 +25,7 @@ export function StepDetailDialog({
   readonly repo: string | undefined;
   onClose(): void;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const action = useAction();
   // The plan's view is polled by its page: the step's plan run and its plan come with it.
   const d = stepDetail({ steps: stepsOfView(view) }, stepId);
@@ -151,7 +151,7 @@ export function StepDetailOf({
   readonly repo: string | undefined;
   onClose(): void;
 }) {
-  const { client } = useDaemon();
+  const { client } = useDaemon("client");
   const view = usePolled(`system-plan:${repo ?? ""}:${planId}`, () => client.systemPlan(planId, repo), 3000);
   return view.data ? (
     <StepDetailDialog view={view.data} stepId={stepId} repo={repo} onClose={onClose} />

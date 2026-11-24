@@ -6,7 +6,7 @@ import { lookOf, routeHash, runTabFor, shortRunId, systemPlanOf, systemRunSummar
 import { Glyph } from "./glyph.tsx";
 
 export function SystemRunBar({ run }: { readonly run: Run }) {
-  const { systemPlans, runs } = useDaemon();
+  const { systemPlans, runs } = useDaemon("systemPlans", "runs");
   const plan = systemPlanOf(systemPlans, run, runs);
   if (!plan) return null;
   const s = systemRunSummary(plan, run, runs);
