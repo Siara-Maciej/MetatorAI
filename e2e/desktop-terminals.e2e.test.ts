@@ -214,6 +214,46 @@ describe("terminals by task (real daemon, real Chromium)", () => {
         : undefined,
     );
     if (SHOTS) await page.screenshot({ path: join(SHOTS, "terminals-session-view.png") });
+    // A full-screen program (as Claude Code) draws in the alternate screen and leaves it as it
+    // exits: its pane keeps its last screen, under it the finished banner (round 22).
+    const opened = (await (
+      await fetch(`${base}/panes`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          runId: child,
+          role: "gate",
+          label: "fullscreen",
+          argv: [
+            "sh",
+            "-c",
+            "printf '\\033[?1049h\\033[2J\\033[HThe last screen of the program'; sleep 2; printf '\\033[?1049lResume this session with: claude --resume x\\r\\n'",
+          ],
+        }),
+      })
+    ).json()) as { data: { id: string } };
+    const full = opened.data.id;
+    const screenOf = () => page.getByTestId(`frame-${full}`).textContent();
+    await until("the program's screen", async () =>
+      (await screenOf())?.includes("The last screen of the program") ? true : undefined,
+    );
+    await page.getByTestId(`ended-${full}`).waitFor({ timeout: 20_000 });
+    await until("its last screen kept after the exit", async () => {
+      const text = (await screenOf()) ?? "";
+      return text.includes("The last screen of the program") && !text.includes("Resume this session")
+        ? true
+        : undefined;
+    });
+    // Opened after it ended: the backlog is drawn as the same last screen.
+    await page.reload();
+    await until("its last screen after a reload", async () => {
+      const text = (await screenOf().catch(() => "")) ?? "";
+      return text.includes("The last screen of the program") && !text.includes("Resume this session")
+        ? true
+        : undefined;
+    });
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "terminals-last-screen.png") });
+    await fetch(`${base}/panes/${encodeURIComponent(full)}/close`, { method: "POST", body: "{}" });
     // The go-to picker lists the hierarchy: task › repository › worker.
     await page.getByTestId(`frame-${worker}`).click();
     await page.keyboard.press("Control+b");

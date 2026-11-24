@@ -10420,4 +10420,17 @@ export const MUTANTS: readonly Mutant[] = [
     to: "start = 1;",
     why: "an XML element's line is where it starts (evidence of POMs and descriptors)",
   },
+  // Round 22: Terminals keep a finished full-screen program's last screen.
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "if (enter.at < 0 || leave.at < enter.at) return stream;",
+    to: "if (enter.at < 0) return stream;",
+    why: "a program still in the alternate screen keeps its stream (only a left screen is cut)",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "if (printed(stream.slice(leave.at + leave.length)).length > maxAfter) return stream;",
+    to: "",
+    why: "a shell that printed much after leaving vim keeps its own output",
+  },
 ];

@@ -271,3 +271,86 @@ export function continueText(r: ContinueResult): string {
     .map((s) => `${s.paneId ?? s.runId ?? "?"} (${s.why})`)
     .join("; ")}.`;
 }
+
+/** The sequences a full-screen program (Claude Code, vim) enters and leaves the alternate screen with. */
+const ALT_ENTER = ["\u001b[?1049h", "\u001b[?1047h", "\u001b[?47h"];
+const ALT_LEAVE = ["\u001b[?1049l", "\u001b[?1047l", "\u001b[?47l"];
+
+/** Where the last of the sequences is in the text, and how long it is (-1 when none is). */
+function lastOf(text: string, seqs: readonly string[]): { readonly at: number; readonly length: number } {
+  let best = { at: -1, length: 0 };
+  for (const s of seqs) {
+    const at = text.lastIndexOf(s);
+    if (at > best.at) best = { at, length: s.length };
+  }
+  return best;
+}
+
+/** The text a terminal shows of a stream: escapes and control characters removed, blanks trimmed. */
+function printed(stream: string): string {
+  let out = "";
+  for (let i = 0; i < stream.length; i++) {
+    const c = stream.charCodeAt(i);
+    if (c === 0x1b) {
+      // CSI (ESC [ … final byte) and OSC (ESC ] … BEL or ESC \); any other escape is two characters.
+      const kind = stream[i + 1];
+      if (kind === "[") {
+        i += 2;
+        while (i < stream.length && !/[@-~]/.test(stream[i] as string)) i++;
+      } else if (kind === "]") {
+        const bel = stream.indexOf("\u0007", i);
+        const st = stream.indexOf("\u001b\\", i + 2);
+        if (bel >= 0 && (st < 0 || bel < st)) i = bel;
+        else i = st >= 0 ? st + 1 : stream.length;
+      } else i++;
+    } else if (c >= 0x20) out += stream[i];
+  }
+  return out.trim();
+}
+
+/**
+ * What a finished pane shows (round 22): the last screen its full-screen program drew. Claude Code
+ * draws in the alternate screen and leaves it when it exits, so a replay of its output ends on the
+ * empty main screen with one line ("Resume this session with …"). When the stream's last
+ * alternate screen was left after it was entered, and little was printed after (at most
+ * `maxAfter` characters, so a shell that ran vim long ago keeps its own output), the stream is cut
+ * where it left: the terminal stays on that last screen. Any other stream is returned as it is.
+ */
+export function lastScreen(stream: string, maxAfter = 600): string {
+  const enter = lastOf(stream, ALT_ENTER);
+  const leave = lastOf(stream, ALT_LEAVE);
+  if (enter.at < 0 || leave.at < enter.at) return stream;
+  if (printed(stream.slice(leave.at + leave.length)).length > maxAfter) return stream;
+  return stream.slice(0, leave.at);
+}
+
+/**
+ * The command that resumes an ended agent's session by hand (round 22), when its host can: the
+ * session id a Claude Code pane was started with (`--session-id`). Another host, or none, says nothing.
+ */
+export function resumeCommand(
+  p: Pick<PaneView, "process"> & { readonly live?: { readonly sessionId?: string } | undefined },
+): string | undefined {
+  if (p.process.kind !== "host" || p.process.host !== "claude") return undefined;
+  const id = p.live?.sessionId ?? p.process.sessionId;
+  return id ? `claude --resume ${id}` : undefined;
+}
+
+/** When an ended pane ended and how long it ran (round 22): `14:32 · 12m 04s`, local time. */
+export function endedWhen(p: Pick<PaneView, "createdAt" | "ended">): string | undefined {
+  if (!p.ended) return undefined;
+  const end = new Date(p.ended.at);
+  if (Number.isNaN(end.getTime())) return undefined;
+  const two = (n: number) => String(n).padStart(2, "0");
+  const at = `${two(end.getHours())}:${two(end.getMinutes())}`;
+  const ms = end.getTime() - new Date(p.createdAt).getTime();
+  if (!(ms >= 0)) return at;
+  const s = Math.round(ms / 1000);
+  const took =
+    s < 60
+      ? `${s}s`
+      : s < 3600
+        ? `${Math.floor(s / 60)}m ${two(s % 60)}s`
+        : `${Math.floor(s / 3600)}h ${two(Math.floor((s % 3600) / 60))}m`;
+  return `${at} · ${took}`;
+}

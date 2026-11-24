@@ -9,6 +9,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { wsUrl } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
+import { lastScreen } from "../terminals.ts";
 
 export interface TerminalStatus {
   readonly alive?: boolean | undefined;
@@ -30,6 +31,11 @@ export interface TerminalHandle {
 /** A colour of the stylesheet (`:root`'s custom property), for xterm's theme. */
 const token = (name: string, fallback: string): string =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+
+/** How much of a session's output the terminal keeps to redraw its last screen (the daemon's backlog is 200 kB). */
+const KEPT_CHARS = 400_000;
+/** How long the output of an ended session may pause before its last screen is drawn. */
+const SETTLE_MS = 40;
 
 /** How often, and how many times, a dropped terminal socket is opened again. */
 const RECONNECT_MS = 2000;
@@ -172,6 +178,20 @@ function SocketTerminal({
     let lost = false;
     let tries = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // The session's output so far (round 22): when it ends, its last full screen is drawn again,
+    // since a program like Claude Code leaves the alternate screen as it exits (`lastScreen`).
+    let received = "";
+    // The session had ended before this socket opened: its backlog is drawn once, as its last screen.
+    let replayEnded = false;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    /** Draws the stream's last screen when it differs from what the terminal shows; says whether it did. */
+    const showLastScreen = (): boolean => {
+      const screen = lastScreen(received);
+      if (screen === received && !replayEnded) return false;
+      term.reset();
+      term.write(screen);
+      return screen !== received;
+    };
     const connect = () => {
       const s = new WebSocket(wsUrl(url, `${path}${query}`));
       ws = s;
@@ -185,16 +205,33 @@ function SocketTerminal({
           session?: { alive: boolean; exitCode?: number };
           error?: { message: string };
         };
-        if (e.type === "data" && typeof e.data === "string") term.write(e.data);
-        else if (e.type === "session") {
+        if (e.type === "data" && typeof e.data === "string") {
+          received = (received + e.data).slice(-KEPT_CHARS);
+          if (!replayEnded) term.write(e.data);
+          else {
+            // The backlog comes in chunks: the last screen is drawn once they stop.
+            if (settle) clearTimeout(settle);
+            settle = setTimeout(showLastScreen, SETTLE_MS);
+          }
+        } else if (e.type === "session") {
           // The daemon sends the whole backlog after this: a reconnected terminal starts clean.
           if (lost) term.reset();
           lost = false;
           tries = 0;
+          received = "";
+          replayEnded = e.session?.alive === false;
           update({ alive: e.session?.alive, exitCode: e.session?.exitCode });
+        } else if (e.type === "ended" || e.type === "paused") {
+          // A pane whose process is gone: its kept screen follows, drawn as its last screen.
+          if (lost) term.reset();
+          lost = false;
+          received = "";
+          replayEnded = true;
+          if (e.type === "ended") ended = true;
         } else if (e.type === "exit") {
           ended = true;
-          term.write(`\r\n\x1b[90m[session ended with ${e.code}]\x1b[0m\r\n`);
+          // Its last screen stays; the pane's banner says how it ended.
+          if (!showLastScreen()) term.write(`\r\n\x1b[90m[session ended with ${e.code}]\x1b[0m\r\n`);
           update({ alive: false, exitCode: e.code });
         } else if (e.type === "refused") update({ ...status.current, refused: e.reason });
         else if (e.type === "error") {
@@ -239,6 +276,7 @@ function SocketTerminal({
       disposed = true;
       observer.disconnect();
       if (timer) clearTimeout(timer);
+      if (settle) clearTimeout(settle);
       if (ws) {
         ws.onmessage = null;
         ws.close();
