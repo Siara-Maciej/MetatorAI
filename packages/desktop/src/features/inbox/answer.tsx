@@ -4,11 +4,12 @@
  * them, and the request. The decision card draws its own layout over `useAnswer`; a step's
  * Overview and the Terminal tab's side box use `QuickAnswer`, in the same pattern.
  */
+
 import { useEffect, useState } from "react";
 import type { Question } from "../../shared/api/api.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
-import { routeHash } from "../../shared/model/route.ts";
 import { opensDiff } from "../../shared/model/stage1.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Notice } from "../../ui/notice.tsx";
 import { canAnswer, needsReason, toggleChoice } from "./model.ts";
 
@@ -44,7 +45,7 @@ export function useAnswer(
   const send = async (picked: readonly string[] = choices, words?: string) => {
     // "Open diff" on a quick change's card is no answer: the run's change opens, the card stays.
     if (opensDiff(picked)) {
-      window.location.hash = routeHash({ screen: "run", runId: q.runId, tab: "changes" });
+      navigate({ screen: "run", runId: q.runId, tab: "changes" });
       return;
     }
     const said = words ?? text;

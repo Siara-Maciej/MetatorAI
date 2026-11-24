@@ -4,21 +4,14 @@
  * the list screens show and the daemon's address from local storage. `usePolled` (a request
  * repeated on an interval) lives here too; the hooks built on it are in `hooks.ts`.
  */
+
 import { QueryClientProvider } from "@tanstack/react-query";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import { Modal } from "../../ui/modal.tsx";
 import {
   DaemonClient,
-  daemonUrl,
   type Envelope,
   type InboxData,
   type InboxItem,
@@ -35,7 +28,7 @@ import {
 import { type Polled, queryClient, shared, usePolledAt } from "../api/query.ts";
 import { flattenState, type Place, repoChoice, sameRepo, type Unreadable } from "../model/places.ts";
 import { type Run, withTerminalAsks } from "../model/runs.ts";
-import { autostart, type SeenRuns, seenFrom, seenKey, withSeen } from "../model/session.ts";
+import type { SeenRuns } from "../model/session.ts";
 import { scratchCount, scratchRepos } from "../model/stage1.ts";
 import {
   plansShown,
@@ -45,9 +38,23 @@ import {
   systemPlanOf,
 } from "../model/system-plans.ts";
 import { threadsStamp } from "../model/threads.ts";
-import { errorText } from "../platform/tauri-commands.ts";
+import { useLatest } from "../use-latest.ts";
 import { createStateStore, publish, type Store, useFields } from "./daemon-store.ts";
-import { appShell } from "./shell.ts";
+import {
+  changeName,
+  daemonAnswered,
+  forgetFolder,
+  markSeen,
+  type Session,
+  sessionShell,
+  sessionStore,
+  setMe,
+  setRepo,
+  settleName,
+  setUrl,
+  start,
+  who,
+} from "./session.ts";
 
 export interface Daemon {
   readonly client: DaemonClient;
@@ -150,21 +157,6 @@ export function useDaemon<K extends keyof Daemon>(...keys: readonly [K, ...K[]])
   return useFields(store, keys);
 }
 
-const read = (key: string): string | null => {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-};
-const write = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* a private window: nothing kept */
-  }
-};
-
 /**
  * A request repeated on an interval (D11): the last good answer, the last failure, and a way to
  * ask again now. A new `key` (another run, another repository) starts over with what the app last
@@ -185,10 +177,8 @@ function useStream<T>(
   onData: (d: T) => void,
 ) {
   const [up, setUp] = useState(false);
-  const handler = useRef(onData);
-  handler.current = onData;
-  const fetcher = useRef(fetchOnce);
-  fetcher.current = fetchOnce;
+  const handler = useLatest(onData);
+  const fetcher = useLatest(fetchOnce);
   useEffect(() => {
     let closed = false;
     let ws: WebSocket | undefined;
@@ -235,29 +225,30 @@ export const DaemonProvider = ({ children }: { readonly children: React.ReactNod
 );
 
 function DaemonState({ children }: { readonly children: React.ReactNode }) {
-  const [url, setUrlState] = useState(() => daemonUrl(window.location.search, read("metator.daemon")));
-  const [me, setMeState] = useState(() => read("metator.me") ?? "");
+  const { url, me, asking, savedRepo, seen, folder, starting, startError } = useStore(
+    sessionStore(),
+    useShallow((s: Session) => s),
+  );
   const client = useMemo(() => new DaemonClient(url), [url]);
   const [state, setState] = useState<StateData>();
   const [inbox, setInbox] = useState<readonly InboxItem[]>([]);
   const [paneAsks, setPaneAsks] = useState<readonly PaneAsk[]>([]);
   const [reviewCards, setReviewCards] = useState<readonly ReviewCardView[]>([]);
-  const [error, setError] = useState<string>();
-  const fetchState = useMemo(
-    () => async () => {
-      const r = await client.state();
-      setError(r.ok ? undefined : r.error?.message);
-      return r.ok ? r.data : undefined;
-    },
-    [client],
-  );
-  const fetchInbox = useMemo(
-    () => async () => {
-      const r = await client.inbox();
-      return r.ok ? r.data : undefined;
-    },
-    [client],
-  );
+  // What the daemon at this address last refused: another address starts with nothing.
+  const [failure, setFailure] = useState<{ readonly url: string; readonly message: string }>();
+  const error = failure?.url === url ? failure.message : undefined;
+  const setError = (message: string | undefined) =>
+    setFailure(message === undefined ? undefined : { url, message });
+  // Read through the sockets' latest handlers: a new client never re-opens a socket by itself.
+  const fetchState = async () => {
+    const r = await client.state();
+    setError(r.ok ? undefined : r.error?.message);
+    return r.ok ? r.data : undefined;
+  };
+  const fetchInbox = async () => {
+    const r = await client.inbox();
+    return r.ok ? r.data : undefined;
+  };
   const [attempt, setAttempt] = useState(0);
   const stateUp = useStream<{ ok: boolean; data?: StateData; error?: { message: string } }>(
     url,
@@ -323,86 +314,14 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
   const panes = layout.data?.panes ?? NO_PANES;
   const workspaces = layout.data?.workspaces ?? NO_WORKSPACES;
   const runs = useMemo(() => withTerminalAsks(stateRuns, panes), [stateRuns, panes]);
-  const [savedRepo, setSavedRepo] = useState(() => read("metator.repo"));
-  const [seen, setSeen] = useState<SeenRuns>(() => seenFrom(read("metator.seen")));
-  const markSeen = useCallback((run: { readonly runId: string; readonly repo?: string | undefined }) => {
-    setSeen((before) => {
-      const after = withSeen(before, seenKey(run), new Date().toISOString());
-      write("metator.seen", JSON.stringify(after));
-      return after;
-    });
-  }, []);
-  // The name dialog: one question at a time; everyone who asked gets the same answer.
-  const [asking, setAsking] = useState(false);
-  const waiters = useRef<((name: string) => void)[]>([]);
-  const meRef = useRef(me);
-  meRef.current = me;
-  const setMe = useCallback((name: string) => {
-    write("metator.me", name);
-    setMeState(name);
-  }, []);
-  const who = useCallback(
-    () =>
-      meRef.current
-        ? Promise.resolve(meRef.current)
-        : new Promise<string>((resolve) => {
-            waiters.current.push(resolve);
-            setAsking(true);
-          }),
-    [],
-  );
-  const settle = (name: string) => {
-    if (name) setMe(name);
-    setAsking(false);
-    for (const w of waiters.current.splice(0)) w(name);
-  };
   // Down: the socket is closed and the last request failed. A socket that only blinked is not down.
   const down = !stateUp && error !== undefined;
-  const setUrl = useCallback((u: string) => {
-    const clean = u.trim().replace(/\/+$/, "");
-    write("metator.daemon", clean);
-    setUrlState(clean);
-    setError(undefined);
-  }, []);
   // In the app's shell the daemon is started for the remembered folder, without a terminal.
-  const shell = useMemo(() => appShell(), []);
-  const [folder, setFolder] = useState(() => read("metator.folder") ?? "");
-  const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string>();
-  const tried = useRef<string | undefined>(undefined);
-  const start = useCallback(
-    async (dir: string): Promise<string | undefined> => {
-      const clean = dir.trim();
-      if (!shell || clean === "") return "no folder to start the daemon in";
-      write("metator.folder", clean);
-      setFolder(clean);
-      tried.current = clean;
-      setStarting(true);
-      setStartError(undefined);
-      try {
-        setUrl(await shell.ensureDaemon(clean));
-        return undefined;
-      } catch (e) {
-        const why = e instanceof Error ? e.message : errorText(e);
-        setStartError(why);
-        return why;
-      } finally {
-        setStarting(false);
-      }
-    },
-    [shell, setUrl],
-  );
-  const forgetFolder = useCallback(() => {
-    write("metator.folder", "");
-    setFolder("");
-    tried.current = undefined;
-  }, []);
   useEffect(() => {
-    // A daemon that answered and then went away is started again, by itself.
-    if (stateUp) tried.current = undefined;
-    if (autostart({ shell: shell !== undefined, down, folder, tried: tried.current, starting }) === "start")
-      void start(folder);
-  }, [shell, down, stateUp, folder, starting, start]);
+    void folder;
+    void starting;
+    daemonAnswered(stateUp, down);
+  }, [stateUp, down, folder, starting]);
   const repo = repoChoice(repos, savedRepo);
   const options = usePolledAt(url, `options:${repo ?? ""}`, () => client.options(repo), 3000);
   // The system plans that are not done, every few seconds: the sidebar counts a plan's steps from
@@ -470,10 +389,6 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     (runId) => stepPlace(systemPlans, runId),
     [systemPlans],
   );
-  const setRepo = useCallback((name: string) => {
-    write("metator.repo", name);
-    setSavedRepo(name);
-  }, []);
   const countScratch = useCallback<Daemon["scratchCount"]>(
     (of) => (down ? 0 : scratchCount(state, of)),
     [down, state],
@@ -483,7 +398,6 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     [down, state],
   );
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
-  const changeName = useCallback(() => setAsking(true), []);
   const value: Daemon = {
     client,
     url,
@@ -518,7 +432,7 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     me,
     setMe,
     setUrl,
-    startable: shell !== undefined,
+    startable: sessionShell() !== undefined,
     folder,
     starting,
     ...(startError ? { startError } : {}),
@@ -534,7 +448,7 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
   return (
     <Ctx.Provider value={store}>
       {children}
-      {asking ? <NameDialog initial={me} onDone={settle} /> : null}
+      {asking ? <NameDialog initial={me} onDone={settleName} /> : null}
     </Ctx.Provider>
   );
 }

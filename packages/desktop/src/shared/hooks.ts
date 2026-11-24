@@ -1,7 +1,7 @@
 /**
  * The hooks the screens share (D11): the work as tasks, one option of the shown repository, an action with what it answered.
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useDaemon } from "./daemon/daemon.tsx";
 import { boardCards } from "./model/board.ts";
 import { refusalText } from "./model/format.ts";
@@ -66,27 +66,21 @@ export function useAction(reload?: () => Promise<unknown> | unknown): Action {
   const { me, who } = useDaemon("me", "who");
   const [note, setNote] = useState<{ text: string; tone: "error" | "info" }>();
   const [busy, setBusy] = useState(false);
-  const latest = useRef(reload);
-  latest.current = reload;
-  const name = useRef(me);
-  name.current = me;
-  const run = useCallback<Action["run"]>(
-    async (fn, options = {}) => {
-      const by = options.who ? await who() : name.current;
-      if (options.who && !by) return false;
-      setBusy(true);
-      const r = await fn(by);
-      setBusy(false);
-      if (r.ok) setNote(options.done ? { text: options.done, tone: "info" } : undefined);
-      else {
-        setNote({ text: refusalText(r.error, options.refused), tone: "error" });
-        options.onRefused?.(r.error);
-      }
-      await latest.current?.();
-      return r.ok;
-    },
-    [who],
-  );
+  // React Compiler keeps `run` the same while `me`, `who` and `reload` are.
+  const run: Action["run"] = async (fn, options = {}) => {
+    const by = options.who ? await who() : me;
+    if (options.who && !by) return false;
+    setBusy(true);
+    const r = await fn(by);
+    setBusy(false);
+    if (r.ok) setNote(options.done ? { text: options.done, tone: "info" } : undefined);
+    else {
+      setNote({ text: refusalText(r.error, options.refused), tone: "error" });
+      options.onRefused?.(r.error);
+    }
+    await reload?.();
+    return r.ok;
+  };
   return {
     run,
     busy,

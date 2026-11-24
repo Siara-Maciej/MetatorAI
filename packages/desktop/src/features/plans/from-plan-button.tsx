@@ -6,7 +6,7 @@
 
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { type Action, useAction } from "../../shared/hooks.ts";
-import { routeHash } from "../../shared/model/route.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Notice } from "../../ui/notice.tsx";
 import { CREATE_ITEM, fromPlanButton } from "../backlog/model.ts";
 
@@ -28,7 +28,7 @@ export function FromPlanButton({
   const button = fromPlanButton(items.data?.issues ?? [], runId);
   const open = (id: string) => {
     if (repo && repos.length > 0) setRepo(repo);
-    window.location.hash = routeHash({ screen: "backlog", id });
+    navigate({ screen: "backlog", id });
   };
   const create = () =>
     action.run(

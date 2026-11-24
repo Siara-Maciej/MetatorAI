@@ -5,10 +5,12 @@
  * with the person's name; one that starts an agent shows its terminal at once. Approve reaches the
  * code host only after the person's Yes.
  */
+
 import type { Envelope, ReviewCardView, ReviewStarted } from "../../shared/api/api.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { routeHash } from "../../shared/model/route.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Notice } from "../../ui/notice.tsx";
 import { actionBody, isNo, startedRoute } from "./model.ts";
 
@@ -29,7 +31,7 @@ export function useStartAgent(reload?: () => Promise<unknown> | unknown) {
         const to = r.ok ? startedRoute(r.data) : undefined;
         if (to) {
           shown = true;
-          window.location.hash = routeHash(to);
+          navigate(to);
         }
         return r;
       },

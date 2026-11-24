@@ -4,13 +4,14 @@
  * applications' code is on this machine (`system.roots`), and "Discover": what the code shows
  * that the map lacks, previewed before it is written.
  */
+
 import { useState } from "react";
 import type { SystemDiscoveryView, SystemMap, SystemMapView } from "../../shared/api/api.ts";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { plural } from "../../shared/model/format.ts";
 import { lookOf } from "../../shared/model/look.ts";
-import { routeHash } from "../../shared/model/route.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { EmptyRow, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { type DocSource, EditBar, ProblemList, useDocEditor } from "../plans/doc-editor.tsx";
@@ -57,8 +58,7 @@ export function SystemPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
               selected={current?.id === p.id}
               onSelect={() => {
                 const head = headOf(p.task);
-                if (head)
-                  window.location.hash = routeHash({ screen: "run", runId: head.runId, tab: "overview" });
+                if (head) navigate({ screen: "run", runId: head.runId, tab: "overview" });
                 else setChosen(p.id);
               }}
               testId={`system-plan-${p.id}`}

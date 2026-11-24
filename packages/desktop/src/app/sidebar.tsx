@@ -12,6 +12,7 @@
  * each group. The places are at the bottom: Board, Terminals, Backlog, Reviews (round 18: used
  * daily), and Settings, which holds the System; then "+ New chat" and the form.
  */
+
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { ThreadView } from "../shared/api/api.ts";
@@ -34,6 +35,7 @@ import {
   workTasks,
 } from "../shared/model/tasks.ts";
 import { heldThread, type ThreadGroup, threadLine, threadPane, threadTree } from "../shared/model/threads.ts";
+import { navigate } from "../shared/navigation.ts";
 import { ContextMenu } from "../ui/context-menu.tsx";
 import { moveInList } from "../ui/list-keys.ts";
 
@@ -133,7 +135,7 @@ export function Sidebar({
   const decisionOf = (r: Run) => inbox.find((i) => i.runId === r.runId && sameRepo(i.repo, r.repo));
   const openDecisionOr = (r: Run, pane?: string) => {
     const d = decisionOf(r);
-    if (d) window.location.hash = routeHash({ screen: "inbox", pick: decisionKey(d) });
+    if (d) navigate({ screen: "inbox", pick: decisionKey(d) });
     else onRun(r, pane);
   };
   // What is folded or unfolded by hand, by key: a task, a thread, a group's finished tasks.
@@ -212,8 +214,7 @@ export function Sidebar({
             onClick={() => {
               if (headRun && t.kind === "run") openDecisionOr(headRun, headRun.terminalAsk);
               else if (headRun) onRun(headRun, headRun.terminalAsk);
-              else if (t.kind === "system" || t.kind === "parent")
-                window.location.hash = routeHash({ screen: "board", task: t.key });
+              else if (t.kind === "system" || t.kind === "parent") navigate({ screen: "board", task: t.key });
             }}
           />
         </div>
@@ -272,7 +273,7 @@ export function Sidebar({
                       onClick={() => {
                         if (r) openDecisionOr(r, r.terminalAsk);
                         else if (c.systemRunId)
-                          window.location.hash = routeHash({
+                          navigate({
                             screen: "run",
                             runId: c.systemRunId,
                             tab: "overview",

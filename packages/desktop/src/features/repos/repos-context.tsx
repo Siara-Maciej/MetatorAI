@@ -3,8 +3,10 @@
  * (`known_repos`), the one open marked, and the acts on them (add, open, remove from the app). In
  * a browser there is no store: `known` stays undefined and the top bar shows what the daemon serves.
  */
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
+import { navigate } from "../../shared/navigation.ts";
 import { appCommands } from "../../shared/platform/app-commands.ts";
 import {
   type Commands,
@@ -85,14 +87,13 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
   const startContainer = useCallback(
     async (localFolder: string) => {
       if (!commands) return "the app cannot start a container in a browser";
-      try {
-        await commands.startDevContainer(localFolder);
-        return undefined;
-      } catch (e) {
-        return errorText(e);
-      } finally {
-        await refreshContainers();
-      }
+      // The list is read again whether the start worked or not.
+      const why = await commands.startDevContainer(localFolder).then(
+        () => undefined,
+        (e: unknown) => errorText(e),
+      );
+      await refreshContainers();
+      return why;
     },
     [commands, refreshContainers],
   );
@@ -123,7 +124,7 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
   const open = useCallback(
     async (path: string) => {
       const why = await start(path);
-      if (why === undefined) window.location.hash = "#/inbox";
+      if (why === undefined) navigate({ screen: "inbox" });
       return why;
     },
     [start],
@@ -132,9 +133,10 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
     async (path: string, container?: string) => {
       if (!commands) return "the app cannot add a repository in a browser";
       let key = path;
+      // A dev container's entry is the shell's key, not the path inside the container.
+      const adding = container ? commands.addRepo(path, container) : commands.addRepo(path);
       try {
-        // A dev container's entry is the shell's key, not the path inside the container.
-        key = (container ? await commands.addRepo(path, container) : await commands.addRepo(path)).path;
+        key = (await adding).path;
       } catch (e) {
         return errorText(e);
       }
@@ -158,7 +160,7 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
       if (next.stay) return undefined;
       if (next.open) return open(next.open.path);
       forgetFolder();
-      window.location.hash = "#/inbox";
+      navigate({ screen: "inbox" });
       return undefined;
     },
     [commands, known, current, reload, open, forgetFolder],

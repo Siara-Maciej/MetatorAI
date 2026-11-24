@@ -1,0 +1,50 @@
+/*
+ * The design system's stylesheet (ADR-0111): Tailwind's theme and utilities, with the app's tokens
+ * (`:root` in styles.css) as Tailwind's colours, fonts, radius and spacing, so `bg-panel`,
+ * `text-muted`, `border-edge`, `gap-sp-3` are the same values the stylesheet uses.
+ *
+ * Tailwind's preflight (its reset) is left out: the app's own base styles stay. The app's stylesheet
+ * is the `legacy` layer, below the utilities, so a utility on an element wins over it.
+ */
+@layer theme, legacy, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "../styles.css" layer(legacy);
+
+@source "../";
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-hover: var(--hover);
+  --color-edge: var(--edge);
+  --color-edge-field: var(--edge-field);
+  --color-edge-control: var(--edge-control);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-dim: var(--dim);
+  --color-amber: var(--amber);
+  --color-violet: var(--violet);
+  --color-red: var(--red);
+  --color-green: var(--green);
+  --color-grey: var(--grey);
+  --color-blue: var(--blue);
+  --color-teal: var(--teal);
+  --color-on-teal: var(--on-teal);
+  --color-focus: var(--focus);
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+  --radius-ui: var(--radius);
+  --spacing-sp-1: var(--sp-1);
+  --spacing-sp-2: var(--sp-2);
+  --spacing-sp-3: var(--sp-3);
+  --spacing-sp-4: var(--sp-4);
+  --spacing-sp-5: var(--sp-5);
+  --spacing-sp-6: var(--sp-6);
+  --text-micro: var(--fs-micro);
+  --text-small: var(--fs-small);
+  --text-compact: var(--fs-compact);
+  --text-base: var(--fs-base);
+  --text-head: var(--fs-head);
+  --text-title: var(--fs-title);
+}

@@ -3,6 +3,7 @@
  * with their tasks, the other places, "+ New chat"), and the place the hash route names.
  * Notifications and the overview-on-return live here too.
  */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BacklogScreen } from "../features/backlog/backlog-screen.tsx";
 import { BoardScreen } from "../features/board/board-screen.tsx";
@@ -38,12 +39,15 @@ import { flattenState, folderLabel, sameRepo } from "../shared/model/places.ts";
 import { parseRoute, type Route, routeHash } from "../shared/model/route.ts";
 import { hostChoice, noHostText, openRuns, runTabFor } from "../shared/model/runs.ts";
 import { chatTitleOf, followedThread } from "../shared/model/threads.ts";
+import { navigate } from "../shared/navigation.ts";
 import { systemNotifier } from "../shared/platform/notify.ts";
+import { useLatest } from "../shared/use-latest.ts";
 import { Notice } from "../ui/notice.tsx";
 import { createConfirmer } from "./confirm.ts";
 import { HelpOverlay } from "./help-overlay.tsx";
 import { afterAnswer, newQuestions, nextWaiting, wasAway } from "./model.ts";
 import { NoDaemon } from "./no-daemon.tsx";
+import { ScreenBoundary } from "./screen-boundary.tsx";
 import { Sidebar } from "./sidebar.tsx";
 
 export const App = () => (
@@ -99,7 +103,7 @@ function Shell() {
   // The draft of "New task from here…": held here, not in the hash, until the backlog is left.
   const [backlogDraft, setBacklogDraft] = useState<{ readonly refs?: readonly IssueRef[] }>();
   const go = useCallback((r: Route) => {
-    window.location.hash = routeHash(r);
+    navigate(r);
   }, []);
   useEffect(() => {
     const onHash = () => {
@@ -115,8 +119,7 @@ function Shell() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   // The options come with the daemon's state, read once for the whole app.
-  const options = useRef(d.options);
-  options.current = d.options;
+  const options = useLatest(d.options);
   // Notifications: every question that was not there before (spec §5.4).
   const known = useRef<{ id: string; runId: string }[] | undefined>(undefined);
   useEffect(() => {
@@ -242,9 +245,8 @@ function Shell() {
    */
   const [answerIn, setAnswerIn] = useState<{ runId: string; pane?: string | undefined }>();
   // The confirmation of the latest answer only (confirm.ts): a slower one never speaks over it.
-  const daemonNow = useRef(d);
-  daemonNow.current = d;
-  const confirmer = useRef(
+  const daemonNow = useLatest(d);
+  const [confirmer] = useState(() =>
     createConfirmer({
       read: async (runId, repo) =>
         flattenState((await daemonNow.current.client.state()).data).runs.find(
@@ -376,7 +378,7 @@ function Shell() {
               return;
             }
             // What the run did with the answer, read back: a Reject may have escalated it.
-            void confirmer.current.confirm(choices, item);
+            void confirmer.confirm(choices, item);
           }}
           onOpenRun={(id, pane) => openRun(id, false, pane)}
           onOpenChanges={(runId) => go({ screen: "run", runId, tab: "changes" })}
@@ -512,7 +514,7 @@ function Shell() {
         ) : null}
         {view === "no-daemon" ? <NoDaemon /> : null}
         {view === "container-down" ? <ContainerDown /> : null}
-        {view === "screens" ? screen : null}
+        {view === "screens" ? <ScreenBoundary place={routeHash(route)}>{screen}</ScreenBoundary> : null}
       </main>
       {help ? <HelpOverlay keymap={keyMapOf(d.options)} onClose={() => setHelp(false)} /> : null}
       {dialog && !d.down ? (

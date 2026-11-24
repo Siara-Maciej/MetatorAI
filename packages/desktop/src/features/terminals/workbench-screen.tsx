@@ -8,6 +8,7 @@
  * Everything else is a command: a key after the prefix, or an item of a right-click menu
  * (model.ts `WORKBENCH_COMMANDS`). The daemon owns the layout; this screen only draws and asks.
  */
+
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PaneView, SplitNode } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
@@ -28,6 +29,7 @@ import { decisionKey, notifies, paneNeedsYou } from "../../shared/model/needs.ts
 import { paneLabel, paneStateOf } from "../../shared/model/panes.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { noHostText } from "../../shared/model/runs.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { ContextMenu, type MenuItem } from "../../ui/context-menu.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { Tabs } from "../../ui/tabs.tsx";
@@ -224,20 +226,20 @@ export function WorkbenchScreen({
     if (paneId) setFocus(paneId);
   };
   // A pane asked for by the route: once the layout knows it, its tab and focus.
-  const shown = useRef<string | undefined>(undefined);
-  if (showPane && shown.current !== showPane) {
+  const [shown, setShown] = useState<string>();
+  if (showPane && shown !== showPane) {
     const t = tabOfPane(repos, showPane);
     if (t) {
-      shown.current = showPane;
+      setShown(showPane);
       showTab(t, showPane);
     }
   }
   const focused = byKey(focus) ?? tabPanes[0];
   const [zoom, setZoom] = useState<string>();
   // The zoom is the tab's: a tab change drops it.
-  const zoomTab = useRef<string | undefined>(undefined);
-  if (zoomTab.current !== tab?.key) {
-    zoomTab.current = tab?.key;
+  const [zoomTab, setZoomTab] = useState<string>();
+  if (zoomTab !== tab?.key) {
+    setZoomTab(tab?.key);
     if (zoom) setZoom(undefined);
   }
   const [mode, setMode] = useState<Mode>(IDLE);
@@ -442,7 +444,7 @@ export function WorkbenchScreen({
   const pick = (row: GotoRow) => {
     setMode(IDLE);
     if (row.task) {
-      window.location.hash = routeHash({ screen: "grid", task: row.task.runId, session: row.task.session });
+      navigate({ screen: "grid", task: row.task.runId, session: row.task.session });
       if (row.focusKey ?? row.paneId) setFocus(row.focusKey ?? row.paneId);
       return;
     }

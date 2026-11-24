@@ -9,6 +9,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { wsUrl } from "../../shared/api/api.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
+import { useLatest } from "../../shared/use-latest.ts";
 
 export interface TerminalStatus {
   readonly alive?: boolean | undefined;
@@ -116,14 +117,10 @@ function SocketTerminal({
   const { url, me } = useDaemon("url", "me");
   const host = useRef<HTMLDivElement>(null);
   const status = useRef<TerminalStatus>({});
-  const report = useRef(onStatus);
-  report.current = onStatus;
-  const blocked = useRef(onBlockedKey);
-  blocked.current = onBlockedKey;
-  const ready = useRef(onReady);
-  ready.current = onReady;
-  const typing = useRef(canType);
-  typing.current = canType;
+  const report = useLatest(onStatus);
+  const blocked = useLatest(onBlockedKey);
+  const ready = useLatest(onReady);
+  const typing = useLatest(canType);
   useEffect(() => {
     const el = host.current;
     if (!el) return;
@@ -209,7 +206,7 @@ function SocketTerminal({
         if (disposed || ended || ws !== s) return;
         if (!lost) term.write("\r\n\x1b[90m[connection to the daemon lost; reconnecting…]\x1b[0m\r\n");
         lost = true;
-        tries++;
+        tries += 1;
         timer = setTimeout(connect, RECONNECT_MS);
       };
     };

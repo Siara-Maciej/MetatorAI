@@ -22,7 +22,7 @@ Właściciel zdecydował (analiza z 2026-11-24): struktura kodu według funkcji 
 
 ## Stan realizacji
 - Zrobione: punkty 1–4. Podział zrobiony narzędziem (symbol → plik, importy przeliczone), bez zmian w ciałach funkcji.
-- W toku: punkty 5–6.
+- Zrobione: punkty 5–6.
 - Następne kroki: podział `DaemonProvider`; system projektowy na shadcn/ui (osobny ADR); rozbicie dużych komponentów.
 
 ## Konsekwencje

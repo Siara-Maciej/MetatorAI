@@ -5,7 +5,9 @@
  * repository shows the commands to run. A dev container's repository reads "shop (Dev Container)",
  * with its container's state (round 21).
  */
+
 import { useRef, useState } from "react";
+import { navigate } from "../../shared/navigation.ts";
 import { ContextMenu, type MenuItem } from "../../ui/context-menu.tsx";
 import { repoName, switcherLabel, switcherRows } from "./repos.ts";
 import { useRepos } from "./repos-context.tsx";
@@ -35,7 +37,7 @@ export function RepoSwitcher({
       label: "Add repository…",
       separator: rows.length > 0 || served.repos.length > 0,
       onSelect: () => {
-        window.location.hash = "#/add";
+        navigate({ screen: "add" });
       },
     },
     ...(repos.current

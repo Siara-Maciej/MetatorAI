@@ -10438,4 +10438,16 @@ export const MUTANTS: readonly Mutant[] = [
     to: "for (const k of Object.keys(state) as K[]) out[k] = state[k];",
     why: "a component hears only of the fields it names",
   },
+  {
+    file: "packages/desktop/src/app/screen-boundary.tsx",
+    from: "resetKeys={[place]}",
+    to: "resetKeys={[]}",
+    why: "a new route starts a screen that failed over",
+  },
+  {
+    file: "packages/desktop/src/shared/daemon/session.ts",
+    from: "for (const w of waiters.splice(0)) w(name);",
+    to: "for (const w of waiters.slice(0, 1)) w(name);",
+    why: "everyone who asked for the person's name while the dialog was open gets the answer",
+  },
 ];

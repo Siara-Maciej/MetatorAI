@@ -290,7 +290,8 @@ afterAll(async () => {
   await rm(folder, { recursive: true, force: true });
   await rm(dist, { recursive: true, force: true });
   await rm(configDir, { recursive: true, force: true });
-});
+  // Stopping the runs is one CLI process each (about 5 s for five): more than the default 5 s.
+}, 60_000);
 
 describe("a decomposed task as a flow and on the board (real daemon, real Chromium)", () => {
   test("the plan approved: every step is on the graph (pending, dashed) and in To do with what it waits for", async () => {

@@ -9,7 +9,8 @@
  * stopped one, Refresh), then the one picked gets MetatorAI installed with its progress
  * (`containerStep`, devcontainers.ts), and the same flow runs in the container (`inContainer`).
  */
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+
+import { useEffect, useMemo, useReducer, useState } from "react";
 import {
   asCommandError,
   type Commands,
@@ -18,6 +19,7 @@ import {
   installWithOutput,
   setupWithOutput,
 } from "../../shared/platform/tauri-commands.ts";
+import { useLatest } from "../../shared/use-latest.ts";
 import { Tabs } from "../../ui/tabs.tsx";
 import {
   type ContainerEvent,
@@ -78,10 +80,8 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
   const [place, setPlace] = useState<DevContainer>();
   const where: Where = place ? "container" : "here";
   const run = useMemo(() => (place ? inContainer(commands, place.localFolder) : commands), [commands, place]);
-  const now = useRef<Flow>(flow);
-  now.current = flow;
-  const addAndOpen = useRef(repos.addAndOpen);
-  addAndOpen.current = repos.addAndOpen;
+  const now = useLatest(flow);
+  const addAndOpen = useLatest(repos.addAndOpen);
   const step = flow.step;
   // Each busy step runs its one command; what it answers is the next event.
   useEffect(() => {
@@ -127,8 +127,7 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
     };
   }, [step, run, place]);
   // The Dev Container source's busy steps, the same way: list, start, install.
-  const boxNow = useRef<ContainerFlow>(boxes);
-  boxNow.current = boxes;
+  const boxNow = useLatest(boxes);
   const boxStep = source === "devcontainer" ? boxes.step : undefined;
   useEffect(() => {
     void boxStep;

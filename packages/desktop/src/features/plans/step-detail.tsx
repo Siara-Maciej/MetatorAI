@@ -5,10 +5,12 @@
  * terminal the app shows at once), and once planned its plan with a link to its run. The planner
  * never plans every step up front; a plan changes only through its agent.
  */
+
 import type { SystemPlanView } from "../../shared/api/api.ts";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { routeHash } from "../../shared/model/route.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Modal } from "../../ui/modal.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { FILES_UNKNOWN, itemOfStep, shownRoute, stepDetail, stepsOfView } from "../backlog/model.ts";
@@ -37,7 +39,7 @@ export function StepDetailDialog({
   const go = (route: ReturnType<typeof shownRoute>) => {
     if (!route) return;
     onClose();
-    window.location.hash = routeHash(route);
+    navigate(route);
   };
   const planIt = () =>
     action.run(

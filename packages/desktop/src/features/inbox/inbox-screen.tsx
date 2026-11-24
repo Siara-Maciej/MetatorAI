@@ -5,6 +5,7 @@
  * is folded under the card's Details. With nothing to decide: the tasks in short with their
  * state, the runs nothing drives, and "Describe a task"; with no run at all, only the latter.
  */
+
 import { useState } from "react";
 import type { InboxItem } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
@@ -25,6 +26,7 @@ import { routeHash } from "../../shared/model/route.ts";
 import { openRuns } from "../../shared/model/runs.ts";
 import { byAttentionFirst, taskLine, taskState } from "../../shared/model/tasks.ts";
 import { threadTitleOf } from "../../shared/model/threads.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Notice } from "../../ui/notice.tsx";
 import { isReviewCard, reviewCardKey } from "../reviews/model.ts";
 import { ReviewCard } from "../reviews/review-card.tsx";
@@ -129,7 +131,7 @@ export function InboxScreen({
           ask={paneAsk}
           onAnswered={(choices) => onAnswered(choices)}
           onOpenPane={(a) => {
-            window.location.hash = routeHash({ screen: "grid", pane: a.paneId });
+            navigate({ screen: "grid", pane: a.paneId });
           }}
         />
       ) : stopped ? (

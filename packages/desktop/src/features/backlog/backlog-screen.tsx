@@ -5,6 +5,7 @@
  * for, and the decision. An agent only proposes; the task exists after your "Add". Analyse, Make
  * plan and Implement each start an agent in a terminal of its own, and the app shows it (round 17).
  */
+
 import { useEffect, useMemo, useState } from "react";
 import type { Issue, IssueRef, IssueView, PlanStarted } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
@@ -15,6 +16,7 @@ import { type Answer, useAction } from "../../shared/hooks.ts";
 import { duration, issueRefText, plural } from "../../shared/model/format.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { workflowChoice } from "../../shared/model/runs.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { refusedForDirtyTree, START_FROM_COMMIT } from "../runs/model.ts";
@@ -141,7 +143,7 @@ export function BacklogScreen({
     started: Partial<Pick<PlanStarted, "session">> & { readonly paneId?: string },
   ) => {
     const to = shownRoute({ runId, paneId: started.session?.paneId ?? started.paneId });
-    if (to) window.location.hash = routeHash(to);
+    if (to) navigate(to);
     else if (runId) onOpenSession(runId);
   };
   /**

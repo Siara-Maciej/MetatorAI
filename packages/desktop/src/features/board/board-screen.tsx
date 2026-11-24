@@ -5,6 +5,7 @@
  * columns with its steps and child runs across repositories, pending steps in To do with what they
  * wait for. A run's column is the phase the daemon computed; nothing here moves a card.
  */
+
 import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import type { Issue } from "../../shared/api/api.ts";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
@@ -27,6 +28,7 @@ import { sameRepo } from "../../shared/model/places.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { workflowChoice } from "../../shared/model/runs.ts";
 import { filterTasks, taskLine, taskState, type WorkTask, workTasks } from "../../shared/model/tasks.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Notice } from "../../ui/notice.tsx";
 import { StepDetailOf } from "../plans/step-detail.tsx";
 
@@ -138,7 +140,7 @@ export function BoardScreen({
     return () => clearTimeout(t);
   }, [dragged]);
   const back = () => {
-    window.location.hash = routeHash({ screen: "board" });
+    navigate({ screen: "board" });
   };
   useEffect(() => {
     if (!openKey) return;
@@ -162,15 +164,16 @@ export function BoardScreen({
     else if (c.kind === "step" && c.planId && c.stepId)
       setStepOpen({ planId: c.planId, stepId: c.stepId, repo: c.planRepo });
     else if (c.kind === "step")
-      window.location.hash = c.systemRunId
-        ? routeHash({ screen: "run", runId: c.systemRunId, tab: "overview" })
-        : routeHash({ screen: "overview", tab: "system" });
-    else window.location.hash = routeHash({ screen: "backlog", ...(c.issueId ? { id: c.issueId } : {}) });
+      navigate(
+        c.systemRunId
+          ? { screen: "run", runId: c.systemRunId, tab: "overview" }
+          : { screen: "overview", tab: "system" },
+      );
+    else navigate({ screen: "backlog", ...(c.issueId ? { id: c.issueId } : {}) });
   };
   const openTask = (t: WorkTask) => {
     // A task made of steps opens its board; a run of its own opens its page; a backlog task the Backlog.
-    if (t.kind === "system" || t.kind === "parent")
-      window.location.hash = routeHash({ screen: "board", task: t.key });
+    if (t.kind === "system" || t.kind === "parent") navigate({ screen: "board", task: t.key });
     else if (t.head) openCard(t.head);
   };
   const start = (c: BoardCard) =>

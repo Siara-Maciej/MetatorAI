@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useInsertionEffect, useRef } from "react";
 
 /**
  * A modal dialog, the same for every dialog of the app: the browser's own `<dialog>` opened with
@@ -20,8 +20,11 @@ export function Modal({
   readonly children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // The latest onClose, written after the render (ui/ imports nothing of the app).
   const close = useRef(onClose);
-  close.current = onClose;
+  useInsertionEffect(() => {
+    close.current = onClose;
+  });
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
