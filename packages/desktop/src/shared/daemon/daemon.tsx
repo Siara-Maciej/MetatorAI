@@ -153,9 +153,19 @@ const Ctx = createContext<Store<Daemon> | undefined>(undefined);
  * them changed. Name what is used, nothing more.
  */
 export function useDaemon<K extends keyof Daemon>(...keys: readonly [K, ...K[]]): Pick<Daemon, K> {
+  return useFields(useDaemonStore(), keys);
+}
+
+/** The daemon's state to read when an act needs it (a click), without drawing again on its changes. */
+export function useDaemonStore(): Store<Daemon> {
   const store = useContext(Ctx);
   if (!store) throw new Error("useDaemon outside <DaemonProvider>");
-  return useFields(store, keys);
+  return store;
+}
+
+/** One run (of `repo` in a folder): draws again only when that run changed. */
+export function useRun(runId: string | undefined, repo?: string): Run | undefined {
+  return useStore(useDaemonStore(), (d) => d.run(runId, repo));
 }
 
 /**

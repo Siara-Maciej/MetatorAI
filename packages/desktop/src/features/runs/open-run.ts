@@ -6,7 +6,7 @@
  */
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
+import { useDaemonStore } from "../../shared/daemon/daemon.tsx";
 import { runTabFor } from "../../shared/model/runs.ts";
 import { navigate } from "../../shared/navigation.ts";
 
@@ -21,9 +21,10 @@ const answerInStore = createStore<{ readonly answerIn: AnswerIn | undefined }>((
 
 /** Opens a run: `attach` to answer in its pane, `pane` to show one of its panes. */
 export function useOpenRun(): (runId: string, attach?: boolean, pane?: string) => void {
-  const { run } = useDaemon("run");
+  // The run is read when the person opens it: a list of runs does not draw again for this.
+  const store = useDaemonStore();
   return (runId, attach = false, pane) => {
-    const found = run(runId);
+    const found = store.getState().run(runId);
     navigate({
       screen: "run",
       runId,
