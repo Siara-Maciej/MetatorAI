@@ -159,21 +159,6 @@ packages:
       adr: 0111-desktop-design-system.md,
     }
   - {
-      package: cmdk,
-      need: "the command palette of the desktop app",
-      adr: 0111-desktop-design-system.md,
-    }
-  - {
-      package: sonner,
-      need: "notices that go by themselves in the desktop app",
-      adr: 0111-desktop-design-system.md,
-    }
-  - {
-      package: react-resizable-panels,
-      need: "panes split and resized in the desktop app's Terminals",
-      adr: 0111-desktop-design-system.md,
-    }
-  - {
       package: partysocket,
       need: "the desktop app's WebSockets opened again after they drop",
       adr: 0108-desktop-state-query-and-store.md,
