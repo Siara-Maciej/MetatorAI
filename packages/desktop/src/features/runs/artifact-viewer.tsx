@@ -5,6 +5,7 @@
 
 import { MarkdownBlocks } from "../../shared/components/markdown-blocks.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
+import { Button } from "../../ui/button.tsx";
 import { Modal } from "../../ui/modal.tsx";
 
 export function ArtifactViewer({
@@ -30,9 +31,7 @@ export function ArtifactViewer({
         <h2 className="mono">{name}</h2>
         <span className="faint">{data ? `${data.kind} · read-only` : ""}</span>
         <span className="spacer" />
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
+        <Button onClick={onClose}>Close</Button>
       </div>
       {error && !data ? <div className="banner">{error}</div> : null}
       {data ? (

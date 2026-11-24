@@ -10,6 +10,7 @@ import type { Question } from "../../shared/api/api.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { opensDiff } from "../../shared/model/stage1.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { canAnswer, needsReason, toggleChoice } from "./model.ts";
 
@@ -123,8 +124,7 @@ export function QuickAnswer({
     >
       <div className="chips">
         {q.options.slice(0, max ?? q.options.length).map((o) => (
-          <button
-            type="button"
+          <Button
             key={o.label}
             className="option-chip"
             aria-pressed={a.choices.includes(o.label)}
@@ -133,7 +133,7 @@ export function QuickAnswer({
             onClick={() => a.toggle(o.label)}
           >
             {o.label}
-          </button>
+          </Button>
         ))}
       </div>
       {a.reason ? (
@@ -149,9 +149,9 @@ export function QuickAnswer({
       ) : q.multiSelect && a.choices.length === 0 ? (
         <span className="dim">choose one or more</span>
       ) : null}
-      <button type="submit" className="primary" disabled={!a.ready}>
+      <Button type="submit" variant="primary" disabled={!a.ready}>
         {a.choices.length > 0 ? a.choices.join(", ") : "Choose"} ⏎
-      </button>
+      </Button>
       <Notice text={a.error} onClose={a.clearError} />
     </form>
   );

@@ -1,8 +1,10 @@
 /** The Daemon part of the Overview: four figures as tiles, the open runs with who works on each, the hosts and how the daemon looks after runs. */
+
 import { Glyph, StateWord } from "../../shared/components/glyph.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { duration, plural } from "../../shared/model/format.ts";
 import { type HostStatus, noHostText, openRuns, runStateOf } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { runCounts, whoWorks } from "./model.ts";
 
 export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
@@ -68,9 +70,9 @@ export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
               return (
                 <tr key={`${r.repo ?? ""}:${r.runId}`}>
                   <td>
-                    <button type="button" className="ghost link" onClick={() => onOpenRun(r.runId)}>
+                    <Button variant="ghost" className="link" onClick={() => onOpenRun(r.runId)}>
                       {r.task}
-                    </button>
+                    </Button>
                   </td>
                   <td>{r.repo ?? "—"}</td>
                   <td>{r.host ?? "—"}</td>

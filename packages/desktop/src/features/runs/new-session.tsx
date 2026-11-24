@@ -1,9 +1,11 @@
 /** The new-run form, a dialog; the footer shows the `metator run new` it amounts to. */
+
 import { useState } from "react";
 import type { Workflow } from "../../shared/api/api.ts";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { placeLabel, sameRepo } from "../../shared/model/places.ts";
 import { type HostStatus, hostChoice, noHostText, workflowChoice } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { Modal } from "../../ui/modal.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { autonomyLabel, autonomyLevels, refusedForDirtyTree, START_FROM_COMMIT } from "./model.ts";
@@ -197,15 +199,13 @@ export function NewSessionDialog({
       />
       <div className="foot">
         <code>{command}</code>
-        <button type="button" onClick={onClose}>
-          Cancel
-        </button>
-        <button type="button" disabled={busy} onClick={() => void create(false)}>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button disabled={busy} onClick={() => void create(false)}>
           Create in background
-        </button>
-        <button type="button" className="primary" disabled={busy} onClick={() => void create(true)}>
+        </Button>
+        <Button variant="primary" disabled={busy} onClick={() => void create(true)}>
           Create and attach
-        </button>
+        </Button>
       </div>
     </Modal>
   );

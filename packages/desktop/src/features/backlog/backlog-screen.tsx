@@ -17,6 +17,7 @@ import { duration, issueRefText, plural } from "../../shared/model/format.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { workflowChoice } from "../../shared/model/runs.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { refusedForDirtyTree, START_FROM_COMMIT } from "../runs/model.ts";
@@ -230,9 +231,7 @@ export function BacklogScreen({
           ) : null}
           <span className="spacer" />
           <RepoSelect />
-          <button type="button" onClick={() => setAdding(true)}>
-            + task
-          </button>
+          <Button onClick={() => setAdding(true)}>+ task</Button>
         </>
       }
       list={
@@ -320,12 +319,10 @@ export function BacklogScreen({
             <div className="dim">points at: {initialDraft.refs.map(issueRefText).join(" · ")}</div>
           ) : null}
           <div className="actions">
-            <button type="submit" className="primary">
+            <Button type="submit" variant="primary">
               Add
-            </button>
-            <button type="button" onClick={() => setAdding(false)}>
-              Cancel
-            </button>
+            </Button>
+            <Button onClick={() => setAdding(false)}>Cancel</Button>
           </div>
         </form>
       ) : current ? (
@@ -360,15 +357,11 @@ export function BacklogScreen({
           <div className="actions" data-testid="item-actions">
             {current.status === "proposed" ? (
               <>
-                <button type="button" className="primary" onClick={() => void decide(current, "add")}>
+                <Button variant="primary" onClick={() => void decide(current, "add")}>
                   Add
-                </button>
-                <button type="button" onClick={() => void addAndStart(current)}>
-                  Add and start a run
-                </button>
-                <button type="button" onClick={() => void decide(current, "drop")}>
-                  Drop
-                </button>
+                </Button>
+                <Button onClick={() => void addAndStart(current)}>Add and start a run</Button>
+                <Button onClick={() => void decide(current, "drop")}>Drop</Button>
               </>
             ) : null}
             {buttons.analyse ? (
@@ -403,14 +396,10 @@ export function BacklogScreen({
               </label>
             ) : null}
             {current.status === "open" || current.status === "in-progress" ? (
-              <button type="button" onClick={() => act((by) => client.closeIssue(current.id, by, repo))}>
-                Done
-              </button>
+              <Button onClick={() => act((by) => client.closeIssue(current.id, by, repo))}>Done</Button>
             ) : null}
             {current.status === "open" ? (
-              <button type="button" onClick={() => act((by) => client.dropIssue(current.id, by, repo))}>
-                Drop
-              </button>
+              <Button onClick={() => act((by) => client.dropIssue(current.id, by, repo))}>Drop</Button>
             ) : null}
           </div>
           {/* Why a button cannot be pressed, in words: the badge says what, this says what to do. */}
@@ -451,15 +440,14 @@ function ItemAction({
   onClick(): void;
 }) {
   return (
-    <button
-      type="button"
+    <Button
       className={primary ? "primary" : undefined}
       disabled={button.disabled !== undefined || busy}
       title={button.disabled}
       onClick={onClick}
     >
       {button.label}
-    </button>
+    </Button>
   );
 }
 
@@ -567,9 +555,9 @@ function ChildrenPart({
       <ul className="item-children">
         {rows.map((c) => (
           <li key={c.id} data-testid={`child-${c.id}`}>
-            <button type="button" className="ghost" onClick={() => onPick(c.id)}>
+            <Button variant="ghost" onClick={() => onPick(c.id)}>
               {c.title}
-            </button>
+            </Button>
             <span className={`word ${itemTone(c.word)}`}>{c.word}</span>
             {c.waits ? <span className="faint">{c.waits}</span> : null}
           </li>

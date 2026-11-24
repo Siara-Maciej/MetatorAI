@@ -6,6 +6,7 @@
  * Activity, with a breadcrumb back to its task. The head says the first level only; what the run
  * is goes in its Details. The routes a run's screens once had (the Plan tab too) still lead here.
  */
+
 import { useEffect } from "react";
 import { Chip } from "../../shared/components/chips.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
@@ -17,6 +18,7 @@ import { paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
 import { type Route, type RunTab, routeHash, tabsOf } from "../../shared/model/route.ts";
 import { finishedText, runWithPanes } from "../../shared/model/runs.ts";
 import { runPage } from "../../shared/model/tasks.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { EscalatedActions } from "../inbox/escalated-card.tsx";
 import { SystemRunBar } from "../plans/system-run-bar.tsx";
@@ -164,9 +166,7 @@ export function RunScreen({
             The conductor moves this run on at {run.stage}: talk to it in its terminal.
           </span>
           {tab !== "terminal" ? (
-            <button type="button" onClick={() => go({ screen: "run", runId, tab: "terminal" })}>
-              Open the terminal
-            </button>
+            <Button onClick={() => go({ screen: "run", runId, tab: "terminal" })}>Open the terminal</Button>
           ) : null}
         </div>
       ) : null}

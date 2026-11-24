@@ -4,6 +4,7 @@
  * its file, tests, exemplar and rules, what waits for a person at the top, what comes next and
  * the artifacts below, the last events at the bottom. Everything comes from `GET /runs/:id/board`.
  */
+
 import { useState } from "react";
 import type { PlanBoardView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
@@ -11,6 +12,7 @@ import { StageBar } from "../../shared/components/stage-bar.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { clock, duration, lintSummary, plural } from "../../shared/model/format.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { QuickAnswer } from "../inbox/answer.tsx";
 import { ActivityList } from "../runs/activity-list.tsx";
@@ -156,9 +158,9 @@ export function StepPlan({
             </span>
             <span className="spacer" />
             {waiting.source === "permission" ? (
-              <button type="button" className="primary" onClick={() => onOpenRun(runId, true)}>
+              <Button variant="primary" onClick={() => onOpenRun(runId, true)}>
                 Answer in the pane
-              </button>
+              </Button>
             ) : (
               <QuickAnswer question={waiting} repo={run?.repo} onDone={() => void load()} />
             )}
@@ -194,13 +196,9 @@ export function StepPlan({
             />
             {step.worker?.paneId ? (
               <div className="actions">
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => onOpenPane(step.worker?.paneId as string, runId)}
-                >
+                <Button variant="primary" onClick={() => onOpenPane(step.worker?.paneId as string, runId)}>
                   Show the pane
-                </button>
+                </Button>
               </div>
             ) : null}
           </>
@@ -252,9 +250,9 @@ export function StepPlan({
               <div className="text">
                 {board.workers.map((w) => (
                   <div key={w.name}>
-                    <button type="button" className="ghost mono" onClick={() => onOpenPane(w.paneId, runId)}>
+                    <Button variant="ghost" className="mono" onClick={() => onOpenPane(w.paneId, runId)}>
                       {w.name}
-                    </button>{" "}
+                    </Button>{" "}
                     <span className="dim">
                       {w.stage} · {w.paneId} ·{" "}
                       {w.result ? `${w.result.status}: ${w.result.summary}` : (w.state ?? "")}

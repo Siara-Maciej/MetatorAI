@@ -3,10 +3,12 @@
  * the person can watch and take; "Drive in background" drives it with no terminal. The host is
  * the first installed one of the repository's order, or the one chosen here.
  */
+
 import { useState } from "react";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import type { Action } from "../../shared/hooks.ts";
 import { type HostStatus, hostChoice, type Run } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { useRunControls } from "./run-controls.ts";
 
 export function StartRun({
@@ -62,24 +64,22 @@ export function StartRun({
           </select>
         </label>
       ) : null}
-      <button
-        type="button"
-        className="primary"
+      <Button
+        variant="primary"
         disabled={action.busy}
         title="Start the run's agent in a terminal you can watch and take"
         onClick={() => void start("session")}
       >
         Open a session
-      </button>
+      </Button>
       {sessionOnly ? null : (
-        <button
-          type="button"
+        <Button
           disabled={action.busy}
           title="Drive the run in the background, with no terminal"
           onClick={() => void start("drive")}
         >
           Drive in background
-        </button>
+        </Button>
       )}
     </div>
   );

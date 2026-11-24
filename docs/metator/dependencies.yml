@@ -174,11 +174,6 @@ packages:
       adr: 0111-desktop-design-system.md,
     }
   - {
-      package: react-hotkeys-hook,
-      need: "the desktop app's keyboard shortcuts",
-      adr: 0109-desktop-feature-structure-and-compiler.md,
-    }
-  - {
       package: partysocket,
       need: "the desktop app's WebSockets opened again after they drop",
       adr: 0108-desktop-state-query-and-store.md,

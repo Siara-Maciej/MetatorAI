@@ -2,11 +2,13 @@
  * One pane of the workbench (S6): its frame with what runs in it and its state, its terminal,
  * what to do when its process ended, the question "take the keyboard?" and the copy-mode search.
  */
+
 import { useRef } from "react";
 import type { PaneView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { lookOf } from "../../shared/model/look.ts";
 import { type PaneShown, paneLabel, paneNote } from "../../shared/model/panes.ts";
+import { Button } from "../../ui/button.tsx";
 import { PaneTerminal, type TerminalHandle } from "./terminal.tsx";
 import { endedBanner, pausedBanner } from "./terminals.ts";
 
@@ -76,8 +78,7 @@ export function PaneFrame({
       onContextMenu={onMenu}
     >
       {labels ? (
-        <button
-          type="button"
+        <Button
           className="title"
           onClick={onFocus}
           onDoubleClick={onZoom}
@@ -97,7 +98,7 @@ export function PaneFrame({
           ) : null}
           {paneNote(p, state) ? <span className="faint"> · {paneNote(p, state)}</span> : null}
           {mine ? <span className="teal"> · yours</span> : null}
-        </button>
+        </Button>
       ) : null}
       {/* A paused pane has no process, but its socket serves its last screen, read-only. */}
       {p.live || pausedBanner(p) ? (
@@ -121,9 +122,9 @@ export function PaneFrame({
         // Its host stopped with the daemon (or was lost); the work is not over: Continue starts it in place.
         <div className="pane-ended paused-banner" role="status" data-testid={`paused-${p.id}`}>
           <span className="msg">{pausedBanner(p)}</span>
-          <button type="button" className="primary" onClick={onContinue ?? onRetry}>
+          <Button variant="primary" onClick={onContinue ?? onRetry}>
             Continue
-          </button>
+          </Button>
         </div>
       ) : p.ended || (p.live && !p.live.alive) ? (
         // The pane's work is over (the daemon says so, or its process is gone a moment before): it stays, read-only, with what ended it, until it is closed.
@@ -135,26 +136,20 @@ export function PaneFrame({
           <span className={endedBanner(p).tone === "done" ? "msg done" : "msg red"}>
             {endedBanner(p).text}
           </span>
-          {endedBanner(p).tone === "error" ? (
-            <button type="button" onClick={onRetry}>
-              Retry
-            </button>
-          ) : null}
-          <button type="button" className="primary" onClick={onClose}>
+          {endedBanner(p).tone === "error" ? <Button onClick={onRetry}>Retry</Button> : null}
+          <Button variant="primary" onClick={onClose}>
             {lastOfTab ? "Close tab" : "Close"}
-          </button>
+          </Button>
         </div>
       ) : p.live?.alive ? null : (
         <div className="pane-ended" role="status" data-testid={`ended-${p.id}`}>
           <span className="msg">
             Nothing runs in this pane: its process did not start, or the daemon was restarted.
           </span>
-          <button type="button" className="primary" onClick={onRetry}>
+          <Button variant="primary" onClick={onRetry}>
             Retry
-          </button>
-          <button type="button" onClick={onClose}>
-            {lastOfTab ? "Close tab" : "Close pane"}
-          </button>
+          </Button>
+          <Button onClick={onClose}>{lastOfTab ? "Close tab" : "Close pane"}</Button>
         </div>
       )}
       {asking ? (

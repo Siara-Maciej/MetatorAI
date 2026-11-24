@@ -8,6 +8,7 @@
 
 import { useRef, useState } from "react";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { ContextMenu, type MenuItem } from "../../ui/context-menu.tsx";
 import { repoName, switcherLabel, switcherRows } from "./repos.ts";
 import { useRepos } from "./repos-context.tsx";
@@ -51,9 +52,9 @@ export function RepoSwitcher({
   ];
   return (
     <>
-      <button
-        type="button"
-        className="ghost scope switcher"
+      <Button
+        variant="ghost"
+        className="scope switcher"
         data-testid="scope"
         aria-haspopup="menu"
         aria-expanded={at !== undefined}
@@ -68,7 +69,7 @@ export function RepoSwitcher({
         }}
       >
         {switcherLabel(repos.current, served.text)} ▾
-      </button>
+      </Button>
       {refusal ? (
         <span className="refusal switcher-refusal" role="alert">
           {refusal}

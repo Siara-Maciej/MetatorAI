@@ -3,9 +3,11 @@
  * person. The step is pending again (its old run kept in its history, the old worktree left for
  * a look); the system run, resumed or still waiting, starts a new child for it.
  */
+
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 
 /** The button on one step: shown only while its run is aborted. */
@@ -24,8 +26,7 @@ export function RetryStepButton({
   const action = useAction(onRetried);
   return (
     <span className="retry-step">
-      <button
-        type="button"
+      <Button
         data-testid={`retry-step-${step}`}
         disabled={action.busy}
         onClick={() =>
@@ -37,7 +38,7 @@ export function RetryStepButton({
         }
       >
         Retry this step
-      </button>
+      </Button>
       <Notice {...action.notice} />
     </span>
   );

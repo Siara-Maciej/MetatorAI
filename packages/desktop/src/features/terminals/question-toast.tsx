@@ -2,6 +2,7 @@ import type { InboxItem } from "../../shared/api/api.ts";
 import { commandOf } from "../../shared/components/command-text.tsx";
 import { commandText } from "../../shared/model/format.ts";
 import { hostPromptOf } from "../../shared/model/needs.ts";
+import { Button } from "../../ui/button.tsx";
 import { askText } from "./model.ts";
 
 /** The workbench's one toast (`notify.channel: app`): the newest question, how to answer it, a way to hide it. */
@@ -23,13 +24,7 @@ export function QuestionToast({
     : undefined;
   return (
     <div className="toast" role="status">
-      <button
-        type="button"
-        className="open"
-        data-testid="toast"
-        title={said?.full ?? q.prompt}
-        onClick={onOpen}
-      >
+      <Button className="open" data-testid="toast" title={said?.full ?? q.prompt} onClick={onOpen}>
         <span className="q">
           <span className="amber">?</span>{" "}
           {said
@@ -37,16 +32,15 @@ export function QuestionToast({
             : askText(q.agent ?? q.source, q.prompt)}
         </span>
         <span className="faint how">{inPane ? "answer in the pane ›" : "open the card ›"}</span>
-      </button>
-      <button
-        type="button"
-        className="ghost"
+      </Button>
+      <Button
+        variant="ghost"
         aria-label="dismiss"
         title="hide this; the question stays in the Inbox"
         onClick={onDismiss}
       >
         ✕
-      </button>
+      </Button>
     </div>
   );
 }

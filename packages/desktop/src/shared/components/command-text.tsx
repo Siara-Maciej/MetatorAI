@@ -3,7 +3,9 @@
  * Enter) shows the whole command, monospace and wrapped, with Copy. Never a fragment from the
  * middle of a wrapped command.
  */
+
 import { useState } from "react";
+import { Button } from "../../ui/button.tsx";
 import { commandText } from "../model/format.ts";
 
 export function CommandText({
@@ -19,28 +21,27 @@ export function CommandText({
   if (!c.cut) return <span data-testid="command-short">{c.short}</span>;
   return (
     <>
-      <button
-        type="button"
-        className="ghost cmd-short"
+      <Button
+        variant="ghost"
+        className="cmd-short"
         aria-expanded={open}
         data-testid="command-short"
         title={open ? "hide the whole command" : "show the whole command"}
         onClick={() => setOpen(!open)}
       >
         {c.short}
-      </button>
+      </Button>
       {open ? (
         <span className="cmd-full-box">
           <pre className="cmd-full mono" data-testid="command-full">
             {c.full}
           </pre>
-          <button
-            type="button"
-            className="ghost"
+          <Button
+            variant="ghost"
             onClick={() => void navigator.clipboard?.writeText(c.full).catch(() => undefined)}
           >
             Copy
-          </button>
+          </Button>
         </span>
       ) : null}
     </>

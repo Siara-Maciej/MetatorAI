@@ -27,6 +27,7 @@ import { openRuns } from "../../shared/model/runs.ts";
 import { byAttentionFirst, taskLine, taskState } from "../../shared/model/tasks.ts";
 import { threadTitleOf } from "../../shared/model/threads.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { isReviewCard, reviewCardKey } from "../reviews/model.ts";
 import { ReviewCard } from "../reviews/review-card.tsx";
@@ -109,12 +110,12 @@ export function InboxScreen({
           · {at + 1} of {needs.length}
         </span>
         <span className="spacer" />
-        <button type="button" disabled={needs.length < 2} onClick={() => move(-1)} title="key k">
+        <Button disabled={needs.length < 2} onClick={() => move(-1)} title="key k">
           ‹ Previous
-        </button>
-        <button type="button" disabled={needs.length < 2} onClick={() => move(1)} title="key j">
+        </Button>
+        <Button disabled={needs.length < 2} onClick={() => move(1)} title="key j">
           Next ›
-        </button>
+        </Button>
       </nav>
       {item ? (
         <DecisionCard
@@ -155,9 +156,9 @@ export function InboxScreen({
             and answer there.
           </p>
           <div className="actions">
-            <button type="button" className="primary" onClick={() => onOpenRun(picked.runId, picked.pane)}>
+            <Button variant="primary" onClick={() => onOpenRun(picked.runId, picked.pane)}>
               Open the run
-            </button>
+            </Button>
           </div>
         </article>
       ) : (
@@ -195,12 +196,10 @@ function FirstRun({ onStart, onForm }: { onStart(task: string): void; onForm(): 
         }}
       />
       <div className="actions">
-        <button type="submit" className="primary" disabled={task.trim() === ""}>
+        <Button type="submit" variant="primary" disabled={task.trim() === ""}>
           Start
-        </button>
-        <button type="button" onClick={onForm}>
-          Use the form
-        </button>
+        </Button>
+        <Button onClick={onForm}>Use the form</Button>
         <span className="faint">
           <kbd>ctrl+↵</kbd> starts
         </span>
@@ -237,9 +236,9 @@ function QuietHome({
         <ul className="idle-runs">
           {idle.map((r) => (
             <li key={`${r.repo ?? ""}/${r.runId}`}>
-              <button type="button" className="ghost link" onClick={() => onOpenRun(r.runId)}>
+              <Button variant="ghost" className="link" onClick={() => onOpenRun(r.runId)}>
                 {r.task}
-              </button>{" "}
+              </Button>{" "}
               <span className="faint">{r.repo ? `${r.repo} · ` : ""}nothing drives it</span>
               <StartRun run={r} action={action} compact />
             </li>

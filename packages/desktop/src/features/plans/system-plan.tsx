@@ -3,6 +3,7 @@
  * it here (its flow on the task's own page), approves it, and asks for changes on its approval card.
  * Its steps are grouped by repository with the run each started and that run's state.
  */
+
 import { useState } from "react";
 import type { SystemPlanView } from "../../shared/api/api.ts";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
@@ -13,6 +14,7 @@ import { lookOf } from "../../shared/model/look.ts";
 import { sameRepo } from "../../shared/model/places.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { ProblemList } from "./doc-editor.tsx";
 import { FromPlanButton } from "./from-plan-button.tsx";
@@ -119,15 +121,14 @@ function SystemPlanBody({
         <span className="spacer" />
         {systemRun ? <FromPlanButton runId={systemRun} repo={repo} action={action} /> : null}
         {view.status === "draft" || view.approval?.stale ? (
-          <button
-            type="button"
-            className="primary"
+          <Button
+            variant="primary"
             disabled={errors.length > 0 || action.busy}
             title={errors.length > 0 ? `the lint has an error: ${errors[0]?.message}` : "approve the plan"}
             onClick={() => void approve()}
           >
             Approve
-          </button>
+          </Button>
         ) : null}
       </div>
       <Notice {...action.notice} />

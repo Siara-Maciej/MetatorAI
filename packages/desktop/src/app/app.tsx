@@ -42,6 +42,7 @@ import { chatTitleOf, followedThread } from "../shared/model/threads.ts";
 import { navigate } from "../shared/navigation.ts";
 import { systemNotifier } from "../shared/platform/notify.ts";
 import { useLatest } from "../shared/use-latest.ts";
+import { Button } from "../ui/button.tsx";
 import { Notice } from "../ui/notice.tsx";
 import { createConfirmer } from "./confirm.ts";
 import { HelpOverlay } from "./help-overlay.tsx";
@@ -446,35 +447,29 @@ function Shell() {
       <header className="topbar">
         <span className="logo">MetatorAI</span>
         {solo ? null : <RepoSwitcher served={folder} />}
-        <button
-          type="button"
-          className="panel-toggle"
-          aria-expanded={panelOpen}
-          onClick={() => setPanelOpen(!panelOpen)}
-        >
+        <Button className="panel-toggle" aria-expanded={panelOpen} onClick={() => setPanelOpen(!panelOpen)}>
           Runs · {openRuns(d.runs).length}
           {needs.length > 0 ? ` · ${needs.length} need you` : ""}
-        </button>
+        </Button>
         <span className="spacer" />
-        <button
-          type="button"
-          className="ghost"
+        <Button
+          variant="ghost"
           title="the keys of the app"
           aria-label="keyboard help"
           onClick={() => setHelp(true)}
         >
           ?
-        </button>
+        </Button>
         {solo ? null : (
           <>
-            <button
-              type="button"
-              className="ghost who"
+            <Button
+              variant="ghost"
+              className="who"
               title="Your name goes next to every answer you give. Click to change it."
               onClick={d.changeName}
             >
               {d.me ? `you: ${d.me}` : "set your name"}
-            </button>
+            </Button>
             <span className={`conn ${d.connected ? "green" : "red"}`} data-testid="connection">
               {d.connected ? "connected" : d.down ? "no daemon" : "connecting…"}
             </span>

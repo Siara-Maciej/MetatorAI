@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "../../ui/button.tsx";
 import { compactLines } from "../model/format.ts";
 
 /**
@@ -22,9 +23,9 @@ export function FoldList({
   return (
     <div className={`fold-list ${className ?? ""}`}>
       {hidden > 0 ? (
-        <button type="button" className="ghost more" aria-expanded={false} onClick={() => setOpen(true)}>
+        <Button variant="ghost" className="more" aria-expanded={false} onClick={() => setOpen(true)}>
           {hidden} more {hidden === 1 ? "line" : "lines"} before these
-        </button>
+        </Button>
       ) : null}
       <ul aria-label={label}>
         {shown.map((l) => (
@@ -35,9 +36,9 @@ export function FoldList({
         ))}
       </ul>
       {open && lines.length > keep ? (
-        <button type="button" className="ghost more" aria-expanded={true} onClick={() => setOpen(false)}>
+        <Button variant="ghost" className="more" aria-expanded={true} onClick={() => setOpen(false)}>
           Show fewer
-        </button>
+        </Button>
       ) : null}
     </div>
   );

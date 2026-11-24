@@ -2,9 +2,11 @@
  * The files of a run a person may read, each a button that opens it read-only; the ones the
  * workflow expects and no stage wrote yet are listed dimmed.
  */
+
 import { useState } from "react";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { sizeText } from "../../shared/model/format.ts";
+import { Button } from "../../ui/button.tsx";
 import { ArtifactViewer } from "./artifact-viewer.tsx";
 
 export function ArtifactList({
@@ -40,9 +42,9 @@ export function ArtifactList({
                 ○ {a.name}
               </span>
             ) : (
-              <button type="button" className="ghost link mono" onClick={() => setViewing(a.name)}>
+              <Button variant="ghost" className="link mono" onClick={() => setViewing(a.name)}>
                 {a.name}
-              </button>
+              </Button>
             )}
             <span className="faint">
               {a.expected

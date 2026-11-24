@@ -11,6 +11,7 @@ import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { Modal } from "../../ui/modal.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { FILES_UNKNOWN, itemOfStep, shownRoute, stepDetail, stepsOfView } from "../backlog/model.ts";
@@ -65,9 +66,7 @@ export function StepDetailDialog({
           {d.word}
         </span>
         <span className="spacer" />
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
+        <Button onClick={onClose}>Close</Button>
       </div>
       <div data-testid="step-detail">
         <dl className="facts">
@@ -105,21 +104,18 @@ export function StepDetailDialog({
         <Notice {...action.notice} />
         <div className="actions">
           {d.button ? (
-            <button
-              type="button"
-              className="primary"
+            <Button
+              variant="primary"
               disabled={action.busy || d.button.disabled !== undefined}
               title={d.button.disabled ?? "Its own plan, made by its planner in a terminal you can watch"}
               onClick={() => void planIt()}
             >
               {d.button.label}
-            </button>
+            </Button>
           ) : null}
           {planRun ? (
             <>
-              <button type="button" onClick={() => go(shownRoute({ runId: planRun }))}>
-                Its terminal
-              </button>
+              <Button onClick={() => go(shownRoute({ runId: planRun }))}>Its terminal</Button>
               <a href={routeHash({ screen: "run", runId: planRun, tab: "overview" })} onClick={onClose}>
                 its plan's run ›
               </a>

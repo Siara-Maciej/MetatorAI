@@ -1,3 +1,4 @@
+import { Button } from "../../ui/button.tsx";
 import type { StageProgress } from "../api/api.ts";
 import { lookOf } from "../model/look.ts";
 
@@ -36,8 +37,7 @@ export function StageBar<S extends Pick<StageProgress, "id" | "state">>({
     );
   };
   return onOpen ? (
-    <button
-      type="button"
+    <Button
       className={`stagebar ${variant}`}
       title="the plan of this run"
       data-testid={testId}
@@ -46,7 +46,7 @@ export function StageBar<S extends Pick<StageProgress, "id" | "state">>({
       {stages.map((s, i) => (
         <span key={s.id}>{item(s, i)}</span>
       ))}
-    </button>
+    </Button>
   ) : (
     <ul className={`stagebar ${variant}`} aria-label="stages" data-testid={testId}>
       {stages.map((s, i) => (

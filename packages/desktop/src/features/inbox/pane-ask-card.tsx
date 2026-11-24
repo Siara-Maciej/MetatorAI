@@ -4,12 +4,14 @@
  * and its repository, and the choices; a choice is sent with `POST /panes/:pane/answer`, and the
  * daemon types it into the pane (a menu's number, the agent's words). Attach goes to the pane.
  */
+
 import { useState } from "react";
 import type { PaneAsk } from "../../shared/api/api.ts";
 import { CommandText, commandOf } from "../../shared/components/command-text.tsx";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { askWhy, consentOf } from "../../shared/model/stage1.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 
 /**
@@ -21,16 +23,16 @@ function MessageText({ text }: { readonly text: string }) {
   const first = text.split("\n")[0] ?? "";
   return (
     <div className="pane-message">
-      <button
-        type="button"
-        className="ghost cmd-short"
+      <Button
+        variant="ghost"
+        className="cmd-short"
         aria-expanded={open}
         data-testid="message-short"
         title={open ? "hide the whole message" : "show the whole message"}
         onClick={() => setOpen(!open)}
       >
         {open ? "Hide the message" : `The whole message: ${first}${text.includes("\n") ? " …" : ""}`}
-      </button>
+      </Button>
       {open ? (
         <pre className="cmd-full" data-testid="message-full">
           {text}
@@ -136,17 +138,14 @@ export function PaneAskCard({
           </label>
         ) : null}
         <div className="actions">
-          <button
-            type="button"
-            className="primary"
+          <Button
+            variant="primary"
             disabled={!choice || action.busy || (other && words.trim() === "")}
             onClick={() => void send()}
           >
             Send
-          </button>
-          <button type="button" onClick={() => onOpenPane(ask)}>
-            Open the pane
-          </button>
+          </Button>
+          <Button onClick={() => onOpenPane(ask)}>Open the pane</Button>
         </div>
       </div>
       <Notice {...action.notice} />

@@ -3,6 +3,7 @@
  * word and Close or Reopen; below the terminal, its tasks as tiles that open their pages. A
  * closed thread keeps its tasks (they go on) and offers Reopen; nothing of it is deleted.
  */
+
 import type { ThreadView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
@@ -13,6 +14,7 @@ import { paneStateOf } from "../../shared/model/panes.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { byAttentionFirst, taskLine, taskState } from "../../shared/model/tasks.ts";
 import { threadLine, threadPane, threadTree } from "../../shared/model/threads.ts";
+import { Button } from "../../ui/button.tsx";
 import { PaneFrame } from "../terminals/pane-frame.tsx";
 
 export function ThreadScreen({
@@ -46,17 +48,13 @@ export function ThreadScreen({
         {g && threadLine(g) ? <span className="faint">· {threadLine(g)}</span> : null}
         <span className="spacer" />
         {closed ? (
-          <button type="button" className="primary" onClick={() => onReopen(thread)}>
+          <Button variant="primary" onClick={() => onReopen(thread)}>
             Reopen chat
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            onClick={() => onClose(thread)}
-            title="Ends its chat terminal; its tasks go on"
-          >
+          <Button onClick={() => onClose(thread)} title="Ends its chat terminal; its tasks go on">
             Close chat
-          </button>
+          </Button>
         )}
       </header>
       <div className="thread-chat">
@@ -98,9 +96,9 @@ export function ThreadScreen({
         ) : (
           <div className="thread-quiet" data-testid="thread-stopped">
             <p>Its chat stopped. Continue it to go on where it was.</p>
-            <button type="button" className="primary" onClick={() => onReopen(thread)}>
+            <Button variant="primary" onClick={() => onReopen(thread)}>
               Continue chat
-            </button>
+            </Button>
           </div>
         )}
       </div>

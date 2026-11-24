@@ -136,3 +136,15 @@ rules:
       - 'import { Answer } from "../inbox/answer.tsx";'
     dont:
       - 'import { NoDaemon } from "../../app/no-daemon.tsx";'
+  - id: MT-ARCH-014
+    title: A desktop button is the design system's Button
+    applyTo: ["packages/desktop/src/app/**", "packages/desktop/src/features/**", "packages/desktop/src/shared/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-desktop-ui-button
+    summary: Outside ui/, the desktop app draws no raw <button>; every button is <Button> from ui/button.tsx, with a variant for its look and `type` button by default.
+    rationale: docs/adr/0111-desktop-design-system.md
+    source: { ref: docs/adr/0111-desktop-design-system.md, verified: 2026-11-24 }
+    do:
+      - '<Button variant="primary" onClick={go}>Start</Button>'
+    dont:
+      - '<button type="button" className="primary" onClick={go}>Start</button>'

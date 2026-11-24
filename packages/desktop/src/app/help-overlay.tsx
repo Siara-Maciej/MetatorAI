@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { filterKeys, helpRows, type KeyMap, SHELL_KEYS } from "../shared/model/keys.ts";
+import { Button } from "../ui/button.tsx";
 import { Modal } from "../ui/modal.tsx";
 
 /**
@@ -59,9 +60,7 @@ export function HelpOverlay({ keymap, onClose }: { readonly keymap: KeyMap; onCl
       </p>
       <div className="foot">
         <span className="spacer" />
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
+        <Button onClick={onClose}>Close</Button>
       </div>
     </Modal>
   );

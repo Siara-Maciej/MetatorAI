@@ -12,6 +12,7 @@ import { useAction } from "../../shared/hooks.ts";
 import { plural } from "../../shared/model/format.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { EmptyRow, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { type DocSource, EditBar, ProblemList, useDocEditor } from "../plans/doc-editor.tsx";
@@ -177,9 +178,9 @@ function SystemMapEditor() {
         <h2>System map</h2>
         {view ? <span className="faint mono">{view.file}</span> : null}
         <span className="spacer" />
-        <button type="button" disabled={action.busy} onClick={() => void discover(false)}>
+        <Button disabled={action.busy} onClick={() => void discover(false)}>
           Discover…
-        </button>
+        </Button>
       </header>
       {map.error && !view ? <div className="banner">{map.error}</div> : null}
       <Notice {...action.notice} />
@@ -204,17 +205,14 @@ function SystemMapEditor() {
             </ul>
           )}
           <div className="actions">
-            <button
-              type="button"
-              className="primary"
+            <Button
+              variant="primary"
               disabled={(m !== null && m !== undefined && found.changes.length === 0) || action.busy}
               onClick={() => void discover(true)}
             >
               Write the map
-            </button>
-            <button type="button" onClick={() => setFound(undefined)}>
-              Cancel
-            </button>
+            </Button>
+            <Button onClick={() => setFound(undefined)}>Cancel</Button>
           </div>
         </section>
       ) : null}
@@ -240,15 +238,14 @@ function SystemMapEditor() {
                     value={path}
                     onChange={(e) => editRoots(rootsList.map((p, j) => (j === i ? e.target.value : p)))}
                   />
-                  <button
-                    type="button"
-                    className="ghost"
+                  <Button
+                    variant="ghost"
                     aria-label={`remove root ${i + 1}`}
                     title="remove this path"
                     onClick={() => editRoots(rootsList.filter((_, j) => j !== i))}
                   >
                     ✕
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -260,22 +257,15 @@ function SystemMapEditor() {
               </ul>
             ) : null}
             <div className="actions">
-              <button type="button" onClick={() => editRoots([...rootsList, ""])}>
-                + Path
-              </button>
-              <button
-                type="button"
-                className="primary"
+              <Button onClick={() => editRoots([...rootsList, ""])}>+ Path</Button>
+              <Button
+                variant="primary"
                 disabled={rootsDraft === undefined || rootsWrong.length > 0 || action.busy}
                 onClick={() => void saveRoots(rootsList)}
               >
                 Save roots
-              </button>
-              {rootsDraft ? (
-                <button type="button" onClick={() => setRootsDraft(undefined)}>
-                  Cancel
-                </button>
-              ) : null}
+              </Button>
+              {rootsDraft ? <Button onClick={() => setRootsDraft(undefined)}>Cancel</Button> : null}
             </div>
           </>
         ) : (
@@ -408,34 +398,31 @@ function MapForm({
             <div className="pf-head">
               <b className="mono">{a.id || "(no id)"}</b>
               <span className="spacer" />
-              <button
-                type="button"
-                className="ghost"
+              <Button
+                variant="ghost"
                 aria-label={`move ${a.id} up`}
                 disabled={i === 0}
                 onClick={() => onChange((m) => ({ ...m, applications: moved(m.applications, i, -1) }))}
               >
                 ↑
-              </button>
-              <button
-                type="button"
-                className="ghost"
+              </Button>
+              <Button
+                variant="ghost"
                 aria-label={`move ${a.id} down`}
                 disabled={i === map.applications.length - 1}
                 onClick={() => onChange((m) => ({ ...m, applications: moved(m.applications, i, 1) }))}
               >
                 ↓
-              </button>
-              <button
-                type="button"
-                className="ghost"
+              </Button>
+              <Button
+                variant="ghost"
                 aria-label={`remove ${a.id}`}
                 onClick={() =>
                   onChange((m) => ({ ...m, applications: m.applications.filter((_, j) => j !== i) }))
                 }
               >
                 ✕
-              </button>
+              </Button>
             </div>
             <div className="pf-grid">
               <label className="pf-field">
@@ -493,12 +480,11 @@ function MapForm({
           </li>
         ))}
       </ol>
-      <button
-        type="button"
+      <Button
         onClick={() => onChange((m) => ({ ...m, applications: [...m.applications, blankApplication(m)] }))}
       >
         + Application
-      </button>
+      </Button>
       <h3>Contracts</h3>
       <ol className="pf-steps">
         {map.contracts.map((c, i) => (
@@ -506,14 +492,13 @@ function MapForm({
             <div className="pf-head">
               <b className="mono">{c.id || "(no id)"}</b>
               <span className="spacer" />
-              <button
-                type="button"
-                className="ghost"
+              <Button
+                variant="ghost"
                 aria-label={`remove ${c.id}`}
                 onClick={() => onChange((m) => ({ ...m, contracts: m.contracts.filter((_, j) => j !== i) }))}
               >
                 ✕
-              </button>
+              </Button>
             </div>
             <div className="pf-grid">
               <label className="pf-field">
@@ -568,12 +553,9 @@ function MapForm({
           </li>
         ))}
       </ol>
-      <button
-        type="button"
-        onClick={() => onChange((m) => ({ ...m, contracts: [...m.contracts, blankContract(m)] }))}
-      >
+      <Button onClick={() => onChange((m) => ({ ...m, contracts: [...m.contracts, blankContract(m)] }))}>
         + Contract
-      </button>
+      </Button>
     </div>
   );
 }

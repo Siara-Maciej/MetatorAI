@@ -4,11 +4,13 @@
  * `text-muted`, `border-edge`, `gap-sp-3` are the same values the stylesheet uses.
  *
  * Tailwind's preflight (its reset) is left out: the app's own base styles stay. The app's stylesheet
- * is the `legacy` layer, below the utilities, so a utility on an element wins over it.
+ * is the `legacy` layer (after xterm's, as before), below the utilities, so a utility on an element
+ * wins over it.
  */
 @layer theme, legacy, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+@import "@xterm/xterm/css/xterm.css" layer(legacy);
 @import "../styles.css" layer(legacy);
 
 @source "../";

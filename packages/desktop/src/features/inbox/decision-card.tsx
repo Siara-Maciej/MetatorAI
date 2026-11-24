@@ -2,6 +2,7 @@
  * The decision card (screen 1, spec §6.3): everything a person needs to answer without opening
  * the session, composed by the daemon; the app only draws it and sends the answer back.
  */
+
 import { useEffect, useRef, useState } from "react";
 import type { InboxItem } from "../../shared/api/api.ts";
 import { Chip } from "../../shared/components/chips.tsx";
@@ -19,6 +20,7 @@ import {
 import { isFinished } from "../../shared/model/runs.ts";
 import { askWhy, consentOf } from "../../shared/model/stage1.ts";
 import { groupStepText, systemPlanOf } from "../../shared/model/system-plans.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { AskForChanges, lintRequest, RunPlanFull, SystemPlanFull } from "../plans/plan-approval-line.tsx";
 import { isPublishGate, NOT_PUBLISHED } from "../reviews/model.ts";
@@ -162,31 +164,29 @@ export function DecisionCard({
   // two actions (Approve, Ask for changes) stand above the plan, so they are seen first.
   const actions = publish ? (
     <div className="actions" data-testid="publish-yes-no">
-      <button
-        type="button"
-        className="primary"
+      <Button
+        variant="primary"
         disabled={a.busy || closed.has("Approve")}
         title={closed.get("Approve")}
         onClick={() => void a.send(["Approve"])}
       >
         Yes
-      </button>
-      <button type="button" disabled={a.busy} onClick={() => void a.send(["Reject"], NOT_PUBLISHED)}>
+      </Button>
+      <Button disabled={a.busy} onClick={() => void a.send(["Reject"], NOT_PUBLISHED)}>
         No
-      </button>
+      </Button>
     </div>
   ) : (
     <>
       <div className="actions">
-        <button
-          type="button"
-          className="primary"
+        <Button
+          variant="primary"
           disabled={!a.ready}
           title={a.reason && !a.ready ? "write the reason first" : undefined}
           onClick={() => void a.send()}
         >
           {a.choices.length > 0 ? a.choices.join(", ") : "Choose"} ⏎
-        </button>
+        </Button>
       </div>
       {planGate ? (
         <AskForChanges
@@ -241,8 +241,7 @@ export function DecisionCard({
           <fieldset className="options">
             <legend className="dim">options</legend>
             {faceOptions.map((o) => (
-              <button
-                type="button"
+              <Button
                 key={o.label}
                 className="option"
                 aria-pressed={a.choices.includes(o.label)}
@@ -255,7 +254,7 @@ export function DecisionCard({
                   {card?.recommended === o.label ? <span className="rec">RECOMMENDED</span> : null}
                 </span>
                 {closed.has(o.label) ? <span className="cons red">closed: the reason is below</span> : null}
-              </button>
+              </Button>
             ))}
           </fieldset>
           {planGate
@@ -341,14 +340,14 @@ export function DecisionCard({
                 {card.artifacts.map((name, i) => (
                   <span key={name}>
                     {i > 0 ? " · " : null}
-                    <button
-                      type="button"
-                      className="ghost link mono"
+                    <Button
+                      variant="ghost"
+                      className="link mono"
                       onClick={() => setViewing(name)}
                       title={`read ${name}`}
                     >
                       {name}
-                    </button>
+                    </Button>
                   </span>
                 ))}
               </div>
@@ -385,12 +384,8 @@ export function DecisionCard({
           </label>
         )}
         <div className="actions">
-          <button type="button" onClick={() => onOpenChanges(q.runId)}>
-            Changes
-          </button>
-          <button type="button" onClick={() => onOpenSession(q.runId)}>
-            Open run · o
-          </button>
+          <Button onClick={() => onOpenChanges(q.runId)}>Changes</Button>
+          <Button onClick={() => onOpenSession(q.runId)}>Open run · o</Button>
         </div>
         <div className="footer-cmd mono">writes: {answerCommand(q, a.choices, me, a.text)}</div>
       </details>

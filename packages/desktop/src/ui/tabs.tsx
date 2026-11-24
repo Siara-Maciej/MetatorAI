@@ -1,3 +1,9 @@
+/**
+ * One row of tabs, the same everywhere a screen switches between views of one thing (ADR-0111):
+ * Radix's tabs give the `tablist` with its `tab`s, the chosen one `aria-selected`, the arrow keys
+ * along the row (choosing as they move) and one tab stop. The views themselves are the caller's.
+ */
+import { Tabs as Radix } from "radix-ui";
 import type { ReactNode } from "react";
 
 export interface TabItem<Id extends string> {
@@ -9,11 +15,6 @@ export interface TabItem<Id extends string> {
   onContextMenu?: ((e: React.MouseEvent) => void) | undefined;
 }
 
-/**
- * One row of tabs, the same everywhere a screen switches between views of one thing: `tablist`
- * with `tab`s, the chosen one `aria-selected`, the arrow keys move along the row, and only the
- * chosen tab is a tab stop.
- */
 export function Tabs<Id extends string>({
   label,
   items,
@@ -36,45 +37,35 @@ export function Tabs<Id extends string>({
   /** What stands before the tabs on the same row (the Terminals' workspace switch). */
   readonly before?: ReactNode;
 }) {
-  const move = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (step === 0 || items.length === 0) return;
-    e.preventDefault();
-    const next = items[(index + step + items.length) % items.length];
-    if (!next) return;
-    onSelect(next.id);
-    const row = e.currentTarget.closest('[role="tablist"]');
-    row?.querySelectorAll<HTMLElement>('[role="tab"]')[(index + step + items.length) % items.length]?.focus();
-  };
+  // With nothing chosen yet, the first tab is the row's tab stop.
+  const value = current ?? items[0]?.id ?? "";
   return (
-    <div className={className} role="tablist" aria-label={label} data-testid={testId}>
-      {before}
-      {items.map((t, i) => {
-        const tab = (
-          <button
-            type="button"
-            role="tab"
-            key={t.id}
-            aria-selected={t.id === current}
-            tabIndex={t.id === current || (current === undefined && i === 0) ? 0 : -1}
-            title={t.title}
-            onClick={() => onSelect(t.id)}
-            onKeyDown={(e) => move(e, i)}
-            onContextMenu={t.onContextMenu}
-          >
-            {t.label}
-          </button>
-        );
-        return t.after !== undefined ? (
-          <span key={t.id} className="tab-with">
-            {tab}
-            {t.after}
-          </span>
-        ) : (
-          tab
-        );
-      })}
-      {children}
-    </div>
+    <Radix.Root asChild value={value} onValueChange={(id) => onSelect(id as Id)} activationMode="automatic">
+      <Radix.List className={className} aria-label={label} data-testid={testId} loop>
+        {before}
+        {items.map((t) => {
+          const tab = (
+            <Radix.Trigger
+              key={t.id}
+              value={t.id}
+              title={t.title}
+              aria-selected={t.id === current}
+              onContextMenu={t.onContextMenu}
+            >
+              {t.label}
+            </Radix.Trigger>
+          );
+          return t.after !== undefined ? (
+            <span key={t.id} className="tab-with">
+              {tab}
+              {t.after}
+            </span>
+          ) : (
+            tab
+          );
+        })}
+        {children}
+      </Radix.List>
+    </Radix.Root>
   );
 }

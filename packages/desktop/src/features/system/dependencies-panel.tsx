@@ -1,4 +1,5 @@
 /** Screen 3: lanes per repository, sessions as cards, parent → child arrows, dashed links for messages and shared files. */
+
 import type { Conflict, RunMessage } from "../../shared/api/api.ts";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
@@ -14,6 +15,7 @@ import {
   runStateOf,
   runTabFor,
 } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { drawnLanes, GRAPH, graphLayout, linkPath } from "./model.ts";
 
@@ -227,9 +229,7 @@ export function DependenciesPanel(_props: { onOpenRun?: ((runId: string) => void
                 {l.kind === "conflict" ? (
                   <div className="chips gap-top">
                     <span className="chip amber">merge {l.data.mergeFirst} first</span>
-                    <button type="button" onClick={() => void notify(l.data)}>
-                      Notify both
-                    </button>
+                    <Button onClick={() => void notify(l.data)}>Notify both</Button>
                   </div>
                 ) : (
                   <div className="dim">{l.data.text}</div>

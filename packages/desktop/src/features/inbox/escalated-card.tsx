@@ -4,11 +4,13 @@
  * Close ends it as aborted, with the person's reason. The card
  * is the Inbox's; the session screen of an escalated run shows the same actions in its bar.
  */
+
 import { useState } from "react";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { duration } from "../../shared/model/format.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { RetryAbortedSteps } from "../plans/retry-step.tsx";
 import { StopReason } from "../runs/stop-reason.tsx";
@@ -85,12 +87,12 @@ export function EscalatedActions({
         Resume: <span data-testid="resume-plan">{resumePlan(run.stage, to)}</span>.
       </p>
       <div className="actions">
-        <button type="button" className="primary" disabled={action.busy} onClick={() => void resume()}>
+        <Button variant="primary" disabled={action.busy} onClick={() => void resume()}>
           Resume
-        </button>
-        <button type="button" disabled={action.busy} onClick={() => setClosing(!closing)}>
+        </Button>
+        <Button disabled={action.busy} onClick={() => setClosing(!closing)}>
           Close run…
-        </button>
+        </Button>
         {children}
       </div>
       {closing ? (
@@ -109,9 +111,9 @@ export function EscalatedActions({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
-          <button type="submit" disabled={action.busy || reason.trim() === ""}>
+          <Button type="submit" disabled={action.busy || reason.trim() === ""}>
             Close as aborted
-          </button>
+          </Button>
         </form>
       ) : null}
       <Notice {...action.notice} />
@@ -144,12 +146,12 @@ export function EscalatedCard({
         aborted.
       </p>
       <EscalatedActions run={run} onDone={onDone}>
-        <button type="button" className="ghost" onClick={() => onBriefing(run.runId)}>
+        <Button variant="ghost" onClick={() => onBriefing(run.runId)}>
           Briefing
-        </button>
-        <button type="button" className="ghost" onClick={() => onOpenChanges(run.runId)}>
+        </Button>
+        <Button variant="ghost" onClick={() => onOpenChanges(run.runId)}>
           Changes
-        </button>
+        </Button>
       </EscalatedActions>
     </article>
   );

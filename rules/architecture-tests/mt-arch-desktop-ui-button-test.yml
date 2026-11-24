@@ -1,0 +1,8 @@
+id: mt-arch-desktop-ui-button
+valid:
+  - '<Button variant="primary" onClick={go}>Start</Button>'
+  - "<Button />"
+  - "<ButtonRow>x</ButtonRow>"
+invalid:
+  - '<button type="button" onClick={go}>Start</button>'
+  - '<button type="submit" />'

@@ -36,6 +36,7 @@ import {
 } from "../shared/model/tasks.ts";
 import { heldThread, type ThreadGroup, threadLine, threadPane, threadTree } from "../shared/model/threads.ts";
 import { navigate } from "../shared/navigation.ts";
+import { Button } from "../ui/button.tsx";
 import { ContextMenu } from "../ui/context-menu.tsx";
 import { moveInList } from "../ui/list-keys.ts";
 
@@ -79,8 +80,7 @@ export function Row({
   onClick(): void;
 }) {
   return (
-    <button
-      type="button"
+    <Button
       className={`row${nested ? " nested" : ""} ${className}`}
       aria-current={current ? "true" : undefined}
       {...rest}
@@ -91,7 +91,7 @@ export function Row({
         {sub ? <span className="sub">{sub}</span> : null}
       </span>
       {word ? <span className={`word kind ${tone ?? ""}`}>{word}</span> : null}
-    </button>
+    </Button>
   );
 }
 
@@ -191,15 +191,15 @@ export function Sidebar({
       <div key={t.key} className="task" data-testid={`side-task-${t.key}`}>
         <div className="task-row">
           {canOpen ? (
-            <button
-              type="button"
-              className="ghost expander"
+            <Button
+              variant="ghost"
+              className="expander"
               aria-expanded={open}
               aria-label={`${open ? "fold" : "unfold"} ${t.title}`}
               onClick={() => setExpanded({ ...expanded, [t.key]: !open })}
             >
               {open ? "▾" : "▸"}
-            </button>
+            </Button>
           ) : (
             <span className="expander" />
           )}
@@ -297,8 +297,7 @@ export function Sidebar({
         {g.open.map((t) => taskRows(t))}
         {g.finished.length > 0 ? (
           <>
-            <button
-              type="button"
+            <Button
               className="section finished-toggle"
               aria-expanded={showFinished}
               data-testid="show-finished"
@@ -306,7 +305,7 @@ export function Sidebar({
             >
               <Glyph kind="first" state="done" />
               {showFinished ? `Hide finished (${g.finished.length})` : `Show finished (${g.finished.length})`}
-            </button>
+            </Button>
             {showFinished ? g.finished.map((t) => taskRows(t)) : null}
           </>
         ) : null}
@@ -331,15 +330,15 @@ export function Sidebar({
       <div key={g.key} className={`thread${closed ? " closed" : ""}`} data-testid={`side-thread-${th.id}`}>
         <div className="task-row thread-row">
           {hasTasks ? (
-            <button
-              type="button"
-              className="ghost expander"
+            <Button
+              variant="ghost"
+              className="expander"
               aria-expanded={open}
               aria-label={`${open ? "fold" : "unfold"} ${th.title}`}
               onClick={() => setExpanded({ ...expanded, [g.key]: !open })}
             >
               {open ? "▾" : "▸"}
-            </button>
+            </Button>
           ) : (
             <span className="expander" />
           )}
@@ -354,15 +353,15 @@ export function Sidebar({
             title={th.title}
             onClick={() => onThread(th)}
           />
-          <button
-            type="button"
-            className="ghost thread-more"
+          <Button
+            variant="ghost"
+            className="thread-more"
             aria-label={`more for ${th.title}`}
             title="Close or reopen this chat"
             onClick={openMenu}
           >
             ⋯
-          </button>
+          </Button>
         </div>
         {open && hasTasks ? <div className="thread-tasks">{groupTasks(g)}</div> : null}
       </div>
@@ -376,10 +375,10 @@ export function Sidebar({
           <div className="section">No daemon: nothing to list</div>
         ) : (
           <>
-            <button type="button" className="section needs-head" data-testid="needs-count" onClick={onInbox}>
+            <Button className="section needs-head" data-testid="needs-count" onClick={onInbox}>
               <Glyph kind="first" state={needs.length > 0 ? "needs you" : undefined} />
               Needs you · {needs.length}
-            </button>
+            </Button>
             <section className="threads" aria-label="chats">
               {tree.threads.map((g) => threadRows(g))}
               {openCount === 0 && !tree.without ? (
@@ -394,8 +393,7 @@ export function Sidebar({
             ) : null}
             {tree.closed.length > 0 ? (
               <section className="threads closed-threads" aria-label="closed chats">
-                <button
-                  type="button"
+                <Button
                   className="section"
                   aria-expanded={showClosed}
                   data-testid="show-closed"
@@ -405,7 +403,7 @@ export function Sidebar({
                     {showClosed ? "▾" : "▸"}
                   </span>
                   Closed ({tree.closed.length})
-                </button>
+                </Button>
                 {showClosed ? tree.closed.map((g) => threadRows(g)) : null}
               </section>
             ) : null}
@@ -457,24 +455,22 @@ export function Sidebar({
         ))}
       </nav>
       <div className="new-run">
-        <button
-          type="button"
-          className="primary"
+        <Button
+          variant="primary"
           title="A new chat: one topic with the conversation agent; it starts the runs (key n)"
           disabled={down}
           onClick={onNew}
         >
           + New chat
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           aria-label="New run from the form"
           title="The form: workflow, autonomy, host, worktree"
           disabled={down}
           onClick={onForm}
         >
           Form…
-        </button>
+        </Button>
       </div>
     </aside>
   );

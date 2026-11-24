@@ -9,6 +9,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
+import { Button } from "../../ui/button.tsx";
 import { Modal } from "../../ui/modal.tsx";
 import {
   DaemonClient,
@@ -492,12 +493,10 @@ function NameDialog({ initial, onDone }: { readonly initial: string; onDone(name
         </label>
         <div className="foot">
           <span className="spacer" />
-          <button type="button" onClick={() => onDone("")}>
-            Cancel
-          </button>
-          <button type="submit" className="primary" disabled={name.trim() === ""}>
+          <Button onClick={() => onDone("")}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={name.trim() === ""}>
             Save
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

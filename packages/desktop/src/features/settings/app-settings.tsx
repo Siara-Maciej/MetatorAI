@@ -5,8 +5,10 @@
  * and the repositories the app knows, each with Open and Remove from the app. A dev container's
  * says so, with its container's state and where the repository is in it (round 21).
  */
+
 import { useCallback, useEffect, useState } from "react";
 import { type CliInfo, type CliSource, errorText } from "../../shared/platform/tauri-commands.ts";
+import { Button } from "../../ui/button.tsx";
 import { cliSourceText, installedText, switcherRows } from "../repos/repos.ts";
 import { useRepos } from "../repos/repos-context.tsx";
 
@@ -99,13 +101,9 @@ export function AppSettings() {
               onChange={(e) => setCustom(e.target.value)}
               placeholder="/path/to/metator"
             />
-            <button
-              type="button"
-              disabled={custom.trim() === ""}
-              onClick={() => void choose("custom", custom.trim())}
-            >
+            <Button disabled={custom.trim() === ""} onClick={() => void choose("custom", custom.trim())}>
               Use this one
-            </button>
+            </Button>
           </div>
         </fieldset>
         {info ? (
@@ -121,8 +119,7 @@ export function AppSettings() {
           Code you start by hand, put a small launcher in your user folder of programs.
         </p>
         <div className="actions">
-          <button
-            type="button"
+          <Button
             onClick={() =>
               void act(async () => {
                 const r = await commands.installCliCommand();
@@ -132,10 +129,9 @@ export function AppSettings() {
             }
           >
             Install the metator command
-          </button>
-          <button
-            type="button"
-            className="ghost"
+          </Button>
+          <Button
+            variant="ghost"
             onClick={() =>
               void act(async () => {
                 const r = await commands.uninstallCliCommand();
@@ -145,7 +141,7 @@ export function AppSettings() {
             }
           >
             Remove it
-          </button>
+          </Button>
         </div>
         {installed ? (
           <p className="dim" data-testid="installed-at">
@@ -169,21 +165,16 @@ export function AppSettings() {
                   {r.current ? <span className="dim"> · open</span> : null}
                 </span>
                 <code className="dim path">{where}</code>
-                {r.current ? null : (
-                  <button type="button" onClick={() => void repos.open(r.path)}>
-                    Open
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="ghost"
+                {r.current ? null : <Button onClick={() => void repos.open(r.path)}>Open</Button>}
+                <Button
+                  variant="ghost"
                   title="The app forgets it; its files stay."
                   onClick={() =>
                     void repos.remove(r.path).then((why) => why && setSaid({ text: why, tone: "error" }))
                   }
                 >
                   Remove from the app
-                </button>
+                </Button>
               </li>
             );
           })}

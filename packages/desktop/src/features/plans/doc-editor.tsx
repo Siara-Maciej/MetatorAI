@@ -4,10 +4,12 @@
  * saving, "Save…" first says what changes, then asks who and writes with the digest it was read
  * at. A write on an old version shows what is there now: Reload, or keep my edits and save over it.
  */
+
 import { useEffect, useRef, useState } from "react";
 import type { Envelope, PlanLintProblem, PlanLintView } from "../../shared/api/api.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { lintSummary, refusalText } from "../../shared/model/format.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { conflictCurrent, documentText, parseDocumentText, refusedProblems } from "./plan-edit.ts";
 
@@ -245,12 +247,8 @@ export function EditBar<V, D>({
             <>
               <span className="spacer" />
               {children}
-              <button type="button" onClick={() => editor.edit("form")}>
-                Edit {noun}
-              </button>
-              <button type="button" onClick={() => editor.edit("text")}>
-                Edit as text
-              </button>
+              <Button onClick={() => editor.edit("form")}>Edit {noun}</Button>
+              <Button onClick={() => editor.edit("text")}>Edit as text</Button>
             </>
           ) : (
             <>
@@ -270,23 +268,21 @@ export function EditBar<V, D>({
             </span>
             <span className="spacer" />
             {editor.mode === "form" ? (
-              <button type="button" className="ghost" onClick={() => editor.edit("text")}>
+              <Button variant="ghost" onClick={() => editor.edit("text")}>
                 As text
-              </button>
+              </Button>
             ) : (
-              <button type="button" className="ghost" onClick={() => editor.edit("form")}>
+              <Button variant="ghost" onClick={() => editor.edit("form")}>
                 As fields
-              </button>
+              </Button>
             )}
-            <button type="button" disabled={editor.busy} onClick={() => void editor.check()}>
+            <Button disabled={editor.busy} onClick={() => void editor.check()}>
               Check
-            </button>
-            <button type="button" onClick={editor.cancel}>
-              Cancel
-            </button>
-            <button type="button" className="primary" disabled={editor.busy} onClick={editor.review}>
+            </Button>
+            <Button onClick={editor.cancel}>Cancel</Button>
+            <Button variant="primary" disabled={editor.busy} onClick={editor.review}>
               Save…
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -305,17 +301,10 @@ export function EditBar<V, D>({
             </div>
           ) : null}
           <div className="actions">
-            <button
-              type="button"
-              className="primary"
-              disabled={editor.busy}
-              onClick={() => void editor.save()}
-            >
+            <Button variant="primary" disabled={editor.busy} onClick={() => void editor.save()}>
               Save
-            </button>
-            <button type="button" onClick={() => editor.review()}>
-              Show again
-            </button>
+            </Button>
+            <Button onClick={() => editor.review()}>Show again</Button>
           </div>
         </section>
       ) : null}
@@ -327,12 +316,10 @@ export function EditBar<V, D>({
             keep your edits and save them over the new version.
           </span>
           <div className="actions">
-            <button type="button" className="primary" onClick={() => void editor.reloadTheirs()}>
+            <Button variant="primary" onClick={() => void editor.reloadTheirs()}>
               Reload
-            </button>
-            <button type="button" onClick={editor.keepMine}>
-              Keep my edits
-            </button>
+            </Button>
+            <Button onClick={editor.keepMine}>Keep my edits</Button>
           </div>
         </div>
       ) : null}

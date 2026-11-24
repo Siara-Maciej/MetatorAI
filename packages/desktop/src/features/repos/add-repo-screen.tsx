@@ -20,6 +20,7 @@ import {
   setupWithOutput,
 } from "../../shared/platform/tauri-commands.ts";
 import { useLatest } from "../../shared/use-latest.ts";
+import { Button } from "../../ui/button.tsx";
 import { Tabs } from "../../ui/tabs.tsx";
 import {
   type ContainerEvent,
@@ -231,18 +232,18 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
                 dispatch({ type: "inspect", path: flow.path });
               }}
             >
-              <button type="button" className="primary" onClick={() => void pick()}>
+              <Button variant="primary" onClick={() => void pick()}>
                 Choose folder…
-              </button>
+              </Button>
               <input
                 aria-label="folder path"
                 value={flow.path}
                 onChange={(e) => dispatch({ type: "type", path: e.target.value })}
                 placeholder="or type its path"
               />
-              <button type="submit" disabled={flow.path.trim() === ""}>
+              <Button type="submit" disabled={flow.path.trim() === ""}>
                 Continue
-              </button>
+              </Button>
             </form>
             {flow.error ? <p className="refusal">{flow.error}</p> : null}
             {pickError ? <p className="refusal">{pickError}</p> : null}
@@ -254,9 +255,9 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
             ) : null}
             <code>{pathOf(flow)}</code>
             {resting || (place && flow.step === "pick") ? (
-              <button type="button" className="ghost" onClick={change}>
+              <Button variant="ghost" onClick={change}>
                 Change
-              </button>
+              </Button>
             ) : null}
           </div>
         )}
@@ -308,21 +309,16 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
               <p className="refusal">The commit failed: {flow.error}</p>
             ) : null}
             <div className="actions">
-              <button
-                type="button"
-                className="primary"
+              <Button
+                variant="primary"
                 disabled={flow.step === "committing"}
                 onClick={() => dispatch({ type: "commit" })}
               >
                 {flow.step === "committing" ? "Committing…" : "Commit"}
-              </button>
-              <button
-                type="button"
-                disabled={flow.step === "committing"}
-                onClick={() => dispatch({ type: "not-now" })}
-              >
+              </Button>
+              <Button disabled={flow.step === "committing"} onClick={() => dispatch({ type: "not-now" })}>
                 Not now
-              </button>
+              </Button>
             </div>
             <Output lines={flow.lines} open={output} onToggle={() => setOutput(!output)} />
           </section>
@@ -339,9 +335,9 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
             </p>
             {flow.error ? <p className="refusal">The app could not open it: {flow.error}</p> : null}
             <div className="actions">
-              <button type="button" className="primary" onClick={() => dispatch({ type: "open" })}>
+              <Button variant="primary" onClick={() => dispatch({ type: "open" })}>
                 Open
-              </button>
+              </Button>
             </div>
           </section>
         ) : null}
@@ -417,13 +413,12 @@ function Inspected({
               ) : null}
               <span className="dim">{CHILD_WORDS[c.setUp]}</span>
               {c.setUp !== "no" ? null : (
-                <button
-                  type="button"
+                <Button
                   disabled={flow.host === undefined}
                   onClick={() => dispatch({ type: "setup", target: c.root })}
                 >
                   Set up
-                </button>
+                </Button>
               )}
             </li>
           ))}
@@ -436,35 +431,31 @@ function Inspected({
       ) : null}
       <div className="actions">
         {added ? (
-          <button type="button" className="primary" onClick={() => onOpenKnown(added.path)}>
+          <Button variant="primary" onClick={() => onOpenKnown(added.path)}>
             Open
-          </button>
+          </Button>
         ) : reading.kind === "not-repo" ? (
-          <button type="button" className="primary" onClick={() => dispatch({ type: "git-init" })}>
+          <Button variant="primary" onClick={() => dispatch({ type: "git-init" })}>
             {reading.action}
-          </button>
+          </Button>
         ) : reading.kind === "not-set-up" ? (
-          <button
-            type="button"
-            className="primary"
+          <Button
+            variant="primary"
             disabled={flow.host === undefined}
             onClick={() => dispatch({ type: "setup" })}
           >
             {reading.action}
-          </button>
+          </Button>
         ) : reading.kind === "set-up" || reading.kind === "folder" ? (
-          <button
-            type="button"
+          <Button
             className={reading.kind === "folder" && needsHost ? "" : "primary"}
             onClick={() => dispatch({ type: "open" })}
           >
             {reading.action}
-          </button>
+          </Button>
         ) : null}
         {reading.kind === "missing" || reading.kind === "too-new" ? (
-          <button type="button" onClick={() => dispatch({ type: "back" })}>
-            Choose another folder
-          </button>
+          <Button onClick={() => dispatch({ type: "back" })}>Choose another folder</Button>
         ) : null}
       </div>
     </section>
@@ -520,9 +511,9 @@ function Containers({
     <section className="containers" data-testid="containers" data-kind={reading?.kind ?? "listing"}>
       <div className="containers-head">
         <h2>{reading ? reading.title : "Looking for dev containers…"}</h2>
-        <button type="button" disabled={busy} onClick={() => dispatch({ type: "refresh" })}>
+        <Button disabled={busy} onClick={() => dispatch({ type: "refresh" })}>
           {flow.step === "listing" ? "Refreshing…" : "Refresh"}
-        </button>
+        </Button>
       </div>
       {reading?.lines.map((l) => (
         <p key={l} className={reading.kind === "list" ? "dim" : ""}>
@@ -557,8 +548,7 @@ function Containers({
               </code>
               {r.note ? <span className="dim note">{r.note}</span> : null}
               {r.button ? (
-                <button
-                  type="button"
+                <Button
                   className={r.action === "choose" || r.action === "open" ? "primary" : ""}
                   disabled={busy}
                   onClick={() =>
@@ -570,7 +560,7 @@ function Containers({
                   }
                 >
                   {flow.step === "starting" && flow.key === r.key ? "Starting…" : r.button}
-                </button>
+                </Button>
               ) : null}
             </li>
           ))}
@@ -621,9 +611,9 @@ function Output({
 }) {
   return (
     <div className="output">
-      <button type="button" className="ghost" aria-expanded={open} onClick={onToggle}>
+      <Button variant="ghost" aria-expanded={open} onClick={onToggle}>
         {open ? "Hide output" : "Show output"}
-      </button>
+      </Button>
       {open ? <pre data-testid="setup-output">{lines.join("\n")}</pre> : null}
     </div>
   );
@@ -660,9 +650,8 @@ function WebAdd() {
         </div>
         <div className="cmds">
           <pre data-testid="web-commands">{lines.join("\n")}</pre>
-          <button
-            type="button"
-            className="ghost"
+          <Button
+            variant="ghost"
             onClick={() =>
               void navigator.clipboard
                 ?.writeText(lines.join("\n"))
@@ -671,7 +660,7 @@ function WebAdd() {
             }
           >
             {copied ? "copied" : "copy"}
-          </button>
+          </Button>
         </div>
         <p className="dim">
           The second command says what it found; setup lists the files it writes; the commit is yours to make.

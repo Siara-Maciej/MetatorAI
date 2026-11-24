@@ -3,8 +3,10 @@
  * and what MetatorAI needs on this computer (git, and Claude Code or GitHub Copilot CLI). A
  * missing tool has its install link and Retry; the app installs none of them.
  */
+
 import { useCallback, useEffect, useState } from "react";
 import { errorText, type HostFix } from "../../shared/platform/tauri-commands.ts";
+import { Button } from "../../ui/button.tsx";
 import { type Requirement, ready, requirements } from "./repos.ts";
 import { useRepos } from "./repos-context.tsx";
 
@@ -78,11 +80,7 @@ export function RequirementList({
         ))}
       </ul>
       {noHost ? <p className="dim">One of the two is enough.</p> : null}
-      {missing.length > 0 && !allGood ? (
-        <button type="button" onClick={onRetry}>
-          Retry
-        </button>
-      ) : null}
+      {missing.length > 0 && !allGood ? <Button onClick={onRetry}>Retry</Button> : null}
     </div>
   );
 }
@@ -117,9 +115,8 @@ function Copyable({ text }: { readonly text: string }) {
   return (
     <span className="copyable">
       <code>{text}</code>
-      <button
-        type="button"
-        className="ghost"
+      <Button
+        variant="ghost"
         onClick={() =>
           void navigator.clipboard
             ?.writeText(text)
@@ -128,7 +125,7 @@ function Copyable({ text }: { readonly text: string }) {
         }
       >
         {copied ? "copied" : "copy"}
-      </button>
+      </Button>
     </span>
   );
 }

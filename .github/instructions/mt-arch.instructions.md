@@ -1,7 +1,7 @@
 ---
 kind: InstructionsAdapter
 schemaVersion: 2
-applyTo: e2e/**/*.ts,packages/**/*.ts,packages/cli/src/**,packages/core/src/**,packages/core/src/application/**,packages/core/src/domain/**,packages/core/src/ports/**,packages/desktop/src/**,packages/desktop/src/features/**,packages/desktop/src/shared/**,packages/desktop/src/ui/**,packages/plugin-*/src/**,packages/runtime/src/**,scripts/**/*.ts
+applyTo: e2e/**/*.ts,packages/**/*.ts,packages/cli/src/**,packages/core/src/**,packages/core/src/application/**,packages/core/src/domain/**,packages/core/src/ports/**,packages/desktop/src/**,packages/desktop/src/app/**,packages/desktop/src/features/**,packages/desktop/src/shared/**,packages/desktop/src/ui/**,packages/plugin-*/src/**,packages/runtime/src/**,scripts/**/*.ts
 excludeAgent: code-review
 description: Clean architecture boundaries of MetatorAI (ports and adapters, dependencies point inward).
 generatedFrom: docs/metator/rules/arch.yml
@@ -30,3 +30,4 @@ CI fails on these; no need to re-check them by hand.
 - MT-ARCH-011: The desktop design system knows nothing of the app (`ast-grep:mt-arch-desktop-layers-ui`)
 - MT-ARCH-012: Desktop shared code imports no feature (`ast-grep:mt-arch-desktop-layers-shared`)
 - MT-ARCH-013: A desktop feature does not import the shell (`ast-grep:mt-arch-desktop-layers-features`)
+- MT-ARCH-014: A desktop button is the design system's Button (`ast-grep:mt-arch-desktop-ui-button`)

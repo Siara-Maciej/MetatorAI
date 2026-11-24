@@ -3,6 +3,7 @@
  * line counts, one file's diff on the right; a click on a line opens a note there; the notes go
  * to the run's agents as one message with "Send to agent". Nothing here edits the code.
  */
+
 import { useState } from "react";
 import type { DiffLine, FileDiff, ReviewNote } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
@@ -11,6 +12,7 @@ import { useAction } from "../../shared/hooks.ts";
 import { plural } from "../../shared/model/format.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { useRunControls } from "./run-controls.ts";
@@ -84,12 +86,10 @@ export function ChangesTab({
           aria-label={label}
         />
         <div className="row">
-          <button type="button" className="primary" onClick={() => void add()}>
+          <Button variant="primary" onClick={() => void add()}>
             Add note
-          </button>
-          <button type="button" onClick={() => setDraft(undefined)}>
-            Cancel
-          </button>
+          </Button>
+          <Button onClick={() => setDraft(undefined)}>Cancel</Button>
         </div>
       </div>
     ) : null;
@@ -102,23 +102,17 @@ export function ChangesTab({
           <b>Changes</b>
           {view ? <span className="dim mono">against {view.base.slice(0, 12)}</span> : null}
           <span className="spacer" />
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => void openEditor()}
-            data-testid="review-editor"
-          >
+          <Button variant="ghost" onClick={() => void openEditor()} data-testid="review-editor">
             Open in editor
-          </button>
-          <button
-            type="button"
-            className="primary"
+          </Button>
+          <Button
+            variant="primary"
             disabled={drafts.length === 0}
             onClick={() => void send()}
             data-testid="send-notes"
           >
             Send {drafts.length > 0 ? drafts.length : ""} to agent
-          </button>
+          </Button>
         </>
       }
       listLabel="changed files and notes"
@@ -161,25 +155,23 @@ export function ChangesTab({
               }
               trailing={
                 n.status === "sent" ? (
-                  <button
-                    type="button"
-                    className="ghost"
+                  <Button
+                    variant="ghost"
                     onClick={() => void setStatus(n, "addressed")}
                     aria-label={`mark the note on ${n.file ?? "the change"} addressed`}
                     title="mark addressed"
                   >
                     ✓
-                  </button>
+                  </Button>
                 ) : n.status === "addressed" ? (
-                  <button
-                    type="button"
-                    className="ghost"
+                  <Button
+                    variant="ghost"
                     onClick={() => void setStatus(n, "draft")}
                     aria-label={`reopen the note on ${n.file ?? "the change"}`}
                     title="reopen"
                   >
                     ↺
-                  </button>
+                  </Button>
                 ) : undefined
               }
             />
@@ -189,9 +181,9 @@ export function ChangesTab({
               noteForm("note on the change", false)
             ) : (
               <div className="note-form">
-                <button type="button" className="ghost" onClick={() => setDraft({ text: "" })}>
+                <Button variant="ghost" onClick={() => setDraft({ text: "" })}>
                   + note on the whole change
-                </button>
+                </Button>
               </div>
             )
           ) : null}
@@ -279,8 +271,7 @@ function Diff({
             const editing = draft !== undefined && draft.line === line && draft.side === side;
             return (
               <div key={key}>
-                <button
-                  type="button"
+                <Button
                   className={`line ${l.kind}${here.length > 0 ? " noted" : ""}`}
                   tabIndex={key === (active || firstKey) ? 0 : -1}
                   onFocus={() => setActive(key)}
@@ -292,7 +283,7 @@ function Diff({
                   <span className="ln">{l.new ?? ""}</span>
                   <span className="mark">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : " "}</span>
                   <span className="code">{l.text}</span>
-                </button>
+                </Button>
                 {here.map((n) => (
                   <div key={n.id} className={`inline-note ${n.status}`}>
                     <span className="dim">

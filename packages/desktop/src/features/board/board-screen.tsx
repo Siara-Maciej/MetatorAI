@@ -29,6 +29,7 @@ import { routeHash } from "../../shared/model/route.ts";
 import { workflowChoice } from "../../shared/model/runs.ts";
 import { filterTasks, taskLine, taskState, type WorkTask, workTasks } from "../../shared/model/tasks.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { StepDetailOf } from "../plans/step-detail.tsx";
 
@@ -276,28 +277,26 @@ export function BoardScreen({
         </nav>
         <fieldset className="chips" aria-label="repositories">
           {repoNames.map((r) => (
-            <button
+            <Button
               key={r}
-              type="button"
               className="chip"
               aria-pressed={filter.repos.includes(r)}
               onClick={() => setFilter({ ...filter, repos: toggle(filter.repos, r) })}
             >
               {r}
-            </button>
+            </Button>
           ))}
         </fieldset>
         <fieldset className="chips" aria-label="states">
           {STATES.map((s) => (
-            <button
+            <Button
               key={s}
-              type="button"
               className={`chip ${lookOf("run", s).tone ?? ""}`}
               aria-pressed={filter.states.includes(s)}
               onClick={() => setFilter({ ...filter, states: toggle(filter.states, s) })}
             >
               {s}
-            </button>
+            </Button>
           ))}
         </fieldset>
         <select
@@ -319,9 +318,9 @@ export function BoardScreen({
           onChange={(e) => setFilter({ ...filter, text: e.target.value })}
         />
         {changed ? (
-          <button type="button" className="ghost" onClick={() => setFilter(NO_FILTER)}>
+          <Button variant="ghost" onClick={() => setFilter(NO_FILTER)}>
             Clear
-          </button>
+          </Button>
         ) : null}
         <span className="spacer" />
         <span className="faint">
@@ -401,14 +400,14 @@ export function BoardScreen({
                     ) : null,
                   )}
                   {folded && all.shown.length + all.older > 0 ? (
-                    <button
-                      type="button"
-                      className="ghost show-more"
+                    <Button
+                      variant="ghost"
+                      className="show-more"
                       data-testid="show-finished"
                       onClick={() => setShowDone(true)}
                     >
                       Show finished ({all.shown.length})
-                    </button>
+                    </Button>
                   ) : shown.length === 0 ? (
                     <div className="board-empty faint">
                       {dragged
@@ -421,9 +420,9 @@ export function BoardScreen({
                     </div>
                   ) : null}
                   {older > 0 ? (
-                    <button type="button" className="ghost show-more" onClick={() => setAllDone(true)}>
+                    <Button variant="ghost" className="show-more" onClick={() => setAllDone(true)}>
                       show {older} more
-                    </button>
+                    </Button>
                   ) : null}
                 </section>
               );
@@ -492,8 +491,7 @@ function TaskTile({
         </div>
       ) : null}
       {t.kind === "issue" && t.head ? (
-        <button
-          type="button"
+        <Button
           className="card-action"
           onClick={(e) => {
             e.stopPropagation();
@@ -501,7 +499,7 @@ function TaskTile({
           }}
         >
           Start a run
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -561,8 +559,7 @@ function CardTile({
       ) : null}
       {why ? <div className="card-waits red">{why}</div> : null}
       {c.kind === "issue" ? (
-        <button
-          type="button"
+        <Button
           className="card-action"
           onClick={(e) => {
             e.stopPropagation();
@@ -570,7 +567,7 @@ function CardTile({
           }}
         >
           Start a run
-        </button>
+        </Button>
       ) : null}
     </div>
   );

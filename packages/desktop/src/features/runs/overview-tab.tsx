@@ -11,6 +11,7 @@ import { duration, plural } from "../../shared/model/format.ts";
 import { decisionKey, hostPromptOf } from "../../shared/model/needs.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { QuickAnswer } from "../inbox/answer.tsx";
 import { StepPlan } from "../plans/step-plan.tsx";
@@ -99,9 +100,9 @@ export function OverviewTab({
                 </a>
               </div>
               {question.source === "permission" ? (
-                <button type="button" className="primary" onClick={() => onOpenRun(runId, true)}>
+                <Button variant="primary" onClick={() => onOpenRun(runId, true)}>
                   Answer in the pane
-                </button>
+                </Button>
               ) : (
                 <QuickAnswer question={question} repo={repo} onDone={() => void load()} />
               )}
@@ -127,12 +128,8 @@ export function OverviewTab({
         <div className="since">
           <h2>Since you left · {duration(since)}</h2>
           <span className="spacer" />
-          <button type="button" onClick={() => onOpenRun(runId, true)}>
-            Open terminal and attach
-          </button>
-          <button type="button" onClick={() => void action.run(() => client.seen(runId, repo))}>
-            Mark as read
-          </button>
+          <Button onClick={() => onOpenRun(runId, true)}>Open terminal and attach</Button>
+          <Button onClick={() => void action.run(() => client.seen(runId, repo))}>Mark as read</Button>
         </div>
         <div className="kpis">
           {figures.map(([value, label]) => (

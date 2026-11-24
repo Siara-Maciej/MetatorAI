@@ -4,8 +4,10 @@
  * shell for the daemon again (`open_repo`: install check, serve, the tunnel). What it says is
  * `containerDown` (devcontainers.ts).
  */
+
 import { useState } from "react";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
+import { Button } from "../../ui/button.tsx";
 import { containerDown } from "./devcontainers.ts";
 import { useRepos } from "./repos-context.tsx";
 
@@ -58,24 +60,18 @@ export function ContainerDown() {
         ) : null}
         <div className="actions">
           {panel.start ? (
-            <button
-              type="button"
-              className="primary"
-              disabled={busy !== undefined}
-              onClick={() => void start()}
-            >
+            <Button variant="primary" disabled={busy !== undefined} onClick={() => void start()}>
               {busy === "start" ? "Starting…" : "Start"}
-            </button>
+            </Button>
           ) : null}
           {panel.reconnect ? (
-            <button
-              type="button"
+            <Button
               className={panel.start ? "" : "primary"}
               disabled={busy !== undefined}
               onClick={() => void reconnect()}
             >
               {busy === "reconnect" ? "Reconnecting…" : "Reconnect"}
-            </button>
+            </Button>
           ) : null}
           <a className="button-link" href="#/add">
             Add repository…

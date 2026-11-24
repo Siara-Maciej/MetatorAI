@@ -17,6 +17,7 @@ import {
 import { paneLabel, paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { Tabs } from "../../ui/tabs.tsx";
 import { QuickAnswer } from "../inbox/answer.tsx";
@@ -175,13 +176,11 @@ export function TerminalTab({
                   : "no agent works on this run and no session is open"}
             </span>
             {attached ? (
-              <button type="button" onClick={() => void release()}>
-                Release to agent · c
-              </button>
+              <Button onClick={() => void release()}>Release to agent · c</Button>
             ) : (
-              <button type="button" className="primary" onClick={() => void attach()} disabled={taken}>
+              <Button variant="primary" onClick={() => void attach()} disabled={taken}>
                 Attach · a
-              </button>
+              </Button>
             )}
           </div>
         ) : null}
@@ -192,9 +191,7 @@ export function TerminalTab({
               The agent asks in its terminal{attached ? ": type your answer there." : ". Attach to answer."}
             </span>
             {run.terminalAsk !== shown ? (
-              <button type="button" onClick={() => setChosenPane(run.terminalAsk)}>
-                Show the pane
-              </button>
+              <Button onClick={() => setChosenPane(run.terminalAsk)}>Show the pane</Button>
             ) : null}
           </div>
         ) : null}
@@ -212,15 +209,14 @@ export function TerminalTab({
               <>
                 <Chip tone={lookOf("pane", paneStateOf(p)).tone}>{paneStateOf(p)}</Chip>
                 {p.role !== "conductor" ? (
-                  <button
-                    type="button"
-                    className="ghost"
+                  <Button
+                    variant="ghost"
                     title={`close ${p.id}`}
                     aria-label={`close ${p.id}`}
                     onClick={() => void close(p.id)}
                   >
                     ✕
-                  </button>
+                  </Button>
                 ) : null}
               </>
             ),
@@ -230,9 +226,7 @@ export function TerminalTab({
             <Chip tone="amber">session exited {termStatus.exitCode}</Chip>
           ) : null}
           <span className="spacer" />
-          <button type="button" onClick={() => void openShell()}>
-            + Shell
-          </button>
+          <Button onClick={() => void openShell()}>+ Shell</Button>
         </Tabs>
         {shown && shown !== conductor?.id ? (
           <div ref={view} className="term-view">
@@ -287,9 +281,9 @@ export function TerminalTab({
               }}
               onChange={(e) => setLine(e.target.value)}
             />
-            <button type="submit" disabled={!attached}>
+            <Button type="submit" disabled={!attached}>
               Send
-            </button>
+            </Button>
           </form>
         ) : null}
       </div>
@@ -351,12 +345,12 @@ export function TerminalTab({
         <div className="box">
           <h3>Changes</h3>
           <div className="row">
-            <button type="button" className="ghost" onClick={() => onOpenChanges(runId)}>
+            <Button variant="ghost" onClick={() => onOpenChanges(runId)}>
               Open changes
-            </button>
-            <button type="button" className="ghost" onClick={() => void openEditor()}>
+            </Button>
+            <Button variant="ghost" onClick={() => void openEditor()}>
               Open in editor
-            </button>
+            </Button>
           </div>
           {run.worktree ? (
             <div className="muted">
@@ -376,17 +370,17 @@ export function TerminalTab({
           {run.parent ? (
             <div>
               parent{" "}
-              <button type="button" className="ghost mono" onClick={() => onOpenRun(run.parent as string)}>
+              <Button variant="ghost" className="mono" onClick={() => onOpenRun(run.parent as string)}>
                 {run.parent}
-              </button>
+              </Button>
             </div>
           ) : null}
           {run.children?.map((c) => (
             <div key={c}>
               step{" "}
-              <button type="button" className="ghost mono" onClick={() => onOpenRun(c)}>
+              <Button variant="ghost" className="mono" onClick={() => onOpenRun(c)}>
                 {c}
-              </button>
+              </Button>
             </div>
           ))}
           {conflicts.map((c) => (

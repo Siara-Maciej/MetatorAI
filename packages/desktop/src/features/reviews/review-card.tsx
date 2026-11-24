@@ -11,6 +11,7 @@ import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { actionBody, isNo, startedRoute } from "./model.ts";
 
@@ -59,8 +60,7 @@ export function ReviewCard({
       <Notice {...action.notice} />
       <div className="actions">
         {card.actions.map((a, i) => (
-          <button
-            type="button"
+          <Button
             key={a.label}
             className={i === 0 && !isNo(a) ? "primary" : ""}
             disabled={action.busy}
@@ -71,7 +71,7 @@ export function ReviewCard({
             }
           >
             {a.label}
-          </button>
+          </Button>
         ))}
         <a className="ghost link" href={routeHash({ screen: "reviews", id: card.review })}>
           Open in Reviews

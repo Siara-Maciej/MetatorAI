@@ -5,10 +5,12 @@
  * what should be different, the gate is rejected with those words, and the planner writes a new
  * plan. Nobody edits a plan by hand.
  */
+
 import { useState } from "react";
 import type { RunPlanView } from "../../shared/api/api.ts";
 import { lintSummary } from "../../shared/model/format.ts";
 import type { RepoSystemPlan } from "../../shared/model/system-plans.ts";
+import { Button } from "../../ui/button.tsx";
 import { ProblemList } from "./doc-editor.tsx";
 import { FromPlanButton } from "./from-plan-button.tsx";
 import { PlanChanges } from "./plan-changes.tsx";
@@ -152,11 +154,7 @@ export function AskForChanges({
       {blocked ? (
         <div className="red" data-testid="closed-option">
           Approve is closed: {blocked}.{" "}
-          {lintText ? (
-            <button type="button" onClick={() => setText(lintText)}>
-              Ask the planner to fix it
-            </button>
-          ) : null}
+          {lintText ? <Button onClick={() => setText(lintText)}>Ask the planner to fix it</Button> : null}
         </div>
       ) : null}
       <label>
@@ -168,9 +166,9 @@ export function AskForChanges({
           onChange={(e) => setText(e.target.value)}
         />
       </label>
-      <button type="button" disabled={busy || text.trim() === ""} onClick={() => onSend(text.trim())}>
+      <Button disabled={busy || text.trim() === ""} onClick={() => onSend(text.trim())}>
         Ask for changes
-      </button>
+      </Button>
     </section>
   );
 }

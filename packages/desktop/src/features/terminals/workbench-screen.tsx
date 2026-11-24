@@ -30,6 +30,7 @@ import { paneLabel, paneStateOf } from "../../shared/model/panes.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { noHostText } from "../../shared/model/runs.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { ContextMenu, type MenuItem } from "../../ui/context-menu.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { Tabs } from "../../ui/tabs.tsx";
@@ -480,15 +481,14 @@ export function WorkbenchScreen({
   const pending = chosen ? toContinue(chosen, runs) : { paused: 0, undriven: 0 };
   const continueTask = (where: "bar" | "tile") =>
     chosen && view !== "tabs" && pending.paused + pending.undriven > 0 ? (
-      <button
-        type="button"
-        className="primary"
+      <Button
+        variant="primary"
         data-testid={where === "bar" ? "continue-task" : "continue-task-tile"}
         title={`${pending.paused} paused terminal(s), ${pending.undriven} run(s) nothing drives`}
         onClick={() => void continueThe({ runId: chosen.runId }, chosen.repo)}
       >
         Continue task
-      </button>
+      </Button>
     ) : null;
   const closeFinished = async () => {
     for (const p of endedHere) await action.run(() => client.closePane(p.id, repoOf(p)));
@@ -628,9 +628,9 @@ export function WorkbenchScreen({
     </>
   );
   const settingsButton = (
-    <button type="button" className="ghost" onClick={onOpenSettings} title="settings" aria-label="settings">
+    <Button variant="ghost" onClick={onOpenSettings} title="settings" aria-label="settings">
       ⚙
-    </button>
+    </Button>
   );
   const prefixChip =
     mode.kind === "prefix" ? (
@@ -733,9 +733,9 @@ export function WorkbenchScreen({
             />
           ) : null}
           {endedHere.length > 0 ? (
-            <button type="button" data-testid="close-finished" onClick={() => void closeFinished()}>
+            <Button data-testid="close-finished" onClick={() => void closeFinished()}>
               Close finished ({endedHere.length})
-            </button>
+            </Button>
           ) : null}
           <a
             href={routeHash({ screen: "grid", group: "workspaces" })}
@@ -826,9 +826,9 @@ export function WorkbenchScreen({
           ),
         }))}
       >
-        <button type="button" className="plus" onClick={(e) => tabMenu(e, undefined)} aria-label="new tab">
+        <Button className="plus" onClick={(e) => tabMenu(e, undefined)} aria-label="new tab">
           +
-        </button>
+        </Button>
         <span className="spacer" />
         {tasks.length > 0 ? (
           <a href={routeHash({ screen: "grid", group: "tasks" })} data-testid="by-task">
@@ -858,15 +858,14 @@ export function WorkbenchScreen({
         ) : null}
         {tab?.worktree ? <span className="faint mono">{tab.worktree}</span> : null}
         {tab ? (
-          <button
-            type="button"
-            className="ghost"
+          <Button
+            variant="ghost"
             onClick={() => commands.editor?.(tab.runId ? undefined : focused, tab)}
             title="open in your editor (editor.command)"
             data-testid="open-editor"
           >
             editor
-          </button>
+          </Button>
         ) : null}
       </div>
       <div className="body">

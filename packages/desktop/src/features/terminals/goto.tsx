@@ -1,7 +1,9 @@
 /** The go-to picker (S6, prefix+g): every pane and question, filtered by state or text. */
+
 import { useMemo, useState } from "react";
 import type { PaneView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
+import { Button } from "../../ui/button.tsx";
 import { Modal } from "../../ui/modal.tsx";
 import { type GotoFilter, type GotoRow, gotoRows, type WorkbenchRepo } from "./model.ts";
 
@@ -78,21 +80,15 @@ export function GotoPicker({
         />
         <span className="filters">
           {FILTERS.map((f) => (
-            <button
-              type="button"
-              key={f.id}
-              className={`chip${filter === f.id ? " on" : ""}`}
-              onClick={() => choose(f.id)}
-            >
+            <Button key={f.id} className={`chip${filter === f.id ? " on" : ""}`} onClick={() => choose(f.id)}>
               {f.label} · {f.key}
-            </button>
+            </Button>
           ))}
         </span>
       </div>
       <div className="rows">
         {rows.map((r, i) => (
-          <button
-            type="button"
+          <Button
             key={r.id}
             className={`row${i === index ? " sel" : ""}`}
             aria-current={i === index ? "true" : undefined}
@@ -108,7 +104,7 @@ export function GotoPicker({
               )}
             </span>
             <span className="dim">{r.detail}</span>
-          </button>
+          </Button>
         ))}
         {rows.length === 0 ? <div className="empty">Nothing matches.</div> : null}
       </div>

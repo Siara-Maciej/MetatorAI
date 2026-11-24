@@ -7,6 +7,7 @@
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { type Action, useAction } from "../../shared/hooks.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { CREATE_ITEM, fromPlanButton } from "../backlog/model.ts";
 
@@ -41,8 +42,7 @@ export function FromPlanButton({
     );
   return (
     <>
-      <button
-        type="button"
+      <Button
         data-testid="from-plan"
         disabled={action.busy || !items.data}
         title={
@@ -53,7 +53,7 @@ export function FromPlanButton({
         onClick={() => (button.itemId ? open(button.itemId) : void create())}
       >
         {button.label}
-      </button>
+      </Button>
       {outer ? null : <Notice {...own.notice} />}
     </>
   );

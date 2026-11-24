@@ -23,7 +23,6 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-error-boundary": "^6.1.6",
-    "react-hotkeys-hook": "^5.4.0",
     "react-resizable-panels": "^4.24.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.1",

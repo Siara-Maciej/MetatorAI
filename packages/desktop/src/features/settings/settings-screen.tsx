@@ -3,12 +3,14 @@
  * value, where it comes from (default, user, repo, run) and a way to change it or go back to the
  * default. The app draws; the daemon validates and writes the scope's file.
  */
+
 import { useMemo, useState } from "react";
 import type { OptionDiagnostic, OptionScope, ResolvedOption } from "../../shared/api/api.ts";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { refusalText } from "../../shared/model/format.ts";
+import { Button } from "../../ui/button.tsx";
 import { moveInList } from "../../ui/list-keys.ts";
 import { Notice } from "../../ui/notice.tsx";
 import { optionMatches } from "./model.ts";
@@ -84,8 +86,7 @@ export function SettingsScreen() {
           />
         </div>
         {sections.map((s) => (
-          <button
-            type="button"
+          <Button
             key={s.id}
             className="section"
             aria-current={query === "" && s.id === section ? "true" : undefined}
@@ -99,10 +100,9 @@ export function SettingsScreen() {
               {s.changed > 0 ? <span className="amber">{s.changed} · </span> : null}
               {s.count}
             </span>
-          </button>
+          </Button>
         ))}
-        <button
-          type="button"
+        <Button
           className="section"
           aria-current={query === "" && section === "app" ? "true" : undefined}
           onClick={() => {
@@ -112,7 +112,7 @@ export function SettingsScreen() {
         >
           <span>app</span>
           <span className="dim">2</span>
-        </button>
+        </Button>
         <div className="spacer" />
         <div className="dim files">
           user: {view?.files.user ?? "options.yml"} · repo: {view?.files.repo ?? "metator.config.yml"}
@@ -205,9 +205,9 @@ function OptionRow({
       <OptionInput option={o} onChange={(v) => onChange(o, v)} />
       <span className={`src ${o.source}`}>{o.source}</span>
       {o.source !== "default" && !d.fixed ? (
-        <button type="button" className="ghost" onClick={() => onChange(o, undefined, true)}>
+        <Button variant="ghost" onClick={() => onChange(o, undefined, true)}>
           default
-        </button>
+        </Button>
       ) : (
         <span />
       )}

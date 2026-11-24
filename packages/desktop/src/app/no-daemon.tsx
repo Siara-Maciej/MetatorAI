@@ -1,8 +1,10 @@
 /**
  * The main area when nothing answers at the daemon's address (D3).
  */
+
 import { useEffect, useState } from "react";
 import { useDaemon } from "../shared/daemon/daemon.tsx";
+import { Button } from "../ui/button.tsx";
 
 /**
  * The main area when nothing answers at the daemon's address (D3): what is wrong, the command
@@ -51,14 +53,13 @@ export function NoDaemon() {
               </p>
             ) : null}
             <div className="addr">
-              <button
-                type="button"
-                className="primary"
+              <Button
+                variant="primary"
                 disabled={starting || folder === ""}
                 onClick={() => void start(folder)}
               >
                 {starting ? "Starting…" : "Start it again"}
-              </button>
+              </Button>
               <a className="button-link" href="#/add">
                 Add repository…
               </a>
@@ -72,9 +73,9 @@ export function NoDaemon() {
             </p>
             <div className="cmd">
               <code>metator serve</code>
-              <button type="button" className="ghost" onClick={copy}>
+              <Button variant="ghost" onClick={copy}>
                 {copied ? "copied" : "copy"}
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -93,9 +94,9 @@ export function NoDaemon() {
             onChange={(e) => setAddress(e.target.value)}
             placeholder="http://127.0.0.1:4310"
           />
-          <button type="submit" className="primary">
+          <Button type="submit" variant="primary">
             Retry
-          </button>
+          </Button>
         </form>
         <p className="dim">The app also tries again by itself every two seconds.</p>
       </div>

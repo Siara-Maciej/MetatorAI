@@ -6,6 +6,7 @@
  * person forgets it (Forget on a `changed` one, `POST /scratch/forget`), or when no file holds
  * its lines any more, and each of these is said in a line: nothing is forced, nothing goes silently.
  */
+
 import { useState } from "react";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
@@ -21,6 +22,7 @@ import {
   scratchItems,
   scratchLine,
 } from "../../shared/model/stage1.ts";
+import { Button } from "../../ui/button.tsx";
 import { Modal } from "../../ui/modal.tsx";
 import { Notice } from "../../ui/notice.tsx";
 
@@ -39,22 +41,21 @@ export function DebugChanges({
   return (
     <>
       {count > 0 ? (
-        <button
-          type="button"
+        <Button
           className="debug-changes"
           data-testid="debug-changes"
           title="Edits not meant for a commit that MetatorAI recorded: see them, remove them"
           onClick={() => setOpen(true)}
         >
           Debug changes ({count})
-        </button>
+        </Button>
       ) : null}
       {said && !open ? (
         <span className={said.ok ? "faint" : "amber"} role="status" data-testid="debug-changes-said">
           {said.text}{" "}
-          <button type="button" className="ghost" aria-label="dismiss" onClick={() => setSaid(undefined)}>
+          <Button variant="ghost" aria-label="dismiss" onClick={() => setSaid(undefined)}>
             ✕
-          </button>
+          </Button>
         </span>
       ) : null}
       {open ? (
@@ -200,36 +201,32 @@ function DebugChangesList({
               ) : null}
             </span>
             {i.state === "changed" ? (
-              <button
-                type="button"
+              <Button
                 disabled={action.busy}
                 title="Dismiss this record; your files are not touched"
                 onClick={() => void forget(i)}
               >
                 Forget
-              </button>
+              </Button>
             ) : (
-              <button type="button" disabled={action.busy} onClick={() => void drop(i)}>
+              <Button disabled={action.busy} onClick={() => void drop(i)}>
                 Remove
-              </button>
+              </Button>
             )}
           </li>
         ))}
         {list.data && items.length === 0 ? <li className="faint">No debug change is left.</li> : null}
       </ul>
       <div className="actions">
-        <button
-          type="button"
-          className="primary"
+        <Button
+          variant="primary"
           disabled={action.busy || removable.length === 0}
           data-testid="remove-debug-changes"
           onClick={() => void drop()}
         >
           Remove debug changes
-        </button>
-        <button type="button" onClick={() => onClose(leaving())}>
-          Close
-        </button>
+        </Button>
+        <Button onClick={() => onClose(leaving())}>Close</Button>
       </div>
     </Modal>
   );

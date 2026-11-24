@@ -6,6 +6,7 @@
  * to send, and "Send selected" (one consent for what is checked). A button that starts an agent
  * shows its terminal. The words are reviews.ts'; the daemon decides what is new and each state.
  */
+
 import { useState } from "react";
 import type { ReviewedRequest, ReviewView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
@@ -14,6 +15,7 @@ import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { plural } from "../../shared/model/format.ts";
 import { lookOf } from "../../shared/model/look.ts";
+import { Button } from "../../ui/button.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import {
@@ -178,17 +180,15 @@ function WatchedDetail({
       {watchEnded(w.status) ? null : (
         <div className="actions">
           {w.status === "requested" ? (
-            <button
-              type="button"
-              className="primary"
+            <Button
+              variant="primary"
               disabled={action.busy}
               onClick={() => void start((by) => client.startReview(w.url, by, repo))}
             >
               Review
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
+            <Button
               className={news ? "primary" : ""}
               data-testid="rereview"
               disabled={action.busy || reviewing}
@@ -196,21 +196,20 @@ function WatchedDetail({
               onClick={() => void start((by) => client.rereview(w.id, by, repo))}
             >
               Re-review
-            </button>
+            </Button>
           )}
           {w.run && reviewing ? (
-            <button type="button" className="ghost" onClick={() => onOpenSession(w.run?.runId as string)}>
+            <Button variant="ghost" onClick={() => onOpenSession(w.run?.runId as string)}>
               Open the review
-            </button>
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="ghost"
+          <Button
+            variant="ghost"
             data-testid="unwatch"
             onClick={() => void unwatch.run((by) => client.unwatchReview(w.id, by, repo), { who: true })}
           >
             Stop watching
-          </button>
+          </Button>
         </div>
       )}
       <ul className="findings">
@@ -271,29 +270,27 @@ function MineDetail({
       </h2>
       <div className="row">
         {fresh > 0 ? (
-          <button
-            type="button"
-            className="primary"
+          <Button
+            variant="primary"
             disabled={analyse.busy}
             onClick={() => void start((by) => client.analyseMr(m.id, by, repo))}
           >
             Analyse {plural(fresh, "new thread")}
-          </button>
+          </Button>
         ) : null}
         {m.runId ? (
           <>
             <span className="dim">answering run</span>{" "}
             <span>{run ? `${run.stage} · ${run.attention}` : "finished"}</span>
-            <button type="button" className="ghost" onClick={() => onOpenSession(m.runId as string)}>
+            <Button variant="ghost" onClick={() => onOpenSession(m.runId as string)}>
               Open session
-            </button>
+            </Button>
           </>
         ) : null}
       </div>
       <div className="actions">
-        <button
-          type="button"
-          className="primary"
+        <Button
+          variant="primary"
           data-testid="send-replies"
           disabled={!selection || action.busy}
           onClick={() =>
@@ -301,7 +298,7 @@ function MineDetail({
           }
         >
           {sendLabel(selection)}
-        </button>
+        </Button>
       </div>
       <div className="threads">
         {m.threads.map((t) => (
@@ -328,15 +325,14 @@ function MineDetail({
               </div>
             ) : null}
             {t.state !== "resolved" ? (
-              <button
-                type="button"
-                className="ghost"
+              <Button
+                variant="ghost"
                 onClick={() =>
                   void action.run((by) => client.resolveMrThread(m.id, t.id, by, repo), { who: true })
                 }
               >
                 Resolve
-              </button>
+              </Button>
             ) : null}
           </div>
         ))}
