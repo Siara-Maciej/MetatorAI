@@ -1,6 +1,6 @@
 # ADR-0106: Dev Containers: aplikacja na Windows (albo macOS) jest tylko oknem, wszystko inne działa w kontenerze deweloperskim
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-23
 
 ## Kontekst
@@ -78,6 +78,7 @@ Brak: ani pakietów npm, ani crate'ów Rusta. Przekaźnik używa biblioteki stan
 | Instalacja w `/usr/local` albo dopisanie do `PATH` | zmienia pliki obrazu i środowisko osoby; folder użytkownika jak serwer VS Code |
 
 ## Implikacje dla kodu
+- Reguły kanonu: port `ContainerEngine` z dwoma adapterami i jednym zestawem kontraktowym (MT-ARCH-005, MT-ARCH-008, MT-TEST-002), błędy jako wartości (MT-CODE-001), wpis `kind: devcontainer` w wersjonowanym `DesktopRepos` (MT-CODE-002), e2e na prawdziwym CLI (MT-TEST-001), mutanty (MT-TEST-003).
 - `packages/core/src/domain/devcontainer.ts` (etykiety, montowania, użytkownik, `remoteEnv`, sonda, kontrola wersji, link edytora, wybór silnika), `packages/core/src/application/devcontainers.ts` (`DevContainers`), port `ContainerEngine`.
 - `packages/plugin-docker/src/cli-container-engine.ts` (`DockerCliEngine`, `NerdctlCliEngine`, `engineFacts`); `packages/testing/src/contracts/container-engine.contract.ts`, `stand-in-container-cli.ts`.
 - `packages/runtime/src/devcontainers.ts`; `packages/cli/src/commands/devcontainer.ts`, `commands/tunnel.ts`, `tunnel.ts`; `inspect` z `fix` (`InspectFolder.inContainer`).

@@ -18,18 +18,19 @@ This split keeps the roles apart: the agent that writes a plan does not approve 
 
 ## Shipped skills
 
-A skill is a reusable procedure, optionally with scripts. The host loads a skill when its description matches the task, so every description says when to use it and when not to.
+A skill is a reusable procedure, optionally with reference files. The host loads a skill when its description matches the task, so every description says what the skill does, when to use it and when not to.
 
-| Skill | Use it when | Do not use it |
-|---|---|---|
-| `mt-find-patterns` | a plan or an implementation creates a new file or symbol and needs the exemplar the repository already follows | for plain text search or review |
-| `mt-create-from-pattern` | a plan step creates a file that follows a cataloged pattern | when no pattern fits |
-| `mt-characterization-tests` | a refactor is about to start and tests must pin the current behavior | for new features or bug fixes |
-| `mt-review-rubric` | a review agent decides whether something is a finding and how severe it is | to find problems in the first place |
-| `mt-grill` | a task is ambiguous at intake and the run must not guess | once the plan is approved, or when the code can answer |
-| `mt-diagnose` | a test, a gate or a reported bug fails and the cause is not obvious | to write the fix |
-| `mt-read-java` | a question or a task needs facts about Java code (types, endpoints, entities, beans, configuration, entry points, modules): which `metator java` command measures it, and how to cite it ([Java repositories](../guide/java.md#read-a-java-repository)) | for TypeScript code, or to change Java code |
-| `mt-run-without-asking` | an agent is about to run a shell or `metator` command in a run and needs the form that runs without asking a person | to decide what the task needs |
+| Skill | What it does | Use it when | Do not use it |
+|---|---|---|---|
+| `mt-find-patterns` | finds the exemplar the repository already follows, with its pattern and why it fits | a plan or an implementation creates a new file or symbol | for plain text search or review; to write the file, `mt-create-from-pattern` |
+| `mt-create-from-pattern` | creates a file in the shape of a pattern's exemplar: structure, naming, wiring, tests | a plan step creates a file that follows a cataloged pattern | when no pattern fits (a new abstraction, with an ADR) |
+| `mt-characterization-tests` | pins today's behavior through the public interface, each test seen red once on a deliberate change | a refactor is about to start | for new features or bug fixes |
+| `mt-review-rubric` | decides whether a candidate becomes a finding and how severe, from reachability, trigger, evidence and a quote | a review agent has a candidate problem | to find problems in the first place |
+| `mt-grill` | asks the person in rounds, each question with a recommended answer, until no decision is assumed | a task is ambiguous at intake and the run must not guess | once the plan is approved, or for a fact the code can answer |
+| `mt-diagnose` | finds a cause through a feedback loop that goes red on the bug, then ranked falsifiable hypotheses | a test, a gate or a reported bug fails and the cause is not obvious | to write the fix |
+| `mt-read-java` | reads facts about Java code from the `metator java` command that measures them, cited as `path:line` ([Java repositories](../guide/java.md#read-a-java-repository)) | a question or a task needs facts about a Java repository | for TypeScript code, or to change Java code |
+| `mt-run-without-asking` | picks the form of a command that runs in a run without asking a person | an agent is about to run a shell or `metator` command in a run | to decide what the task needs |
+| `mt-write-skill` | writes or revises a skill to the MT-SKILL rules and Anthropic's guidance, starting from three scenarios | a skill is created, edited or reviewed | for an agent definition or a rule of the code |
 
 ## Source files and generated files
 
@@ -96,17 +97,29 @@ metator generate
 A skill is a directory whose name is the skill's name:
 
 ```text
-metator/skills/mt-find-patterns/
-├── SKILL.md            # front matter (kind: Skill, name, description) and the procedure
-└── scripts/similar.sh  # optional helper the host may run
+metator/skills/mt-diagnose/
+├── SKILL.md                      # front matter (kind: Skill, name, description, files) and the procedure
+└── references/feedback-loops.md  # read only when a step says so
 ```
 
+Before you write one, use the skill `mt-write-skill`: it holds the guidance no tool can check (a concise body, a step that ends on a checkable result, facts versus decisions, good and bad examples, the scenarios to try the skill on first).
+
+`metator meta skills-lint` checks every skill against the rules of the area `SKILL` (`metator rules show MT-SKILL-001` prints one), and names the rule in each problem, e.g. `[MT-SKILL-002] description must say when not to use it ("Do not use …")`:
+
+| Rule | What the lint checks |
+|---|---|
+| `MT-SKILL-001` Name | kebab-case, at most 64 characters, the same as its directory, starts with `mt-`, never contains `claude` or `anthropic` |
+| `MT-SKILL-002` Description | at most 1024 characters, no `<` or `>`; opens with what the skill does in the third person (never "Use when", "Use it", "I", "You", "We" or "This skill"), then "Use when …" and "Do not use …" |
+| `MT-SKILL-003` Body | the sections When, Steps, Output, Checklist, Errors (or Kiedy, Kroki, Wyjście, Checklista, Błędy) in that order, Steps right after When, at most 300 lines |
+| `MT-SKILL-004` Supporting files | every file in `files` exists and the body names it; every `scripts/`, `references/` or `assets/` path the body uses is listed; forward slashes; a reference names no other supporting file (one level deep); a Markdown file over 100 lines has `## Contents` in its first 10 lines |
+| `MT-SKILL-005` Skills it names | every "skill mt-xxx" it names is a skill in `metator/skills` |
+
 ```bash
-metator meta skills-lint     # name matches the directory, description says when and when not, files exist
+metator meta skills-lint     # the rules MT-SKILL-001..005
 metator generate
 ```
 
-`metator meta schema skills` prints the JSON Schema of the front matter.
+`metator meta schema skills` prints the JSON Schema of the front matter. In your repository, `metator setup` reports problems in skills of your own as a warning (`checks[].theirs`) and still finishes.
 
 ## MCP servers for the agents
 
