@@ -2,13 +2,14 @@
  * The parts of Add repository (round 20, ADR-0105): what an inspection found, the dev containers to choose from (round 21, ADR-0106), the AI host to set up with, a command's output, and the browser's version (the commands to run).
  */
 import { useState } from "react";
+import type { DevContainer } from "../../shared/platform/tauri-commands.ts";
 import { Button } from "../../ui/button.tsx";
-import { folderOf } from "./add-repo-screen.tsx";
 import {
   type ContainerEvent,
   type ContainerFlow,
   containerRows,
   DEVCONTAINER_DOCS,
+  folderName,
   installLine,
   readContainerList,
 } from "./devcontainers.ts";
@@ -339,3 +340,6 @@ export function WebAdd() {
     </div>
   );
 }
+
+/** A dev container as the person knows it: the name of its local folder. */
+export const folderOf = (c: Pick<DevContainer, "localFolder">): string => folderName(c.localFolder);

@@ -21,11 +21,10 @@ import {
 import { useLatest } from "../../shared/use-latest.ts";
 import { Button } from "../../ui/button.tsx";
 import { Tabs } from "../../ui/tabs.tsx";
-import { Containers, Inspected, Output, WebAdd } from "./add-repo-parts.tsx";
+import { Containers, folderOf, Inspected, Output, WebAdd } from "./add-repo-parts.tsx";
 import {
   type ContainerEvent,
   containerStep,
-  folderName,
   inContainer,
   installErrorText,
   LISTING,
@@ -332,4 +331,3 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
   );
 }
 /** A dev container's folder name: its local folder's. */
-export const folderOf = (c: Pick<DevContainer, "localFolder">): string => folderName(c.localFolder);
