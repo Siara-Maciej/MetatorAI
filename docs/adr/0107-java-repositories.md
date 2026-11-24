@@ -1,6 +1,6 @@
 # ADR-0107: Repozytoria Java: deterministyczne czytanie kodu, buildu i faktów frameworków
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-23
 
 ## Kontekst

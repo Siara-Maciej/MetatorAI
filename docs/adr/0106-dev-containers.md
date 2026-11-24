@@ -1,6 +1,6 @@
 # ADR-0106: Dev Containers: aplikacja na Windows (albo macOS) jest tylko oknem, wszystko inne działa w kontenerze deweloperskim
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-23
 
 ## Kontekst
