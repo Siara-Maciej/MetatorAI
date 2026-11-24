@@ -14,7 +14,7 @@ dir: packages/desktop
 - Test-only dependencies: none
 - Used by: none
 - Imported by other packages: none
-- Third-party: `@tailwindcss/vite`, `@tanstack/react-query`, `@tauri-apps/plugin-notification`, `@vitejs/plugin-react`, `@xterm/addon-fit`, `@xterm/addon-search`, `@xterm/xterm`, `class-variance-authority`, `clsx`, `radix-ui`, `react`, `react-dom`, `react-error-boundary`, `tailwind-merge`, `vite`, `zustand`
+- Third-party: `@tailwindcss/vite`, `@tanstack/react-query`, `@tauri-apps/plugin-notification`, `@vitejs/plugin-react`, `@xterm/addon-fit`, `@xterm/addon-search`, `@xterm/xterm`, `class-variance-authority`, `clsx`, `partysocket`, `radix-ui`, `react`, `react-dom`, `react-error-boundary`, `tailwind-merge`, `vite`, `zod`, `zustand`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `desktop-screen`
 <!-- metator:generated:end -->
