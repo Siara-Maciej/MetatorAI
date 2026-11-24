@@ -2,9 +2,9 @@ kind: Pattern
 schemaVersion: 1
 id: desktop-screen
 title: Desktop screen
-intent: A screen of the desktop app is one exported function component named *Screen in packages/desktop/src/screens, reached by a hash route, reading the daemon through useDaemon and the typed client.
+intent: A screen of the desktop app is one exported function component named *Screen in packages/desktop/src/features/<feature>/<name>-screen.tsx, reached by a hash route, reading the daemon through useDaemon and the typed client.
 when: a new view in the desktop app
-whenNot: a reusable widget (components/) or a dialog
+whenNot: a widget of a feature, a design-system component (ui/) or a dialog
 detection: ast-grep:mt-pattern-desktop-screen
-exemplar: packages/desktop/src/screens/backlog.tsx
+exemplar: packages/desktop/src/features/backlog/backlog-screen.tsx
 rules: []

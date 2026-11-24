@@ -1,0 +1,9 @@
+id: mt-arch-desktop-layers-shared-tsx
+valid:
+  - 'import { Modal } from "../../ui/modal.tsx";'
+  - 'import { sameRepo } from "./places.ts";'
+  - 'import type { Run } from "../model/runs.ts";'
+invalid:
+  - 'import { useHostEditor } from "../../features/repos/repos-context.tsx";'
+  - 'import { wasAway } from "../../app/model.ts";'
+  - 'const x = await import("../../features/runs/model.ts");'

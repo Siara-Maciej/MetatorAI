@@ -5,9 +5,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryObserver } from "@tanstack/react-query";
-import type { Envelope } from "../src/api.ts";
-import { createStateStore, pick, publish, type Store, useFields } from "../src/daemon-store.ts";
-import { createQueryClient, polledOptions, shared } from "../src/query.ts";
+import type { Envelope } from "../src/shared/api/api.ts";
+import { createQueryClient, polledOptions, shared } from "../src/shared/api/query.ts";
+import { createStateStore, pick, publish, type Store, useFields } from "../src/shared/daemon/daemon-store.ts";
 
 interface Pane {
   readonly id: string;

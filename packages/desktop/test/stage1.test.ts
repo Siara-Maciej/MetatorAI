@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { commandText } from "../src/model.ts";
+import { commandText } from "../src/shared/model/format.ts";
 import {
   askWhy,
   changedWhy,
@@ -14,7 +14,7 @@ import {
   scratchItems,
   scratchLine,
   scratchRepos,
-} from "../src/stage1.ts";
+} from "../src/shared/model/stage1.ts";
 
 describe("the quick change's card (round 13)", () => {
   test("Open diff is no answer: only that choice alone opens the change", () => {

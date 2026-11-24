@@ -1,14 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { PaneAsk } from "../src/api.ts";
-import {
-  isPaneAsk,
-  needsQueue,
-  paneAskKey,
-  paneAskOf,
-  paneNeedsYou,
-  parseRoute,
-  routeHash,
-} from "../src/model.ts";
+import type { PaneAsk } from "../src/shared/api/api.ts";
+import { isPaneAsk, needsQueue, paneAskKey, paneAskOf, paneNeedsYou } from "../src/shared/model/needs.ts";
+import { parseRoute, routeHash } from "../src/shared/model/route.ts";
 
 const ask = (over: Partial<PaneAsk> = {}): PaneAsk => ({
   kind: "pane",

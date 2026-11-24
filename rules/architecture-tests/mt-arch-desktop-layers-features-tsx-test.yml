@@ -1,0 +1,8 @@
+id: mt-arch-desktop-layers-features-tsx
+valid:
+  - 'import { useDaemon } from "../../shared/daemon/daemon.tsx";'
+  - 'import { Answer } from "../inbox/answer.tsx";'
+  - 'import { runPhase } from "./model.ts";'
+invalid:
+  - 'import { NoDaemon } from "../../app/no-daemon.tsx";'
+  - 'export { wasAway } from "../../app/model.ts";'

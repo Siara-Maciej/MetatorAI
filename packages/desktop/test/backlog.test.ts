@@ -29,16 +29,10 @@ import {
   stepsOfView,
   waitsText,
   whyDisabled,
-} from "../src/backlog.ts";
-import {
-  finishedText,
-  firstLevel,
-  isFinished,
-  lookOf,
-  parseRoute,
-  routeHash,
-  runStateOf,
-} from "../src/model.ts";
+} from "../src/features/backlog/model.ts";
+import { firstLevel, lookOf } from "../src/shared/model/look.ts";
+import { parseRoute, routeHash } from "../src/shared/model/route.ts";
+import { finishedText, isFinished, runStateOf } from "../src/shared/model/runs.ts";
 
 const item = (id: string, over: Partial<BacklogItem> = {}): BacklogItem => ({
   id,

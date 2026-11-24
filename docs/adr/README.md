@@ -112,3 +112,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0106](0106-dev-containers.md) | Dev Containers: aplikacja na Windows (albo macOS) jest tylko oknem, wszystko inne działa w kontenerze deweloperskim | Proposed |
 | [0107](0107-java-repositories.md) | Repozytoria Java: deterministyczne czytanie kodu, buildu i faktów frameworków | Proposed |
 | [0108](0108-desktop-state-query-and-store.md) | Stan aplikacji desktopowej: TanStack Query dla danych demona, store z wąskimi subskrypcjami | Proposed |
+| [0109](0109-desktop-feature-structure-and-compiler.md) | Aplikacja desktopowa: struktura według funkcji, warstwy zależności, React Compiler i granice błędów | Proposed |

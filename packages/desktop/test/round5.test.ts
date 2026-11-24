@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Issue, SystemPlanView } from "../src/api.ts";
+import type { Issue, SystemPlanView } from "../src/shared/api/api.ts";
 import {
   boardCards,
   cardLine,
@@ -11,9 +11,10 @@ import {
   NO_FILTER,
   partOfLine,
   systemRunOf,
-} from "../src/board.ts";
-import { plansShown, type Run } from "../src/model.ts";
-import { criticalPath, FLOW, planFlow, waitsText } from "../src/plan-flow.ts";
+} from "../src/shared/model/board.ts";
+import { criticalPath, FLOW, planFlow, waitsText } from "../src/shared/model/plan-flow.ts";
+import type { Run } from "../src/shared/model/runs.ts";
+import { plansShown } from "../src/shared/model/system-plans.ts";
 
 const NOW = Date.parse("2026-11-18T12:00:00.000Z");
 const run = (runId: string, extra: Partial<Run> = {}): Run =>
@@ -330,7 +331,7 @@ describe("the board", () => {
 
   test("the top level: one card per parent task, in its head's phase, its steps' needs summed", async () => {
     const { workTasks, byAttentionFirst, subtasksByRepo, taskLine, filterTasks } = await import(
-      "../src/tasks.ts"
+      "../src/shared/model/tasks.ts"
     );
     const tasks = workTasks(cards, [plan]);
     const byKey2 = (k: string) => tasks.find((t) => t.key === k);
@@ -377,7 +378,7 @@ describe("the board", () => {
   });
 
   test("a run with child runs is a task of its own; a plan not approved yet is in Planning", async () => {
-    const { workTasks } = await import("../src/tasks.ts");
+    const { workTasks } = await import("../src/shared/model/tasks.ts");
     const parentRuns = [
       run("p", { children: ["k"], phase: "review", stage: "delivery" }),
       run("k", { parent: "p", phase: "done", status: "done", attention: "done" }),
@@ -430,7 +431,7 @@ describe("the board", () => {
 
 describe("bigflow fixes", () => {
   test("a gate's prompt reads as a sentence: the command in backticks is dropped", async () => {
-    const { humanPrompt } = await import("../src/model.ts");
+    const { humanPrompt } = await import("../src/shared/model/needs.ts");
     expect(
       humanPrompt(
         "A person approves the system plan (`metator system plan approve`) and this gate: approve to continue",
@@ -441,7 +442,7 @@ describe("bigflow fixes", () => {
   });
 
   test("a run its conductor moves on: active, no gate, no question, nothing in the background, its conductor alive", async () => {
-    const { conductorMoves } = await import("../src/model.ts");
+    const { conductorMoves } = await import("../src/features/runs/model.ts");
     const r = run("c", {
       driving: false,
       stages: [{ id: "build", state: "current", hitl: false }],
@@ -463,7 +464,7 @@ describe("bigflow fixes", () => {
 
 describe("the confirmation of an answer", () => {
   test("names the answer just given: a slower confirmation of an earlier answer never speaks over it", async () => {
-    const { createConfirmer } = await import("../src/confirm.ts");
+    const { createConfirmer } = await import("../src/app/confirm.ts");
     const said: string[] = [];
     let wake: () => void = () => undefined;
     // The first answer's run stays where it was (a proposal moves no stage): it keeps looking.
@@ -491,7 +492,7 @@ describe("the confirmation of an answer", () => {
   });
 
   test("alone, it waits for the run to move and says where it went", async () => {
-    const { createConfirmer } = await import("../src/confirm.ts");
+    const { createConfirmer } = await import("../src/app/confirm.ts");
     const said: string[] = [];
     let n = 0;
     const c = createConfirmer({
@@ -506,7 +507,7 @@ describe("the confirmation of an answer", () => {
 
 describe("a flow that fits its box", () => {
   test("FLOW's widths when they fit; narrower nodes in a narrow box, never below the minimum", async () => {
-    const { flowWidths, MIN_STEP_W } = await import("../src/plan-flow.ts");
+    const { flowWidths, MIN_STEP_W } = await import("../src/shared/model/plan-flow.ts");
     expect(flowWidths(3)).toEqual({ stepW: FLOW.W, taskW: FLOW.TASK_W, colGap: FLOW.COL_GAP });
     expect(flowWidths(3, 1600)).toEqual({ stepW: FLOW.W, taskW: FLOW.TASK_W, colGap: FLOW.COL_GAP });
     // 3 waves in the 860 px of a 900 px window, and in the System tab's detail at 1440.
@@ -552,7 +553,7 @@ describe("a flow that fits its box", () => {
 
 describe("the runs graph below the flows", () => {
   test("only the repositories with a run get a lane", async () => {
-    const { drawnLanes } = await import("../src/model.ts");
+    const { drawnLanes } = await import("../src/features/system/model.ts");
     const nodes = [{ run: { repo: "shop-api" } }];
     expect(drawnLanes(["billing", "shop-api", "shop-web"], nodes)).toEqual(["shop-api"]);
     expect(drawnLanes(["billing"], [])).toEqual([]);

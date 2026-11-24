@@ -100,3 +100,39 @@ rules:
     dont:
       - 'import { type RunOverview } from "@metator/core";'
       - 'import { briefOf } from "@metator/core";'
+  - id: MT-ARCH-011
+    title: The desktop design system knows nothing of the app
+    applyTo: ["packages/desktop/src/ui/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-desktop-layers-ui
+    summary: A file in the desktop app's ui/ imports React, ui/ and libraries only, never shared/, features/ or app/; the layers point one way, app → features → shared → ui.
+    rationale: docs/adr/0109-desktop-feature-structure-and-compiler.md
+    source: { ref: docs/adr/0109-desktop-feature-structure-and-compiler.md, verified: 2026-11-24 }
+    do:
+      - 'import { moveInList } from "./list-keys.ts";'
+    dont:
+      - 'import { useDaemon } from "../shared/daemon/daemon.tsx";'
+  - id: MT-ARCH-012
+    title: Desktop shared code imports no feature
+    applyTo: ["packages/desktop/src/shared/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-desktop-layers-shared
+    summary: A file in the desktop app's shared/ imports ui/ and shared/, never features/ or app/; what one feature needs from another it imports itself.
+    rationale: docs/adr/0109-desktop-feature-structure-and-compiler.md
+    source: { ref: docs/adr/0109-desktop-feature-structure-and-compiler.md, verified: 2026-11-24 }
+    do:
+      - 'import { Modal } from "../../ui/modal.tsx";'
+    dont:
+      - 'import { useHostEditor } from "../../features/repos/repos-context.tsx";'
+  - id: MT-ARCH-013
+    title: A desktop feature does not import the shell
+    applyTo: ["packages/desktop/src/features/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-desktop-layers-features
+    summary: A file in features/ imports shared/, ui/ and other features' files, never app/; the shell (app/) composes the features and passes what they need as props.
+    rationale: docs/adr/0109-desktop-feature-structure-and-compiler.md
+    source: { ref: docs/adr/0109-desktop-feature-structure-and-compiler.md, verified: 2026-11-24 }
+    do:
+      - 'import { Answer } from "../inbox/answer.tsx";'
+    dont:
+      - 'import { NoDaemon } from "../../app/no-daemon.tsx";'

@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { appCommands } from "../src/app-commands.ts";
-import { type FakeWorld, fakeCommands, fakeInspection } from "../src/fake-commands.ts";
 import {
   afterRemove,
   alreadyAdded,
@@ -26,7 +24,9 @@ import {
   switcherRows,
   webCommands,
   writesFor,
-} from "../src/repos.ts";
+} from "../src/features/repos/repos.ts";
+import { appCommands } from "../src/shared/platform/app-commands.ts";
+import { type FakeWorld, fakeCommands, fakeInspection } from "../src/shared/platform/fake-commands.ts";
 import {
   asCommandError,
   errorText,
@@ -35,7 +35,7 @@ import {
   type SetupEvent,
   setupWithOutput,
   tauriCommands,
-} from "../src/tauri-commands.ts";
+} from "../src/shared/platform/tauri-commands.ts";
 
 const SHOP = "/home/you/shop";
 const FILES = [".github/agents/mt-implementer.agent.md", "metator.config.yml", "metator/install.lock.json"];

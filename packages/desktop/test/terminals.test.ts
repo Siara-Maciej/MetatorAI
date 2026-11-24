@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { PaneView } from "../src/api.ts";
-import { gotoRows, paneStateOf, parseRoute, type Run, routeHash } from "../src/model.ts";
+import { gotoRows } from "../src/features/terminals/model.ts";
 import {
   endedBanner,
   finishedOf,
@@ -14,7 +13,11 @@ import {
   taskView,
   terminalTasks,
   whereIs,
-} from "../src/terminals.ts";
+} from "../src/features/terminals/terminals.ts";
+import type { PaneView } from "../src/shared/api/api.ts";
+import { paneStateOf } from "../src/shared/model/panes.ts";
+import { parseRoute, routeHash } from "../src/shared/model/route.ts";
+import type { Run } from "../src/shared/model/runs.ts";
 
 const run = (runId: string, extra: Partial<Run> = {}): Run =>
   ({ runId, task: `task ${runId}`, status: "active", ...extra }) as Run;
@@ -214,8 +217,8 @@ describe("terminals by task (round 8)", () => {
 
 describe("a parent named by its children is one task (round 8)", () => {
   test("a run whose child names it with --parent groups with that child on the board and in the sidebar", async () => {
-    const { boardCards } = await import("../src/board.ts");
-    const { workTasks } = await import("../src/tasks.ts");
+    const { boardCards } = await import("../src/shared/model/board.ts");
+    const { workTasks } = await import("../src/shared/model/tasks.ts");
     const now = Date.parse("2026-11-19T12:00:00.000Z");
     const r = (runId: string, extra: Partial<Run> = {}) =>
       ({

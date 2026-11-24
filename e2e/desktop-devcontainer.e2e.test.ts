@@ -13,7 +13,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
-import type { FakeContainer, FakeWorld } from "../packages/desktop/src/fake-commands.ts";
+import type { FakeContainer, FakeWorld } from "../packages/desktop/src/shared/platform/fake-commands.ts";
 import { browser, closeBrowser } from "./helpers/browser.ts";
 import { CLI_ENTRY, E2E_STATE_DIR, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";

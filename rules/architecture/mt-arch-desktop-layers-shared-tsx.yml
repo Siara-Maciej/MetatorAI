@@ -1,0 +1,19 @@
+id: mt-arch-desktop-layers-shared-tsx
+language: Tsx
+severity: error
+message: "ADR-0109: shared/ serves every feature: it imports ui/ and itself, never features/ or app/."
+note: "The desktop app's layers point one way: app → features → shared → ui. Move the code to the layer that may know it, or pass it down as a prop."
+files:
+  - packages/desktop/src/shared/**
+rule:
+  any:
+    - all:
+        - kind: import_statement
+        - has: { field: source, regex: '^[''"](\.\./)+(features|app)/' }
+    - all:
+        - kind: export_statement
+        - has: { field: source, regex: '^[''"](\.\./)+(features|app)/' }
+    - all:
+        - kind: call_expression
+        - has: { field: function, kind: import }
+        - has: { field: arguments, has: { kind: string, regex: '^[''"](\.\./)+(features|app)/' } }
