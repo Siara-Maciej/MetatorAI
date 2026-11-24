@@ -41,6 +41,7 @@ import {
 import { threadsStamp } from "../model/threads.ts";
 import { useLatest } from "../use-latest.ts";
 import { createStateStore, publish, type Store, useFields } from "./daemon-store.ts";
+import { useDaemonEvents } from "./events.ts";
 import {
   changeName,
   daemonAnswered,
@@ -261,6 +262,8 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     return r.ok ? r.data : undefined;
   };
   const [attempt, setAttempt] = useState(0);
+  // The daemon says which topics changed: their queries are read again, polling is the fallback.
+  useDaemonEvents(url);
   const stateUp = useStream<{ ok: boolean; data?: StateData; error?: { message: string } }>(
     url,
     "/ws/state",

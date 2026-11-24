@@ -10450,4 +10450,16 @@ export const MUTANTS: readonly Mutant[] = [
     to: "for (const w of waiters.slice(0, 1)) w(name);",
     why: "everyone who asked for the person's name while the dialog was open gets the answer",
   },
+  {
+    file: "packages/desktop/src/shared/api/events.ts",
+    from: "if (!same || e.seq !== channel.seq + 1) return { channel: next, read: \"all\" };",
+    to: "if (!same) return { channel: next, read: \"all\" };",
+    why: "a change after a missed one reads everything again, not only its own topics",
+  },
+  {
+    file: "packages/desktop/src/shared/api/query.ts",
+    from: "ms > 0 ? (live ? Math.max(ms * 10, 30_000) : ms) : false;",
+    to: "ms > 0 ? ms : false;",
+    why: "while the daemon pushes what changed, polling is only a fallback",
+  },
 ];
