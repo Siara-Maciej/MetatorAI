@@ -36,7 +36,6 @@ export function DecisionCard({
   onOpenChanges(runId: string): void;
 }) {
   const {
-    me,
     client,
     systemPlans,
     run: runOf,
@@ -44,7 +43,7 @@ export function DecisionCard({
     planStepsOf,
     stepPlaceOf,
     panes,
-  } = useDaemon("me", "client", "systemPlans", "run", "runs", "planStepsOf", "stepPlaceOf", "panes");
+  } = useDaemon("client", "systemPlans", "run", "runs", "planStepsOf", "stepPlaceOf", "panes");
   const q = item.question;
   const [viewing, setViewing] = useState<string>();
   // A gate's card about the plan shows the plan's lint and the way to read or change it.
