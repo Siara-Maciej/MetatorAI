@@ -2,7 +2,7 @@
 kind: Skill
 schemaVersion: 1
 name: mt-run-without-asking
-description: Use when you are about to run a shell or metator command in a MetatorAI run, to pick the form that runs without asking a person (reading, searching, the change, run artifacts). Do not use to decide what the task needs; it only says how to run what you already need.
+description: Picks the form of a shell or metator command that runs in a MetatorAI run without asking a person, for reading, searching, the change and run artifacts. Use when you are about to run a shell or metator command in a run. Do not use to decide what the task needs; it only says how to run what you already need.
 ---
 # When
 Every stage of a run, before a Bash call. A command a person must allow stops the run until someone answers, and a guessed command only asks. Each row below was asked in real runs and answered the same way.

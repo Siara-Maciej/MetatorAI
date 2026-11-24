@@ -211,7 +211,7 @@ Priorytet: **P0** = bez tego workflow nie jest enterprise (F1–F2), **P1** = is
 | Komenda | Po co | Prio |
 |---------|-------|------|
 | `meta agents-lint` | prefiks z `naming.agentPrefix` (domyślnie `mt-`), frontmatter, `user-invocable`, allowlista `agents` wskazuje istniejących, długości, link do spec, dozwolone nazwy tooli | P0 |
-| `meta skills-lint` | name = katalog, description z trigger/anty-trigger, ≤ 300 linii, skrypty istnieją | P0 |
+| `meta skills-lint` | reguły MT-SKILL-001..005 (`docs/metator/rules/skill.yml`): nazwa, opis (co robi, trigger, anty-trigger), treść (sekcje w kolejności, ≤ 300 linii), pliki pomocnicze, wymienione skille istnieją; każdy problem z id reguły | P0 |
 | `meta audit` | inwentarz agentów i skilli + graf wywołań + karta zgodności (F0) | P0 |
 | `meta check-all` | wszystkie lint/check jednym poleceniem (pre-commit, CI) | P0 |
 | `eval run [--affected] [--repeat 3]` | uruchamia przypadki ze złotego zbioru (headless Copilot CLI z `--agent`) | P1 |

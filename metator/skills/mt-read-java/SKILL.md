@@ -2,7 +2,7 @@
 kind: Skill
 schemaVersion: 1
 name: mt-read-java
-description: Use when a question or a task needs facts about Java code (types, endpoints, entities, beans and their wiring, configuration keys, entry points, Maven or Gradle modules) to pick the `metator java` command that measures it and to cite its evidence. Do not use for TypeScript code or to change Java code; it only reads.
+description: Reads facts about Java code from the `metator java` command that measures them (types, endpoints, entities, beans and their wiring, configuration keys, entry points, Maven or Gradle modules) and cites each with its path:line evidence. Use when a question or a task needs facts about a Java repository. Do not use for TypeScript code or to change Java code; it only reads.
 ---
 # When
 The repository (or one beside it, `-C <repo>`) has a `pom.xml` or a Gradle build and you must say what its Java code does: which endpoints exist, what an entity relates to, which bean is injected where, which keys configure it, what runs on its own. A command measures; you decide. Never answer such a question from grep output alone.
@@ -29,7 +29,9 @@ The repository (or one beside it, `-C <repo>`) has a `pom.xml` or a Gradle build
 5. Read the cited lines (`at`, `evidence[].at`) before you build on a fact that matters to the task.
 
 # Output
-Facts with their evidence: each claim names the `path:line` the command gave (`at` or `evidence[].at`) and, for a fact marked `likely`, says it is likely and why (`evidence[].source`).
+Facts with their evidence: each claim names the `path:line` the command gave (`at` or `evidence[].at`) and, for a fact marked `likely`, says it is likely and why (`evidence[].source`). For example:
+
+> `GET /api/orders/{id}` is handled by `OrderController#get` (shop-api/src/main/java/com/example/shop/api/OrderController.java:32). `/api/customers/{id}` is likely: its path is built from the constant `ApiPaths.CUSTOMERS` (CustomerController.java:13), which reads `/api/customers` (ApiPaths.java:4).
 
 # Checklist
 - [ ] every fact comes from a `metator java` (or `graph`, `symbols`) command, cited as `path:line`

@@ -132,7 +132,9 @@ export function registerAgentCommands(
     .action(action(() => ({ result: ok(AgentDocument.jsonSchema("input")) })));
 
   meta(group.command("skills-lint"), { audience: "ci", check: [] })
-    .description("Canonical skills: name = directory, trigger and anti-trigger, sections, size, files exist")
+    .description(
+      "Canonical skills against the rules MT-SKILL-001..005: name, description, sections in order, supporting files, skills they name",
+    )
     .action(
       action(async () => {
         return failWhen(await container().resolve("lintSkills").execute(), (r) => {

@@ -1453,7 +1453,7 @@ metator meta schema [options] <kind>
 
 ### `metator meta skills-lint`
 
-Canonical skills: name = directory, trigger and anti-trigger, sections, size, files exist
+Canonical skills against the rules MT-SKILL-001..005: name, description, sections in order, supporting files, skills they name
 
 ```bash
 metator meta skills-lint [options]
