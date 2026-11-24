@@ -15,8 +15,8 @@ Właściciel zdecydował (analiza z 2026-11-24): refaktoryzacja frontendu pod wy
 4. **Testy komponentów** używają `@happy-dom/global-registrator` (DOM w `bun test`, rejestrowany i wyrejestrowywany w obrębie jednego `describe`).
 
 ## Stan realizacji
-- Zrobione: punkty 1–4; `DaemonProvider` nadal składa stan (gniazda, cztery zapytania, autostart, dialog imienia) i publikuje go do store.
-- Następne kroki (osobne ADR-y): podział `DaemonProvider` na części według funkcji i selektory na jeden run; struktura feature-based; Tailwind i shadcn/ui jako warstwa `ui/`; React Compiler; kanał zdarzeń `/ws/events` w demonie zamiast interwałów (interwał zostaje trybem awaryjnym).
+- Zrobione: punkty 1–4. Dalej w tym samym kierunku: to, co okno pamięta o osobie (adres demona, imię i jego dialog, wybrane repozytorium, „seen”, folder i start demona), jest osobnym store poza Reactem (`shared/daemon/session.ts`, te same klucze `localStorage`); `useRun(runId)` subskrybuje jeden run, a `useDaemonStore()` czyta stan w chwili akcji, bez subskrypcji; zapytania są czytane ponownie na sygnał kanału `/ws/events` (ADR-0110), a interwał jest wtedy tylko awaryjny.
+- Następne: zapytania, które `DaemonProvider` wciąż składa (układ paneli, opcje, plany systemowe, wątki), mogą przejść do hooków funkcji, które ich używają.
 
 ## Konsekwencje
 ### Pozytywne
