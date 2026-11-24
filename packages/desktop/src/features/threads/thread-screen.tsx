@@ -16,16 +16,12 @@ import { byAttentionFirst, taskLine, taskState } from "../../shared/model/tasks.
 import { threadLine, threadPane, threadTree } from "../../shared/model/threads.ts";
 import { Button } from "../../ui/button.tsx";
 import { PaneFrame } from "../terminals/pane-frame.tsx";
+import { useThreadAct } from "./chat-actions.ts";
 
-export function ThreadScreen({
-  id,
-  onClose,
-  onReopen,
-}: {
-  readonly id: string;
-  onClose(thread: ThreadView): void;
-  onReopen(thread: ThreadView): void;
-}) {
+export function ThreadScreen({ id }: { readonly id: string }) {
+  const act = useThreadAct();
+  const onClose = (t: ThreadView) => void act(t, "close");
+  const onReopen = (t: ThreadView) => void act(t, "reopen");
   const { panes, paneAsks, threads } = useDaemon("panes", "paneAsks", "threads");
   const tasks = byAttentionFirst(useTasks());
   const thread = threads.find((t) => t.id === id);

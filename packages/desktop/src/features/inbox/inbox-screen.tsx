@@ -7,7 +7,6 @@
  */
 
 import { useState } from "react";
-import type { InboxItem } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction, useTasks } from "../../shared/hooks.ts";
@@ -27,46 +26,42 @@ import { openRuns } from "../../shared/model/runs.ts";
 import { byAttentionFirst, taskLine, taskState } from "../../shared/model/tasks.ts";
 import { threadTitleOf } from "../../shared/model/threads.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { say } from "../../shared/notice.ts";
+import { openNewRun } from "../../shared/overlays.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { isReviewCard, reviewCardKey } from "../reviews/model.ts";
 import { ReviewCard } from "../reviews/review-card.tsx";
 import { DebugChanges } from "../runs/debug-changes.tsx";
+import { useOpenRun } from "../runs/open-run.ts";
 import { StartRun } from "../runs/start-run.tsx";
+import { useNewChat } from "../threads/chat-actions.ts";
 import { DecisionCard } from "./decision-card.tsx";
 import { EscalatedCard } from "./escalated-card.tsx";
 import { isFirstRun, quietHeading, quietInboxText, taskNeed } from "./model.ts";
 import { PaneAskCard } from "./pane-ask-card.tsx";
+import { useAnswered } from "./use-answered.ts";
 
 export function InboxScreen({
   needs,
   picked,
-  onPick,
-  onAnswered,
-  onRefused,
-  onOpenRun,
-  onOpenChanges,
-  onOverview,
-  onStart,
-  onForm,
 }: {
   /** Everything that needs the person, in the queue's order. */
   readonly needs: readonly NeedRow[];
   /** The decision to show: the picked one, else the first. */
   readonly picked: NeedRow | undefined;
-  /** The next or the previous decision was chosen. */
-  onPick(key: string): void;
-  /** An answer went through, or an escalated run was resumed or closed. */
-  onAnswered(choices?: readonly string[], item?: InboxItem): void;
-  /** A card's answer was refused: the app says it where it stays (the card may close). */
-  onRefused?: ((message: string) => void) | undefined;
-  onOpenRun(runId: string, pane?: string): void;
-  onOpenChanges(runId: string): void;
-  onOverview(runId: string): void;
-  /** Starts a run from what the person wrote: the agent gets it as its first line. */
-  onStart(task: string): void;
-  onForm(): void;
 }) {
+  const onPick = (pick: string) => navigate({ screen: "inbox", pick });
+  const onAnswered = useAnswered();
+  const onRefused = (message: string) =>
+    say({ text: `The answer was not taken: ${message}`, tone: "error", sticky: true });
+  const openRun = useOpenRun();
+  const onOpenRun = (runId: string, pane?: string) => openRun(runId, false, pane);
+  const onOpenChanges = (runId: string) => navigate({ screen: "run", runId, tab: "changes" });
+  const onOverview = (runId: string) => navigate({ screen: "run", runId, tab: "overview" });
+  const newChat = useNewChat();
+  const onStart = (task: string) => void newChat(task);
+  const onForm = openNewRun;
   const { inbox, runs, paneAsks, reviewCards } = useDaemon("inbox", "runs", "paneAsks", "reviewCards");
   const item = picked ? inbox.find((i) => decisionKey(i) === picked.key) : undefined;
   // A pane without a run that asks (the intake chat): its own card, answered into the pane.

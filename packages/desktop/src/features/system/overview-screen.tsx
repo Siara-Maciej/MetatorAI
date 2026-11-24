@@ -6,20 +6,17 @@
 
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
 import { type OverviewTab, routeHash } from "../../shared/model/route.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Tabs } from "../../ui/tabs.tsx";
+import { useOpenRun } from "../runs/open-run.ts";
 import { DaemonPanel } from "./daemon-panel.tsx";
 import { DependenciesPanel } from "./dependencies-panel.tsx";
 import { SystemPanel } from "./system-panel.tsx";
 
-export function OverviewScreen({
-  tab,
-  onTab,
-  onOpenRun,
-}: {
-  readonly tab: OverviewTab;
-  onTab(tab: OverviewTab): void;
-  onOpenRun(runId: string): void;
-}) {
+export function OverviewScreen({ tab }: { readonly tab: OverviewTab }) {
+  const openRun = useOpenRun();
+  const onTab = (to: OverviewTab) => navigate({ screen: "overview", tab: to });
+  const onOpenRun = (runId: string) => openRun(runId);
   return (
     <div className="overview" data-testid="overview">
       <Tabs

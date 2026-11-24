@@ -464,7 +464,7 @@ describe("bigflow fixes", () => {
 
 describe("the confirmation of an answer", () => {
   test("names the answer just given: a slower confirmation of an earlier answer never speaks over it", async () => {
-    const { createConfirmer } = await import("../src/app/confirm.ts");
+    const { createConfirmer } = await import("../src/features/inbox/confirm.ts");
     const said: string[] = [];
     let wake: () => void = () => undefined;
     // The first answer's run stays where it was (a proposal moves no stage): it keeps looking.
@@ -492,7 +492,7 @@ describe("the confirmation of an answer", () => {
   });
 
   test("alone, it waits for the run to move and says where it went", async () => {
-    const { createConfirmer } = await import("../src/app/confirm.ts");
+    const { createConfirmer } = await import("../src/features/inbox/confirm.ts");
     const said: string[] = [];
     let n = 0;
     const c = createConfirmer({

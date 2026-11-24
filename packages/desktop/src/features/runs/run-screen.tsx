@@ -15,9 +15,10 @@ import { duration } from "../../shared/model/format.ts";
 import { plainKey } from "../../shared/model/keys.ts";
 import { idleRuns } from "../../shared/model/needs.ts";
 import { paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
-import { type Route, type RunTab, routeHash, tabsOf } from "../../shared/model/route.ts";
+import { type RunTab, routeHash, tabsOf } from "../../shared/model/route.ts";
 import { finishedText, runWithPanes } from "../../shared/model/runs.ts";
 import { runPage } from "../../shared/model/tasks.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { EscalatedActions } from "../inbox/escalated-card.tsx";
@@ -25,6 +26,7 @@ import { SystemRunBar } from "../plans/system-run-bar.tsx";
 import { ActivityList } from "./activity-list.tsx";
 import { ChangesTab } from "./changes-tab.tsx";
 import { asksWithoutSession, autonomyLabel, conductorMoves, runPhase } from "./model.ts";
+import { answering as onAnswering, useAnswerIn, useOpenRun } from "./open-run.ts";
 import { OverviewTab } from "./overview-tab.tsx";
 import { useRunControls } from "./run-controls.ts";
 import { RunHeader } from "./run-header.tsx";
@@ -38,22 +40,15 @@ export function RunScreen({
   tab,
   pane,
   file,
-  go,
-  onOpenRun,
-  answerIn,
-  onAnswering,
 }: {
   readonly runId: string;
   readonly tab: RunTab;
   readonly pane?: string | undefined;
-  /** The person chose to answer in a pane of this run: the Terminal tab takes them there. */
-  readonly answerIn?: { readonly pane?: string | undefined } | undefined;
-  onAnswering?: (() => void) | undefined;
   readonly file?: string | undefined;
-  go(route: Route): void;
-  /** Another run's page (a parent, a step), or this one's terminal with the keyboard taken. */
-  onOpenRun(runId: string, attach?: boolean): void;
 }) {
+  const go = navigate;
+  const onOpenRun = useOpenRun();
+  const answerIn = useAnswerIn(runId);
   const { run: runOf, markSeen, panesOf } = useDaemon("run", "markSeen", "panesOf");
   const run = runOf(runId);
   const tasks = useTasks();

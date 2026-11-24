@@ -15,6 +15,8 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { useOpenRun } from "../features/runs/open-run.ts";
+import { useNewChat, useThreadAct } from "../features/threads/chat-actions.ts";
 import type { ThreadView } from "../shared/api/api.ts";
 import { Glyph } from "../shared/components/glyph.tsx";
 import { useDaemon } from "../shared/daemon/daemon.tsx";
@@ -36,6 +38,7 @@ import {
 } from "../shared/model/tasks.ts";
 import { heldThread, type ThreadGroup, threadLine, threadPane, threadTree } from "../shared/model/threads.ts";
 import { navigate } from "../shared/navigation.ts";
+import { openNewRun } from "../shared/overlays.ts";
 import { Button } from "../ui/button.tsx";
 import { ContextMenu } from "../ui/context-menu.tsx";
 import { moveInList } from "../ui/list-keys.ts";
@@ -98,28 +101,25 @@ export function Row({
 export function Sidebar({
   route,
   needs,
-  onRun,
-  onInbox,
-  onNew,
-  onForm,
-  onThread,
-  onCloseThread,
-  onReopenThread,
 }: {
   readonly route: Route;
   /** Everything that needs the person (model.ts `needsQueue`). */
   readonly needs: readonly NeedRow[];
-  onRun(run: Run, pane?: string): void;
-  onInbox(): void;
-  /** "+ New chat": a new thread with its chat terminal. */
-  onNew(): void;
-  /** The form: workflow, autonomy, host and worktree chosen by hand. */
-  onForm(): void;
-  /** Opens a thread: its chat terminal as the main view. */
-  onThread(thread: ThreadView): void;
-  onCloseThread(thread: ThreadView): void;
-  onReopenThread(thread: ThreadView): void;
 }) {
+  const openRun = useOpenRun();
+  // An escalated run's card is on Home; any other run opens its page.
+  const onRun = (r: Run, pane?: string) =>
+    r.status === "escalated"
+      ? navigate({ screen: "inbox", pick: `escalated:${r.repo ?? ""}:${r.runId}` })
+      : openRun(r.runId, false, pane);
+  const onInbox = () => navigate({ screen: "inbox" });
+  const newChat = useNewChat();
+  const onNew = () => void newChat();
+  const onForm = openNewRun;
+  const onThread = (t: ThreadView) => navigate({ screen: "thread", id: t.id });
+  const threadAct = useThreadAct();
+  const onCloseThread = (t: ThreadView) => void threadAct(t, "close");
+  const onReopenThread = (t: ThreadView) => void threadAct(t, "reopen");
   const { runs, panes, panesOf, down, unreadable, systemPlans, inbox, threads, paneAsks } = useDaemon(
     "runs",
     "panes",

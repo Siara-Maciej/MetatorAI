@@ -4,8 +4,8 @@
  * confirmation still looking when the next answer is given says nothing, so a notice never names
  * an answer given before the one just sent.
  */
-import { answeredText } from "../shared/model/needs.ts";
-import type { Run } from "../shared/model/runs.ts";
+import { answeredText } from "../../shared/model/needs.ts";
+import type { Run } from "../../shared/model/runs.ts";
 
 export interface Confirmer {
   confirm(

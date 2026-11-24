@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { afterAnswer, newQuestions, nextWaiting, wasAway } from "../src/app/model.ts";
+import { newQuestions, nextWaiting, wasAway } from "../src/app/model.ts";
 import {
+  afterAnswer,
   answerCommand,
   canAnswer,
   goalShown,

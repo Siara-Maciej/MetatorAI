@@ -15,9 +15,11 @@ import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { plural } from "../../shared/model/format.ts";
 import { lookOf } from "../../shared/model/look.ts";
+import { navigate } from "../../shared/navigation.ts";
 import { Button } from "../../ui/button.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
+import { useOpenRun } from "../runs/open-run.ts";
 import {
   findingBadge,
   findingPlace,
@@ -38,15 +40,10 @@ import { useStartAgent } from "./review-card.tsx";
 const NO_WATCHED: readonly ReviewView[] = [];
 const NO_MINE: readonly ReviewedRequest[] = [];
 
-export function ReviewsScreen({
-  id,
-  onOpen,
-  onOpenSession,
-}: {
-  readonly id?: string | undefined;
-  onOpen(id: string): void;
-  onOpenSession(runId: string): void;
-}) {
+export function ReviewsScreen({ id }: { readonly id?: string | undefined }) {
+  const openRun = useOpenRun();
+  const onOpen = (to: string) => navigate({ screen: "reviews", id: to });
+  const onOpenSession = (runId: string) => openRun(runId);
   const { client, repo } = useDaemon("client", "repo");
   const watchedList = usePolled(`reviews:${repo ?? ""}`, () => client.reviews(repo), 2000);
   const mineList = usePolled(`mrs:${repo ?? ""}`, () => client.mrs(repo), 2000);

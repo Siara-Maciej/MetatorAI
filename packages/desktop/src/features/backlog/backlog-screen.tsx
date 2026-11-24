@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import type { Issue, IssueRef, IssueView, PlanStarted } from "../../shared/api/api.ts";
+import type { Issue, IssueView, PlanStarted } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { MarkdownBlocks } from "../../shared/components/markdown-blocks.tsx";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
@@ -21,7 +21,9 @@ import { Button } from "../../ui/button.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { refusedForDirtyTree, START_FROM_COMMIT } from "../runs/model.ts";
+import { useOpenRun } from "../runs/open-run.ts";
 import { RunLink } from "../runs/run-link.tsx";
+import { dropBacklogDraft, useBacklogDraft } from "./draft.ts";
 import {
   type BacklogItem,
   backlogRows,
@@ -48,15 +50,15 @@ const NO_WORKFLOW = {
 
 export function BacklogScreen({
   id,
-  onOpenSession,
-  initialDraft,
 }: {
   /** The item chosen by the route (a plan view's "Open its Backlog item"). */
   readonly id?: string | undefined;
-  onOpenSession(runId: string): void;
-  /** A task started from a pane or a step: the form opens with these refs. */
-  readonly initialDraft?: { readonly title?: string; readonly refs?: readonly IssueRef[] } | undefined;
 }) {
+  const openRun = useOpenRun();
+  const onOpenSession = (runId: string) => openRun(runId);
+  // "New task from here…": the draft lives until the Backlog is left.
+  const initialDraft = useBacklogDraft();
+  useEffect(() => dropBacklogDraft, []);
   const { client, repo, run: runOf } = useDaemon("client", "repo", "run");
   const list = usePolled(`issues:${repo ?? ""}`, () => client.issues(repo), 2000);
   const issues = list.data?.issues ?? NO_ISSUES;

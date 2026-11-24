@@ -22,6 +22,19 @@
       "style": {
         "useImportType": "error",
         "useNodejsImportProtocol": "error"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": {
+          "level": "error",
+          "options": {
+            "hooks": [
+              {
+                "name": "useLatest",
+                "stableResult": true
+              }
+            ]
+          }
+        }
       }
     }
   },

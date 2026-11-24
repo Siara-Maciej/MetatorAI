@@ -2,7 +2,6 @@
  * The shell's own logic: back after a while away, new questions to notify, where Home goes after an answer.
  */
 import type { Question, RunOverview } from "../shared/api/api.ts";
-import { parseRoute, type Route } from "../shared/model/route.ts";
 
 /** The next session that waits for a person after `current` (the `g` key), wrapping around. */
 export function nextWaiting<R extends Pick<RunOverview, "runId" | "attention">>(
@@ -13,14 +12,6 @@ export function nextWaiting<R extends Pick<RunOverview, "runId" | "attention">>(
   if (waiting.length === 0) return undefined;
   const i = waiting.findIndex((r) => r.runId === current);
   return waiting[(i + 1) % waiting.length];
-}
-/**
- * Where Home goes once a card's answer is through: back to its queue, but only while the person is
- * still on Home. The daemon's answer can come late (a loaded machine); a person who went elsewhere
- * meanwhile stays where they went.
- */
-export function afterAnswer(hash: string): Route | undefined {
-  return parseRoute(hash).screen === "inbox" ? { screen: "inbox" } : undefined;
 }
 /** A person is "back" when they were away this long (spec §6.8): the briefing opens first. */
 export const AWAY_MS = 10 * 60 * 1000;

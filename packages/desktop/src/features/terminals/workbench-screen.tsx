@@ -30,13 +30,16 @@ import { paneLabel, paneStateOf } from "../../shared/model/panes.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { noHostText } from "../../shared/model/runs.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { openHelp } from "../../shared/overlays.ts";
 import { Button } from "../../ui/button.tsx";
 import { ContextMenu, type MenuItem } from "../../ui/context-menu.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { Tabs } from "../../ui/tabs.tsx";
+import { draftInBacklog } from "../backlog/draft.ts";
 import { useHostEditor } from "../repos/repos-context.tsx";
 import { DebugChanges } from "../runs/debug-changes.tsx";
 import { runControls } from "../runs/run-controls.ts";
+import { useNewChat } from "../threads/chat-actions.ts";
 import { GotoPicker } from "./goto.tsx";
 import {
   actionOf,
@@ -98,13 +101,6 @@ type Mode =
 const IDLE: Mode = { kind: "none" };
 
 export function WorkbenchScreen({
-  onNewTask,
-  onOpenSettings,
-  onOpenPlan,
-  onOpenReview,
-  onOpenInbox,
-  onOpenBacklog,
-  onHelp,
   showPane,
   task: taskKey,
   session: sessionKey,
@@ -115,24 +111,17 @@ export function WorkbenchScreen({
   readonly session?: string | undefined;
   /** The workspaces' tabs were asked for (`#/grid/workspaces`, a workspace group). */
   readonly group?: string | undefined;
-  /** Opens a tab with the agent that starts a task: the person says what to do, the agent starts the run. */
-  onNewTask(): void;
-  onOpenSettings(): void;
-  onOpenPlan(runId: string): void;
-  /** The run's change with the notes on it (S5). */
-  onOpenReview(runId: string): void;
-  /** The decision card of a question (`<run>/<question>`) in the Inbox. */
-  onOpenInbox(pick: string): void;
-  /** The backlog; with a draft, its form opens for a task that points at a pane's run. */
-  onOpenBacklog(draft?: {
-    readonly title?: string;
-    readonly refs?: readonly { run?: string; step?: string }[];
-  }): void;
-  /** The keys of the app, as an overlay. */
-  onHelp(): void;
   /** A pane to show first (from the plan screen): its tab is selected and it gets the focus. */
   readonly showPane?: string | undefined;
 }) {
+  const newChat = useNewChat();
+  const onNewTask = () => void newChat();
+  const onOpenSettings = () => navigate({ screen: "settings" });
+  const onOpenPlan = (runId: string) => navigate({ screen: "run", runId, tab: "overview" });
+  const onOpenReview = (runId: string) => navigate({ screen: "run", runId, tab: "changes" });
+  const onOpenInbox = (pick: string) => navigate({ screen: "inbox", pick });
+  const onOpenBacklog = draftInBacklog;
+  const onHelp = openHelp;
   const d = useDaemon(
     "client",
     "runs",

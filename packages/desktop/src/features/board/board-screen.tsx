@@ -32,6 +32,7 @@ import { navigate } from "../../shared/navigation.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { StepDetailOf } from "../plans/step-detail.tsx";
+import { useOpenRun } from "../runs/open-run.ts";
 
 const STORE = "metator.board";
 const STATES = ["needs you", "working", "blocked"] as const;
@@ -70,12 +71,12 @@ interface Tile {
 
 export function BoardScreen({
   task: openKey,
-  onOpenRun,
 }: {
   /** The task whose board is shown; none for the top level. */
   readonly task?: string | undefined;
-  onOpenRun(runId: string): void;
 }) {
+  const openRun = useOpenRun();
+  const onOpenRun = (runId: string) => openRun(runId);
   const { runs, repos, systemPlans, client } = useDaemon("runs", "repos", "systemPlans", "client");
   const names = repos.length > 0 ? repos.map((r) => r.name) : [undefined];
   const issues = usePolled(

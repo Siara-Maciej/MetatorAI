@@ -1,9 +1,11 @@
 /**
  * Home's queue of decisions: what a card says, how it is answered, what Home says when nothing waits.
  */
+
 import type { PlanLintView, Question, RunOverview } from "../../shared/api/api.ts";
 import { plural } from "../../shared/model/format.ts";
 import { blockedReason } from "../../shared/model/look.ts";
+import { parseRoute, type Route } from "../../shared/model/route.ts";
 
 /**
  * Whether the card shows the task under Goal: only when its title does not already carry the
@@ -98,4 +100,13 @@ export function optionClosed(
   const errors = planLint.problems.filter((p) => p.severity === "error");
   if (errors.length === 0) return undefined;
   return `the plan has ${plural(errors.length, "error")}: ${errors[0]?.message ?? ""}`;
+}
+
+/**
+ * Where Home goes once a card's answer is through: back to its queue, but only while the person is
+ * still on Home. The daemon's answer can come late (a loaded machine); a person who went elsewhere
+ * meanwhile stays where they went.
+ */
+export function afterAnswer(hash: string): Route | undefined {
+  return parseRoute(hash).screen === "inbox" ? { screen: "inbox" } : undefined;
 }
