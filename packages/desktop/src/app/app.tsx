@@ -24,7 +24,7 @@ import { ScreenBoundary } from "./screen-boundary.tsx";
 import { Screens, SettingsParts } from "./screens.tsx";
 import { useBackAfterAway, useFollowedThreads, useQuestionNotifications } from "./shell-effects.ts";
 import { ShellNotice } from "./shell-notice.tsx";
-import { Sidebar } from "./sidebar.tsx";
+import { Sidebar } from "./sidebar/sidebar.tsx";
 import { TopBar } from "./top-bar.tsx";
 import { useRoute } from "./use-route.ts";
 import { useShellKeys } from "./use-shell-keys.ts";
