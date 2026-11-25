@@ -3,6 +3,7 @@
  * with their tasks, the other places, "+ New chat"), and the place the hash route names. It only
  * composes: each part reads the daemon and acts by itself (ADR-0109).
  */
+
 import { useState } from "react";
 import { useNeeds } from "../features/inbox/use-needs.ts";
 import { AddRepoScreen } from "../features/repos/add-repo-screen.tsx";
@@ -14,6 +15,7 @@ import { NewSessionDialog } from "../features/runs/new-session.tsx";
 import { useOpenRun } from "../features/runs/open-run.ts";
 import { AppSettings } from "../features/settings/app-settings.tsx";
 import { DaemonProvider, useDaemon } from "../shared/daemon/daemon.tsx";
+import { useKeptFlag } from "../shared/hooks.ts";
 import { keyMapOf } from "../shared/model/keys.ts";
 import { pickedNeed } from "../shared/model/needs.ts";
 import { routeHash } from "../shared/model/route.ts";
@@ -63,10 +65,14 @@ function Shell() {
   });
   // With no repository yet there is nothing for the sidebar: the first run and Add stand alone.
   const solo = repos.commands !== undefined && repos.known?.length === 0;
+  // The sidebar folded to its narrow version (round 22), kept by the window.
+  const [sideNarrow, setSideNarrow] = useKeptFlag("metator.sidebar.narrow", false);
   return (
-    <div className={`shell${drawer ? " panel-open" : ""}${solo ? " solo" : ""}`}>
+    <div
+      className={`shell${drawer ? " panel-open" : ""}${solo ? " solo" : ""}${sideNarrow ? " side-narrow" : ""}`}
+    >
       <TopBar solo={solo} needs={needs.length} drawerOpen={drawer} onDrawer={() => setDrawer(!drawer)} />
-      {solo ? null : <Sidebar route={route} needs={needs} />}
+      {solo ? null : <Sidebar route={route} needs={needs} narrow={sideNarrow} onNarrow={setSideNarrow} />}
       <main className="content">
         <ShellNotice shown={view === "screens"} />
         {view === "first-run" ? <FirstRun /> : null}

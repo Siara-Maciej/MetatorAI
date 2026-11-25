@@ -60,6 +60,8 @@ The sidebar is the first level. Every row is built the same way: the glyph of on
 
 **Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens Home, which shows them one at a time ([Home and the Board](./inbox.md)).
 
+**«** beside it folds the sidebar to a narrow column of glyphs: **?** with how many things need you, one glyph per open chat and per task without a chat in its state's colour, the places (Board, Terminals, Backlog, Reviews, Settings) and **+** for a new chat. Each is named in full on hover; a click does what its row does. **»** unfolds it. The window remembers which you chose.
+
 The chats follow, and the sidebar is one tree: a chat, its tasks, their repositories, their steps.
 
 - **A chat** (a thread) is one topic you talk about with the agent. Its row has the chat's title, one word and how many tasks it holds (`2 tasks`). The word is its most urgent task's (`needs you`, then `blocked`, then `working`, then `done`), `needs you` while the chat itself asks you something, and `chat` while no task was started in it. Chats that need you come first, then the one that changed last. A click opens the chat: its terminal fills the main area ([Chats and the three ways](./start.md)). **⋯** on its row offers **Close chat**, or **Reopen chat** for a closed one.

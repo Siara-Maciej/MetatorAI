@@ -12,7 +12,7 @@ const SKILL = `---
 kind: Skill
 schemaVersion: 1
 name: mt-find-patterns
-description: Use when a plan creates a file and needs an exemplar. Do not use for text search or review.
+description: Finds the exemplar a planned file follows. Use when a plan creates a file. Do not use for text search or review.
 files: [scripts/similar.sh]
 ---
 # When
@@ -95,16 +95,27 @@ describe("canonical skills (real CLI)", () => {
     });
     await repo.write(
       "metator/skills/mt-broken/SKILL.md",
-      "---\nkind: Skill\nschemaVersion: 1\nname: mt-broken\ndescription: Finds things somewhere in the repo.\n---\n# When\nx\n",
+      "---\nkind: Skill\nschemaVersion: 1\nname: mt-broken\ndescription: Finds things somewhere in the repo.\nfiles: [references/notes.md]\n---\n# When\nThen use skill mt-nowhere.\n",
     );
+    await repo.write("metator/skills/mt-broken/references/notes.md", "# Notes\n");
     try {
       const r = await metator(["meta", "skills-lint"], repo.root);
       expect(r.code).toBe(1);
       const messages = ((r.json.error as { details: Data }).details.problems as { message: string }[]).map(
         (p) => p.message,
       );
-      expect(messages).toContain('description must say when to use it ("Use when …")');
-      expect(messages).toContain('missing section "# Steps" or "# Kroki"');
+      expect(messages).toContain('[MT-SKILL-002] description must say when to use it ("Use when …")');
+      expect(messages).toContain('[MT-SKILL-003] missing section "# Steps" or "# Kroki"');
+      expect(messages).toContain(
+        "[MT-SKILL-005] names skill mt-nowhere, which is not a skill of this repository's canon",
+      );
+      expect(messages).toContain(
+        "[MT-SKILL-004] lists references/notes.md, but the body never names it; name it where a step uses it, or drop it",
+      );
+      const rules = (r.json.error as { details: Data }).details.problems as { rule: string }[];
+      expect(new Set(rules.map((p) => p.rule))).toEqual(
+        new Set(["MT-SKILL-002", "MT-SKILL-003", "MT-SKILL-004", "MT-SKILL-005"]),
+      );
     } finally {
       await repo.git("clean", "-fdq", "metator/skills/mt-broken");
     }
@@ -120,7 +131,9 @@ describe("canonical skills (real CLI)", () => {
     for (const root of [".claude/skills", ".github/skills"]) {
       const text = await repo.read(`${root}/mt-find-patterns/SKILL.md`);
       expect(
-        text.startsWith("---\nname: mt-find-patterns\ndescription: Use when a plan creates a file"),
+        text.startsWith(
+          "---\nname: mt-find-patterns\ndescription: Finds the exemplar a planned file follows",
+        ),
       ).toBe(true);
       expect(text).toContain("`npx metator index build`");
       expect(await repo.read(`${root}/mt-find-patterns/scripts/similar.sh`)).toContain("metator similar");

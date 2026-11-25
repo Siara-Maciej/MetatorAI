@@ -45,9 +45,13 @@ You do not have to watch the agents. When one needs you (a plan to approve, a qu
 
 ### Watch every agent's real terminal, task by task
 
-Every agent works in a real terminal of your AI tool. **Terminals** shows a task's terminals side by side: the run's conductor, the planner that finished, the implementer at work. Read along, take the keyboard, or type to an agent yourself. A finished terminal stays on screen with a line that says how it ended.
+Every agent works in a real terminal of your AI tool. **Terminals** shows a task's terminals side by side: the run's conductor, the planner that finished, the implementer at work. Read along, take the keyboard, or type to an agent yourself. A finished terminal keeps its last screen, with a line that says how it ended.
 
 ![Terminals: the conductor, the finished planner and the implementer working, each in its own Claude Code terminal](site/public/screens/real/real-06-session-build.webp)
+
+**All terminals** shows every terminal of every task at once. Each tile carries its repository's colour and letters, the terminal that started it (**↑ parent**) and how many terminals below it wait for you (**? 1 asks**, a click takes you there with the keyboard). A tree lists them all, and a filter bar picks repositories, states and roles; Alt+click shows only one.
+
+![All terminals: a task over shop-api, billing and web-app, each session in its repository's colour, a tree of every terminal on the left and the filter bar above](site/public/screens/terminals/terminals-all.webp)
 
 ### Plans you approve
 

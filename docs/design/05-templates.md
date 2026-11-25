@@ -83,29 +83,42 @@ model: ['<reasoning-model>']
 
 ```md
 ---
+kind: Skill
+schemaVersion: 1
 name: mt-find-patterns
-description: Użyj, gdy trzeba znaleźć istniejące rozwiązanie podobnego problemu w monorepo (exemplar file:line) przed napisaniem nowego kodu. Nie używaj do wyszukiwania tekstowego ani do review.
+description: Znajduje exemplar, za którym repozytorium już idzie dla planowanego pliku lub symbolu (wzorzec, path:line i dlaczego pasuje). Użyj, gdy plan albo implementacja tworzy nowy plik lub symbol. Nie używaj do wyszukiwania tekstowego ani do review; plik według exemplara pisze skill mt-create-from-pattern.
+files: [references/legacy.md]
 ---
 # Kiedy
 Planowanie albo implementacja nowego pliku/funkcji. Reuse check przed utworzeniem symbolu.
 
 # Kroki
-1. `scripts/similar.sh "<opis lub plik>"` → top 3 exemplary
-2. `scripts/symbols.sh <nazwa>` → czy symbol już istnieje
-3. Odrzuć wyniki oznaczone `legacy: true` (patrz references/legacy.md)
+1. `metator similar --file <planowana ścieżka>` → top 3 exemplary
+2. `metator symbols find <nazwa>` → czy symbol już istnieje
+3. Odrzuć wyniki oznaczone `legacy: true` (jak je rozpoznać: references/legacy.md)
 4. Zapisz wybór z uzasadnieniem
 
 # Wyjście
 `pattern_source: { pattern, exemplar: "path:line", reason }`
 
 # Checklista
-- [ ] exemplar istnieje (sprawdzone przez skrypt)
+- [ ] exemplar istnieje (sprawdzone komendą)
 - [ ] nie legacy
 - [ ] jeśli brak wzorca → zgłoszone jako adr_candidate
 
 # Błędy
 `STALE_INDEX` → `metator index build`, potem powtórz.
 ```
+
+Reguły obszaru `SKILL` (`docs/metator/rules/skill.yml`, wszystkie E1) rozstrzyga `metator meta skills-lint`; każdy problem zaczyna się od id reguły, np. `[MT-SKILL-002] …`:
+
+- **MT-SKILL-001 Nazwa.** kebab-case (`^[a-z][a-z0-9-]*$`), najwyżej 64 znaki, równa katalogowi, z prefiksem repozytorium (`mt-`), bez słów zastrzeżonych `claude` i `anthropic` (specyfikacja Agent Skills).
+- **MT-SKILL-002 Opis.** Najwyżej 1024 znaki, bez `<` i `>`. Zaczyna się od tego, co skill robi, w trzeciej osobie (trafia do promptu systemowego), nigdy od „Use when”, „Use it”, „Użyj”, „I ”, „You ”, „We ” ani „This skill”; potem mówi, kiedy go użyć („Use when …” / „Użyj, gdy …”) i kiedy nie („Do not use …” / „Nie używaj …”).
+- **MT-SKILL-003 Treść.** Sekcje Kiedy, Kroki, Wyjście, Checklista, Błędy (albo angielskie When, Steps, Output, Checklist, Errors) w tej kolejności, Kroki zaraz po Kiedy: po kompakcji Claude Code zostawia tylko początek wywołanego skilla. Najwyżej 300 linii (Anthropic dopuszcza 500; my celowo mniej).
+- **MT-SKILL-004 Pliki pomocnicze.** Każdy plik z `files` istnieje i treść go wymienia; każda ścieżka `scripts/`, `references/`, `assets/` z treści jest w `files`; ukośniki `/`, nigdy `\`; plik referencyjny nie wymienia innych plików pomocniczych (referencje na jeden poziom od SKILL.md); plik `.md` dłuższy niż 100 linii ma nagłówek `## Contents` w pierwszych 10 liniach.
+- **MT-SKILL-005 Wymienione skille istnieją.** Skill wskazuje inny jako „skill mt-xxx” (albo „skill `mt-xxx`”), a każda tak wymieniona nazwa jest skillem kanonu. Krok, który potrzebuje innego skilla, mówi „use skill mt-find-patterns” i nie powtarza jego kroków.
+
+Tego, czego żadne narzędzie nie rozstrzygnie (zwięzłość, kryterium ukończenia kroku, fakty a decyzje, pętla informacji zwrotnej, antytrigger wskazujący sąsiedni skill, jeden termin na pojęcie, przykłady DOBRZE/ŹLE, najpierw scenariusze ewaluacji), uczy skill `mt-write-skill`.
 
 ## 4. Reguła
 

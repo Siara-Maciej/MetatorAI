@@ -1,6 +1,6 @@
 # ADR-0105: Aplikacja desktopowa to wszystko, co osoba instaluje: CLI w środku, „Add repository" i przenośna paczka CLI dla Linuksa
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-23
 
 ## Kontekst

@@ -3,14 +3,14 @@
  * what to do when its process ended, the question "take the keyboard?" and the copy-mode search.
  */
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { PaneView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { lookOf } from "../../shared/model/look.ts";
 import { type PaneShown, paneLabel, paneNote } from "../../shared/model/panes.ts";
 import { Button } from "../../ui/button.tsx";
 import { PaneTerminal, type TerminalHandle } from "./terminal.tsx";
-import { endedBanner, pausedBanner } from "./terminals.ts";
+import { endedBanner, endedWhen, pausedBanner, resumeCommand } from "./terminals.ts";
 
 export function PaneFrame({
   pane: p,
@@ -134,8 +134,11 @@ export function PaneFrame({
           data-testid={`ended-${p.id}`}
         >
           <span className={endedBanner(p).tone === "done" ? "msg done" : "msg red"}>
+            {endedBanner(p).tone === "done" ? "✓ " : "✗ "}
             {endedBanner(p).text}
           </span>
+          {endedWhen(p) ? <span className="when">{endedWhen(p)}</span> : null}
+          {resumeCommand(p) ? <CopyResume command={resumeCommand(p) as string} /> : null}
           {endedBanner(p).tone === "error" ? <Button onClick={onRetry}>Retry</Button> : null}
           <Button variant="primary" onClick={onClose}>
             {lastOfTab ? "Close tab" : "Close"}
@@ -180,5 +183,32 @@ export function PaneFrame({
         </search>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * The command that resumes an ended agent's session by hand (round 22), copied with one click; its
+ * text is the button's tooltip, and it is shown to select when the clipboard is refused.
+ */
+function CopyResume({ command }: { readonly command: string }) {
+  const [said, setSaid] = useState<"copied" | "shown">();
+  if (said === "shown") return <code className="resume-command">{command}</code>;
+  return (
+    <Button
+      variant="ghost"
+      className="copy-resume"
+      title={command}
+      data-testid="copy-resume"
+      onClick={() => {
+        const show = () => setSaid("shown");
+        if (typeof navigator === "undefined" || !navigator.clipboard) return show();
+        navigator.clipboard.writeText(command).then(() => {
+          setSaid("copied");
+          setTimeout(() => setSaid(undefined), 1500);
+        }, show);
+      }}
+    >
+      {said === "copied" ? "copied" : "⧉ resume command"}
+    </Button>
   );
 }

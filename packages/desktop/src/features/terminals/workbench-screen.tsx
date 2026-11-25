@@ -9,13 +9,13 @@
  * (model.ts `WORKBENCH_COMMANDS`). The daemon owns the layout; this screen only draws and asks.
  */
 
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PaneView, SplitNode } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
 import { StageBar } from "../../shared/components/stage-bar.tsx";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
-import { useAction, useOption } from "../../shared/hooks.ts";
+import { useAction, useKeptFlag, useOption } from "../../shared/hooks.ts";
 import {
   type CommandContext,
   type KeyMap,
@@ -24,8 +24,10 @@ import {
   keyText,
   type WorkbenchCommand,
 } from "../../shared/model/keys.ts";
+import { lookOf } from "../../shared/model/look.ts";
 import { decisionKey, notifies, paneNeedsYou } from "../../shared/model/needs.ts";
 import { paneLabel, paneStateOf } from "../../shared/model/panes.ts";
+import { repoLabel } from "../../shared/model/plan-flow.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { noHostText } from "../../shared/model/runs.ts";
 import { navigate } from "../../shared/navigation.ts";
@@ -64,21 +66,53 @@ import { PaneFrame } from "./pane-frame.tsx";
 import { QuestionToast } from "./question-toast.tsx";
 import { SplitGrid } from "./split-grid.tsx";
 import type { TerminalHandle } from "./terminal.tsx";
+import { RepoMark, TerminalFilters } from "./terminal-filters.tsx";
+import { TerminalTree } from "./terminal-tree.tsx";
 import {
   finishedOf,
+  groupRows,
   paneKey,
+  passes,
+  repoMark,
+  rowsBelow,
   type Session,
   sessionIn,
   sessionView,
+  showing,
   subBadge,
+  type TerminalFilter,
+  type TerminalGrouping,
+  type TerminalRow,
   type TerminalTask,
   taskGotoRows,
   taskView,
+  terminalRows,
   terminalTasks,
+  terminalViewFromStorage,
   toContinue,
+  toggleHidden,
+  toggleTaskHidden,
   whereIs,
 } from "./terminals.ts";
 import { IDLE, type Mode, useWorkbenchKeys } from "./workbench-keys.ts";
+
+const TERMINALS_STORE = "metator.terminals";
+type TerminalView = ReturnType<typeof terminalViewFromStorage>;
+function readTerminalView(): TerminalView {
+  try {
+    return terminalViewFromStorage(window.localStorage.getItem(TERMINALS_STORE));
+  } catch {
+    return terminalViewFromStorage(null);
+  }
+}
+function saveTerminalView(v: TerminalView): TerminalView {
+  try {
+    window.localStorage.setItem(TERMINALS_STORE, JSON.stringify(v));
+  } catch {
+    // A window without storage keeps the filter until it closes.
+  }
+  return v;
+}
 
 export function WorkbenchScreen({
   showPane,
@@ -112,6 +146,7 @@ export function WorkbenchScreen({
     "panes",
     "panesOf",
     "repo",
+    "repos",
     "run",
     "systemPlans",
     "workspaces",
@@ -154,15 +189,29 @@ export function WorkbenchScreen({
     chosen && (sessionKey ?? located?.session)
       ? sessionIn(chosen, (sessionKey ?? located?.session) as string)
       : undefined;
-  const view: "task" | "session" | "list" | "tabs" = session
+  // With no task chosen, every terminal at once (round 22): `#/grid/all` (and the old `#/grid/tasks`).
+  const view: "task" | "session" | "all" | "tabs" = session
     ? "session"
     : chosen
       ? "task"
-      : group === "tasks"
-        ? "list"
+      : group === "tasks" || group === "all"
+        ? "all"
         : group || showPane || tasks.length === 0
           ? "tabs"
-          : "list";
+          : "all";
+  // Every terminal of every task as rows (round 22): repository, role, state and parent each.
+  const rows: TerminalRow[] = useMemo(() => terminalRows(tasks), [tasks]);
+  const rowOf = (key: string | undefined) => rows.find((r) => r.key === key);
+  // The folder's repositories, so each takes a hue of its own.
+  const folderRepos = useMemo(() => d.repos.map((p) => repoLabel(p.name)), [d.repos]);
+  // The filter and the grouping are the window's (kept in its storage, read under try/catch).
+  const [kept, keep] = useState(readTerminalView);
+  // The tree of terminals folded to its narrow version, kept by the window.
+  const [treeNarrow, setTreeNarrow] = useKeptFlag("metator.terminals.tree.narrow", false);
+  const filter = kept.filter;
+  const grouping = kept.grouping;
+  const setFilter = (f: TerminalFilter) => keep((k) => saveTerminalView({ ...k, filter: f }));
+  const setGrouping = (g: TerminalGrouping) => keep((k) => saveTerminalView({ ...k, grouping: g }));
   /**
    * A pane's key on this screen: its id in a tab (one repository), its repository and id in a
    * task's views, where two repositories' panes may have the same id.
@@ -172,13 +221,21 @@ export function WorkbenchScreen({
   // Dead panes a Retry is replacing (by key): not drawn from the click on, so the old pane and its
   // replacement are never on the screen together (the daemon opens one, then closes the other).
   const [retiring, setRetiring] = useState<ReadonlySet<string>>(new Set());
-  const tabPanes: (PaneView & { readonly repo?: string | undefined })[] = (
+  /** The panes a by-task view holds before the filter: a session's, a task's, or every terminal. */
+  const viewPanes: (PaneView & { readonly repo?: string | undefined })[] =
     view === "session" && session
       ? sessionView(session)
       : view === "task" && chosen
         ? taskView(chosen)
-        : (tab?.panes ?? []).map((id) => panes.find((p) => p.id === id)).filter((p): p is PaneView => !!p)
-  ).filter((p) => !retiring.has(keyOf(p)));
+        : view === "all"
+          ? rows.map((r) => r.pane)
+          : (tab?.panes ?? []).map((id) => panes.find((p) => p.id === id)).filter((p): p is PaneView => !!p);
+  const tabPanes = viewPanes.filter((p) => {
+    if (retiring.has(keyOf(p))) return false;
+    if (view === "tabs") return true;
+    const r = rowOf(keyOf(p));
+    return r === undefined || passes(r, filter);
+  });
   const byKey = (key: string | undefined) => tabPanes.find((p) => keyOf(p) === key);
   const tree: SplitNode | undefined =
     view === "tabs"
@@ -205,6 +262,58 @@ export function WorkbenchScreen({
     }
   }
   const focused = byKey(focus) ?? tabPanes[0];
+  const focusKey = focused ? keyOf(focused) : undefined;
+  // A terminal gone to from a link (↑ parent, ? asks, the tree, a new terminal's Show): it flashes
+  // for a moment, is scrolled to and gets the keyboard (round 22).
+  const [flash, setFlash] = useState<string>();
+  const [scrollTo, setScrollTo] = useState<string>();
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const goTo = (key: string, flashIt = false) => {
+    const r = rowOf(key);
+    if (!r) return;
+    if (!passes(r, filter)) setFilter(showing(filter, r));
+    // Not a tile of this view (a sub-terminal on a task's view): the All view has every terminal.
+    if (view !== "all" && !viewPanes.some((p) => keyOf(p) === key))
+      navigate({ screen: "grid", group: "all" });
+    if (zoom && zoom !== key) setZoom(undefined);
+    setFocus(key);
+    setScrollTo(key);
+    if (flashIt) {
+      setFlash(key);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setFlash(undefined), 3000);
+    }
+  };
+  useEffect(() => {
+    if (!scrollTo) return;
+    const el = document.querySelector(`[data-tile="${CSS.escape(scrollTo)}"]`);
+    if (!el) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    handles.current.get(scrollTo)?.focus();
+    setScrollTo(undefined);
+  });
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
+  // Terminals that appear while the screen is open (an agent started a worker): marked new for a
+  // while, the newest said in a toast with Show (round 22). Those there at the start are not new.
+  const known = useRef<Set<string> | undefined>(undefined);
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set());
+  const [freshToast, setFreshToast] = useState<TerminalRow>();
+  useEffect(() => {
+    // Known from the first answer that has terminals: before it, nothing is drawn to be new to.
+    if (!known.current) {
+      if (rows.length > 0) known.current = new Set(rows.map((r) => r.key));
+      return;
+    }
+    const seen = known.current;
+    const added = rows.filter((r) => !seen.has(r.key));
+    if (added.length === 0) return;
+    for (const r of added) seen.add(r.key);
+    const keys = added.map((r) => r.key);
+    setFresh((now) => new Set([...now, ...keys]));
+    setFreshToast(added[added.length - 1]);
+    setTimeout(() => setFresh((now) => new Set([...now].filter((k) => !keys.includes(k)))), 8000);
+  }, [rows]);
   const [zoom, setZoom] = useState<string>();
   // The zoom is the tab's: a tab change drops it.
   const [zoomTab, setZoomTab] = useState<string>();
@@ -551,31 +660,85 @@ export function WorkbenchScreen({
     const sessionOfPane = (p: PaneView) =>
       chosen ? [chosen.own, ...chosen.sessions].find((x) => x.pane === p) : undefined;
     const tile = (p: PaneView & { readonly repo?: string | undefined }) => {
+      const key = keyOf(p);
+      const row = rowOf(key);
       const main = view === "task" && chosen?.main === p;
       // On the task's view a tile is a repository session: its badge opens its own view. The main
       // terminal, when it is the task run's own conductor, opens the task run's session.
       const own = sessionOfPane(p) ?? (main && chosen?.main === chosen?.own.pane ? chosen?.own : undefined);
       const label =
-        view === "session"
-          ? p === session?.pane
-            ? `${session?.label}: its main terminal`
-            : "sub-terminal"
-          : main
-            ? chosen?.main?.startedRun
-              ? "main terminal: where the task was given"
-              : "main terminal: the task's conductor"
-            : (own?.label ?? paneLabel(p));
+        view === "all"
+          ? (row?.name ?? paneLabel(p))
+          : view === "session"
+            ? p === session?.pane
+              ? `${session?.label}: its main terminal`
+              : "sub-terminal"
+            : main
+              ? chosen?.main?.startedRun
+                ? "main terminal: where the task was given"
+                : "main terminal: the task's conductor"
+              : (own?.label ?? paneLabel(p));
       const badge = view === "task" && own ? subBadge(own) : undefined;
+      const parent = rowOf(row?.parent);
+      const below = row ? rowsBelow(rows, row.key) : [];
+      const asking = below.filter((r) => r.state === "asks");
+      const repoName = row?.repo ?? "this repository";
       return (
         <div
-          key={keyOf(p)}
-          className={`tile${main ? " main" : ""}`}
+          key={key}
+          className={`tile${main ? " main" : ""}${flash === key ? " flash" : ""}${fresh.has(key) ? " fresh" : ""}`}
           data-testid={`tile-${p.id}`}
+          data-tile={key}
           data-repo={p.repo}
+          style={{ "--repo": repoMark(repoName, folderRepos).hue } as React.CSSProperties}
         >
-          <div className="tile-head">
-            <span className="tile-label">{label}</span>
+          <div className="tile-band">
+            <RepoMark repo={repoName} known={folderRepos} />
+            <span className="repo-name">{repoName}</span>
+            <span className="role">{p.role}</span>
+            <span className="spacer" />
             {main ? continueTask("tile") : null}
+            {row ? (
+              <span className={`tstate ${lookOf("pane", row.state).tone}`} data-testid={`state-${p.id}`}>
+                <Glyph kind="pane" state={row.state} /> {row.state}
+              </span>
+            ) : null}
+          </div>
+          <div className="tile-head">
+            {/* Where the terminal is, when its group does not say it already (grouped by task it does). */}
+            {view === "all" && row && grouping !== "task" ? (
+              <>
+                <span className="lineage" title={row.task.title}>
+                  {row.task.title}
+                </span>
+                <span className="faint">›</span>
+              </>
+            ) : null}
+            <span className="tile-label">{label}</span>
+            {parent ? (
+              <Button
+                className="parent-link"
+                data-testid={`parent-${p.id}`}
+                title="show the terminal that started this one"
+                onClick={() => goTo(parent.key, true)}
+              >
+                ↑ parent: {parent.name}
+              </Button>
+            ) : null}
+            {asking.length > 0 ? (
+              <Button
+                className="asks-link"
+                data-testid={`asks-${p.id}`}
+                title={`show the terminal that asks${asking.length > 1 ? " (again: the next one)" : ""}`}
+                onClick={() => {
+                  const at = asking.findIndex((r) => r.key === focusKey);
+                  const next = asking[(at + 1) % asking.length];
+                  if (next) goTo(next.key, true);
+                }}
+              >
+                ? {asking.length} asks ›
+              </Button>
+            ) : null}
             {view === "task" && own && !main ? (
               <a
                 className="ghost open-session"
@@ -592,13 +755,25 @@ export function WorkbenchScreen({
               >
                 {badge} ›
               </a>
+            ) : view === "all" && below.length > 0 ? (
+              <span className="faint below">{below.length} below</span>
             ) : null}
           </div>
-          {renderPane(keyOf(p))}
+          {renderPane(key)}
         </div>
       );
     };
     const shownTiles = zoom ? tabPanes.filter((p) => keyOf(p) === zoom) : tabPanes;
+    const viewRows = viewPanes.map((p) => rowOf(keyOf(p))).filter((r): r is TerminalRow => r !== undefined);
+    const groups =
+      view === "all"
+        ? groupRows(
+            zoom ? rows.filter((r) => r.key === zoom) : rows.filter((r) => passes(r, filter)),
+            grouping,
+          )
+        : [];
+    const tiles = (list: readonly TerminalRow[]) =>
+      list.length > 0 ? <div className="task-tiles flow">{list.map((r) => tile(r.pane))}</div> : null;
     return (
       <section
         className="workbench by-task"
@@ -607,7 +782,9 @@ export function WorkbenchScreen({
         data-zoom-key={keymap.zoom?.[0]}
       >
         <nav className="terminals-bar" aria-label="where in Terminals" data-testid="terminals-bar">
-          <a href={routeHash({ screen: "grid", group: "tasks" })}>Tasks</a>
+          <a href={routeHash({ screen: "grid", group: "all" })} data-testid="terminals-all">
+            All terminals
+          </a>
           {chosen ? (
             <>
               <span className="faint">›</span>
@@ -656,35 +833,100 @@ export function WorkbenchScreen({
           {settingsButton}
         </nav>
         <Notice {...action.notice} tone={action.notice.text ? action.notice.tone : "info"} />
-        {view === "list" ? (
-          <div className="terminal-tasks" data-testid="terminal-tasks">
-            <h2>Tasks with terminals</h2>
-            {tasks.map((t) => (
-              <a key={t.runId} className="row" href={routeHash({ screen: "grid", task: t.runId })}>
-                <span className="title">{t.title}</span>
-                <span className="faint">
-                  {t.main ? "a main terminal" : "no main terminal"} · {t.sessions.length} repository session
-                  {t.sessions.length === 1 ? "" : "s"} ·{" "}
-                  {[t.own, ...t.sessions].reduce((n, x) => n + x.subs.length, 0)} sub-terminals
-                </span>
-              </a>
-            ))}
-            <p className="faint">
-              Shells and the chat of a run not started yet are under{" "}
-              <a href={routeHash({ screen: "grid", group: "workspaces" })}>Workspaces</a>.
-            </p>
-          </div>
-        ) : (
-          <div
-            className={`task-tiles n${Math.min(Math.max(shownTiles.length, 1), 3)}`}
-            data-testid={view === "task" ? "task-view" : "session-view"}
-          >
-            {shownTiles.map(tile)}
-            {shownTiles.length === 0 ? (
-              <div className="empty">No terminal of this {view === "task" ? "task" : "session"} is open.</div>
-            ) : null}
-          </div>
-        )}
+        <TerminalFilters
+          rows={view === "all" ? rows : viewRows}
+          filter={filter}
+          onFilter={setFilter}
+          known={folderRepos}
+          grouping={view === "all" ? grouping : undefined}
+          onGrouping={view === "all" ? setGrouping : undefined}
+        />
+        <div className={`terminals-body${treeNarrow ? " tree-narrow" : ""}`}>
+          <TerminalTree
+            onEye={(k) => setFilter(toggleHidden(filter, rows, k))}
+            onTaskEye={(id) => setFilter(toggleTaskHidden(filter, rows, id))}
+            narrow={treeNarrow}
+            onNarrow={setTreeNarrow}
+            known={folderRepos}
+            rows={rows}
+            filter={filter}
+            focused={focusKey}
+            fresh={fresh}
+            onPick={(k) => goTo(k, true)}
+          />
+          {view === "all" ? (
+            <div className="all-terminals" data-testid="all-view">
+              {groups.map((g) => (
+                <section key={g.key} className="tgroup" data-testid={`group-${g.key}`}>
+                  <header className="ghead">
+                    {g.repo ? <RepoMark repo={g.repo} known={folderRepos} /> : null}
+                    {grouping === "state" ? <Glyph kind="pane" state={g.title} /> : null}
+                    <span className="gt">{g.title}</span>
+                    <span className="faint">
+                      {g.rows.length + (g.sessions ?? []).reduce((n, x) => n + x.rows.length, 0)}
+                    </span>
+                  </header>
+                  {tiles(g.rows)}
+                  {(g.sessions ?? []).map((x) => (
+                    <section
+                      key={x.key}
+                      className="tgroup lane"
+                      style={{ "--lane": repoMark(x.repo ?? "", folderRepos).hue } as React.CSSProperties}
+                    >
+                      <header className="ghead">
+                        <RepoMark repo={x.repo ?? ""} known={folderRepos} />
+                        <span className="gt">{x.title}</span>
+                        <span className="faint">{x.rows.length}</span>
+                      </header>
+                      {tiles(x.rows)}
+                    </section>
+                  ))}
+                </section>
+              ))}
+              {groups.length === 0 ? (
+                <div className="empty">
+                  {rows.length === 0
+                    ? "No task has a terminal open. Shells and a new run's chat are under Workspaces."
+                    : `No terminal matches the filter: ${rows.length} hidden.`}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div
+              className={`task-tiles n${Math.min(Math.max(shownTiles.length, 1), 3)}`}
+              data-testid={view === "task" ? "task-view" : "session-view"}
+            >
+              {shownTiles.map(tile)}
+              {shownTiles.length === 0 ? (
+                <div className="empty">
+                  {viewPanes.length > 0
+                    ? `No terminal of this ${view} matches the filter.`
+                    : `No terminal of this ${view === "task" ? "task" : "session"} is open.`}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+        {freshToast ? (
+          <output className="fresh-toast" data-testid="fresh-toast">
+            <span>
+              <b>New terminal</b> · {freshToast.name} in {freshToast.repo}
+              {rowOf(freshToast.parent) ? ` · started by ${rowOf(freshToast.parent)?.name}` : ""}
+              {passes(freshToast, filter) ? "" : " · hidden by the filter"}
+            </span>
+            <Button
+              onClick={() => {
+                goTo(freshToast.key, true);
+                setFreshToast(undefined);
+              }}
+            >
+              Show
+            </Button>
+            <Button variant="ghost" aria-label="dismiss" onClick={() => setFreshToast(undefined)}>
+              ✕
+            </Button>
+          </output>
+        ) : null}
         {overlays}
       </section>
     );
@@ -740,8 +982,8 @@ export function WorkbenchScreen({
         </Button>
         <span className="spacer" />
         {tasks.length > 0 ? (
-          <a href={routeHash({ screen: "grid", group: "tasks" })} data-testid="by-task">
-            By task ›
+          <a href={routeHash({ screen: "grid", group: "all" })} data-testid="by-task">
+            All terminals ›
           </a>
         ) : null}
         <RepoSelect />

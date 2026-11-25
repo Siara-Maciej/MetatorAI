@@ -20,6 +20,37 @@ export function useOption<T>(key: string, fallback: T): T {
   const { options } = useDaemon("options");
   return (options.find((o) => o.key === key)?.value as T | undefined) ?? fallback;
 }
+/**
+ * A yes/no the window keeps (round 22: a sidebar folded to its narrow version): read once from the
+ * window's storage, written on each change; both under try/catch, so a window without storage
+ * keeps it until it closes.
+ */
+export function useKeptFlag(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
+  const [value, setValue] = useState(() => readFlag(key, fallback));
+  const set = (v: boolean) => {
+    setValue(v);
+    writeFlag(key, v);
+  };
+  return [value, set];
+}
+
+function readFlag(key: string, fallback: boolean): boolean {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw === null ? fallback : raw === "1";
+  } catch {
+    return fallback;
+  }
+}
+
+function writeFlag(key: string, v: boolean): void {
+  try {
+    window.localStorage.setItem(key, v ? "1" : "0");
+  } catch {
+    // A window without storage keeps it until it closes.
+  }
+}
+
 /** What an action answered: the envelope's `ok` and what it says of a refusal. */
 export interface Answer {
   readonly ok: boolean;
