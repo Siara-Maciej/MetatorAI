@@ -52,12 +52,15 @@ function world(over: Partial<ReturnType<typeof SupervisorPolicySchema.parse>> = 
   /** Which runs have a driver file, and whether that process lives. */
   const drives = new Map<string, { pid: number; alive: boolean }>();
   const restarted: string[] = [];
+  /** Runs whose restart, or whose driver file, fails. */
+  const failing = { restart: new Set<string>(), status: new Set<string>() };
   const waiting = { you: 0 };
   const supervisor = new Supervisor({
     policy: SupervisorPolicySchema.parse(over),
     repo,
     drivers: {
       status: async (runId) => {
+        if (failing.status.has(runId)) return err(MetatorError.usage(`driver file of ${runId} is torn`));
         const d = drives.get(runId);
         return ok(d ? { pid: d.pid, host: "fake", startedAt: "x", alive: d.alive } : null);
       },
@@ -73,6 +76,7 @@ function world(over: Partial<ReturnType<typeof SupervisorPolicySchema.parse>> = 
         }) as never,
     },
     restart: async (runId) => {
+      if (failing.restart.has(runId)) return err(MetatorError.usage(`cannot restart ${runId}`));
       restarted.push(runId);
       drives.set(runId, { pid: 99, alive: true });
       return ok({ stage: "build" });
@@ -100,6 +104,7 @@ function world(over: Partial<ReturnType<typeof SupervisorPolicySchema.parse>> = 
     timers,
     drives,
     restarted,
+    failing,
     waiting,
     supervisor,
     init,
@@ -149,6 +154,46 @@ describe("Supervisor", () => {
     w.drives.set(run.runId, { pid: 2, alive: false });
     const report = (await w.supervisor.tick())._unsafeUnwrap();
     expect(report.revived.map((r) => r.runId)).toEqual([run.runId]);
+    // Named as unreadable (by the overview), not as a run the tick failed on.
+    expect(report.failed).toBeUndefined();
+  });
+
+  test("a resumed conductor pane uses none of the drive's restarts: they are counted apart", async () => {
+    const w = world({ respawn: { enabled: true, maxAttempts: 2 } });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    for (const n of [1, 2])
+      (
+        await w.journal.record(run.runId, {
+          type: "restart",
+          origin: "run",
+          text: `resumed conductor ${n} of 2: its session fake-1 had exited with 0 (pane w1:p1)`,
+        })
+      )._unsafeUnwrap();
+    w.drives.set(run.runId, { pid: 1, alive: false });
+    const report = (await w.supervisor.tick())._unsafeUnwrap();
+    expect([report.revived, report.gaveUp]).toEqual([[{ runId: run.runId, stage: "build", attempt: 1 }], []]);
+  });
+
+  test("one run that cannot be looked at or restarted is reported; the other runs are still revived", async () => {
+    const w = world({ respawn: { enabled: true, maxAttempts: 2 } });
+    const torn = (await w.init("Torn driver"))._unsafeUnwrap();
+    const stuck = (await w.init("Stuck one"))._unsafeUnwrap();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    for (const r of [torn, stuck, run]) w.drives.set(r.runId, { pid: 1, alive: false });
+    w.failing.status.add(torn.runId);
+    w.failing.restart.add(stuck.runId);
+    const report = (await w.supervisor.tick())._unsafeUnwrap();
+    expect(report.revived.map((r) => r.runId)).toEqual([run.runId]);
+    expect(report.failed).toEqual([
+      { runId: stuck.runId, message: `cannot restart ${stuck.runId}` },
+      { runId: torn.runId, message: `driver file of ${torn.runId} is torn` },
+    ]);
+    // A tick where nothing failed says nothing about failures.
+    w.failing.status.clear();
+    w.failing.restart.clear();
+    w.drives.set(torn.runId, { pid: 9, alive: true });
+    w.drives.set(stuck.runId, { pid: 9, alive: true });
+    expect((await w.supervisor.tick())._unsafeUnwrap().failed).toBeUndefined();
   });
 
   test("an idle session is nudged once; still idle, a person is asked; their answer closes it or nudges again", async () => {

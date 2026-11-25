@@ -106,6 +106,10 @@ metator run close --aborted --reason "scope changed"
 
 `metator run list`, `metator status`, `metator inbox` and `metator doctor` warn that `run <id> cannot be read and is left out`, and name the run's `state.json`. The file is cut short or was edited by hand. The other runs are listed as usual. The desktop app says the same at the bottom of the sidebar (**N runs cannot be read**), with the file of each. Restore the file from git or a backup, or delete the run's directory `.metator/runs/<id>/` to drop the run.
 
+## A task cannot be read
+
+`metator issue list` and `metator intake scan` warn that `issue <id> cannot be read and is left out`, and name its file in `.metator/issues/`. The file is cut short or was edited by hand. The other tasks are listed and scanned as usual, and a new task never takes its id. Restore the file from git or a backup, or delete it to drop the task.
+
 ## A file is locked
 
 A command fails with `<file> is locked by process <pid>`. Another MetatorAI process was changing that file for more than two minutes. Run the command again when that process has finished. If no MetatorAI process runs, delete the `<file>.lock` the hint names.

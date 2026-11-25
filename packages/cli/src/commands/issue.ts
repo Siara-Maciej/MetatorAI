@@ -6,6 +6,7 @@ import {
   type IssueRef,
   type IssueStatus,
   MetatorError,
+  unreadableIssueWarning,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
@@ -57,6 +58,8 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
               ...(opts.run ? { runId: opts.run } : {}),
             })
         ).map((issues) => ({ issues })),
+        // An item whose file cannot be read is left out of the list; the person is told which.
+        warnings: (await runs().resolve("issues").unreadable()).map(unreadableIssueWarning),
       })),
     );
 

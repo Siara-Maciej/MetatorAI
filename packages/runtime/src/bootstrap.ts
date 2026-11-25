@@ -1344,7 +1344,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new RunDrivers(fileSystem, runRepository, backgroundProcess, runJournal, clock),
     ),
     runJournal: asFunction(
-      ({ fileSystem, runRepository, clock }) => new RunJournal(fileSystem, runRepository, clock),
+      ({ fileSystem, runRepository, clock, fileLock }) =>
+        new RunJournal(fileSystem, runRepository, clock, fileLock),
     ).singleton(),
     driveRun: asFunction(
       ({

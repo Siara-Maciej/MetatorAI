@@ -3034,14 +3034,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: "        if (attempts >= this.d.policy.respawn.maxAttempts) {",
-    to: "        if (false) {",
+    from: "    if (attempts >= max) {",
+    to: "    if (false) {",
     why: "the supervisor gives up after the policy's attempts",
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: '          const said = activity.value.at(-1)?.text.startsWith("gave up");',
-    to: "          const said = false;",
+    from: '      const said = activity.value.at(-1)?.text.startsWith("gave up");',
+    to: "      const said = false;",
     why: "giving up is said once",
   },
   {
@@ -3895,7 +3895,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/issues.ts",
-    from: 'if (status === "dropped") await this.settleProposal(issue.value, PROPOSAL_DROP, by);',
+    from: 'if (status === "dropped") await this.settleProposal(changed.value.before, PROPOSAL_DROP, by);',
     to: "",
     why: "dropping a proposal settles its question",
   },
@@ -5548,14 +5548,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: '        if (record.value.driver?.by === "human") continue;',
+    from: '    if (record.value.driver?.by === "human") return ok(undefined);',
     to: "",
     why: "a session a person holds is not resumed over them",
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: "        if (attempts >= this.d.policy.respawn.maxAttempts) {",
-    to: "        if (false) {",
+    from: "    if (attempts >= limit) {",
+    to: "    if (false) {",
     why: "a conductor is resumed only up to the policy's attempts",
   },
   {
@@ -6313,7 +6313,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: "if (record.isErr()) continue;",
+    from: "if (record.isErr()) return ok(undefined);",
     to: "if (record.isErr()) return err(record.error);",
     why: "one unreadable record never stops the supervisor watching the others (R2)",
   },
@@ -10626,5 +10626,60 @@ export const MUTANTS: readonly Mutant[] = [
     from: "const branch = [key, ...rowsBelow(rows, key).map((r) => r.key)];",
     to: "const branch = [key];",
     why: "the tree's eye hides a terminal with every terminal below it",
+  },
+  // Backlog, intake, run journal and supervisor under concurrency and damage.
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: "return this.update(id, (current) => ok({ ...current, ...patchOf(patch) }));",
+    to: "return this.update(id, () => ok({ ...issue.value, ...patchOf(patch) }));",
+    why: "an edit changes the item as it is under its lock, not as it was read before (a start meanwhile stays)",
+  },
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: "else unreadable.push({ id: idOf(file), file, message: parsed.error.message });",
+    to: "",
+    why: "an unreadable item is named, and its id stays taken",
+  },
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: "const saved = await this.save(next);\n    if (saved.isErr()) return err(saved.error);\n    // The brief",
+    to: "const saved = ok(undefined);\n    if (saved.isErr()) return err(saved.error);\n    // The brief",
+    why: "an item is linked to its run as soon as the run exists, before anything else can fail",
+  },
+  {
+    file: "packages/core/src/application/intake.ts",
+    from: "if (run.isErr()) failed.push({ issue: id, error: run.error.message });",
+    to: "if (run.isErr()) return err(run.error);",
+    why: "one item that cannot start never stops the intake scan",
+  },
+  {
+    file: "packages/core/src/application/run-journal.ts",
+    from: "return this.questionsLocked(runId, () => this.askLocked(runId, q, pendingSince));",
+    to: "return this.askLocked(runId, q, pendingSince);",
+    why: "two questions asked at once never take one id",
+  },
+  {
+    file: "packages/core/src/application/run-journal.ts",
+    from: "return this.questionsLocked(runId, () => this.answerLocked(runId, id, input));",
+    to: "return this.answerLocked(runId, id, input);",
+    why: "two answers to one question at once never both count",
+  },
+  {
+    file: "packages/core/src/application/run-journal.ts",
+    from: 'this.usageFile(runId), AgentUsageDocument, "skip")',
+    to: 'this.usageFile(runId), AgentUsageDocument, "fail")',
+    why: "a torn usage line is skipped, the rest of the run's usage still reads",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: 'a.type === "restart" && !a.text.startsWith(RESUMED)',
+    to: 'a.type === "restart"',
+    why: "a resumed conductor pane uses none of the drive's restarts",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: "if (done.isErr()) failed.push({ runId, message: done.error.message });",
+    to: "if (done.isErr()) return err(done.error);",
+    why: "one run the supervisor cannot restart never stops the others being watched",
   },
 ];
