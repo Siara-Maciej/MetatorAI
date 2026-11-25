@@ -9,3 +9,6 @@ site/public/badges/
 packages/desktop/src-tauri/binaries/
 packages/desktop/src-tauri/metator-resources/
 packages/desktop/src-tauri/linux-cli/
+
+# Agents' git worktrees (Claude Code isolation)
+.claude/worktrees/
