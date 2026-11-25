@@ -12,7 +12,7 @@ afterAll(async () => {
 /** The fields of the `Cradle` interface, read from its source (a type leaves nothing at run time). */
 async function cradleFields(): Promise<string[]> {
   const text = await Bun.file(join(import.meta.dir, "../src/container.ts")).text();
-  const body = text.slice(text.indexOf("export interface Cradle {"));
+  const body = text.slice(text.indexOf("interface Cradle {"));
   const fields: string[] = [];
   let depth = 0;
   for (const line of body.split("\n").slice(1)) {
