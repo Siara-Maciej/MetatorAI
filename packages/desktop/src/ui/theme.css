@@ -49,4 +49,11 @@
   --text-base: var(--fs-base);
   --text-head: var(--fs-head);
   --text-title: var(--fs-title);
+  /* The app's sizes set the size only, as the stylesheet's do: the line height is inherited. */
+  --text-micro--line-height: inherit;
+  --text-small--line-height: inherit;
+  --text-compact--line-height: inherit;
+  --text-base--line-height: inherit;
+  --text-head--line-height: inherit;
+  --text-title--line-height: inherit;
 }

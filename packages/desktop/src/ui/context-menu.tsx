@@ -48,7 +48,7 @@ export function ContextMenu({
             <DropdownMenu.Item
               key={item.label}
               className={cn(
-                "mi flex w-full cursor-pointer select-none justify-between gap-5 rounded px-2.5 py-1.25 text-left text-text outline-none",
+                "mi flex min-h-7 w-full cursor-pointer select-none justify-between gap-5 rounded px-2.5 py-1.25 text-left text-text outline-none",
                 "data-highlighted:bg-hover data-disabled:cursor-default data-disabled:text-grey",
                 item.separator && "sep mt-1 rounded-none border-t border-edge pt-2",
               )}
