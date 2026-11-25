@@ -7,6 +7,7 @@ import {
   normalizePath,
   type Overview,
   ok,
+  type ReadinessCheck,
   type RepoRuns,
   type RunFacts,
   readinessWarnings,
@@ -124,7 +125,31 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
     )
     .action(
       ctx.action(async (opts: { worktree?: string; run?: string; gates: boolean }) => {
-        const c = ctx.container();
+        if (opts.run && opts.worktree)
+          return {
+            result: err(
+              MetatorError.usage(
+                "--run and --worktree both name the checkout to look at",
+                "Pass one: --run <id> looks at that run's worktree.",
+              ),
+            ),
+          };
+        let c: ReturnType<typeof ctx.container>;
+        try {
+          c = ctx.container();
+        } catch (e) {
+          // A config that does not load is what doctor is for: its failed check, not an error.
+          if (!(e instanceof MetatorError) || e.code !== "INVALID_CONFIG") throw e;
+          const source = typeof e.details?.source === "string" ? e.details.source : "metator.config.yml";
+          const config: ReadinessCheck = {
+            id: "config",
+            status: "fail",
+            message: `${e.message.trim()}; the other checks need a config that loads`,
+            fix: e.hint ?? `fix ${source} where the message says`,
+          };
+          const r = ok({ ready: false, place: ".", checks: [config] });
+          return { result: r, warnings: readinessWarnings(r.value) };
+        }
         let worktree = opts.worktree;
         if (opts.run) {
           const record = await c.resolve("runRepository").load(opts.run);

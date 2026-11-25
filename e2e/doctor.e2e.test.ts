@@ -43,7 +43,10 @@ describe("metator doctor (real CLI)", () => {
     expect(r.code).toBe(0);
     const data = r.json.data as { ready: boolean; checks: Check[] };
     expect(data.ready).toBe(true);
-    expect(data.checks.map((c) => `${c.id}:${c.status}`)).toEqual([
+    // Whether `metator` is on this machine's PATH is the machine's: its own test is below.
+    const metatorCheck = data.checks.filter((c) => c.id === "metator");
+    expect(metatorCheck.every((c) => c.status === "warn")).toBe(true);
+    expect(data.checks.filter((c) => c.id !== "metator").map((c) => `${c.id}:${c.status}`)).toEqual([
       "config:warn",
       "canon:warn",
       "workflows:ok",
@@ -56,8 +59,66 @@ describe("metator doctor (real CLI)", () => {
       "remote:warn",
     ]);
     expect(data.checks.find((c) => c.id === "dependencies")?.fix).toBe("bun install");
-    expect((r.json.warnings as string[]).length).toBe(6);
+    expect((r.json.warnings as string[]).length).toBe(6 + metatorCheck.length);
   });
+
+  test("hosts.metatorCommand not on the PATH: a workflow whose script stage calls metator is not ready, with the fix", async () => {
+    const scripted = await ScratchRepo.create();
+    try {
+      await scripted.write(
+        ".github/metator/workflows/indexed.yml",
+        'kind: Workflow\nschemaVersion: 2\nid: indexed\nstages:\n  - id: index\n    owner: "script:metator index build"\n',
+      );
+      await scripted.write(
+        "metator.config.yml",
+        "kind: MetatorConfig\nschemaVersion: 1\nhosts:\n  metatorCommand: metator-missing-e2e index\n",
+      );
+      await scripted.commit("init");
+      const r = await metator(["doctor"], scripted.root);
+      const data = r.json.data as { ready: boolean; checks: (Check & { message: string })[] };
+      expect([r.code, data.ready]).toEqual([0, false]);
+      expect(data.checks.find((c) => c.id === "metator")).toMatchObject({
+        status: "fail",
+        message:
+          "`metator-missing-e2e` (hosts.metatorCommand) is not on the PATH: the script stages of indexed that call MetatorAI cannot start",
+        fix: expect.stringContaining("set hosts.metatorCommand in metator.config.yml"),
+      });
+      // `bun` is on the PATH of every test run: the same workflow is ready by it.
+      await scripted.write(
+        "metator.config.yml",
+        "kind: MetatorConfig\nschemaVersion: 1\nhosts:\n  metatorCommand: bun run metator\n",
+      );
+      const fixed = (await metator(["doctor"], scripted.root)).json.data as {
+        ready: boolean;
+        checks: Check[];
+      };
+      expect([fixed.ready, fixed.checks.some((c) => c.id === "metator")]).toEqual([true, false]);
+    } finally {
+      await scripted.dispose();
+    }
+  }, 60_000);
+
+  test("a broken metator.config.yml is doctor's failed config check, not an error; --run with --worktree is refused", async () => {
+    const broken = await ScratchRepo.create();
+    try {
+      await broken.write("metator.config.yml", "gates: [oops\n");
+      await broken.commit("init");
+      const r = await metator(["doctor"], broken.root);
+      const data = r.json.data as { ready: boolean; checks: (Check & { message: string })[] };
+      expect([r.code, r.json.ok, data.ready, data.checks.map((c) => `${c.id}:${c.status}`)]).toEqual([
+        0,
+        true,
+        false,
+        ["config:fail"],
+      ]);
+      expect(data.checks[0]?.message).toStartWith("Invalid YAML in metator.config.yml");
+      expect(data.checks[0]?.fix).toContain("metator.config.yml");
+    } finally {
+      await broken.dispose();
+    }
+    const both = await mt("doctor", "--run", "r1", "--worktree", "w1");
+    expect([both.code, (both.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+  }, 60_000);
 
   test("run init warns about an open question in the task and what this run cannot do; installed dependencies end that warning", async () => {
     const init = await mt(
