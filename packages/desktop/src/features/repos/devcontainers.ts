@@ -17,7 +17,7 @@ import type {
 import { type ContainerStates, containerStateOf, progressLine, repoName } from "./repos.ts";
 
 /** Where a container engine comes from: the app needs one of them running on this computer. */
-export const ENGINE_LINKS: readonly { readonly name: string; readonly url: string }[] = [
+const ENGINE_LINKS: readonly { readonly name: string; readonly url: string }[] = [
   { name: "Docker Desktop", url: "https://docs.docker.com/desktop/" },
   { name: "Rancher Desktop", url: "https://docs.rancherdesktop.io/getting-started/installation/" },
 ];
@@ -73,7 +73,7 @@ export function readContainerList(list: DevContainerList): ListReading {
 }
 
 /** What a container's row offers. */
-export type RowAction = "start" | "choose" | "open" | "none";
+type RowAction = "start" | "choose" | "open" | "none";
 
 export interface ContainerRow {
   /** The local folder label: the container's identity. */

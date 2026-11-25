@@ -14,7 +14,7 @@ export function nextWaiting<R extends Pick<RunOverview, "runId" | "attention">>(
   return waiting[(i + 1) % waiting.length];
 }
 /** A person is "back" when they were away this long (spec §6.8): the briefing opens first. */
-export const AWAY_MS = 10 * 60 * 1000;
+const AWAY_MS = 10 * 60 * 1000;
 export const wasAway = (lastSeenAt: number | undefined, now: number): boolean =>
   lastSeenAt !== undefined && now - lastSeenAt >= AWAY_MS;
 /** Questions of the state that were not there before: what a notification announces. */

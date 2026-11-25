@@ -19,7 +19,7 @@ export interface Outcome {
 }
 
 /** A checkout of a folder's repository (`root` absolute), as a request names it (`name`). */
-export interface FolderPlace extends FolderCheckout {
+interface FolderPlace extends FolderCheckout {
   readonly root: string;
 }
 

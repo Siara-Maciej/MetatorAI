@@ -30,7 +30,7 @@ import { registerConductorCommands } from "./conductor.ts";
 import { registerDriveCommands } from "./drive.ts";
 import { paneStartedRun } from "./guard.ts";
 
-export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
+const EVENTS = ["pass", "fail", "approve", "abort"] as const;
 
 /** The JSON artifacts a stage produces, by the name its `produces` gives them: `run schema` prints each. */
 const RUN_ARTIFACTS = {

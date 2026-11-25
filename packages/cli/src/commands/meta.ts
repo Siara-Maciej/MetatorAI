@@ -261,7 +261,7 @@ export function renderOverview(o: Overview): string {
 }
 
 /** The commands of an audience, with each one's summary and usage (a group too, when it names the audience). */
-export function describeAudience(
+function describeAudience(
   program: Command,
   audience: Audience,
 ): { audience: Audience; commands: CommandInfo[] } {

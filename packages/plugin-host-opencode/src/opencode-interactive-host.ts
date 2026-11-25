@@ -41,7 +41,7 @@ export class OpencodeInteractiveHost extends PtyInteractiveHost {
 }
 
 /** The OpenCode command line of a session: the project directory, the mode, the run's agent. */
-export function opencodeArgv(bin: string, task: AgentTask, mode: readonly string[]): string[] {
+function opencodeArgv(bin: string, task: AgentTask, mode: readonly string[]): string[] {
   const agentFile = join(task.projectRoot, ".opencode", "agent", `${task.agent}.md`);
   return [bin, task.cwd, ...mode, ...(existsSync(agentFile) ? ["--agent", task.agent] : [])];
 }

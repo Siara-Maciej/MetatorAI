@@ -40,7 +40,7 @@ export function declaredTypes(path: string, content: string): { package: string;
 }
 
 /** Every `.java` file of the repository, repo-relative. */
-export function javaFiles(root: string): string[] {
+function javaFiles(root: string): string[] {
   const out: string[] = [];
   const visit = (dir: string) => {
     let entries: import("node:fs").Dirent[];

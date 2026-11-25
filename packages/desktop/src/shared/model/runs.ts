@@ -57,7 +57,7 @@ export function hostChoice(
   const installed = status.filter((h) => h.installed).map((h) => h.id);
   return hostOrder.find((h) => installed.includes(h)) ?? installed[0];
 }
-export const listed = (words: readonly string[]): string =>
+const listed = (words: readonly string[]): string =>
   words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
 /** What the app says when no host can start: what was looked for and where the guide is. */
 export const noHostText = (status: readonly HostStatus[]): string =>

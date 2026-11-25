@@ -112,7 +112,7 @@ export function withStepChanged<P extends Pick<Plan, "steps">>(
 /* ---------- a system plan ---------- */
 
 /** A new step of a system plan: an id `step-N`, the first application, nothing else. */
-export const blankSystemStep = (plan: Pick<SystemPlan, "steps">, app = ""): SystemStep =>
+const blankSystemStep = (plan: Pick<SystemPlan, "steps">, app = ""): SystemStep =>
   ({
     id: nextId(
       plan.steps.map((s) => s.id),
@@ -143,15 +143,6 @@ export function withoutSystemStep(plan: SystemPlan, id: string): SystemPlan {
       .map((s) => (s.dependsOn.includes(id) ? { ...s, dependsOn: s.dependsOn.filter((d) => d !== id) } : s)),
   };
 }
-
-export const withSystemStepMoved = (plan: SystemPlan, id: string, step: -1 | 1): SystemPlan => ({
-  ...plan,
-  steps: moved(
-    plan.steps,
-    plan.steps.findIndex((s) => s.id === id),
-    step,
-  ),
-});
 
 export function withSystemStepChanged(
   plan: SystemPlan,
@@ -245,7 +236,7 @@ export function itemChangeLines<T extends { readonly id: string }>(
 }
 
 /** The fields of a document besides its lists that changed, by name. */
-export function fieldChangeLines(before: object, after: object, fields: readonly string[]): string[] {
+function fieldChangeLines(before: object, after: object, fields: readonly string[]): string[] {
   const changed = fields.filter(
     (f) => !same((before as Record<string, unknown>)[f], (after as Record<string, unknown>)[f]),
   );

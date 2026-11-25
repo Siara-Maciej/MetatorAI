@@ -28,7 +28,7 @@ async function knownRun(
  * fixed, and a yes resumes it at the stage it stopped at (what `run resume` records, under their
  * name). A run that is not escalated passes through; a no continues nothing.
  */
-export async function offerResume(
+async function offerResume(
   c: MetatorContainer,
   runId: string,
   terminal: Pick<Terminal, "choose">,

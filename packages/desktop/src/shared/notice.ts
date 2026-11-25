@@ -13,7 +13,7 @@ export interface ShellNotice {
   readonly sticky?: boolean;
 }
 
-export const noticeStore = createStore<{ readonly notice: ShellNotice | undefined }>(() => ({
+const noticeStore = createStore<{ readonly notice: ShellNotice | undefined }>(() => ({
   notice: undefined,
 }));
 

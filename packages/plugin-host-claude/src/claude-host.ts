@@ -9,7 +9,7 @@ import { ClaudeSkillGenerator } from "./skill-generator.ts";
  * compiled `metator` (the desktop app's, ADR-0105) ships no such package and names the person's
  * `claude` here.
  */
-export const CLAUDE_EXECUTABLE_ENV = "METATOR_CLAUDE_EXECUTABLE";
+const CLAUDE_EXECUTABLE_ENV = "METATOR_CLAUDE_EXECUTABLE";
 
 /**
  * Claude Code as the composition root sees it. Agents run through the Agent SDK, so driving them

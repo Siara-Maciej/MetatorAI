@@ -12,7 +12,7 @@ import { NO_CHANNEL, readEvent } from "../api/events.ts";
 import { queryClient, readAgain, setPushLive } from "../api/query.ts";
 
 /** Failed tries before a daemon that never said hello is taken as one without the channel. */
-export const GIVE_UP_AFTER = 3;
+const GIVE_UP_AFTER = 3;
 
 export function useDaemonEvents(url: string): void {
   useEffect(() => {

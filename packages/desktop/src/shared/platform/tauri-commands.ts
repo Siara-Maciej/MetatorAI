@@ -117,7 +117,7 @@ export interface KnownRepo {
 }
 
 /** A repository in a dev container, as the app remembers it: stable across rebuilds of the container. */
-export interface KnownDevContainer {
+interface KnownDevContainer {
   /** The `devcontainer.local_folder` label: the container's identity. */
   readonly localFolder: string;
   /** The repository inside the container (absolute there). */
@@ -161,7 +161,7 @@ export interface DevContainerList {
   readonly problem: string | null;
 }
 
-export interface InstallOutput {
+interface InstallOutput {
   readonly runId: string;
   readonly line: string;
 }
@@ -190,7 +190,7 @@ export interface CliInfo {
   readonly version: string;
 }
 
-export interface SetupOutput {
+interface SetupOutput {
   readonly runId: string;
   readonly line: string;
 }

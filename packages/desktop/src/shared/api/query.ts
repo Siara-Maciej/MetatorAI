@@ -37,7 +37,7 @@ export const shared = <T>(before: T | undefined, next: T): T => replaceEqualDeep
  * Whether the daemon's push channel is live (ADR-0110): while it is, a polled request is asked
  * only rarely, as a fallback; what changed is read again when the daemon says so.
  */
-export const pushStore = createStore<{ readonly live: boolean }>(() => ({ live: false }));
+const pushStore = createStore<{ readonly live: boolean }>(() => ({ live: false }));
 export const setPushLive = (live: boolean): void => pushStore.setState({ live });
 
 /**

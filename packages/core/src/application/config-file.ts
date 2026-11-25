@@ -20,7 +20,7 @@ import type { FileSystem, ReadonlyFileSystem } from "../ports/index.ts";
 import { parseDocumentText } from "./document-io.ts";
 
 /** The config a new repository gets when a setting is saved before any config exists. */
-export const NEW_CONFIG_FILE = "metator.config.yml";
+const NEW_CONFIG_FILE = "metator.config.yml";
 
 /** One setting of metator.config: the field at `path`, set to `value` or removed when undefined. */
 export interface ConfigFieldChange {

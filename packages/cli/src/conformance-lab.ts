@@ -67,7 +67,7 @@ interface LabOptions {
   readonly root: string;
 }
 
-export class DaemonLab implements ConformanceLab {
+class DaemonLab implements ConformanceLab {
   private dir = "";
   private repo = "";
   private out = "";

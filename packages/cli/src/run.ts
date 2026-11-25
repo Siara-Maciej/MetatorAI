@@ -24,7 +24,7 @@ export function asksForTheList(argv: readonly string[]): boolean {
 }
 
 /** `--json` among the command's words (before a `--`): the person asked for the JSON line alone. */
-export function asksForJsonOnly(argv: readonly string[]): boolean {
+function asksForJsonOnly(argv: readonly string[]): boolean {
   const end = argv.indexOf("--");
   return (end === -1 ? argv : argv.slice(0, end)).includes("--json");
 }

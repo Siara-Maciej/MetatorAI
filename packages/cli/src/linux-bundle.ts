@@ -15,7 +15,7 @@ export type LinuxArch = "x64" | "arm64";
 
 /** The manifest's kind; it sits beside the tarball as `metator-bundle.json`. */
 export const BUNDLE_KIND = "LinuxCliBundle";
-export const BUNDLE_SCHEMA_VERSION = 1;
+const BUNDLE_SCHEMA_VERSION = 1;
 export const BUNDLE_MANIFEST = "metator-bundle.json";
 
 /** The architecture as the bundle names it, from Node's (`x64`), Docker's (`amd64`) or `uname -m`'s (`aarch64`) name. */

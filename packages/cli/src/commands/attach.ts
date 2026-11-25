@@ -16,7 +16,7 @@ import { byOption } from "../options.ts";
 import { who } from "../who.ts";
 
 /** The person's own terminal as the attach client's IO (raw mode on stdin, bytes on stdout). */
-export function processIo(
+function processIo(
   stdin: NodeJS.ReadStream = process.stdin,
   stdout: NodeJS.WriteStream = process.stdout,
 ): AttachIo {
@@ -47,7 +47,7 @@ export function processIo(
 }
 
 /** A WebSocket as the attach client's socket. */
-export function webSocket(url: string): AttachSocket {
+function webSocket(url: string): AttachSocket {
   const ws = new WebSocket(url);
   return {
     send: (text) => {

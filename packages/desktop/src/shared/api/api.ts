@@ -6,11 +6,7 @@
 
 import type {
   Attention,
-  AttentionCounts,
-  BoardStage,
-  BoardStep,
   InboxItem as CoreInboxItem,
-  DecisionCard,
   DiffLine,
   FileDiff,
   Freshness,
@@ -20,14 +16,11 @@ import type {
   IssueRef,
   IssueView,
   LayoutView,
-  OptionDescription,
   OptionDiagnostic,
   OptionScope,
-  OptionSource,
   OptionsView,
   Overview,
   PaneRole,
-  PaneState,
   PaneView,
   Plan,
   PlanBoardView,
@@ -42,7 +35,6 @@ import type {
   ReviewCard,
   ReviewNote,
   ReviewStatus,
-  ReviewThread,
   RunActivity,
   RunArtifact,
   RunArtifactKind,
@@ -55,13 +47,11 @@ import type {
   RunPlanView,
   SplitNode,
   StageProgress,
-  StageState,
   StartedStep,
   SystemDiscoveryView,
   SystemMap,
   SystemMapView,
   SystemPlan,
-  SystemPlanStepView,
   SystemPlanSummary,
   SystemPlanView,
   SystemStep,
@@ -84,10 +74,6 @@ import type { ScratchDropped } from "../model/stage1.ts";
  */
 export type {
   Attention,
-  AttentionCounts,
-  BoardStage,
-  BoardStep,
-  DecisionCard,
   DiffLine,
   FileDiff,
   Freshness,
@@ -97,14 +83,10 @@ export type {
   IssueRef,
   IssueView,
   LayoutView,
-  OptionDescription,
   OptionDiagnostic,
   OptionScope,
-  OptionSource,
   OptionsView,
-  Overview,
   PaneRole,
-  PaneState,
   PaneView,
   Plan,
   PlanBoardView,
@@ -125,13 +107,11 @@ export type {
   RunPlanView,
   SplitNode,
   StageProgress,
-  StageState,
   StartedStep,
   SystemDiscoveryView,
   SystemMap,
   SystemMapView,
   SystemPlan,
-  SystemPlanStepView,
   SystemPlanSummary,
   SystemPlanView,
   SystemStep,
@@ -140,8 +120,6 @@ export type {
   WorkPhase,
 };
 
-/** One option of a question. */
-export type QuestionOption = Question["options"][number];
 /** An event of a run's activity. */
 export type Activity = RunActivity;
 /** A live terminal of a pane, as the daemon's broker describes it. */
@@ -150,8 +128,6 @@ export type TabView = Tab;
 export type WorkspaceView = Workspace;
 /** Two runs that changed the same files, and which to merge first. */
 export type Conflict = WorktreeConflict;
-/** One review thread on my request, with what the agent made of it. */
-export type ReviewThreadView = ReviewThread;
 /** My reviewed request, by the id `metator mrs` names it. */
 export type ReviewedRequest = PullRequestReview & {
   readonly id: string;
@@ -273,14 +249,14 @@ export interface PaneAsk {
 }
 
 /** A thread's current chat terminal (the last of its `panes`) and whether it runs. */
-export interface ChatLink {
+interface ChatLink {
   readonly paneId: string;
   readonly repo?: string;
   readonly status: "live" | "paused" | "ended" | "missing";
 }
 
 /** A top run of a thread, as `GET /threads` lists it. */
-export interface TaskLink {
+interface TaskLink {
   readonly runId: string;
   readonly repo?: string;
   readonly task: string;
@@ -383,7 +359,7 @@ export interface Envelope<T> {
   };
 }
 
-export const DEFAULT_DAEMON = "http://127.0.0.1:4310";
+const DEFAULT_DAEMON = "http://127.0.0.1:4310";
 
 /** Where the daemon is: `?daemon=`, then what the person saved, then the default port. */
 export function daemonUrl(search: string, saved: string | null): string {

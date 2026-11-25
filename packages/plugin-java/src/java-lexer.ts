@@ -70,20 +70,20 @@ export function tokenize(src: string): JavaToken[] {
   return out;
 }
 
-export interface LexicalImport {
+interface LexicalImport {
   readonly name: string;
   readonly static: boolean;
   readonly onDemand: boolean;
   readonly line: number;
 }
 
-export interface LexicalMember {
+interface LexicalMember {
   readonly name: string;
   readonly line: number;
   readonly public: boolean;
 }
 
-export interface LexicalType {
+interface LexicalType {
   readonly name: string;
   readonly kind: "class" | "interface" | "enum" | "record" | "annotation";
   readonly line: number;

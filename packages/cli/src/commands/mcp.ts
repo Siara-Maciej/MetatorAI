@@ -65,13 +65,13 @@ export function registerMcpCommand(program: Command, ctx: CommandContext): void 
     );
 }
 
-export interface ServedReport {
+interface ServedReport {
   readonly tools: number;
   readonly calls: number;
 }
 
 /** Serves until the client closes the connection; the tools run through `invoke`. */
-export async function serve(
+async function serve(
   tools: readonly McpTool[],
   invoke: (
     argv: readonly string[],

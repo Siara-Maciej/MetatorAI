@@ -17,7 +17,7 @@ import type { PaneAsk } from "./pane-asks.ts";
  * functions over the same data the envelope carries; `--json` leaves them out.
  */
 
-export const ATTENTION: Readonly<Record<Attention, { readonly icon: string; readonly label: string }>> = {
+const ATTENTION: Readonly<Record<Attention, { readonly icon: string; readonly label: string }>> = {
   you: { icon: "?", label: "needs you" },
   driving: { icon: "⟳", label: "working" },
   stopped: { icon: "‖", label: "stopped" },

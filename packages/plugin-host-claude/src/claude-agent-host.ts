@@ -37,7 +37,7 @@ export const LOCAL_METATOR =
   "There is no ./metator program here: metator is on PATH. Run `metator <command>` on its own, without ./ and without a `||` fallback.";
 
 /** The command runs `./metator`, and no directory it could mean holds a metator program. */
-export function noLocalMetator(command: string, dirs: readonly string[]): boolean {
+function noLocalMetator(command: string, dirs: readonly string[]): boolean {
   if (!/(^|[\s;&|(])\.\/metator(\s|$)/.test(command)) return false;
   return !dirs.some((d) => {
     try {

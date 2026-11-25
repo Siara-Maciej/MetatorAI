@@ -21,6 +21,8 @@ jobs:
         run: bunx biome ci .
       - name: Typecheck
         run: bun run typecheck
+      - name: Dead code (knip)
+        run: bun run knip
       - name: Architecture rules (ast-grep)
         run: bun run arch
       - name: Rule canon (lint + generated instructions up to date)

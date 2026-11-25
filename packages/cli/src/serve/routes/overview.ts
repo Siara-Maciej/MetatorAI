@@ -9,7 +9,7 @@ import { route } from "../http.ts";
  * What the Supervisor screen shows: the daemon, its hosts and policy, the live PTY sessions,
  * and the acceptance figures (11a, 11b) from the same facts as `metator report`.
  */
-export async function supervisorView(
+async function supervisorView(
   c: MetatorContainer,
   repo: string | undefined,
   daemon: Pick<Daemon, "folder" | "startedAt" | "hostname" | "superviseMs" | "port">,

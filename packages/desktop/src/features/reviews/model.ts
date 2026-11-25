@@ -34,7 +34,7 @@ export const FINDING_STATES = [
 ] as const satisfies readonly FindingState[];
 
 /** `not fixed`, `open`, …: the badge's words. */
-export const findingText = (state: FindingState): string => (state === "not-fixed" ? "not fixed" : state);
+const findingText = (state: FindingState): string => (state === "not-fixed" ? "not fixed" : state);
 
 /** The badge of a finding's state: its words and its tone (`LOOKS.finding`). */
 export function findingBadge(state: FindingState): {

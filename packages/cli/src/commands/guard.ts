@@ -8,7 +8,7 @@ import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
  * A hook call from a pane under the daemon is proof the agent works (R3): the pane's heartbeat,
  * carried by its token, sent once and never waited for long. No daemon or no pane: nothing to say.
  */
-export async function paneHeartbeat(
+async function paneHeartbeat(
   env: Readonly<Record<string, string | undefined>> = process.env,
   root: string = process.cwd(),
 ): Promise<void> {
@@ -52,7 +52,7 @@ export async function paneStartedRun(
  * daemon tells the task's main chat in one line. Sent once with the pane's token, never waited for
  * long; no daemon, no run pane, or no words: nothing to say.
  */
-export async function paneSaid(
+async function paneSaid(
   prompt: unknown,
   env: Readonly<Record<string, string | undefined>> = process.env,
   root: string = process.cwd(),

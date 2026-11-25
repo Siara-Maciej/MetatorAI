@@ -14,7 +14,7 @@ import type { Route } from "../../shared/model/route.ts";
 export type { Freshness };
 
 /** What an analysis or a plan was made from (Issue v3 `Snapshot`). */
-export interface SnapshotLike {
+interface SnapshotLike {
   /** The text, under `.metator/issues/<id>/`. */
   readonly file: string;
   readonly at: string;
@@ -22,7 +22,7 @@ export interface SnapshotLike {
 }
 
 /** An item's plan: the snapshot with the run that made it. */
-export type PlanSnapshotLike = SnapshotLike & {
+type PlanSnapshotLike = SnapshotLike & {
   readonly runId: string;
   readonly kind: "plan" | "system-plan";
 };
@@ -53,7 +53,7 @@ export type BacklogItem = Pick<Issue, "id" | "title" | "status"> & {
 /* ---------- freshness ---------- */
 
 /** How many changed files a badge names before "+N". */
-export const BADGE_FILES = 3;
+const BADGE_FILES = 3;
 
 /** The file's name as a person reads it in a badge: its last part. */
 const baseName = (path: string): string => path.split("/").pop() || path;
@@ -180,13 +180,13 @@ export function pointsAt(item: Pick<Issue, "refs" | "runId"> & Pick<BacklogItem,
 /* ---------- parents and children ---------- */
 
 /** A parent's children: what the daemon lists, else the items that name it as their parent. */
-export function childIds(item: Pick<BacklogItem, "id" | "children">, all: readonly BacklogItem[]): string[] {
+function childIds(item: Pick<BacklogItem, "id" | "children">, all: readonly BacklogItem[]): string[] {
   if (item.children) return [...item.children];
   return all.filter((i) => i.parent === item.id).map((i) => i.id);
 }
 
 /** Done and dropped are both finished: a dropped child does not hold its parent back. */
-export const isFinishedItem = (i: Pick<BacklogItem, "status">): boolean =>
+const isFinishedItem = (i: Pick<BacklogItem, "status">): boolean =>
   i.status === "done" || i.status === "dropped";
 
 /**

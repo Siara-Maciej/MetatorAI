@@ -28,7 +28,7 @@ export interface JavaGrammarFiles {
 }
 
 /** The files in node_modules (a checkout, the npm package); a compiled CLI gives its resources instead. */
-export function installedGrammarFiles(): JavaGrammarFiles {
+function installedGrammarFiles(): JavaGrammarFiles {
   const require = createRequire(import.meta.url);
   return {
     runtime: require.resolve("web-tree-sitter/web-tree-sitter.wasm"),
@@ -150,7 +150,7 @@ const nameLine = (n: Node) => line(n.childForFieldName("name") ?? n);
 const named = (n: Node | null | undefined): Node[] => (n ? (n.namedChildren.filter(Boolean) as Node[]) : []);
 
 /** Everything the file declares and uses. */
-export function extract(root: Node): JavaParsedFile {
+function extract(root: Node): JavaParsedFile {
   let pkg = "";
   const imports: JavaImport[] = [];
   const types: JavaTypeDecl[] = [];
@@ -268,7 +268,7 @@ function modifiersOf(decl: Node): { modifiers: string[]; annotations: JavaAnnota
   return { modifiers: [...new Set(modifiers)], annotations };
 }
 
-export function annotation(n: Node): JavaAnnotation {
+function annotation(n: Node): JavaAnnotation {
   const args: Record<string, JavaValue> = {};
   for (const a of named(n.childForFieldName("arguments"))) {
     if (a.type === "element_value_pair") {
@@ -282,7 +282,7 @@ export function annotation(n: Node): JavaAnnotation {
 }
 
 /** An expression as a value: literals evaluated, string concatenations joined, arrays itemized. */
-export function value(n: Node): JavaValue {
+function value(n: Node): JavaValue {
   const text = n.text.replace(/\s+/g, " ").trim();
   switch (n.type) {
     case "string_literal": {
@@ -433,7 +433,7 @@ function constructorOf(n: Node, components: readonly JavaParameter[]): JavaConst
   };
 }
 
-export function typeDecl(n: Node, prefix: string): JavaTypeDecl {
+function typeDecl(n: Node, prefix: string): JavaTypeDecl {
   const kind = DECLARATIONS[n.type] as JavaTypeKind;
   const name = n.childForFieldName("name")?.text ?? "";
   const qualifiedName = `${prefix}${name}`;

@@ -114,4 +114,5 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0109](0109-desktop-feature-structure-and-compiler.md) | Aplikacja desktopowa: struktura według funkcji, warstwy zależności, React Compiler i granice błędów | Proposed |
 | [0110](0110-daemon-event-channel.md) | Kanał zdarzeń demona: `/ws/events` mówi, które tematy się zmieniły | Proposed |
 | [0111](0111-desktop-design-system.md) | System projektowy aplikacji desktopowej: Tailwind i komponenty w stylu shadcn/ui w `ui/` | Proposed |
+| [0112](0112-knip-dead-code.md) | Martwy kod tego repozytorium: knip w `bun run check` | Proposed |
 | 0009 | *zarezerwowany: platforma hostów (spike F0)* | – |

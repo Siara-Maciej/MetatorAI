@@ -1,0 +1,73 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  // Dead code in this repository (ADR-0112): unused files, exports, types and dependencies.
+  // `bun run knip` is part of `bun run check`.
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/**/*.ts",
+        "e2e/**/*.test.ts",
+        // Started as a process of its own by the e2e and contract tests.
+        "e2e/helpers/fake-mcp-server.ts",
+        "rules/conformance/*.test.ts",
+        // The site's theme and data loaders are imported by .vue components, which knip does not read.
+        "site/.vitepress/theme/**/*.ts",
+        "site/.vitepress/data/*.data.ts"
+      ],
+      "project": ["scripts/**/*.ts", "e2e/**/*.ts", "rules/conformance/*.ts", "site/.vitepress/**/*.ts"],
+      // VitePress brings Vue; the theme imports it the way VitePress documents.
+      "ignoreDependencies": ["vue"]
+    },
+    "packages/*": {
+      // Every package is private: an export of its index that no other package imports is dead too.
+      "includeEntryExports": true,
+      "entry": ["test/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}"]
+    },
+    "packages/cli": {
+      // The package's index is what an embedding program imports (`run`); nothing here does.
+      "includeEntryExports": false,
+      "entry": ["test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/desktop": {
+      "includeEntryExports": true,
+      "entry": [
+        "test/**/*.test.{ts,tsx}",
+        // Started as a process of its own by test/compiler.test.ts.
+        "test/compile-with-react-compiler.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx,css}", "test/**/*.{ts,tsx}"]
+    },
+    "packages/plugin-bun": {
+      "includeEntryExports": true,
+      "entry": [
+        "test/**/*.test.ts",
+        // Started as a process of its own by test/bun-file-lock.test.ts.
+        "test/fixtures/lock-bump.ts"
+      ],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/plugin-node": {
+      "includeEntryExports": true,
+      "entry": ["test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      // Resolved at run time with createRequire (srt-sandbox.ts) and copied by scripts/compile-cli.ts.
+      "ignoreDependencies": ["@anthropic-ai/sandbox-runtime"]
+    },
+    "packages/plugin-astgrep": {
+      "includeEntryExports": true,
+      "entry": ["test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      // The engine runs the package's binary; its tests need it installed.
+      "ignoreDependencies": ["@ast-grep/cli"]
+    },
+    "packages/plugin-biome": {
+      "includeEntryExports": true,
+      "entry": ["test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      // The engine reads the package's configuration schema from node_modules and runs its binary.
+      "ignoreDependencies": ["@biomejs/biome"]
+    }
+  }
+}

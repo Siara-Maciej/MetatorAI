@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** A container of a stand-in engine's world. */
-export interface StandInContainer {
+interface StandInContainer {
   readonly id: string;
   readonly name: string;
   readonly image: string;

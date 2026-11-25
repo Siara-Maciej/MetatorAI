@@ -110,7 +110,7 @@ export function terminalTasks(
 export const paneKey = (p: Pick<TPane, "id" | "repo">): string => (p.repo ? `${p.repo}|${p.id}` : p.id);
 
 /** Every pane a task holds: its main terminal, its sessions and all their sub-terminals. */
-export const panesOfTask = (t: TerminalTask): TPane[] =>
+const panesOfTask = (t: TerminalTask): TPane[] =>
   [
     t.main,
     ...t.own.subs,

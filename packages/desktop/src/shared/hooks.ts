@@ -62,7 +62,7 @@ export interface Answer {
       }
     | undefined;
 }
-export interface ActionNotice {
+interface ActionNotice {
   readonly text: string | undefined;
   readonly tone: "error" | "info";
   onClose(): void;

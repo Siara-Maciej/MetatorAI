@@ -300,7 +300,6 @@ import {
 } from "@metator/plugin-bun";
 
 export {
-  findChildRepos,
   findFolderRepos,
   findFolderRoot,
   findRepoRoot,

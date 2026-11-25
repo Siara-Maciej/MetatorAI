@@ -443,7 +443,7 @@ const MAVEN_CHECKS: Readonly<Record<JavaCheckTool, string>> = {
  * The check plugins a POM's `<build><plugins>` runs by default (round 22). `<pluginManagement>`
  * only sets versions, and `<reporting>` and profiles run only when asked: none of them counts.
  */
-export function mavenChecks(file: string, build: XmlElement | undefined): NonNullable<JavaModule["checks"]> {
+function mavenChecks(file: string, build: XmlElement | undefined): NonNullable<JavaModule["checks"]> {
   const plugins = children(child(build, "plugins"), "plugin");
   return (Object.keys(MAVEN_CHECKS) as JavaCheckTool[]).flatMap((tool) => {
     const plugin = plugins.find((p) => childText(p, "artifactId") === MAVEN_CHECKS[tool]);
@@ -461,7 +461,7 @@ const GRADLE_CHECKS: Readonly<Record<JavaCheckTool, string>> = {
 };
 
 /** The check plugins a Gradle script applies (`id("x")`, `id 'x'`, `apply plugin: 'x'`, bare core plugins), comments stripped. */
-export function gradleChecks(file: string, script: string): NonNullable<JavaModule["checks"]> {
+function gradleChecks(file: string, script: string): NonNullable<JavaModule["checks"]> {
   const lines = script.split(/\r?\n/);
   const plugins = /plugins\s*\{([^}]*)\}/.exec(script);
   const pluginsFrom = plugins ? script.slice(0, plugins.index).split("\n").length - 1 : -1;

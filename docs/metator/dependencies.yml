@@ -71,6 +71,11 @@ packages:
   - { package: get-port, need: "free ports for worktree port blocks", adr: 0050-run-worktrees.md }
   - { package: github-slugger, need: "Markdown heading anchors", adr: 0020-rule-canon.md }
   - {
+      package: knip,
+      need: "dead code of this repository (files, exports, dependencies)",
+      adr: 0112-knip-dead-code.md,
+    }
+  - {
       package: node-pty,
       need: "pseudo-terminals for interactive host sessions (ConPTY on Windows)",
       adr: 0077-desktop-daemon-driver-lock.md,
