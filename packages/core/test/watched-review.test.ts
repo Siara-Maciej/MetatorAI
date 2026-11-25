@@ -93,6 +93,15 @@ describe("WatchedReview v1", () => {
       ).isErr(),
     ).toBe(true);
   });
+
+  test("v2 records the published runs; a v1 file reads as v2 with none, and v1 never takes the field", () => {
+    const doc = WatchedReviewDocument.stamp({ ...review(), publishedRuns: ["run-1"] });
+    expect(doc.schemaVersion).toBe(2);
+    expect(WatchedReviewDocument.parse(doc, "x")._unsafeUnwrap().publishedRuns).toEqual(["run-1"]);
+    const v1 = { ...WatchedReviewDocument.stamp(review()), schemaVersion: 1 };
+    expect(WatchedReviewDocument.parse(v1, "x")._unsafeUnwrap()).toEqual(review());
+    expect(WatchedReviewDocument.parse({ ...doc, schemaVersion: 1 }, "x").isErr()).toBe(true);
+  });
 });
 
 describe("hunks and the delta", () => {

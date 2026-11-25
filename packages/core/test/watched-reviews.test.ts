@@ -49,7 +49,12 @@ function world(
     threads: [],
   };
   const posted: HostReview[] = [];
-  const hooks: { whileReading?: (() => Promise<unknown>) | undefined; url?: string | undefined } = {};
+  const hooks: {
+    whileReading?: (() => Promise<unknown>) | undefined;
+    url?: string | undefined;
+    /** What happens elsewhere while the host takes the review (after it is posted). */
+    whilePublishing?: (() => Promise<unknown>) | undefined;
+  } = {};
   const adapter = (name: string): CodeHostAdapter => ({
     listPullRequests: async () => ok([]),
     listThreads: async () => ok(pr.threads),
@@ -73,6 +78,9 @@ function world(
         return err(new MetatorError("COMMAND_FAILED", "no line comments", { details: { inline: false } }));
       calls.push(`${name} publish #${n}`);
       posted.push(review);
+      const meanwhile = hooks.whilePublishing;
+      hooks.whilePublishing = undefined;
+      if (meanwhile) await meanwhile();
       return ok({
         comments: review.comments.map((_c, i) => ({ hostId: `c${i + 1}`, threadId: `T${i + 1}` })),
       });
@@ -296,6 +304,70 @@ describe("a review from a link (ADR-0097)", () => {
     expect(back).toMatchObject({ published: false, comments: [{ file: "src/cap.ts", line: 2 }] });
     expect(back.published === false && back.why).toContain("cannot take comments on lines");
     expect((await w.reviews.show(ID))._unsafeUnwrap().comments).toEqual([]);
+    // Nothing was posted, so the run may be published again.
+    const again = (
+      await w.reviews.publish({ verdict: ".metator/runs/run-1/verdict.json", review: ID })
+    )._unsafeUnwrap();
+    expect(again.published).toBe(false);
+  });
+
+  test("a run is published once: a second publish, or a retry after the save failed, posts nothing again", async () => {
+    const w = world({ servers: ["github"] });
+    await w.reviews.open({ url: URL, by: "ann" });
+    await w.verdict("run-1");
+    const input = { verdict: ".metator/runs/run-1/verdict.json", review: ID };
+    expect((await w.reviews.publish(input))._unsafeUnwrap().published).toBe(true);
+    const twice = (await w.reviews.publish(input))._unsafeUnwrapErr();
+    expect([twice.code, twice.message]).toEqual([
+      "CONFLICT",
+      "the review run run-1 of MR #45 was published already",
+    ]);
+    expect(twice.hint).toContain("metator review show");
+    expect(w.posted).toHaveLength(1);
+    expect((await w.reviews.show(ID))._unsafeUnwrap().findings).toHaveLength(2);
+
+    // The post goes through, then the file cannot be written: the retry is refused, not posted twice.
+    const v = world({ servers: ["github"] });
+    await v.reviews.open({ url: URL, by: "ann" });
+    await v.verdict("run-1");
+    const file = `.metator/reviews/${ID}.json`;
+    let kept = "";
+    v.hooks.whilePublishing = async () => {
+      kept = (await v.fs.read(file))._unsafeUnwrap();
+      await v.fs.write(file, "{ torn");
+    };
+    expect((await v.reviews.publish(input)).isErr()).toBe(true);
+    expect((await v.fs.read(file))._unsafeUnwrap()).toBe("{ torn");
+    await v.fs.write(file, kept);
+    expect((await v.reviews.publish(input))._unsafeUnwrapErr().code).toBe("CONFLICT");
+    expect(v.posted).toHaveLength(1);
+  });
+
+  test("a review file that cannot be read is an error, never written over; the watcher reports it and goes on", async () => {
+    const w = world({
+      servers: ["github"],
+      sources: [{ id: "shop", kind: "github", repo: "acme/shop", via: "mcp:github" }],
+    });
+    await w.reviews.open({ url: URL, by: "ann" });
+    const file46 = ".metator/reviews/github-acme-shop-46.json";
+    const newer = JSON.stringify({ kind: "WatchedReview", schemaVersion: 99, from: "a newer metator" });
+    await w.fs.write(file46, newer);
+    const checked = (await w.reviews.check())._unsafeUnwrap();
+    expect(checked.checked).toEqual([ID]);
+    expect(checked.requested).toEqual([]);
+    expect(checked.errors).toEqual([expect.stringContaining("github-acme-shop-46: ")]);
+    expect(checked.errors[0]).toContain("newer than supported");
+    expect((await w.fs.read(file46))._unsafeUnwrap()).toBe(newer);
+    const url46 = "https://github.com/acme/shop/pull/46";
+    expect((await w.reviews.show(url46))._unsafeUnwrapErr().code).toBe("INVALID_ARTIFACT");
+    expect((await w.reviews.watch(url46, { by: "ann" }))._unsafeUnwrapErr().code).toBe("INVALID_ARTIFACT");
+    expect((await w.reviews.open({ url: url46, by: "ann" }))._unsafeUnwrapErr().code).toBe(
+      "INVALID_ARTIFACT",
+    );
+    expect(w.started).toHaveLength(1);
+    expect((await w.fs.read(file46))._unsafeUnwrap()).toBe(newer);
+    // The review that can be read is listed; the other is not mistaken for none.
+    expect((await w.reviews.list())._unsafeUnwrap().reviews.map((r) => r.id)).toEqual([ID]);
   });
 });
 

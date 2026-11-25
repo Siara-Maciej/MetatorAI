@@ -1,0 +1,46 @@
+{
+  "kind": "WatchedReview",
+  "schemaVersion": 1,
+  "id": "github-acme-shop-45",
+  "url": "https://github.com/acme/shop/pull/45",
+  "codehost": "github",
+  "host": "github.com",
+  "repo": "acme/shop",
+  "number": 45,
+  "title": "Cap the discount",
+  "author": "ola",
+  "base": "main",
+  "head": "feat/cap",
+  "headSha": "h1",
+  "state": "open",
+  "why": "reviewed",
+  "mode": "diff",
+  "runs": ["run-1"],
+  "reviewedSha": "h1",
+  "comments": [
+    {
+      "hostId": "c1",
+      "threadId": "T1",
+      "findingId": "f1",
+      "file": "src/cap.ts",
+      "line": 2,
+      "replies": 0,
+      "at": "2026-11-22T10:00:00.000Z"
+    }
+  ],
+  "findings": [
+    {
+      "id": "f1",
+      "file": "src/cap.ts",
+      "line": 2,
+      "text": "max has no unit",
+      "severity": "blocking",
+      "state": "open",
+      "at": "2026-11-22T10:00:00.000Z"
+    }
+  ],
+  "dismissed": [],
+  "watch": { "active": true },
+  "createdAt": "2026-11-22T10:00:00.000Z",
+  "updatedAt": "2026-11-22T10:00:00.000Z"
+}
