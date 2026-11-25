@@ -91,7 +91,7 @@ export class SetupWorktree {
       return err(
         MetatorError.usage(
           `run ${id.value} works in your checkout, not in a worktree: there is nothing to set up`,
-          "Start a run with `metator run init --worktree`, or name a worktree with --worktree <id>.",
+          "Start a run with `metator run new --worktree`, or name a worktree with --worktree <id>.",
         ),
       );
     return this.registry.get(record.value.worktree.id);
