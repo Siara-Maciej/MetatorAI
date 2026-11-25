@@ -98,6 +98,15 @@ function codehostMoves(raw: unknown): ConfigFieldChange[] {
   if (after.codehost?.sources) out.push({ path: ["codehost", "sources"], value: after.codehost.sources });
   if (before.reviews?.sources !== undefined) out.push({ path: ["reviews", "sources"], value: undefined });
   if (before.intake?.rules !== undefined) out.push({ path: ["intake", "rules"], value: after.intake?.rules });
+  // An MCP server renamed so `via` can name it: the old name goes, the new one takes its settings.
+  if (after.mcp !== before.mcp && before.mcp && after.mcp) {
+    const kept = new Set(Object.keys(after.mcp));
+    for (const name of Object.keys(before.mcp))
+      if (!kept.has(name)) out.push({ path: ["mcp", name], value: undefined });
+    const had = new Set(Object.keys(before.mcp));
+    for (const [name, value] of Object.entries(after.mcp))
+      if (!had.has(name)) out.push({ path: ["mcp", name], value });
+  }
   const ask = (after.guard?.commands as Record<string, unknown> | undefined)?.ask;
   if (ask !== (before.guard?.commands as Record<string, unknown> | undefined)?.ask)
     out.push({ path: ["guard", "commands", "ask"], value: ask });

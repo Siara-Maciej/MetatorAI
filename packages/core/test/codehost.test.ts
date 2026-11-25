@@ -168,6 +168,70 @@ describe("codehost in MetatorConfig v15", () => {
     expect(codehostFromV14({ kind: "MetatorConfig" })).toEqual({ kind: "MetatorConfig" });
   });
 
+  test("v14 → v15 is total: what v15 cannot name is normalised or left out, never an unreadable config", () => {
+    const v14 = {
+      kind: "MetatorConfig",
+      schemaVersion: 14,
+      mcp: {
+        "my server": { command: "lab-mcp" },
+        "@acme/gh": { command: "gh-mcp" },
+        "acme-gh": { command: "another" },
+      },
+      reviews: {
+        sources: [
+          { kind: "github", repo: "acme/shop", author: "maciej" },
+          // The same repository for another author: a source of its own, not folded into the first.
+          { kind: "github", repo: "acme/shop", author: "ola" },
+          { kind: "github", repo: "acme/shop", author: "maciej" },
+          { kind: "gitlab", repo: "grp/app", mcp: "my server" },
+        ],
+      },
+      intake: {
+        rules: [
+          // No repository: v15 cannot name the source, so the rule is left out.
+          { id: "anywhere", source: { kind: "github", labels: ["bug"] }, workflow: "mt-bugfix" },
+          // Jira's project written as `repo`: it is the project.
+          { id: "jira", source: { kind: "jira", repo: "SHOP", type: "Bug" }, workflow: "mt-bugfix" },
+          // Nothing to name the Jira project by: left out.
+          { id: "jira-all", source: { kind: "jira" }, workflow: "mt-bugfix" },
+          // GitLab's project path written as `project`: it is the repository.
+          { id: "lab", source: { kind: "gitlab", project: "grp/lab" }, workflow: "mt-feature" },
+          // A server name `via` cannot hold: named again in `mcp:` and in the source.
+          { id: "scoped", source: { kind: "github", repo: "acme/api", mcp: "@acme/gh" }, workflow: "w" },
+        ],
+      },
+    };
+    const parsed = MetatorConfigDocument.parse(v14, "x");
+    expect(parsed.isOk()).toBe(true);
+    const v15 = parsed._unsafeUnwrap();
+    expect(v15.codehost.sources).toEqual([
+      { id: "github-acme-shop", kind: "github", repo: "acme/shop", via: "mcp:github", author: "maciej" },
+      { id: "github-acme-shop-2", kind: "github", repo: "acme/shop", via: "mcp:github", author: "ola" },
+      { id: "gitlab-grp-app", kind: "gitlab", repo: "grp/app", via: "mcp:my-server" },
+      { id: "jira-shop", kind: "jira", project: "SHOP", via: "mcp:jira" },
+      { id: "gitlab-grp-lab", kind: "gitlab", repo: "grp/lab", via: "mcp:gitlab" },
+      { id: "github-acme-api", kind: "github", repo: "acme/api", via: "mcp:acme-gh-2" },
+    ]);
+    expect(reviewSourcesOf(v15.codehost).map((s) => s.author)).toEqual(["maciej", "ola", undefined]);
+    expect(v15.intake.rules.map((r) => [r.id, r.source, r.type])).toEqual([
+      ["jira", "jira-shop", "Bug"],
+      ["lab", "gitlab-grp-lab", undefined],
+      ["scoped", "github-acme-api", undefined],
+    ]);
+    // The renamed servers keep their settings; a name already taken is not overwritten.
+    expect(v15.mcp).toEqual({
+      "my-server": { command: "lab-mcp", args: [], env: {} },
+      "acme-gh-2": { command: "gh-mcp", args: [], env: {} },
+      "acme-gh": { command: "another", args: [], env: {} },
+    });
+    // A server named only elsewhere (the person's options) is named the same way in the source.
+    const elsewhere = codehostFromV14({
+      kind: "MetatorConfig",
+      reviews: { sources: [{ kind: "gitlab", repo: "g/a", mcp: "work lab" }] },
+    }) as { codehost: { sources: { via: string }[] }; mcp?: unknown };
+    expect([elsewhere.codehost.sources[0]?.via, elsewhere.mcp]).toEqual(["mcp:work-lab", undefined]);
+  });
+
   test("approving at the host asks the person (kind approve); the v14 default never had it", () => {
     expect(
       guardCommand(["metator", "review", "approve", "github-acme-shop-45"], DEFAULT_GUARD_CONFIG.commands),
