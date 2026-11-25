@@ -14,6 +14,7 @@ import {
   pendingResume,
   type RunRecord,
   type RunResume,
+  type RunState,
 } from "../domain/run-record.ts";
 import type { WorkflowSpec } from "../domain/workflow-spec.ts";
 import type { BranchPublication, Clock, FileSystem } from "../ports/index.ts";
@@ -457,7 +458,9 @@ export class AdvanceRun {
             [before]: given,
             ...Object.fromEntries(granted.map((g) => [g, given])),
           }
-        : current.approvals;
+        : sentBack(machine, before, next.value)
+          ? withdrawn(machine, current, next.value.stage)
+          : current.approvals;
       const autopilot = input.event.type === "APPROVE" && input.event.choice === AUTOPILOT_CHOICE;
       if (autopilot && machine.workflow.autonomy && !machine.workflow.autonomy.includes("L1")) {
         return err(
@@ -580,10 +583,7 @@ export class ResumeRun {
           after: history.length,
         };
         // Sent back: the stages from there on are worked again, so their approvals are asked again.
-        const again = state.stage === from ? [] : machine.stagesFrom(state.stage);
-        const approvals = Object.fromEntries(
-          Object.entries(current.approvals).filter(([gate]) => !again.includes(gate)),
-        );
+        const approvals = state.stage === from ? current.approvals : withdrawn(machine, current, state.stage);
         return {
           ...current,
           state,
@@ -613,6 +613,26 @@ export class ResumeRun {
     }
     return ok(view(updated.value, machine, this.repo));
   }
+}
+
+/**
+ * The approvals left when the run works its stages from `stage` on again: those stages' own and
+ * what they grant (the delivery's push), so no push goes out before the delivery is asked again.
+ */
+function withdrawn(machine: RunStateMachine, record: RunRecord, stage: string): RunRecord["approvals"] {
+  const again = machine.stagesFrom(stage);
+  const taken = new Set([...again, ...again.flatMap((s) => grantsOf(machine, s))]);
+  return Object.fromEntries(Object.entries(record.approvals).filter(([key]) => !taken.has(key)));
+}
+
+/** A failure that moved the run back to an earlier stage (`onFail.goto`), not on or out of it. */
+function sentBack(machine: RunStateMachine, before: string, next: RunState): boolean {
+  const order = machine.workflow.stages.map((s) => s.id);
+  return (
+    next.status === "active" &&
+    order.indexOf(next.stage) >= 0 &&
+    order.indexOf(next.stage) < order.indexOf(before)
+  );
 }
 
 /** A resume in one line, for the log and the timeline: where, from where, who, and what they said. */
