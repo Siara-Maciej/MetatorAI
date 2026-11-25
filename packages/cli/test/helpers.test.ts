@@ -6,6 +6,9 @@ import {
   byOption,
   DECISION_BY_DEFAULT,
   defined,
+  isoTime,
+  nonNegativeInt,
+  positiveInt,
   runGiven,
   runOption,
 } from "../src/options.ts";
@@ -13,6 +16,34 @@ import { failWhen } from "../src/outcome.ts";
 import { whoFrom } from "../src/who.ts";
 
 describe("the helpers every command shares", () => {
+  test("a count is written in decimal digits: no exponent, no hex, no sign, no fraction", () => {
+    expect([positiveInt("1"), positiveInt("42"), positiveInt("007")]).toEqual([1, 42, 7]);
+    for (const bad of ["0", "1e2", "0x10", "+3", "-1", "1.5", "", " 2", "abc"])
+      expect(() => positiveInt(bad)).toThrow("expected a positive integer");
+    expect(nonNegativeInt("0")).toBe(0);
+    for (const bad of ["1e2", "0x10", "+3", "0b1"]) expect(() => nonNegativeInt(bad)).toThrow("0 or more");
+  });
+
+  test("--since is an ISO date or date and time, made one UTC instant", () => {
+    expect(isoTime("2026-11-01")).toBe("2026-11-01T00:00:00.000Z");
+    expect(isoTime("2026-11-01T10:30")).toBe(new Date("2026-11-01T10:30").toISOString());
+    expect(isoTime("2026-11-01T10:30:15Z")).toBe("2026-11-01T10:30:15.000Z");
+    expect(isoTime("2026-11-01T10:30:15.250+02:00")).toBe("2026-11-01T08:30:15.250Z");
+    for (const bad of [
+      "5",
+      "yesterday",
+      "2026",
+      "2026-11",
+      "11/01/2026",
+      "2026-13-01",
+      "2026-02-30",
+      "2026-11-01T25:00",
+      "2026-11-01 10:30",
+      "",
+    ])
+      expect(() => isoTime(bad)).toThrow("expected an ISO date or time");
+  });
+
   test("who acts: --by, then $METATOR_USER, git's user.name, the login name; nobody is a usage error", () => {
     const env = { METATOR_USER: "env", USER: "login", USERNAME: "winlogin" };
     expect(whoFrom("ada", env, "Git Name")._unsafeUnwrap()).toBe("ada");

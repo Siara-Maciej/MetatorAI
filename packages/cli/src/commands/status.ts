@@ -17,6 +17,7 @@ import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, liveDaemonAt } from "../daemon-client.ts";
+import { isoTime } from "../options.ts";
 import { type PaneAsk, paneAsks } from "../pane-asks.ts";
 import { renderDoctor, renderInbox, renderStatus } from "../render.ts";
 
@@ -203,16 +204,18 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
     .description(
       "What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent",
     )
-    .option("--since <time>", "only runs started at or after this ISO time")
+    .option(
+      "--since <time>",
+      "only runs started at or after this ISO date or time (2026-11-01, 2026-11-01T10:30Z)",
+      isoTime,
+    )
     .option(
       "--html <file>",
       "also write the dashboard: the report and the reactions to review comments as one page",
     )
     .action(
       ctx.action(async (opts: { since?: string; html?: string }) => {
-        if (opts.since && Number.isNaN(Date.parse(opts.since)))
-          return { result: err(MetatorError.usage(`--since ${opts.since}: expected an ISO time`)) };
-        const since = opts.since ? new Date(opts.since).toISOString() : undefined;
+        const since = opts.since;
         const f = ctx.folder();
         if (opts.html) {
           if (f)
