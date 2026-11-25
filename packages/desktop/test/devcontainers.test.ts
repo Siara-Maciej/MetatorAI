@@ -14,8 +14,7 @@ import {
   LISTING,
   readContainerList,
   statesOf,
-} from "../src/devcontainers.ts";
-import { type FakeContainer, type FakeWorld, fakeCommands } from "../src/fake-commands.ts";
+} from "../src/features/repos/devcontainers.ts";
 import {
   alreadyAdded,
   containerStateOf,
@@ -25,7 +24,8 @@ import {
   shellView,
   switcherLabel,
   switcherRows,
-} from "../src/repos.ts";
+} from "../src/features/repos/repos.ts";
+import { type FakeContainer, type FakeWorld, fakeCommands } from "../src/shared/platform/fake-commands.ts";
 import {
   type DevContainer,
   type DevContainerList,
@@ -34,7 +34,7 @@ import {
   installWithOutput,
   type KnownRepo,
   tauriCommands,
-} from "../src/tauri-commands.ts";
+} from "../src/shared/platform/tauri-commands.ts";
 
 const DOCKER = { program: "docker", context: "rancher-desktop", version: "27.3.1" } as const;
 const URI = "vscode://vscode-remote/dev-container+633a5c776f726b5c73686f70";

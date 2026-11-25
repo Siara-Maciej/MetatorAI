@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import type { InboxItem, PaneView } from "../src/api.ts";
-import { commandText, needsQueue, paneStateOf, type Run } from "../src/model.ts";
 import {
   continueText,
   isEnded,
@@ -9,7 +7,12 @@ import {
   subBadge,
   terminalTasks,
   toContinue,
-} from "../src/terminals.ts";
+} from "../src/features/terminals/terminals.ts";
+import type { InboxItem, PaneView } from "../src/shared/api/api.ts";
+import { commandText } from "../src/shared/model/format.ts";
+import { needsQueue } from "../src/shared/model/needs.ts";
+import { paneStateOf } from "../src/shared/model/panes.ts";
+import type { Run } from "../src/shared/model/runs.ts";
 
 const run = (runId: string, extra: Partial<Run> = {}): Run =>
   ({ runId, task: `task ${runId}`, status: "active", driving: false, ...extra }) as Run;

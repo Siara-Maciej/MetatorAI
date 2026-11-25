@@ -1,0 +1,121 @@
+/**
+ * The hooks the screens share (D11): the work as tasks, one option of the shown repository, an action with what it answered.
+ */
+import { useMemo, useState } from "react";
+import { useDaemon } from "./daemon/daemon.tsx";
+import { boardCards } from "./model/board.ts";
+import { refusalText } from "./model/format.ts";
+import { type WorkTask, workTasks } from "./model/tasks.ts";
+
+/** The work as parent tasks (tasks.ts), from the runs and system plans: the sidebar's, Home's and a page's. */
+export function useTasks(): WorkTask[] {
+  const { runs, systemPlans } = useDaemon("runs", "systemPlans");
+  return useMemo(
+    () => workTasks(boardCards({ runs, issues: [], plans: systemPlans, now: Date.now() }), systemPlans),
+    [runs, systemPlans],
+  );
+}
+/** The value of one option (S1), or the fallback while the options are not here yet. */
+export function useOption<T>(key: string, fallback: T): T {
+  const { options } = useDaemon("options");
+  return (options.find((o) => o.key === key)?.value as T | undefined) ?? fallback;
+}
+/**
+ * A yes/no the window keeps (round 22: a sidebar folded to its narrow version): read once from the
+ * window's storage, written on each change; both under try/catch, so a window without storage
+ * keeps it until it closes.
+ */
+export function useKeptFlag(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
+  const [value, setValue] = useState(() => readFlag(key, fallback));
+  const set = (v: boolean) => {
+    setValue(v);
+    writeFlag(key, v);
+  };
+  return [value, set];
+}
+
+function readFlag(key: string, fallback: boolean): boolean {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw === null ? fallback : raw === "1";
+  } catch {
+    return fallback;
+  }
+}
+
+function writeFlag(key: string, v: boolean): void {
+  try {
+    window.localStorage.setItem(key, v ? "1" : "0");
+  } catch {
+    // A window without storage keeps it until it closes.
+  }
+}
+
+/** What an action answered: the envelope's `ok` and what it says of a refusal. */
+export interface Answer {
+  readonly ok: boolean;
+  readonly error?:
+    | {
+        readonly message?: string;
+        readonly hint?: string;
+        readonly details?: Readonly<Record<string, unknown>>;
+      }
+    | undefined;
+}
+export interface ActionNotice {
+  readonly text: string | undefined;
+  readonly tone: "error" | "info";
+  onClose(): void;
+}
+export interface Action {
+  /**
+   * Runs a request and keeps what it answered: a refusal becomes the notice (it stays until
+   * closed, D5), a success clears it (or says `done`), then the screen's data is read again.
+   * With `who` the person's name is asked for first; a cancelled name dialog runs nothing.
+   * Resolves to whether the daemon said yes.
+   */
+  run(
+    fn: (by: string) => Promise<Answer>,
+    options?: {
+      /** Ask for the person's name first and pass it to `fn`. */
+      readonly who?: boolean;
+      /** What to say when the daemon refuses without a message. */
+      readonly refused?: string;
+      /** What to say (as information) when it worked. */
+      readonly done?: string;
+      /** The last refusal, for what the screen offers next (a start from the last commit). */
+      onRefused?(error: Answer["error"]): void;
+    },
+  ): Promise<boolean>;
+  /** Spread into `<Notice>`. */
+  readonly notice: ActionNotice;
+  readonly busy: boolean;
+  say(text: string | undefined, tone?: "error" | "info"): void;
+}
+/** One action at a time with one notice: the request, the refusal that stays, the reload after. */
+export function useAction(reload?: () => Promise<unknown> | unknown): Action {
+  const { me, who } = useDaemon("me", "who");
+  const [note, setNote] = useState<{ text: string; tone: "error" | "info" }>();
+  const [busy, setBusy] = useState(false);
+  // React Compiler keeps `run` the same while `me`, `who` and `reload` are.
+  const run: Action["run"] = async (fn, options = {}) => {
+    const by = options.who ? await who() : me;
+    if (options.who && !by) return false;
+    setBusy(true);
+    const r = await fn(by);
+    setBusy(false);
+    if (r.ok) setNote(options.done ? { text: options.done, tone: "info" } : undefined);
+    else {
+      setNote({ text: refusalText(r.error, options.refused), tone: "error" });
+      options.onRefused?.(r.error);
+    }
+    await reload?.();
+    return r.ok;
+  };
+  return {
+    run,
+    busy,
+    notice: { text: note?.text, tone: note?.tone ?? "error", onClose: () => setNote(undefined) },
+    say: (text, tone = "error") => setNote(text ? { text, tone } : undefined),
+  };
+}

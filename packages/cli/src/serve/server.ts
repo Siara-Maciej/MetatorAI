@@ -15,11 +15,13 @@ import {
   type ThreadsMark,
   withNeedsText,
 } from "@metator/core";
-import type { MetatorContainer } from "@metator/runtime";
+import { type MetatorContainer, toEnvelope } from "@metator/runtime";
 import type { ServerWebSocket } from "bun";
 import type { CommandContext } from "../context.ts";
 import { liveDaemonAt } from "../daemon-client.ts";
+import { createEventHub, topic } from "./events.ts";
 import { CORS, type Daemon, dispatcher, json, type Route } from "./http.ts";
+import { paneTopics, routeTopics } from "./route-topics.ts";
 import { ARTIFACT_ROUTES } from "./routes/artifacts.ts";
 import { BACKLOG_ROUTES } from "./routes/backlog.ts";
 import { OVERVIEW_ROUTES } from "./routes/overview.ts";
@@ -32,6 +34,7 @@ import { SESSION_ROUTES } from "./routes/sessions.ts";
 import { SYSTEM_ROUTES } from "./routes/system.ts";
 import { THREAD_ROUTES } from "./routes/threads.ts";
 import { type Socket, socketHandlers, upgrade } from "./sockets.ts";
+import { createSweep, layoutSignature } from "./sweep.ts";
 import { startTimers } from "./timers.ts";
 
 /** Every route of the daemon, by resource; the first that fits a request answers it. */
@@ -117,12 +120,31 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   const pollMs = opts.pollMs ?? 1000;
   const started = Date.now();
   const sockets = new Set<ServerWebSocket<Socket>>();
+  // The event channel (ADR-0110): which topics changed, from every source the daemon has.
+  const hub = createEventHub();
+  /**
+   * The name a topic carries for a repository: in a folder, the checkout's name (a request may
+   * name it by its root, or not at all: the first one); a daemon of one repository names none.
+   */
+  const repoName = (repo: string | undefined): string | undefined => {
+    if (!folder) return undefined;
+    const entry = repo
+      ? folder.checkouts.find((r) => r.name === repo || r.root === repo)
+      : folder.checkouts[0];
+    return entry?.name;
+  };
 
   // One container per repository for the daemon's lifetime: the PTY broker lives in it.
   const containers = new Map<string, MetatorContainer>();
+  const unwatch: (() => void)[] = [];
   const cached = (key: string, make: () => MetatorContainer): MetatorContainer => {
-    const c = containers.get(key) ?? make();
+    const held = containers.get(key);
+    if (held) return held;
+    const c = make();
     containers.set(key, c);
+    // A pane that starts, prints after idling, idles, exits or closes is the layout's news.
+    const name = repoName(key === "." ? undefined : key);
+    unwatch.push(c.resolve("ptyBroker").watch((change) => hub.publish(paneTopics(change, name))));
     return c;
   };
   const containerFor = (
@@ -318,6 +340,30 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     containerFor,
     repoOfToken,
     untimed: (req) => listening?.timeout(req, 0),
+    // What a request changed, by its route (`ROUTE_TOPICS`).
+    answered: (r, call) => hub.publish(routeTopics(r.pattern, call.params, repoName(call.repo))),
+  });
+  /**
+   * What other processes change reaches the daemon only by looking: once per interval for the
+   * whole daemon, the state, the inbox, each repository's layout and the threads marks.
+   */
+  const sweep = createSweep({
+    everyMs: pollMs,
+    changed: (topics) => hub.publish(topics),
+    read: async () => {
+      const texts = new Map<string, string>();
+      texts.set("state", JSON.stringify(toEnvelope(await state(false))));
+      texts.set("inbox", JSON.stringify(toEnvelope(await inbox(false))));
+      const marks: unknown[] = [];
+      for (const r of repoViews()) {
+        const view = await r.c.resolve("panes").view();
+        const at = folder ? { repo: r.name } : {};
+        texts.set(topic("layout", at), view.isOk() ? layoutSignature(view.value) : view.error.message);
+        marks.push(await r.c.resolve("threads").mark());
+      }
+      texts.set("threads", JSON.stringify(marks));
+      return texts;
+    },
   });
 
   const server = Bun.serve<Socket>({
@@ -341,7 +387,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       if (socket) return socket.upgraded ? undefined : json({ ok: false }, 400);
       return dispatch(req, url, path);
     },
-    websocket: socketHandlers({ pollMs, containerFor, state, inbox }, sockets),
+    websocket: socketHandlers({ pollMs, containerFor, state, inbox, events: hub, sweep }, sockets),
   });
   listening = server;
   bound = server.port ?? opts.port;
@@ -359,6 +405,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     sweepMs: Math.max(1000, pollMs * 2),
     screensMs: opts.screensMs ?? 5000,
     ...(opts.restart ? { restart: opts.restart } : {}),
+    changed: (topics) => hub.publish(topics),
   });
   const port = bound;
   // Where the daemon listens, for the CLI and the clients; and every pane of the layout back.
@@ -399,6 +446,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     pid: process.pid,
     stop: async () => {
       timers.stop();
+      sweep.stop();
+      for (const stop of unwatch) stop();
       // The sessions go with the daemon: paused, their screens kept, to be resumed next time.
       for (const key of containers.keys()) {
         const paused = await (containers.get(key) as MetatorContainer).resolve("panes").pauseAll();
@@ -411,6 +460,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         if (existsSync(file) && readFileSync(file, "utf8") === info) rmSync(file, { force: true });
       }
       for (const ws of sockets) ws.close();
+      hub.stop();
       await server.stop(true);
     },
   };

@@ -154,7 +154,7 @@ beforeAll(async () => {
   await startDaemon();
   const b = await browser();
   page = await b.newPage({ viewport: { width: 1440, height: 900 } });
-  page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
+  page.on("pageerror", onPageError);
   page.on("console", (m) => {
     if (m.type() === "error") errors.push(m.text());
   });
@@ -216,6 +216,21 @@ async function longCommandAsk(p: Page, child: () => string) {
     server.onMessage((m) => ws.send(JSON.stringify(withAsk(JSON.parse(String(m))))));
     ws.onMessage((m) => server.send(m));
   });
+}
+
+/**
+ * An exception in the page is an error of the app, except one: Playwright's own script of the
+ * routed `/ws/inbox` (above) throws when a message of the daemon arrives for a socket the page
+ * has closed (a reload, a window that goes). The browser itself only logs a late send to the
+ * console, which still counts, so a socket the app writes to after closing it is still caught.
+ */
+function onPageError(e: Error) {
+  if (
+    /^WebSocket is already in CLOSING or CLOSED state\.$/.test(e.message.trim()) &&
+    !e.stack?.includes("/assets/")
+  )
+    return;
+  errors.push(`${e.message}\n${e.stack ?? ""}`);
 }
 
 async function nameIfAsked(p: Page) {
@@ -363,7 +378,7 @@ describe("sessions survive, one Continue, whole commands, reloads change nothing
     const b = await browser();
     const fresh: BrowserContext = await b.newContext({ viewport: { width: 1440, height: 900 } });
     const other = await fresh.newPage();
-    other.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
+    other.on("pageerror", onPageError);
     await longCommandAsk(other, () => child);
     expect(await look(other)).toEqual(before);
     await fresh.close();

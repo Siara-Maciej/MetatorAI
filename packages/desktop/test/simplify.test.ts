@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { SystemPlanView } from "../src/api.ts";
-import { boardCards } from "../src/board.ts";
-import { blockedReason, firstLevel, LOOKS, type Run } from "../src/model.ts";
-import { runPage, taskState, workTasks } from "../src/tasks.ts";
+import type { SystemPlanView } from "../src/shared/api/api.ts";
+import { boardCards } from "../src/shared/model/board.ts";
+import { blockedReason, firstLevel, LOOKS } from "../src/shared/model/look.ts";
+import type { Run } from "../src/shared/model/runs.ts";
+import { runPage, taskState, workTasks } from "../src/shared/model/tasks.ts";
 
 const NOW = Date.parse("2026-11-18T12:00:00.000Z");
 const run = (runId: string, extra: Partial<Run> = {}): Run =>
@@ -140,7 +141,8 @@ describe("the page of a task and of a step (simplify, items 2 and 3)", () => {
 
 describe("a decision has one address; a run that asks can still get a session (polish)", () => {
   test("a decision's address is its repository, run and question; it parses back to the same pick", async () => {
-    const { decisionKey, parseRoute, routeHash, needsQueue, pickedNeed } = await import("../src/model.ts");
+    const { decisionKey, needsQueue, pickedNeed } = await import("../src/shared/model/needs.ts");
+    const { parseRoute, routeHash } = await import("../src/shared/model/route.ts");
     const q = { id: "q002", runId: "r1", prompt: "ok?", source: "gate", options: [], askedAt: "" };
     const item = (repo?: string) =>
       ({ runId: "r1", repo, question: q, stage: "plan-approval", waitedMs: 0, driving: false }) as never;
@@ -158,7 +160,8 @@ describe("a decision has one address; a run that asks can still get a session (p
   });
 
   test("a run that asks on a card with no session and no drive can still open its conductor", async () => {
-    const { asksWithoutSession, idleRuns } = await import("../src/model.ts");
+    const { asksWithoutSession } = await import("../src/features/runs/model.ts");
+    const { idleRuns } = await import("../src/shared/model/needs.ts");
     const asks = run("a", {
       attention: "you",
       driving: false,

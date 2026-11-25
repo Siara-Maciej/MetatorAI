@@ -1055,42 +1055,6 @@ kbd {
   border-radius: 3px;
   padding: 0 5px;
 }
-.context-menu {
-  position: fixed;
-  z-index: 50;
-  background: var(--panel);
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  padding: 4px;
-  min-width: 240px;
-  box-shadow: 0 14px 40px var(--shadow);
-  font-size: var(--fs-base);
-}
-.context-menu .mi {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  width: 100%;
-  padding: 5px 10px;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  text-align: left;
-  font: inherit;
-  color: var(--text);
-}
-.context-menu .mi.sep {
-  border-top: 1px solid var(--edge);
-  border-radius: 0;
-  margin-top: 4px;
-  padding-top: 8px;
-}
-.context-menu .mi:hover:not(:disabled) {
-  background: var(--hover);
-}
-.context-menu .mi:disabled {
-  color: var(--grey);
-}
 .goto {
   width: 640px;
   max-width: calc(100% - 32px);

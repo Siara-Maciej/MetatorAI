@@ -73,6 +73,16 @@ export type PtyEvent =
   | { readonly type: "idle" };
 
 /**
+ * A change in which panes live and whether they print, for whoever shows the layout (the daemon's
+ * event channel, ADR-0110); never the output itself. `working` is the first output after idleness.
+ */
+export interface PaneChange {
+  readonly paneId: string;
+  readonly runId?: string;
+  readonly change: "started" | "working" | "idle" | "exited" | "closed";
+}
+
+/**
  * The PTY broker (D3, R1): the live terminals of the daemon, one per pane. Output fans out to
  * every viewer and is kept as a backlog; input goes to a run's pane only from the person who
  * holds the run's driver lock (state.json, read at each write). Exits and idleness land in the
@@ -80,6 +90,7 @@ export type PtyEvent =
  */
 export class PtyBroker {
   private readonly live = new Map<string, Live>();
+  private readonly watchers = new Set<(change: PaneChange) => void>();
 
   constructor(private readonly d: PtyBrokerDependencies) {}
 
@@ -118,6 +129,7 @@ export class PtyBroker {
     input.pty.onData((data) => {
       entry.backlog = (entry.backlog + data).slice(-BACKLOG_BYTES);
       entry.screen?.write(data);
+      if (entry.idle) this.tell(input.paneId, entry, "working");
       entry.idle = false;
       entry.lastOutputAt = this.now();
       this.armIdle(input.paneId, entry);
@@ -135,8 +147,11 @@ export class PtyBroker {
           text: `session ${entry.sessionId} exited with ${code} (pane ${input.paneId})`,
         });
       for (const l of entry.listeners) l({ type: "exit", code });
+      // A closed pane's kill, or a terminal replaced since, is no news of the pane.
+      if (this.live.get(input.paneId) === entry) this.tell(input.paneId, entry, "exited");
     });
     this.armIdle(input.paneId, entry);
+    this.tell(input.paneId, entry, "started");
     return ok(this.view(input.paneId, entry));
   }
 
@@ -152,6 +167,17 @@ export class PtyBroker {
   /** Output since the terminal started (the last 200 kB), for a viewer that joins late. */
   backlog(paneId: string): string {
     return this.live.get(paneId)?.backlog ?? "";
+  }
+
+  /** Every pane's changes (started, working, idle, exited, closed), never its output; returns what stops it. */
+  watch(watcher: (change: PaneChange) => void): () => void {
+    this.watchers.add(watcher);
+    return () => this.watchers.delete(watcher);
+  }
+
+  private tell(paneId: string, entry: Live, change: PaneChange["change"]): void {
+    const told: PaneChange = { paneId, ...(entry.runId ? { runId: entry.runId } : {}), change };
+    for (const w of this.watchers) w(told);
   }
 
   subscribe(paneId: string, listener: (event: PtyEvent) => void): () => void {
@@ -319,9 +345,10 @@ export class PtyBroker {
     entry.cancelIdle?.();
     // Closed, not ended: nobody listening hears the exit the kill causes.
     entry.listeners.clear();
+    this.live.delete(paneId);
     if (entry.alive) entry.pty.kill();
     entry.screen?.dispose();
-    this.live.delete(paneId);
+    this.tell(paneId, entry, "closed");
     return ok({ closed: true });
   }
 
@@ -351,6 +378,7 @@ export class PtyBroker {
             text: `no output for ${Math.round(ms / 1000)} s and no open question (pane ${paneId})`,
           });
         for (const l of entry.listeners) l({ type: "idle" });
+        this.tell(paneId, entry, "idle");
       })();
     });
   }

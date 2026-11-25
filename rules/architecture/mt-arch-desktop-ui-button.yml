@@ -1,0 +1,17 @@
+id: mt-arch-desktop-ui-button
+language: Tsx
+severity: error
+message: "ADR-0111: a button of the desktop app is the design system's <Button> (ui/button.tsx); only ui/ draws a raw <button>."
+note: 'Write `<Button variant="primary" onClick={...}>`; its `type` is `button` unless given. A new look is a variant of ui/button.tsx, not a class on a raw button.'
+files:
+  - packages/desktop/src/app/**
+  - packages/desktop/src/features/**
+  - packages/desktop/src/shared/**
+rule:
+  any:
+    - all:
+        - kind: jsx_opening_element
+        - has: { field: name, regex: "^button$" }
+    - all:
+        - kind: jsx_self_closing_element
+        - has: { field: name, regex: "^button$" }

@@ -1,32 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Plan, RunOverview, SystemMap, SystemPlan } from "../src/api.ts";
-import {
-  artifactBlocks,
-  compactLines,
-  GRAPH,
-  goesToPane,
-  graphLayout,
-  groupStepText,
-  idleRuns,
-  linkPath,
-  lintSummary,
-  needsQueue,
-  paneOfPrompt,
-  paneStateOf,
-  parseRoute,
-  problemsAt,
-  quietHeading,
-  quietInboxText,
-  type Run,
-  readableReason,
-  routeHash,
-  sidebarRuns,
-  sizeText,
-  stepOf,
-  systemPlanOf,
-  taskNeed,
-  whoWorks,
-} from "../src/model.ts";
+import { quietHeading, quietInboxText, taskNeed } from "../src/features/inbox/model.ts";
 import {
   blankStep,
   conflictCurrent,
@@ -51,7 +24,22 @@ import {
   withStepMoved,
   withSystemStep,
   withSystemStepChanged,
-} from "../src/plan-edit.ts";
+} from "../src/features/plans/plan-edit.ts";
+import { problemsAt } from "../src/features/runs/model.ts";
+import { GRAPH, graphLayout, linkPath, whoWorks } from "../src/features/system/model.ts";
+import type { Plan, RunOverview, SystemMap, SystemPlan } from "../src/shared/api/api.ts";
+import {
+  artifactBlocks,
+  compactLines,
+  lintSummary,
+  readableReason,
+  sizeText,
+} from "../src/shared/model/format.ts";
+import { goesToPane, idleRuns, needsQueue, paneOfPrompt } from "../src/shared/model/needs.ts";
+import { paneStateOf } from "../src/shared/model/panes.ts";
+import { parseRoute, routeHash } from "../src/shared/model/route.ts";
+import type { Run } from "../src/shared/model/runs.ts";
+import { groupStepText, sidebarRuns, stepOf, systemPlanOf } from "../src/shared/model/system-plans.ts";
 
 const run = (runId: string, extra: Partial<Run> = {}): Run =>
   ({

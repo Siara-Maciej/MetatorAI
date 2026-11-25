@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import type { ReviewCardView, ReviewStatus } from "../src/api.ts";
 import {
   actionBody,
   countsText,
@@ -24,7 +23,8 @@ import {
   watchEnded,
   watchedLine,
   watchedWord,
-} from "../src/reviews.ts";
+} from "../src/features/reviews/model.ts";
+import type { ReviewCardView, ReviewStatus } from "../src/shared/api/api.ts";
 
 const NONE = { open: 0, fixed: 0, notFixed: 0, disputed: 0, outdated: 0 };
 const mine = (extra: Partial<MineLike> = {}): MineLike => ({ threads: [], ...extra });

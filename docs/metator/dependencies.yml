@@ -124,6 +124,76 @@ packages:
     }
   - { package: react, need: "the desktop app's component model", adr: 0078-desktop-app-tauri-xterm.md }
   - {
+      package: "@tanstack/react-query",
+      need: "the daemon's data in the desktop app: one query cache, polling, answers shared structurally",
+      adr: 0108-desktop-state-query-and-store.md,
+    }
+  - {
+      package: tailwindcss,
+      need: "utility CSS of the desktop app's design system, on the app's tokens",
+      adr: 0111-desktop-design-system.md,
+    }
+  - {
+      package: "@tailwindcss/vite",
+      need: "Tailwind in the desktop app's Vite build",
+      adr: 0111-desktop-design-system.md,
+    }
+  - {
+      package: radix-ui,
+      need: "accessible primitives (tabs, menus, tooltips) under the desktop app's components",
+      adr: 0111-desktop-design-system.md,
+    }
+  - {
+      package: class-variance-authority,
+      need: "variants of the desktop app's components",
+      adr: 0111-desktop-design-system.md,
+    }
+  - {
+      package: clsx,
+      need: "class names joined in the desktop app's components",
+      adr: 0111-desktop-design-system.md,
+    }
+  - {
+      package: tailwind-merge,
+      need: "conflicting Tailwind classes resolved in the desktop app's components",
+      adr: 0111-desktop-design-system.md,
+    }
+  - {
+      package: partysocket,
+      need: "the desktop app's WebSockets opened again after they drop",
+      adr: 0108-desktop-state-query-and-store.md,
+    }
+  - {
+      package: babel-plugin-react-compiler,
+      need: "React Compiler: the desktop app's components and hooks memoized from their code",
+      adr: 0109-desktop-feature-structure-and-compiler.md,
+    }
+  - {
+      package: "@babel/core",
+      need: "runs React Compiler over the desktop app's sources in a test (every component compiles)",
+      adr: 0109-desktop-feature-structure-and-compiler.md,
+    }
+  - {
+      package: "@types/babel__core",
+      need: "types of @babel/core for the React Compiler test",
+      adr: 0109-desktop-feature-structure-and-compiler.md,
+    }
+  - {
+      package: react-error-boundary,
+      need: "an error in one screen of the desktop app shows a panel there, not a blank window",
+      adr: 0109-desktop-feature-structure-and-compiler.md,
+    }
+  - {
+      package: zustand,
+      need: "the desktop app's state as a store a component subscribes to by field",
+      adr: 0108-desktop-state-query-and-store.md,
+    }
+  - {
+      package: "@happy-dom/global-registrator",
+      need: "a DOM in bun test for the desktop app's component tests",
+      adr: 0108-desktop-state-query-and-store.md,
+    }
+  - {
       package: "@modelcontextprotocol/sdk",
       need: "MetatorAI as an MCP server over stdio (`metator mcp`); the MCP client that reads code hosts for intake (ADR-0083)",
       adr: 0081-mcp-server.md,

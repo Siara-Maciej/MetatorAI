@@ -12,7 +12,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
-import type { FakeWorld } from "../packages/desktop/src/fake-commands.ts";
+import type { FakeWorld } from "../packages/desktop/src/shared/platform/fake-commands.ts";
 import { browser, closeBrowser } from "./helpers/browser.ts";
 import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { createJavaRepo } from "./helpers/java.ts";

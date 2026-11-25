@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import type { PaneView } from "../src/api.ts";
-import type { Run } from "../src/model.ts";
 import {
   filterValues,
   groupRows,
@@ -17,7 +15,9 @@ import {
   toggleFilter,
   toggleHidden,
   toggleTaskHidden,
-} from "../src/terminals.ts";
+} from "../src/features/terminals/terminals.ts";
+import type { PaneView } from "../src/shared/api/api.ts";
+import type { Run } from "../src/shared/model/runs.ts";
 
 const run = (runId: string, extra: Partial<Run> = {}): Run =>
   ({ runId, task: `task ${runId}`, status: "active", ...extra }) as Run;

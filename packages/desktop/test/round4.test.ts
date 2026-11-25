@@ -1,23 +1,20 @@
 import { describe, expect, test } from "bun:test";
-import type { RunOverview } from "../src/api.ts";
+import { optionClosed } from "../src/features/inbox/model.ts";
+import { rootsProblems } from "../src/features/system/model.ts";
+import { askText } from "../src/features/terminals/model.ts";
+import type { RunOverview } from "../src/shared/api/api.ts";
+import { shortRunId } from "../src/shared/model/format.ts";
+import { hostPromptOf, questionKind } from "../src/shared/model/needs.ts";
+import { parseRoute } from "../src/shared/model/route.ts";
+import { type Run, runLine, runStateOf } from "../src/shared/model/runs.ts";
 import {
-  askText,
   groupStepText,
-  hostPromptOf,
-  optionClosed,
-  parseRoute,
   planOrder,
-  questionKind,
-  type Run,
-  rootsProblems,
-  runLine,
-  runStateOf,
-  shortRunId,
   sidebarRuns,
   stepOf,
   stepPlace,
   systemRunSummary,
-} from "../src/model.ts";
+} from "../src/shared/model/system-plans.ts";
 
 const run = (runId: string, extra: Partial<Run> = {}): Run =>
   ({
@@ -243,7 +240,7 @@ void _typed;
 
 describe("states roll up with aborted among them", () => {
   test("an aborted run alone reads aborted; any other state is stronger", async () => {
-    const { rollUp, runWithPanes } = await import("../src/model.ts");
+    const { rollUp, runWithPanes } = await import("../src/shared/model/runs.ts");
     expect(rollUp(["aborted"])).toBe("aborted");
     expect(rollUp(["aborted", "done"])).toBe("done");
     expect(rollUp(["aborted", "idle"])).toBe("idle");
@@ -254,7 +251,7 @@ describe("states roll up with aborted among them", () => {
 
 describe("which needs open the pane and which open their card", () => {
   test("a run asking on its terminal opens the pane; a question read from a terminal has its card", async () => {
-    const { isTerminalAsk } = await import("../src/model.ts");
+    const { isTerminalAsk } = await import("../src/shared/model/needs.ts");
     expect(isTerminalAsk({ key: "terminal:shop:r1" })).toBe(true);
     expect(isTerminalAsk({ key: "r1/q001" })).toBe(false);
   });
@@ -263,7 +260,7 @@ describe("which needs open the pane and which open their card", () => {
 describe("a question the daemon read from a terminal, as the agent's (round 4, item 5)", () => {
   const ATTACH = { label: "Attach and answer in the pane" };
   test("an agent's question with the way into its pane is TERMINAL; Attach goes to the pane from any card", async () => {
-    const { goesToPane, isTerminalQuestion } = await import("../src/model.ts");
+    const { goesToPane, isTerminalQuestion } = await import("../src/shared/model/needs.ts");
     const q = { source: "agent" as const, options: [{ label: "PLN" }, { label: "EUR" }, ATTACH] };
     expect(isTerminalQuestion(q)).toBe(true);
     expect(questionKind({ ...q, prompt: "Which currency?" })).toBe("TERMINAL");
@@ -272,7 +269,7 @@ describe("a question the daemon read from a terminal, as the agent's (round 4, i
     expect(goesToPane(q, "PLN")).toBe(false);
   });
   test("the pane is the one the prompt names, else the asking worker's or conductor's in the run", async () => {
-    const { paneOfQuestion } = await import("../src/model.ts");
+    const { paneOfQuestion } = await import("../src/shared/model/needs.ts");
     const panes = [
       {
         id: "w1:p1",

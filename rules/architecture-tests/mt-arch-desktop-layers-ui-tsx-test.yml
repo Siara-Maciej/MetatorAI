@@ -1,0 +1,8 @@
+id: mt-arch-desktop-layers-ui-tsx
+valid:
+  - 'import { useState } from "react";'
+  - 'import { moveInList } from "./list-keys.ts";'
+invalid:
+  - 'import { useDaemon } from "../shared/daemon/daemon.tsx";'
+  - 'import { Answer } from "../features/inbox/answer.tsx";'
+  - 'export { Shell } from "../app/app.tsx";'

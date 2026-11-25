@@ -2,16 +2,19 @@ import { err, MetatorError, ok, type PtyEvent, type PtyView, type Result } from 
 import type { MetatorContainer } from "@metator/runtime";
 import { toEnvelope } from "@metator/runtime";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
+import type { EventHub } from "./events.ts";
+import type { Sweep } from "./sweep.ts";
 
 /** When a line typed in a pane is looked at: after its echo, and once more for a slow host. */
 const ANSWER_LOOK_MS = [150, 600] as const;
 /**
  * The daemon's WebSockets (D3): `/ws/state` and `/ws/inbox` send the overview when it changes,
  * `/ws/activity/<run>` streams a run's activity, `/ws/pty/<run>` and `/ws/pane/<pane>` are a
- * terminal: output out, input and resizes in.
+ * terminal: output out, input and resizes in. `/ws/events` (ADR-0110) says which topics changed,
+ * never what they are now.
  */
 export interface Socket {
-  readonly kind: "state" | "inbox" | "activity" | "pty" | "pane";
+  readonly kind: "state" | "inbox" | "events" | "activity" | "pty" | "pane";
   readonly repo: string | undefined;
   readonly runId?: string | undefined;
   /** The pane a `pty` or `pane` socket streams; set once the pane is known. */
@@ -24,6 +27,8 @@ export interface Socket {
   ended?: { readonly reason: string } | undefined;
   /** The pane is paused (its process went with the daemon): its last screen, nothing typed. */
   paused?: { readonly why: string } | undefined;
+  /** The socket closed: what its open sets up after that is stopped at once. */
+  closed?: boolean;
 }
 
 export interface SocketDeps {
@@ -33,6 +38,10 @@ export interface SocketDeps {
   ) => Result<MetatorContainer, { readonly code: string; readonly message: string }>;
   readonly state: (fresh: boolean) => Promise<Result<unknown, MetatorError>>;
   readonly inbox: (fresh: boolean) => Promise<Result<unknown, MetatorError>>;
+  /** The event channel's messages. */
+  readonly events: Pick<EventHub, "subscribe">;
+  /** The daemon's one look per interval: the state and inbox texts, and what changed. */
+  readonly sweep: Pick<Sweep, "hold" | "listen">;
 }
 
 /** The socket a path names, upgraded; undefined when the path is no socket's. */
@@ -43,8 +52,8 @@ export function upgrade(
   path: string,
 ): { readonly upgraded: boolean } | undefined {
   const repo = url.searchParams.get("repo") ?? undefined;
-  if (path === "/ws/state" || path === "/ws/inbox") {
-    const kind = path === "/ws/state" ? "state" : "inbox";
+  if (path === "/ws/state" || path === "/ws/inbox" || path === "/ws/events") {
+    const kind = path === "/ws/state" ? "state" : path === "/ws/inbox" ? "inbox" : "events";
     return { upgraded: server.upgrade(req, { data: { kind, repo } }) };
   }
   const ws = /^\/ws\/(activity|pty|pane)\/([^/]+)$/.exec(path);
@@ -60,27 +69,38 @@ export function upgrade(
 }
 
 export function socketHandlers(
-  { pollMs, containerFor, state, inbox }: SocketDeps,
+  { pollMs, containerFor, state, inbox, events, sweep }: SocketDeps,
   sockets: Set<ServerWebSocket<Socket>>,
 ): WebSocketHandler<Socket> {
   return {
     async open(ws) {
       sockets.add(ws);
       const d = ws.data;
+      // Stops what an open set up, at once when the socket closed while it was setting up.
+      const until = (stop: () => void) => {
+        d.stop = stop;
+        if (d.closed) stop();
+      };
+      if (d.kind === "events") {
+        const unsubscribe = events.subscribe((message) => ws.send(JSON.stringify(message)));
+        const unhold = sweep.hold();
+        until(() => {
+          unsubscribe();
+          unhold();
+        });
+        return;
+      }
       if (d.kind === "state" || d.kind === "inbox") {
-        let last = "";
-        const tick = async () => {
-          const text = JSON.stringify(
-            toEnvelope(d.kind === "state" ? await state(false) : await inbox(false)),
-          );
-          if (text !== last) {
+        // The current text now; after it, each one the daemon's sweep reads that differs.
+        let last = JSON.stringify(toEnvelope(d.kind === "state" ? await state(false) : await inbox(false)));
+        ws.send(last);
+        until(
+          sweep.listen(d.kind, (text) => {
+            if (text === last) return;
             last = text;
             ws.send(text);
-          }
-        };
-        await tick();
-        const timer = setInterval(() => void tick(), pollMs);
-        d.stop = () => clearInterval(timer);
+          }),
+        );
         return;
       }
       const c = containerFor(d.repo);
@@ -100,7 +120,7 @@ export function socketHandlers(
         };
         await tick();
         const timer = setInterval(() => void tick(), pollMs);
-        d.stop = () => clearInterval(timer);
+        until(() => clearInterval(timer));
         return;
       }
       const broker = c.value.resolve("ptyBroker");
@@ -168,7 +188,7 @@ export function socketHandlers(
       ws.send(JSON.stringify({ type: "session", session: opened.value }));
       const backlog = broker.backlog(opened.value.paneId);
       if (backlog) ws.send(JSON.stringify({ type: "data", data: backlog }));
-      d.stop = broker.subscribe(opened.value.paneId, (event: PtyEvent) => ws.send(JSON.stringify(event)));
+      until(broker.subscribe(opened.value.paneId, (event: PtyEvent) => ws.send(JSON.stringify(event))));
     },
     async message(ws, raw) {
       const d = ws.data;
@@ -218,6 +238,7 @@ export function socketHandlers(
       }
     },
     close(ws) {
+      ws.data.closed = true;
       ws.data.stop?.();
       sockets.delete(ws);
     },

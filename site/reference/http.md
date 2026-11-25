@@ -121,3 +121,22 @@
 | `/ws/state`, `/ws/inbox` | the overview or the inbox whenever it changes |
 | `/ws/activity/<run>` | a run's activity as it happens |
 | `/ws/pty/<run>`, `/ws/pane/<pane>` | a terminal: its output out, your input and resizes in |
+| `/ws/events` | which topics changed, never their data: read them again with their `GET` |
+
+### `/ws/events`
+
+One socket for the whole daemon tells a client what to read again, so it does not have to poll. It sends `{"type": "hello", "epoch": "…", "seq": 12}` when it connects, then `{"type": "changed", "epoch": "…", "seq": 13, "topics": ["inbox", "state"]}` whenever something changed: topics sorted, each once, gathered over 50 ms. `seq` goes up by one per message; `epoch` is new each time the daemon starts. After every `hello`, read again everything you show: you may have missed changes while you were away.
+
+| Topic | Read again |
+|---|---|
+| `state` | `GET /state` |
+| `inbox` | `GET /inbox` |
+| `layout` | `GET /layout`: panes, and whether each asks, works, idles or has exited |
+| `threads` | `GET /threads` |
+| `options` | `GET /options` |
+| `plans` | `GET /system/plans`, a run's `GET /runs/<run>/plan`, `GET /system/map` |
+| `reviews` | `GET /reviews`, `GET /mrs` |
+| `backlog` | `GET /issues` |
+| `activity:<run>` | `GET /runs/<run>/activity` |
+
+A daemon that serves a folder adds the repository to `layout`, `options`, `plans`, `backlog` and `activity` after an `@` (`layout@shop`, `activity:<run>@shop`): read them with `?repo=shop`. A change made by another process (a detached drive, an agent's `metator` command) arrives within the daemon's `--poll-ms`; a topic may arrive for a change you already read, and reading again is always safe.

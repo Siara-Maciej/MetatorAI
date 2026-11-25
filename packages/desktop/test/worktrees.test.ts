@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { flattenState, folderLabel, placeLabel, worktreeCount } from "../src/model.ts";
+import { flattenState, folderLabel, placeLabel, worktreeCount } from "../src/shared/model/places.ts";
 
 /** A folder the daemon serves: shop with two worktrees, billing and web. */
 const places = [

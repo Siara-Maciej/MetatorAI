@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { PaneView } from "../src/api.ts";
-import { endedWhen, lastScreen, resumeCommand } from "../src/terminals.ts";
+import { endedWhen, lastScreen, resumeCommand } from "../src/features/terminals/terminals.ts";
+import type { PaneView } from "../src/shared/api/api.ts";
 
 const ENTER = "\u001b[?1049h";
 const LEAVE = "\u001b[?1049l";

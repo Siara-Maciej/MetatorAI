@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { BoardCard } from "../src/board.ts";
-import { lookOf, parseRoute, routeHash } from "../src/model.ts";
-import type { WorkTask } from "../src/tasks.ts";
+import type { BoardCard } from "../src/shared/model/board.ts";
+import { lookOf } from "../src/shared/model/look.ts";
+import { parseRoute, routeHash } from "../src/shared/model/route.ts";
+import type { WorkTask } from "../src/shared/model/tasks.ts";
 import {
   chatTitleOf,
   followedThread,
@@ -16,7 +17,7 @@ import {
   threadTree,
   threadWord,
   WITHOUT_CHAT,
-} from "../src/threads.ts";
+} from "../src/shared/model/threads.ts";
 
 const card = (runId: string, over: Partial<BoardCard> = {}): BoardCard => ({
   key: `run:${runId}`,
