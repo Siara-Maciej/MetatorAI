@@ -36,7 +36,7 @@ export function ContextMenu({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="context-menu z-50 min-w-60 rounded-md border border-edge bg-panel p-1 text-base shadow-[0_14px_40px_var(--shadow)]"
+          className="context-menu tw:z-50 tw:min-w-60 tw:rounded-md tw:border tw:border-edge tw:bg-panel tw:p-1 tw:text-base tw:shadow-[0_14px_40px_var(--shadow)]"
           aria-label={label}
           align="start"
           side="bottom"
@@ -48,9 +48,9 @@ export function ContextMenu({
             <DropdownMenu.Item
               key={item.label}
               className={cn(
-                "mi flex min-h-7 w-full cursor-pointer select-none justify-between gap-5 rounded px-2.5 py-1.25 text-left text-text outline-none",
-                "data-highlighted:bg-hover data-disabled:cursor-default data-disabled:text-grey",
-                item.separator && "sep mt-1 rounded-none border-t border-edge pt-2",
+                "mi tw:flex tw:min-h-7 tw:w-full tw:cursor-pointer tw:select-none tw:justify-between tw:gap-5 tw:rounded tw:px-2.5 tw:py-1.25 tw:text-left tw:text-text tw:outline-none",
+                "tw:data-highlighted:bg-hover tw:data-disabled:cursor-default tw:data-disabled:text-grey",
+                item.separator && "sep tw:mt-1 tw:rounded-none tw:border-t tw:border-edge tw:pt-2",
               )}
               disabled={item.disabled}
               onSelect={() => {

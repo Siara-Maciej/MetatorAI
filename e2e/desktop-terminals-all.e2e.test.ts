@@ -238,11 +238,22 @@ describe("every terminal at once (real daemon, real Chromium)", () => {
     await until("all three again", async () =>
       (await page.locator("[data-tile]").count()) === 3 ? true : undefined,
     );
-    // The same in another dimension: only what asks (both conductors: the task's asks through its child).
-    await page.getByTestId("filter-state-asks").click({ modifiers: ["Alt"] });
-    await until("only what asks", async () =>
-      (await page.locator("[data-tile]").count()) === 2 ? true : undefined,
+    // The same in another dimension: only what asks. Alt+click hides the states shown at that
+    // moment, and a state that appears later shows; so the agents settle first (none working), or
+    // the result depends on when one of them stops printing.
+    await until("the agents to settle", async () =>
+      (await page
+        .locator('[data-tile] [data-state="working"], [data-tile][data-state="working"]')
+        .count()) === 0
+        ? true
+        : undefined,
     );
+    await page.getByTestId("filter-state-asks").click({ modifiers: ["Alt"] });
+    // Only the terminal that asks: the child's conductor, waiting on its question.
+    await until("only what asks", async () =>
+      (await page.locator("[data-tile]").count()) === 1 ? true : undefined,
+    );
+    expect(await tile(childConductor).count()).toBe(1);
     // A terminal the filter hides stays in the tree, dimmed; a click there shows it.
     const hiddenNode = page.getByTestId(`tree-${worker}`);
     expect(await hiddenNode.getAttribute("class")).toContain("hidden");

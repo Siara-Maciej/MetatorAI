@@ -1,15 +1,18 @@
 /*
  * The design system's stylesheet (ADR-0111): Tailwind's theme and utilities, with the app's tokens
- * (`:root` in styles.css) as Tailwind's colours, fonts, radius and spacing, so `bg-panel`,
- * `text-muted`, `border-edge`, `gap-sp-3` are the same values the stylesheet uses.
+ * (`:root` in styles.css) as Tailwind's colours, fonts, radius and spacing, so `tw:bg-panel`,
+ * `tw:text-muted`, `tw:border-edge`, `tw:gap-sp-3` are the same values the stylesheet uses.
+ *
+ * Utilities carry the prefix `tw:` (`tw:bg-panel`): the app's own class names (`hidden`, `grid`,
+ * `row`…) mean something else, and an unprefixed utility of the same name would win over them.
  *
  * Tailwind's preflight (its reset) is left out: the app's own base styles stay. The app's stylesheet
  * is the `legacy` layer (after xterm's, as before), below the utilities, so a utility on an element
  * wins over it.
  */
 @layer theme, legacy, components, utilities;
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
 @import "@xterm/xterm/css/xterm.css" layer(legacy);
 @import "../styles.css" layer(legacy);
 
