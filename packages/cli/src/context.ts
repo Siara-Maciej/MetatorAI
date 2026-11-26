@@ -6,6 +6,8 @@ import type { Terminal } from "./terminal.ts";
 export interface Outcome {
   readonly result: Result<unknown, MetatorError>;
   readonly warnings?: readonly string[];
+  /** How to narrow the answer, by the command's own options, when it is cut to the byte budget. */
+  readonly next?: string;
   /**
    * Hook commands (`guard *`) answer in the host's hook protocol instead of the envelope:
    * this object is printed as is (nothing for null) and the exit code is 0 (ADR-0038).

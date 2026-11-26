@@ -2191,12 +2191,13 @@ metator run new [options]
 Send an event to the current stage
 
 ```bash
-metator run advance [options] <event>
+metator run advance [options] <event> [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
 | `<event>` | event to send (one of: pass, fail, approve, abort) | |
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 | `--reason <text>` | why (fail, abort) |  |
 | `--by <name>` | who decided, recorded with an approve (default: $METATOR_USER, else git's user.name) |  |
@@ -2207,12 +2208,13 @@ metator run advance [options] <event>
 Record a person's approval: the approval stage the run waits at, or an action (push, comment)
 
 ```bash
-metator run approve [options] <gate>
+metator run approve [options] <gate> [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
 | `<gate>` | the approval stage the run waits at, or push / comment | |
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--by <name>` | who approved; always given with --via chat (default: $METATOR_USER, else git's user.name) |  |
 | `--choice <value>` | selected option |  |
 | `--run <id>` | run id (default: latest) |  |
@@ -2223,11 +2225,12 @@ metator run approve [options] <gate>
 Take the session's keyboard: your input goes to its PTY and your yes in the chat counts
 
 ```bash
-metator run take [options]
+metator run take [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--by <name>` | who takes it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--run <id>` | run id (default: latest) |  |
 
@@ -2236,11 +2239,12 @@ metator run take [options]
 Give the session back to the agent
 
 ```bash
-metator run release [options]
+metator run release [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 
 ### `metator run message`
@@ -2265,11 +2269,12 @@ metator run message [options] <to>
 Messages other runs sent this run
 
 ```bash
-metator run messages [options]
+metator run messages [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 
 ### `metator run checkpoint`
@@ -2277,11 +2282,12 @@ metator run messages [options]
 Write the run's state summary to log.md (before a context compaction)
 
 ```bash
-metator run checkpoint [options]
+metator run checkpoint [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 
 ### `metator run resume`
@@ -2289,11 +2295,12 @@ metator run checkpoint [options]
 Resume an escalated run at the stage it escalated from, or at an earlier stage with --to, once the cause is fixed; --drive carries it on at once
 
 ```bash
-metator run resume [options]
+metator run resume [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--by <name>` | who resumes it, recorded in log.md (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--run <id>` | run id (default: latest) |  |
 | `--to <stage>` | go on at this stage: one the run already worked, or the one it escalated from (the default) |  |
@@ -2306,12 +2313,13 @@ metator run resume [options]
 Write an artifact the current stage produces (intake: task.md) from stdin into the run
 
 ```bash
-metator run write [options] <artifact>
+metator run write [options] <artifact> [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
 | `<artifact>` | the artifact's name, as the stage's `produces` lists it | |
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 
 ### `metator run handoff`
@@ -2319,11 +2327,12 @@ metator run write [options] <artifact>
 Write handoff.md from the run directory: stage, approvals, artifacts, recent log, how to resume
 
 ```bash
-metator run handoff [options]
+metator run handoff [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 | `--log-lines <n>` | recent log entries to include | `10` |
 
@@ -2398,6 +2407,12 @@ List runs, newest first
 ```bash
 metator run list [options]
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--status <status>` | only runs in this state (one of: active, done, escalated, aborted, planned) |  |
+| `--workflow <id>` | only runs of this workflow |  |
+| `--limit <n>` | only the newest n |  |
 
 ### `metator run continue`
 

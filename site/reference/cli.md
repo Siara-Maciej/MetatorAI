@@ -14,6 +14,8 @@ On success:
 
 `warnings` is present only when there is something to say.
 
+A list longer than 8 KiB is cut to fit: the envelope then has `"truncated": true` and `next`, which names the command's own options that narrow the list (for `metator run list`: `--status`, `--workflow` and `--limit`).
+
 On failure:
 
 ```json
@@ -31,7 +33,7 @@ Two kinds of command do not follow this. The hook commands (`metator guard ...`)
 
 ## At a terminal
 
-A script, a pipe and an agent's tool always get the one JSON line on stdout. When you type a command at a terminal, the commands that have a text for people print only that text: `metator status`, `inbox`, `run status`, `doctor`, `run ask`, `system plan status`, `system plan show`, `issue list`, `help` and any `--help`. A failure prints its message and what to do, and still its JSON line. `--json` gives the JSON line alone, also at a terminal.
+A script, a pipe and an agent's tool always get the one JSON line on stdout. When you type a command at a terminal, the commands that have a text for people print only that text: `metator status`, `inbox`, `run status`, `run list`, `doctor`, `run ask`, `system plan status`, `system plan show`, `issue list`, `help` and any `--help`. A failure prints its message and what to do, once, without the JSON line. `--json` gives the JSON line alone, also at a terminal.
 
 ```bash
 metator status            # at a terminal: the text, no JSON line
@@ -43,7 +45,7 @@ metator status | jq .data # a pipe gets the JSON line; nothing is rendered
 
 ## Help
 
-`metator help` lists every command. `metator help --verbs` lists the ones a person types, grouped by what you want to do. `metator help --for person|agent|hook|ci` lists the commands of one audience: the ones you type, the ones an agent of a run calls, the hooks a host calls, and the checks a CI job runs. `metator <command> --help` (or `-h`) describes one command. A command group typed alone, such as `metator repos`, prints the group's help.
+`metator help` lists every command. `metator help --verbs` lists the ones a person types, grouped by what you want to do. `metator help --for person|agent|hook|ci` lists the commands of one audience: the ones you type, the ones an agent of a run calls, the hooks a host calls, and the checks a CI job runs. `metator <command> --help` (or `-h`) describes one command, and so does `metator help <command>` (`metator help run status`). A command group typed alone, such as `metator repos`, prints the group's help. A mistyped command of a group says which one you may have meant (`metator run stauts`: did you mean `metator run status`?), and a wrong option names the command's own `--help`. `metator --version` (or `-V`) is `metator version`.
 
 ```bash
 metator run answer --help

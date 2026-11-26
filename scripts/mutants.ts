@@ -1181,8 +1181,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/run.ts",
-    from: "  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));\n  return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
-    to: "  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));\n  return 0;",
+    from: "  if (!(rendered && textOnly)) io.out(line);\n  return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
+    to: "  if (!(rendered && textOnly)) io.out(line);\n  return 0;",
     why: "failures must produce a non-zero exit code",
   },
   {
@@ -10795,5 +10795,58 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'process.kill(-proc.pid, "SIGKILL");',
     to: 'proc.kill("SIGKILL");',
     why: "a timeout kills the process group, not only the direct child",
+  {
+    file: "packages/cli/src/commands/mcp.ts",
+    from: '    stdio.stdin.once("end", resolve);\n    stdio.stdin.once("close", resolve);',
+    to: "",
+    why: "metator mcp ends when the client closes its stdin, not only on the transport's own close",
+  },
+  {
+    file: "packages/runtime/src/envelope.ts",
+    from: "next: current.next ?? narrow,",
+    to: "next: current.next ?? NARROW_HINT,",
+    why: "a cut answer names the command's own options that narrow it",
+  },
+  {
+    file: "packages/cli/src/commands/run.ts",
+    from: "Object.hasOwn(RUN_ARTIFACTS, name)",
+    to: "name in RUN_ARTIFACTS",
+    why: "run schema toString is a usage error, not a crash on Object.prototype",
+  },
+  {
+    file: "packages/cli/src/commands/run.ts",
+    from: "if (opts.parent !== undefined && !RUN_ID.test(opts.parent))",
+    to: "if (false)",
+    why: "run new --parent that is no run id is refused before anything is written",
+  },
+  {
+    file: "packages/cli/src/commands/run.ts",
+    from: ".slice(0, opts.limit),",
+    to: ",",
+    why: "run list --limit keeps only the newest n",
+  },
+  {
+    file: "packages/cli/src/program.ts",
+    from: 'if (kind !== "directory")',
+    to: 'if (kind === "other")',
+    why: "-C <dir> that does not exist is a usage error, not a raw ENOENT",
+  },
+  {
+    file: "packages/cli/src/program.ts",
+    from: "const close = similar(word, names);",
+    to: "const close = undefined;",
+    why: "a mistyped command of a group suggests the closest one",
+  },
+  {
+    file: "packages/cli/src/run.ts",
+    from: "    say(renderError(final.result.error));\n    rendered = true;",
+    to: "    say(renderError(final.result.error));",
+    why: "at a terminal a failure is said once, without the JSON line after its text",
+  },
+  {
+    file: "packages/cli/src/serve/server.ts",
+    from: "    return start();\n  } catch (e) {\n    throw MetatorError.usage(",
+    to: '    return start();\n  } catch (e) {\n    throw new MetatorError("INTERNAL",',
+    why: "serve on a taken port is a usage error with the way out, not INTERNAL",
   },
 ];

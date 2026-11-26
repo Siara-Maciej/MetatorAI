@@ -147,4 +147,19 @@ describe("metator mcp (real server over stdio)", () => {
     for (const file of ["plan-scope.json", "scope.json"])
       expect([file, await Bun.file(repo.path(file)).exists()]).toEqual([file, false]);
   });
+
+  test("a client that closes stdin without a goodbye ends the server: exit 0 and its envelope", async () => {
+    const proc = Bun.spawn(["bun", CLI_ENTRY, "mcp"], {
+      cwd: repo.root,
+      env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR },
+      stdin: new Blob([""]),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const code = await Promise.race([proc.exited, Bun.sleep(10_000).then(() => "still serving")]);
+    if (code === "still serving") proc.kill();
+    expect(code).toBe(0);
+    const out = (await new Response(proc.stdout).text()).trim();
+    expect(JSON.parse(out)).toMatchObject({ ok: true, data: { calls: 0 } });
+  }, 20_000);
 });

@@ -51,11 +51,15 @@ export function fromUnknown(e: unknown): MetatorError {
   return new MetatorError("INTERNAL", e instanceof Error ? e.message : String(e));
 }
 
+/** What a cut answer says when its command named no way of its own to narrow it. */
+const NARROW_HINT = "Narrow the query with the command's own options (`--help` lists them).";
+
 /**
  * Serializes an envelope within a byte budget. Array payloads are halved until they fit,
- * and the envelope is flagged `truncated` with a hint on how to narrow the query.
+ * and the envelope is flagged `truncated` with a hint on how to narrow the query: the
+ * envelope's own `next`, else the command's (`narrow`: its options that narrow, by name).
  */
-export function serialize<T>(envelope: Envelope<T>, maxBytes = 8 * 1024): string {
+export function serialize<T>(envelope: Envelope<T>, maxBytes = 8 * 1024, narrow = NARROW_HINT): string {
   let current: Envelope<unknown> = envelope;
   let text = JSON.stringify(current);
   while (byteLength(text) > maxBytes && Array.isArray(current.data) && current.data.length > 1) {
@@ -63,7 +67,7 @@ export function serialize<T>(envelope: Envelope<T>, maxBytes = 8 * 1024): string
       ...current,
       data: current.data.slice(0, Math.ceil(current.data.length / 2)),
       truncated: true,
-      next: current.next ?? "Narrow the query (--path, --package or --top).",
+      next: current.next ?? narrow,
     };
     text = JSON.stringify(current);
   }

@@ -14,6 +14,8 @@ import {
   type Result,
   ReviewMetadataDocument,
   ReviewPlanDocument,
+  RUN_ID,
+  RUN_STATUSES,
   type RunEvent,
   RunSummaryDocument,
   unreadableRunWarning,
@@ -21,9 +23,9 @@ import {
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
-import type { CommandContext } from "../context.ts";
+import type { CommandContext, Outcome } from "../context.ts";
 import { baseOption, byOption, defined, positiveInt, RUN_ARGUMENT, runGiven, runOption } from "../options.ts";
-import { renderRunStatus } from "../render.ts";
+import { renderRunList, renderRunStatus } from "../render.ts";
 import { HOSTS, resume } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
 import { registerConductorCommands } from "./conductor.ts";
@@ -73,6 +75,19 @@ export function toEvent(name: EventName, opts: AdvanceOptions): Result<RunEvent,
       if (!opts.reason?.trim()) return err(MetatorError.usage("abort requires --reason <text>"));
       return ok({ type: "ABORT", reason: opts.reason });
   }
+}
+
+/**
+ * An action about one run, named as a word after the command or as `--run` (`runGiven`): the
+ * handler gets the one id (undefined: the latest), two different ones are a usage error.
+ */
+function byRun<O extends { readonly run?: string }>(
+  handler: (runId: string | undefined, opts: O) => Promise<Outcome>,
+): (word: string | undefined, opts: O) => Promise<Outcome> {
+  return async (word, opts) => {
+    const run = runGiven(word, opts);
+    return run.isErr() ? { result: run } : handler(run.value, opts);
+  };
 }
 
 export function registerRunCommands(program: Command, ctx: CommandContext): void {
@@ -149,6 +164,16 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           }) => {
             const task = opts.task.trim();
             if (task === "") return { result: err(MetatorError.usage("--task must not be empty")) };
+            // The parent may live in another repository: its id is checked here, before anything is written.
+            if (opts.parent !== undefined && !RUN_ID.test(opts.parent))
+              return {
+                result: err(
+                  MetatorError.usage(
+                    `--parent ${opts.parent} is not a run id`,
+                    "A run id is its date and a name, e.g. 20260101-fix-login; `metator run list` (in the parent's repository) names them.",
+                  ),
+                ),
+              };
             const inputs: Record<string, string> = {};
             for (const pair of opts.input) {
               const at = pair.indexOf("=");
@@ -196,12 +221,16 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .command("advance")
     .description("Send an event to the current stage")
     .addArgument(new Argument("<event>", "event to send").choices(EVENTS))
+    .argument(...RUN_ARGUMENT)
     .addOption(runOption())
     .option("--reason <text>", "why (fail, abort)")
     .addOption(byOption("who decided, recorded with an approve", "decision"))
     .option("--choice <value>", "selected option at an approval")
     .action(
-      action(async (name: EventName, given: AdvanceOptions) => {
+      action(async (name: EventName, word: string | undefined, typed: AdvanceOptions) => {
+        const run = runGiven(word, typed);
+        if (run.isErr()) return { result: run };
+        const given = { ...typed, ...defined({ run: run.value }) };
         // Only who speaks is filled in; the approval itself is the event the person typed.
         let opts = given;
         if (name === "approve") {
@@ -222,6 +251,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       "Record a person's approval: the approval stage the run waits at, or an action (push, comment)",
     )
     .argument("<gate>", "the approval stage the run waits at, or push / comment")
+    .argument(...RUN_ARGUMENT)
     .addOption(byOption("who approved; always given with --via chat", "decision"))
     .option("--choice <value>", "selected option")
     .addOption(runOption())
@@ -232,31 +262,39 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       ).choices(["chat"]),
     )
     .action(
-      action(async (gate: string, opts: { by?: string; choice?: string; run?: string; via?: "chat" }) => {
-        // An approval relayed from the chat names the person who gave it: nobody is assumed.
-        if (opts.via === "chat" && !opts.by?.trim())
-          return {
-            result: err(
-              MetatorError.usage(
-                "an approval from the chat names who gave it: --by <name>",
-                "The name must be the person attached to the session; it is never taken from the environment.",
+      action(
+        async (
+          gate: string,
+          word: string | undefined,
+          opts: { by?: string; choice?: string; run?: string; via?: "chat" },
+        ) => {
+          const run = runGiven(word, opts);
+          if (run.isErr()) return { result: run };
+          // An approval relayed from the chat names the person who gave it: nobody is assumed.
+          if (opts.via === "chat" && !opts.by?.trim())
+            return {
+              result: err(
+                MetatorError.usage(
+                  "an approval from the chat names who gave it: --by <name>",
+                  "The name must be the person attached to the session; it is never taken from the environment.",
+                ),
               ),
-            ),
+            };
+          const by = await who(container(), opts.by, process.env, "decision");
+          if (by.isErr()) return { result: by };
+          return {
+            result: await container()
+              .resolve("approveRun")
+              .execute({
+                gate,
+                by: by.value,
+                ...(opts.choice ? { choice: opts.choice } : {}),
+                ...(run.value ? { runId: run.value } : {}),
+                ...(opts.via ? { via: opts.via } : {}),
+              }),
           };
-        const by = await who(container(), opts.by, process.env, "decision");
-        if (by.isErr()) return { result: by };
-        return {
-          result: await container()
-            .resolve("approveRun")
-            .execute({
-              gate,
-              by: by.value,
-              ...(opts.choice ? { choice: opts.choice } : {}),
-              ...(opts.run ? { runId: opts.run } : {}),
-              ...(opts.via ? { via: opts.via } : {}),
-            }),
-        };
-      }),
+        },
+      ),
     );
 
   // `run take`: the lock, not a terminal (`metator attach <pane>` is the terminal); `run attach` is its old name.
@@ -264,14 +302,17 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     cmd
       .description("Take the session's keyboard: your input goes to its PTY and your yes in the chat counts")
       .addOption(byOption("who takes it"))
+      .argument(...RUN_ARGUMENT)
       .addOption(runOption())
       .action(
-        action(async (opts: { by?: string; run?: string }) =>
-          asPerson(container(), opts.by, async (by) => ({
-            result: await container()
-              .resolve("driverLock")
-              .attach({ by, ...defined({ runId: opts.run }) }),
-          })),
+        action(
+          byRun(async (runId, opts: { by?: string; run?: string }) =>
+            asPerson(container(), opts.by, async (by) => ({
+              result: await container()
+                .resolve("driverLock")
+                .attach({ by, ...defined({ runId }) }),
+            })),
+          ),
         ),
       ),
   );
@@ -279,13 +320,16 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
   runs
     .command("release")
     .description("Give the session back to the agent")
+    .argument(...RUN_ARGUMENT)
     .addOption(runOption())
     .action(
-      action(async (opts: { run?: string }) => ({
-        result: await container()
-          .resolve("driverLock")
-          .release(opts.run ? { runId: opts.run } : {}),
-      })),
+      action(
+        byRun(async (runId) => ({
+          result: await container()
+            .resolve("driverLock")
+            .release(runId ? { runId } : {}),
+        })),
+      ),
     );
 
   runs
@@ -324,31 +368,37 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
 
   meta(runs.command("messages"), { reads: true })
     .description("Messages other runs sent this run")
+    .argument(...RUN_ARGUMENT)
     .addOption(runOption())
     .action(
-      action(async (opts: { run?: string }) => {
-        const c = container();
-        const id = await c.resolve("runRepository").resolveId(opts.run);
-        if (id.isErr()) return { result: id };
-        return {
-          result: (await c.resolve("runMessages").list(id.value)).map((messages) => ({
-            runId: id.value,
-            messages,
-          })),
-        };
-      }),
+      action(
+        byRun(async (runId) => {
+          const c = container();
+          const id = await c.resolve("runRepository").resolveId(runId);
+          if (id.isErr()) return { result: id };
+          return {
+            result: (await c.resolve("runMessages").list(id.value)).map((messages) => ({
+              runId: id.value,
+              messages,
+            })),
+          };
+        }),
+      ),
     );
 
   runs
     .command("checkpoint")
     .description("Write the run's state summary to log.md (before a context compaction)")
+    .argument(...RUN_ARGUMENT)
     .addOption(runOption())
     .action(
-      action(async (opts: { run?: string }) => ({
-        result: await container()
-          .resolve("checkpointRun")
-          .execute(opts.run ? { runId: opts.run } : {}),
-      })),
+      action(
+        byRun(async (runId) => ({
+          result: await container()
+            .resolve("checkpointRun")
+            .execute(runId ? { runId } : {}),
+        })),
+      ),
     );
 
   runs
@@ -357,6 +407,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       "Resume an escalated run at the stage it escalated from, or at an earlier stage with --to, once the cause is fixed; --drive carries it on at once",
     )
     .addOption(byOption("who resumes it, recorded in log.md"))
+    .argument(...RUN_ARGUMENT)
     .addOption(runOption())
     .option(
       "--to <stage>",
@@ -367,33 +418,38 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .option("--host <host>", `with --drive: the AI host (${HOSTS.join(", ")}; default: the one the run used)`)
     .action(
       action(
-        async (opts: {
-          by?: string;
-          run?: string;
-          to?: string;
-          note?: string;
-          drive: boolean;
-          host?: string;
-        }) => {
-          const c = container();
-          const by = await who(c, opts.by);
-          if (by.isErr()) return { result: by };
-          const resumed = await c.resolve("resumeRun").execute({
-            by: by.value,
-            ...defined({ runId: opts.run, to: opts.to, note: opts.note }),
-          });
-          if (resumed.isErr() || !opts.drive) return { result: resumed };
-          const driven = await resume(c, resumed.value.runId, opts.host);
-          if (driven.isErr())
-            return {
-              result: resumed,
-              warnings: [
-                `the run is resumed, but no drive started: ${driven.error.message}${driven.error.hint ? ` (${driven.error.hint})` : ""}; start one with \`metator run continue ${resumed.value.runId}\``,
-              ],
-            };
-          const driver = await c.resolve("runDrivers").status(resumed.value.runId);
-          return { result: ok({ ...resumed.value, drive: driver.isOk() ? driver.value : null }) };
-        },
+        byRun(
+          async (
+            runId,
+            opts: {
+              by?: string;
+              run?: string;
+              to?: string;
+              note?: string;
+              drive: boolean;
+              host?: string;
+            },
+          ) => {
+            const c = container();
+            const by = await who(c, opts.by);
+            if (by.isErr()) return { result: by };
+            const resumed = await c.resolve("resumeRun").execute({
+              by: by.value,
+              ...defined({ runId, to: opts.to, note: opts.note }),
+            });
+            if (resumed.isErr() || !opts.drive) return { result: resumed };
+            const driven = await resume(c, resumed.value.runId, opts.host);
+            if (driven.isErr())
+              return {
+                result: resumed,
+                warnings: [
+                  `the run is resumed, but no drive started: ${driven.error.message}${driven.error.hint ? ` (${driven.error.hint})` : ""}; start one with \`metator run continue ${resumed.value.runId}\``,
+                ],
+              };
+            const driver = await c.resolve("runDrivers").status(resumed.value.runId);
+            return { result: ok({ ...resumed.value, drive: driver.isOk() ? driver.value : null }) };
+          },
+        ),
       ),
     );
 
@@ -401,13 +457,18 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .command("write")
     .description("Write an artifact the current stage produces (intake: task.md) from stdin into the run")
     .argument("<artifact>", "the artifact's name, as the stage's `produces` lists it")
+    .argument(...RUN_ARGUMENT)
     .addOption(runOption())
     .action(
-      action(async (artifact: string, opts: { run?: string }) => ({
-        result: await container()
-          .resolve("writeRunArtifact")
-          .execute({ artifact, content: await stdin(), ...(opts.run ? { runId: opts.run } : {}) }),
-      })),
+      action(async (artifact: string, word: string | undefined, opts: { run?: string }) => {
+        const run = runGiven(word, opts);
+        if (run.isErr()) return { result: run };
+        return {
+          result: await container()
+            .resolve("writeRunArtifact")
+            .execute({ artifact, content: await stdin(), ...(run.value ? { runId: run.value } : {}) }),
+        };
+      }),
     );
 
   runs
@@ -415,14 +476,17 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .description(
       "Write handoff.md from the run directory: stage, approvals, artifacts, recent log, how to resume",
     )
+    .argument(...RUN_ARGUMENT)
     .addOption(runOption())
     .option("--log-lines <n>", "recent log entries to include", positiveInt, 10)
     .action(
-      action(async (opts: { run?: string; logLines: number }) => ({
-        result: await container()
-          .resolve("handoffRun")
-          .execute({ logLines: opts.logLines, ...(opts.run ? { runId: opts.run } : {}) }),
-      })),
+      action(
+        byRun(async (runId, opts: { run?: string; logLines: number }) => ({
+          result: await container()
+            .resolve("handoffRun")
+            .execute({ logLines: opts.logLines, ...(runId ? { runId } : {}) }),
+        })),
+      ),
     );
 
   runs
@@ -524,7 +588,8 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
         const name = artifact.replace(/\.json$/, "");
         return {
           result:
-            name in RUN_ARTIFACTS
+            // Its own names only: `toString` is in every object, and no artifact.
+            Object.hasOwn(RUN_ARTIFACTS, name)
               ? ok(RUN_ARTIFACTS[name as keyof typeof RUN_ARTIFACTS].jsonSchema("input"))
               : err(
                   MetatorError.usage(
@@ -536,14 +601,23 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       }),
     );
 
-  meta(runs.command("list"), { reads: true })
+  meta(runs.command("list"), { reads: true, render: renderRunList })
     .description("List runs, newest first")
+    .addOption(new Option("--status <status>", "only runs in this state").choices(RUN_STATUSES))
+    .option("--workflow <id>", "only runs of this workflow")
+    .option("--limit <n>", "only the newest n", positiveInt)
     .action(
-      action(async () => {
+      action(async (opts: { status?: string; workflow?: string; limit?: number }) => {
         const listed = await container().resolve("listRuns").execute();
         return {
-          result: listed.map((l) => l.runs),
+          result: listed.map((l) =>
+            l.runs
+              .filter((r) => (opts.status ? r.status === opts.status : true))
+              .filter((r) => (opts.workflow ? r.workflow === opts.workflow : true))
+              .slice(0, opts.limit),
+          ),
           warnings: listed.isOk() ? listed.value.unreadable.map(unreadableRunWarning) : [],
+          next: "Narrow it with --status <status>, --workflow <id> or --limit <n> (the newest n).",
         };
       }),
     );
