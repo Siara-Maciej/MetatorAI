@@ -3,9 +3,10 @@
 import { Glyph, StateWord } from "../../shared/components/glyph.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { duration, plural } from "../../shared/model/format.ts";
+import { routeHash } from "../../shared/model/route.ts";
 import { type HostStatus, noHostText, openRuns, runStateOf } from "../../shared/model/runs.ts";
 import { Button } from "../../ui/button.tsx";
-import { runCounts, whoWorks } from "./model.ts";
+import { exactDuration, runCounts, whoWorks } from "./model.ts";
 
 export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
   const { client, runs, repo, url } = useDaemon("client", "runs", "repo", "url");
@@ -103,7 +104,7 @@ export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
                 {view.policy.respawn.enabled ? "on" : "off"} · {view.policy.respawn.maxAttempts} attempts
               </dd>
               <dt>idle after</dt>
-              <dd>{duration(view.policy.idleThresholdMs)}</dd>
+              <dd>{exactDuration(view.policy.idleThresholdMs)}</dd>
               <dt>host order</dt>
               <dd>{view.policy.hostOrder.join(" → ")}</dd>
               <dt>chat approvals</dt>
@@ -111,13 +112,13 @@ export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
               <dt>push</dt>
               <dd>always a person</dd>
               <dt>checks every</dt>
-              <dd>{view.daemon.superviseMs > 0 ? duration(view.daemon.superviseMs) : "never"}</dd>
+              <dd>{view.daemon.superviseMs > 0 ? exactDuration(view.daemon.superviseMs) : "never"}</dd>
             </dl>
           ) : (
             <div className="muted">—</div>
           )}
-          <div className="dim gap-top">
-            edit in <code>metator.config.yml</code> → supervisor
+          <div className="dim gap-top" data-testid="policy-edit">
+            change it in <a href={routeHash({ screen: "settings" })}>Settings › Options</a> → supervisor
           </div>
         </div>
         <div className="box">

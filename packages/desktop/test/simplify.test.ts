@@ -54,20 +54,22 @@ const plan = {
 const tasksOf = (runs: Run[], plans = [plan]) =>
   workTasks(boardCards({ runs, issues: [], plans, now: NOW }), plans);
 
-describe("four words on the first level (simplify, item 5)", () => {
-  test("every fine state is one of needs you, working, blocked, done", () => {
+describe("the first level's words (simplify, item 5)", () => {
+  test("every fine state is one of needs you, working, blocked, to do, done", () => {
     expect(["needs you", "asks", "proposed", "approval", "terminal"].map(firstLevel)).toEqual(
       Array(5).fill("needs you"),
     );
     expect(firstLevel("working")).toBe("working");
     // Blocked: escalated, waiting for another step, nothing driving it.
-    expect(["escalated", "idle", "exited", "pending", "todo", undefined].map(firstLevel)).toEqual(
-      Array(6).fill("blocked"),
+    expect(["escalated", "idle", "exited", "pending", undefined].map(firstLevel)).toEqual(
+      Array(5).fill("blocked"),
     );
+    // A backlog task nobody started is to do, not red.
+    expect(firstLevel("todo")).toBe("to do");
     // Done is done, also when it ended without its work or was not seen yet.
     expect(["done", "aborted", "finished"].map(firstLevel)).toEqual(["done", "done", "done"]);
-    // Four looks, no more, on the first level.
-    expect(Object.keys(LOOKS.first)).toEqual(["needs you", "working", "blocked", "done"]);
+    // Five looks, no more, on the first level.
+    expect(Object.keys(LOOKS.first)).toEqual(["needs you", "working", "blocked", "to do", "done"]);
   });
 
   test("a blocked thing says why in one line", () => {

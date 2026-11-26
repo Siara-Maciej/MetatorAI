@@ -1,6 +1,7 @@
 /**
  * The Board's tiles: a task (its word, progress and what needs the person) and a card (a run, a pending step, a backlog item), each in its state's look.
  */
+import type { KeyboardEvent } from "react";
 import { type BoardCard, cardLine, cardState, partOfLine } from "../../shared/model/board.ts";
 import { type FirstLevel, lookOf } from "../../shared/model/look.ts";
 import { taskLine, taskState, type WorkTask } from "../../shared/model/tasks.ts";
@@ -10,6 +11,15 @@ import { Button } from "../../ui/button.tsx";
 function stateLook(state: FirstLevel): { glyph: string; tone: string; word: string } {
   const look = lookOf("first", state);
   return { glyph: look.glyph, tone: look.tone ?? "faint", word: state };
+}
+/**
+ * Space opens a card as it presses a button (Enter is the Board's, with the arrows); Space on the
+ * card's own Start a run presses that button, not the card.
+ */
+function opensOnSpace(e: KeyboardEvent<HTMLDivElement>): boolean {
+  if (e.key !== " " || e.target !== e.currentTarget) return false;
+  e.preventDefault();
+  return true;
 }
 export function TaskTile({
   task: t,
@@ -41,12 +51,10 @@ export function TaskTile({
       data-row={row}
       data-testid={`task-${t.key}`}
       title={opens ? `${t.title}: open its board` : t.title}
+      aria-label={`${t.title}, ${look.word}`}
       onClick={() => onOpen(t)}
       onKeyDown={(e) => {
-        if (e.key === " ") {
-          e.preventDefault();
-          onOpen(t);
-        }
+        if (opensOnSpace(e)) onOpen(t);
       }}
     >
       <div className="card-top">
@@ -108,12 +116,10 @@ export function CardTile({
       data-row={row}
       data-testid={`card-${c.kind}-${c.runId ?? c.issueId ?? c.key}`}
       title={c.title}
+      aria-label={`${c.title}, ${look.word}`}
       onClick={() => onOpen(c)}
       onKeyDown={(e) => {
-        if (e.key === " ") {
-          e.preventDefault();
-          onOpen(c);
-        }
+        if (opensOnSpace(e)) onOpen(c);
       }}
     >
       <div className="card-top">

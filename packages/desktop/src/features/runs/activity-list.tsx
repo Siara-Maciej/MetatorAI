@@ -1,6 +1,6 @@
 import type { Activity } from "../../shared/api/api.ts";
 import { clock } from "../../shared/model/format.ts";
-import { byStage } from "./model.ts";
+import { activityLine, byStage } from "./model.ts";
 
 /** Where an event comes from, in one word: the hook, the terminal, the run, the inbox, or its agent. */
 const sourceOf = (e: Activity): string => e.origin ?? (e.agent ? `agent ${e.agent}` : "run");
@@ -51,8 +51,7 @@ export function ActivityList({
         <li key={`${e.at}-${String(i)}`} className={`${e.type}${e.type === "question" ? " amber" : ""}`}>
           <span className="t faint mono">{clock(e.at)}</span>{" "}
           {variant === "by-stage" ? <span className="faint">{e.type} · </span> : null}
-          {variant === "list" && e.agent ? `${e.agent} ` : ""}
-          {e.text}
+          {variant === "list" ? activityLine(e) : e.text}
         </li>
       ))}
     </ul>

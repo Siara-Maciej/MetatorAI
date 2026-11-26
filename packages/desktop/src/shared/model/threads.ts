@@ -87,7 +87,8 @@ const URGENCY: Readonly<Record<FirstLevel, number>> = {
   "needs you": 0,
   blocked: 1,
   working: 2,
-  done: 3,
+  "to do": 3,
+  done: 4,
 };
 
 /**

@@ -7,6 +7,7 @@
 import type { ThreadView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { NotFound } from "../../shared/components/not-found.tsx";
+import { useConfirmClose } from "../../shared/confirm.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useFound, useTasks } from "../../shared/hooks.ts";
 import { threadsHave } from "../../shared/model/found.ts";
@@ -22,9 +23,13 @@ import { useThreadAct } from "./chat-actions.ts";
 
 export function ThreadScreen({ id }: { readonly id: string }) {
   const act = useThreadAct();
-  const onClose = (t: ThreadView) => void act(t, "close");
-  const onReopen = (t: ThreadView) => void act(t, "reopen");
+  const confirmClose = useConfirmClose();
   const { panes, paneAsks, threads, client } = useDaemon("panes", "paneAsks", "threads", "client");
+  // Close chat stops its agent: asked first while it lives (ui.confirmClosePane).
+  const onClose = (t: ThreadView) => {
+    if (confirmClose.thread(t, threadPane(t, panes))) void act(t, "close");
+  };
+  const onReopen = (t: ThreadView) => void act(t, "reopen");
   const tasks = byAttentionFirst(useTasks());
   const thread = threads.find((t) => t.id === id);
   // A chat just made is not in the window's list yet: missing only on the daemon's word.

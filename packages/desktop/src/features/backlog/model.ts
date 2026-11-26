@@ -189,6 +189,16 @@ function childIds(item: Pick<BacklogItem, "id" | "children">, all: readonly Back
 const isFinishedItem = (i: Pick<BacklogItem, "status">): boolean =>
   i.status === "done" || i.status === "dropped";
 
+/** Done and Drop finish a task for good (the daemon has no reopen): asked before, in words. */
+export const finishQuestion = (i: Pick<BacklogItem, "id" | "title">, how: "done" | "drop"): string =>
+  how === "done"
+    ? `Mark ${i.id} "${i.title}" done? The app cannot reopen it.`
+    : `Drop ${i.id} "${i.title}"? The app cannot reopen it.`;
+
+/** What keeps the + task form from adding: a title of spaces is no title. */
+export const newTaskProblem = (title: string): string | undefined =>
+  title.trim() === "" ? "a task needs a title" : undefined;
+
 /**
  * `2 of 3 done` (a dropped child counts as done), or undefined for an item with no children. The
  * daemon's count when it sends one; else counted from the list.
