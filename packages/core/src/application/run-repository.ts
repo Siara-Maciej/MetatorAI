@@ -80,6 +80,8 @@ export class RunRepository {
     runId: string,
     change: (record: RunRecord) => Result<RunRecord, MetatorError>,
   ): Promise<Result<RunRecord, MetatorError>> {
+    // The lock file lives in the run's directory: taking it for an unknown run would create one.
+    if (!(await this.exists(runId))) return this.load(runId);
     return this.lock.hold(this.stateFile(runId), async () => {
       const record = await this.load(runId);
       if (record.isErr()) return err(record.error);
@@ -109,9 +111,7 @@ export class RunRepository {
     const source = this.pointerFile();
     const text = await this.fs.read(source);
     if (text.isErr()) {
-      return err(
-        new MetatorError("NOT_FOUND", "No runs yet", { hint: "Start one with `metator run init`." }),
-      );
+      return err(new MetatorError("NOT_FOUND", "No runs yet", { hint: "Start one with `metator run new`." }));
     }
     return parseDocumentText(text.value, source, RunPointerDocument, "json").map((pointer) => pointer.runId);
   }

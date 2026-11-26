@@ -389,6 +389,9 @@ describe("metator CLI (process e2e)", () => {
       true,
       true,
     ]);
+    // `--help` as an option's value is that value: the command runs.
+    const added = await metator(["issue", "add", "Help flag", "--body", "--help", "--by", "ada"], repo);
+    expect([added.code, (added.json.data as { body: string }).body]).toEqual([0, "--help"]);
   }, 30_000);
 
   test("a number option that is not a number is a usage error (64), never an internal one", async () => {
@@ -400,6 +403,12 @@ describe("metator CLI (process e2e)", () => {
       ["run", "board", "--timeline", "many"],
       ["open", "--file", "a.ts", "--line", "abc"],
       ["review", "notes", "add", "note", "--by", "m", "--line", "abc"],
+      // `Number` reads these as numbers; a count is written in decimal digits.
+      ["run", "board", "--timeline", "1e2"],
+      ["serve", "--port", "0x10"],
+      // A time that is not ISO is not read as some other date.
+      ["report", "--since", "5"],
+      ["report", "--since", "2026-02-30"],
     ];
     for (const argv of bad) {
       const r = await metator(argv, repo);
@@ -418,6 +427,43 @@ describe("metator CLI (process e2e)", () => {
     expect(run.json).toMatchObject({ ok: false, error: { code: "USAGE" } });
     expect((run.json.error as { hint: string }).hint).toContain("metator help");
   });
+
+  test("the command line as people type it: --version, help <command>, a mistyped command of a group, -C that is no directory, a schema name every object has", async () => {
+    for (const argv of [["--version"], ["-V"]]) {
+      const r = await metator(argv, repo);
+      expect([argv[0], r.code, r.json.data]).toEqual([argv[0], 0, { name: "metator-ai", version: "0.0.0" }]);
+    }
+    const help = await metator(["help", "run", "status"], repo);
+    expect([help.code, (help.json.data as { usage: string }).usage]).toEqual([
+      0,
+      "metator run status [options] [run]",
+    ]);
+    const typo = await metator(["run", "stauts"], repo);
+    expect([typo.code, typo.json.error]).toEqual([
+      64,
+      {
+        code: "USAGE",
+        message: "unknown command: metator run stauts",
+        hint: "Did you mean `metator run status`? `metator run --help` lists its commands.",
+      },
+    ]);
+    const option = await metator(["run", "list", "--bogus"], repo);
+    expect((option.json.error as { hint: string }).hint).toBe(
+      "Run `metator run list --help` for its options and arguments.",
+    );
+    const missing = await metator(["-C", join(repo, "nope"), "status"], repo);
+    expect([missing.code, (missing.json.error as { code: string; message: string }).message]).toEqual([
+      64,
+      `no such directory: ${join(repo, "nope")}`,
+    ]);
+    const file = await metator(["-C", join(repo, "package.json"), "status"], repo);
+    expect([file.code, (file.json.error as { message: string }).message]).toEqual([
+      64,
+      `not a directory: ${join(repo, "package.json")}`,
+    ]);
+    const schema = await metator(["run", "schema", "toString"], repo);
+    expect([schema.code, (schema.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+  }, 30_000);
 
   test("output is pure JSON: no ANSI colors, no banners", async () => {
     const run = await metator(["version"], repo);

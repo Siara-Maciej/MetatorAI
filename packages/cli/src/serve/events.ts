@@ -50,7 +50,7 @@ export function topic(
   return TOPICS[name].scope === "repo" && opts.repo ? `${base}@${opts.repo}` : base;
 }
 
-export interface Hello {
+interface Hello {
   readonly type: "hello";
   /** Different after every daemon start: a client that saw another epoch re-reads everything. */
   readonly epoch: string;
@@ -58,7 +58,7 @@ export interface Hello {
   readonly seq: number;
 }
 
-export interface Changed {
+interface Changed {
   readonly type: "changed";
   readonly epoch: string;
   /** One more than the last message's. */

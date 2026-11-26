@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Overview, Question, RunOverview } from "@metator/core";
+import type { Inspection, Overview, Question, RunOverview } from "@metator/core";
 import {
   duration,
   fit,
@@ -9,6 +9,7 @@ import {
   renderCommandHelp,
   renderDoctor,
   renderInbox,
+  renderInspection,
   renderIssues,
   renderPlanRun,
   renderPlanShow,
@@ -537,5 +538,45 @@ describe("threads as a person reads them (ADR-0095)", () => {
       "  Old topic  (20261121-old)",
     ]);
     expect(renderThreadTree({ threads: [], withoutChat: [], closed: [] })).toBe("No open thread.");
+  });
+});
+
+describe("renderInspection", () => {
+  const host = (program: string, installed: boolean, loggedIn: boolean | null) => ({
+    id: "claude" as const,
+    program,
+    installed,
+    loggedIn,
+    install: { url: "https://example.com", command: `npm i -g ${program}` },
+    login: `${program} login`,
+  });
+  const inspection = (hosts: Inspection["hosts"]): Inspection => ({
+    path: "/repo",
+    kind: "not-git",
+    next: "git-init",
+    git: { installed: true, version: "2.47.0", install: { url: "https://git-scm.com/downloads" } },
+    repository: null,
+    folder: null,
+    hosts,
+    defaultHost: null,
+    writes: {},
+    version: "1.0.0",
+  });
+
+  test("a host is ticked only when it is installed and logged in; a login not checked is a dot", () => {
+    const lines = renderInspection(
+      inspection([
+        host("a", true, true),
+        host("b", true, false),
+        host("c", true, null),
+        host("d", false, null),
+      ]),
+    ).split("\n");
+    expect(lines.filter((l) => /^ {2}. [abcd] /.test(l))).toEqual([
+      "  ✓ a logged in",
+      "  ✗ b no login found: b login",
+      "  · c login not checked",
+      "  ✗ d not installed: npm i -g d",
+    ]);
   });
 });

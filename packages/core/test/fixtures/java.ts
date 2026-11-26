@@ -17,7 +17,7 @@ import { JavaRepository, NO_DESCRIPTOR_FACTS } from "../../src/index.ts";
 type Arg = string | number | boolean | JavaValue | readonly string[];
 
 /** A string is a literal; `=X.Y` is an expression (a constant, an enum value). */
-export function val(a: Arg): JavaValue {
+function val(a: Arg): JavaValue {
   if (Array.isArray(a))
     return { text: `{${a.join(", ")}}`, items: (a as readonly string[]).map((x) => val(x)) };
   if (typeof a === "string")

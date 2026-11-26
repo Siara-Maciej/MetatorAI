@@ -1,12 +1,12 @@
 import { cancel, confirm, intro, isCancel, log, multiselect, outro, select, text } from "@clack/prompts";
 import { type Autonomy, type HostTarget, needsWords, type Question, wordsRequired } from "@metator/core";
 
-export interface SetupAnswers {
+interface SetupAnswers {
   readonly hosts: readonly HostTarget[];
   readonly hooks: boolean;
 }
 
-export interface SetupQuestions {
+interface SetupQuestions {
   /** Ask which hosts: nothing in the repository or on the machine says, or they point two ways. */
   readonly askHosts: boolean;
   /** Ask whether to install the hooks: neither `--hooks` nor `--no-hooks` was given. */
@@ -15,7 +15,7 @@ export interface SetupQuestions {
   readonly defaults: SetupAnswers;
 }
 
-export interface NewRunQuestions {
+interface NewRunQuestions {
   /** The workflows installed here; `autonomy` lists the levels each one supports (all, when it does not say). */
   readonly workflows: readonly {
     readonly id: string;
@@ -28,7 +28,7 @@ export interface NewRunQuestions {
 }
 
 /** The workflow a new run starts with unless the person picks another: a feature, else the first. */
-export const FIRST_WORKFLOW = "mt-feature";
+const FIRST_WORKFLOW = "mt-feature";
 export function firstWorkflow(workflows: readonly { readonly id: string }[]): string | undefined {
   return (workflows.find((w) => w.id === FIRST_WORKFLOW) ?? workflows[0])?.id;
 }
@@ -46,7 +46,7 @@ export function autonomyChoices(levels: readonly Autonomy[] | undefined): readon
     .map((level) => ({ value: level, label: level, hint: AUTONOMY_HINTS[level] }));
 }
 
-export interface NewRunAnswers {
+interface NewRunAnswers {
   readonly workflow: string;
   readonly task: string;
   readonly autonomy: Autonomy;
@@ -54,13 +54,13 @@ export interface NewRunAnswers {
   readonly worktree: boolean;
 }
 
-export interface RunChoice {
+interface RunChoice {
   readonly runId: string;
   readonly label: string;
   readonly hint: string;
 }
 
-export interface PersonAnswer {
+interface PersonAnswer {
   readonly choices: readonly string[];
   readonly text?: string;
 }

@@ -14,7 +14,7 @@ import {
 import { ScenarioPlayer } from "./scenario-player.ts";
 
 /** The scenario entry an interactive session plays: the agents map's `session` key. */
-export const SESSION_AGENT = "session";
+const SESSION_AGENT = "session";
 
 /**
  * InteractiveHost that plays a scenario in a real PTY (D3, ADR-0077): a shell script says each

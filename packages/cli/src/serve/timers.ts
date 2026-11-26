@@ -101,6 +101,8 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
             supervisors.set(key, s);
             void s.tick().then((r) => {
               if (r.isErr()) return say("supervisor", key)({ error: r.error.message });
+              for (const f of r.value.failed ?? [])
+                say("supervisor", key)({ run: f.runId, error: f.message });
               const topics = supervisorTopics(r.value, repo);
               if (topics.length > 0) deps.changed?.(topics);
             });
@@ -124,6 +126,8 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
       const r = await c.resolve("scanIntake").execute();
       if (r.isErr()) return tell({ error: r.error.message });
       for (const rule of r.value.rules) if (rule.error) tell({ rule: rule.rule, error: rule.error });
+      for (const rule of r.value.rules)
+        for (const f of rule.failed ?? []) tell({ rule: rule.rule, issue: f.issue, error: f.error });
       for (const s of r.value.rules.flatMap((x) => x.started)) {
         tell({ started: s.runId, issue: s.issue });
         await c.resolve("ensureDriven").execute({ runId: s.runId });

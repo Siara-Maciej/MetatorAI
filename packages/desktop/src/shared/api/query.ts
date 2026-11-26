@@ -37,7 +37,7 @@ export const shared = <T>(before: T | undefined, next: T): T => replaceEqualDeep
  * Whether the daemon's push channel is live (ADR-0110): while it is, a polled request is asked
  * only rarely, as a fallback; what changed is read again when the daemon says so.
  */
-export const pushStore = createStore<{ readonly live: boolean }>(() => ({ live: false }));
+const pushStore = createStore<{ readonly live: boolean }>(() => ({ live: false }));
 export const setPushLive = (live: boolean): void => pushStore.setState({ live });
 
 /**
@@ -92,21 +92,36 @@ export function polledOptions<T>(
 
 export interface Polled<T> {
   readonly data: T | undefined;
+  /** The last read's failure; with `data` still there, the data is stale. */
   readonly error: string | undefined;
+  /** When the last good answer came (ms since the epoch); undefined before the first. */
+  readonly updatedAt: number | undefined;
   reload(): Promise<void>;
 }
 
-/** `polledOptions` as a hook: the last good answer, the last failure, and a way to ask again now. */
+/**
+ * `polledOptions` as a hook: the last good answer and when it came, the last failure, and a way
+ * to ask again now. `enabled` false asks nothing (what is in the cache still shows).
+ */
 export function usePolledAt<T>(
   scope: string,
   key: string,
   fn: () => Promise<Envelope<T>>,
   ms: number,
+  enabled = true,
 ): Polled<T> {
   const live = useStore(pushStore, (p) => p.live);
-  const { data, error, refetch } = useQuery(polledOptions(scope, key, fn, ms, live));
+  const { data, error, dataUpdatedAt, refetch } = useQuery({
+    ...polledOptions(scope, key, fn, ms, live),
+    enabled,
+  });
   const reload = useCallback(async () => {
     await refetch();
   }, [refetch]);
-  return { data, error: error ? error.message : undefined, reload };
+  return {
+    data,
+    error: error ? error.message : undefined,
+    updatedAt: dataUpdatedAt > 0 ? dataUpdatedAt : undefined,
+    reload,
+  };
 }

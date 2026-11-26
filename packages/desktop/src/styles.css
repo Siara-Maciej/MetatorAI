@@ -126,7 +126,10 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus,
-button:focus-visible {
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+summary:focus-visible {
   outline: 2px solid var(--teal);
   outline-offset: 1px;
 }
@@ -415,6 +418,9 @@ button.stagebar {
   border: 1px solid var(--edge);
   background: var(--panel);
   min-height: 44px;
+  /* A long label wraps inside its box instead of running past it. */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .option[aria-pressed="true"] {
   border-color: var(--teal);
@@ -424,6 +430,8 @@ button.stagebar {
   display: flex;
   justify-content: space-between;
   gap: var(--sp-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .option .rec {
   color: var(--teal);
@@ -3210,6 +3218,17 @@ dialog.goto {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-3);
+}
+/* A long answer (the run's Question box is 300px wide) wraps inside its button. */
+.quick-answer .chips {
+  min-width: 0;
+  max-width: 100%;
+}
+.quick-answer .option-chip {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 .quick-answer .option-chip[aria-pressed="true"] {
   border-color: var(--teal);

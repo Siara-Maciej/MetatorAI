@@ -631,4 +631,94 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await page.getByLabel("repository").inputValue()).toBe("beta");
     expect(errors).toEqual([]);
   }, 120_000);
+
+  test("a failed read is not an empty list, stale data says so, a stopped daemon is not answering, an unknown id is not found", async () => {
+    // The daemon's answer replaced by a proxy's: a 500 whose body is text, not the envelope.
+    const broken = (r: import("playwright").Route) =>
+      r.fulfill({
+        status: 500,
+        contentType: "text/plain",
+        headers: { "access-control-allow-origin": "*" },
+        body: "Internal Server Error",
+      });
+    const line = page.getByTestId("freshness");
+    const list = page.getByRole("complementary", { name: "tasks", exact: true });
+    await page.route(/\/issues(\?|$)/, broken);
+    try {
+      await page.goto(app("backlog"));
+      await line.filter({ hasText: "could not be read" }).waitFor({ timeout: 20_000 });
+      expect(await line.textContent()).toContain(
+        "The tasks could not be read: the daemon answered 500 on /issues (Internal Server Error)",
+      );
+      expect(await line.textContent()).not.toContain("JSON");
+      // Nothing claims the Backlog is empty: the daemon never said so.
+      expect(await list.textContent()).not.toContain("Nothing open");
+      expect(await page.getByTestId("backlog").textContent()).not.toContain("No task");
+      await page.unroute(/\/issues(\?|$)/, broken);
+      await line.getByRole("button", { name: "Try again" }).click();
+      await page.getByTestId("issue-i001").waitFor({ timeout: 20_000 });
+      expect(await line.count()).toBe(0);
+      // The reads after a good one fail: the list stays, the line says since when it is not current.
+      await page.route(/\/issues(\?|$)/, broken);
+      await line.filter({ hasText: "Not up to date: no answer since" }).waitFor({ timeout: 20_000 });
+      expect(await line.getAttribute("data-state")).toBe("stale");
+      expect(await page.getByTestId("issue-i001").count()).toBe(1);
+    } finally {
+      await page.unroute(/\/issues(\?|$)/, broken);
+    }
+    await line.waitFor({ state: "detached", timeout: 20_000 });
+
+    // The new-run form whose workflows cannot be read says so and creates nothing.
+    await page.route(/\/workflows(\?|$)/, broken);
+    const dialog = page.getByRole("dialog", { name: "new run" });
+    try {
+      await page.goto(app("inbox"));
+      await page.getByRole("button", { name: "New run from the form" }).click();
+      const notice = dialog.locator(".notice").filter({ hasText: "The workflows could not be read" });
+      await notice.waitFor({ timeout: 20_000 });
+      expect(await notice.textContent()).toContain("the daemon answered 500 on /workflows");
+      expect(await dialog.getByRole("button", { name: "Create in background" }).isDisabled()).toBe(true);
+      expect(await dialog.getByRole("button", { name: "Create and attach" }).isDisabled()).toBe(true);
+      await page.unroute(/\/workflows(\?|$)/, broken);
+      await notice.getByRole("button", { name: "Try again" }).click();
+      await dialog.getByRole("button", { name: "Create and attach" }).and(page.locator(":enabled")).waitFor({
+        timeout: 20_000,
+      });
+    } finally {
+      await page.unroute(/\/workflows(\?|$)/, broken);
+      if (await dialog.count()) await dialog.getByRole("button", { name: "Cancel" }).click();
+    }
+
+    // A run and a chat the daemon does not have: said, with the way back, not "in a moment" forever.
+    await page.goto(app("run/does-not-exist"));
+    const missing = page.getByTestId("not-found");
+    await missing.waitFor({ timeout: 20_000 });
+    expect(await missing.textContent()).toContain("No such run");
+    expect(await missing.textContent()).toContain("does-not-exist");
+    await page.goto(app("thread/nope"));
+    await missing.filter({ hasText: "No such chat" }).waitFor({ timeout: 20_000 });
+    await missing.getByRole("link", { name: "Back to Home" }).click();
+    await page.waitForURL(/#\/inbox$/);
+
+    // A stopped daemon keeps its sockets open: its pulse says it is not answering, on the top bar
+    // and over Home, and it is connected again when it goes on.
+    await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
+    const pid = daemon?.pid as number;
+    process.kill(pid, "SIGSTOP");
+    try {
+      await page.getByTestId("connection").filter({ hasText: "not answering" }).waitFor({ timeout: 20_000 });
+      const home = page.locator(".home").getByTestId("freshness");
+      await home.waitFor({ timeout: 5000 });
+      expect(await home.textContent()).toContain("does not answer");
+      expect(await page.getByTestId("no-daemon").count()).toBe(0);
+    } finally {
+      process.kill(pid, "SIGCONT");
+    }
+    await page
+      .getByTestId("connection")
+      .filter({ hasText: /^connected$/ })
+      .waitFor({ timeout: 20_000 });
+    expect(await page.locator(".home").getByTestId("freshness").count()).toBe(0);
+    expect(errors).toEqual([]);
+  }, 150_000);
 });

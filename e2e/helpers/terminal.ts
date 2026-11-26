@@ -77,6 +77,22 @@ export async function inTerminal(
     .split(/\r?\n/)
     .reverse()
     .find((l) => l.trimStart().startsWith('{"ok"'));
-  // A command with a text for people prints only that text at a terminal: no envelope then.
-  return { code, screen, json: line ? (JSON.parse(line.trim()) as Record<string, unknown>) : {} };
+  // A command with a text for people prints only that text at a terminal: no envelope then. A
+  // failure at a terminal is said once, as text (`✗ <message> (<CODE>)`, its hint below): read
+  // back into the envelope's error so a test asks the same of both.
+  if (line) return { code, screen, json: JSON.parse(line.trim()) as Record<string, unknown> };
+  return { code, screen, json: errorOnScreen(screen) ?? {} };
+}
+
+/** The last error a terminal showed, as `renderError` writes it. */
+function errorOnScreen(screen: string): Record<string, unknown> | undefined {
+  const lines = screen.split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const m = /^✗ (.*) \(([A-Z_]+)\)\s*$/.exec(lines[i]?.trimEnd() ?? "");
+    if (!m) continue;
+    const next = lines[i + 1];
+    const hint = next?.startsWith("  ") ? next.trim() : undefined;
+    return { ok: false, error: { code: m[2], message: m[1], ...(hint ? { hint } : {}) } };
+  }
+  return undefined;
 }

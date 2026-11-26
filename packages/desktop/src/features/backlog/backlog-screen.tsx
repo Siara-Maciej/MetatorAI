@@ -7,11 +7,14 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import type { Issue, IssueView, PlanStarted } from "../../shared/api/api.ts";
+import { Freshness } from "../../shared/components/freshness.tsx";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
+import { confirmed } from "../../shared/confirm.ts";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { type Answer, useAction } from "../../shared/hooks.ts";
 import { duration, issueRefText, plural } from "../../shared/model/format.ts";
+import { readingOf } from "../../shared/model/freshness.ts";
 import { workflowChoice } from "../../shared/model/runs.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { Button } from "../../ui/button.tsx";
@@ -24,10 +27,12 @@ import { dropBacklogDraft, useBacklogDraft } from "./draft.ts";
 import { AnalysisPart, ChildrenPart, ItemAction, ParentLine, PlanPart } from "./item-parts.tsx";
 import {
   backlogRows,
+  finishQuestion,
   itemButtons,
   itemTone,
   itemWord,
   type ListRowOf,
+  newTaskProblem,
   pointsAt,
   rowSub,
   shownRoute,
@@ -53,6 +58,7 @@ export function BacklogScreen({
   const { client, repo, run: runOf } = useDaemon("client", "repo", "run");
   const list = usePolled(`issues:${repo ?? ""}`, () => client.issues(repo), 2000);
   const issues = list.data?.issues ?? NO_ISSUES;
+  const reading = readingOf(list);
   // What an action answered stays until closed: the list's refresh never clears it (D5).
   const action = useAction(list.reload);
   // The workflows this repository has (D5): a run is started on one of them, never on a guess.
@@ -156,8 +162,13 @@ export function BacklogScreen({
       if (r.ok && r.data) show(r.data.runId, r.data);
       return r;
     });
-  const add = () =>
-    act(async (by) => {
+  const add = () => {
+    const problem = newTaskProblem(draft.title);
+    if (problem) {
+      action.say(problem);
+      return;
+    }
+    return act(async (by) => {
       const r = await client.addIssue(
         {
           title: draft.title.trim(),
@@ -179,6 +190,14 @@ export function BacklogScreen({
       }
       return r;
     });
+  };
+  /** Done and Drop cannot be taken back in the app: asked first. */
+  const finish = (issue: IssueView, how: "done" | "drop") => {
+    if (!confirmed(finishQuestion(issue, how))) return;
+    void act((by) =>
+      how === "done" ? client.closeIssue(issue.id, by, repo) : client.dropIssue(issue.id, by, repo),
+    );
+  };
   const row = ({ item: i, child }: ListRowOf<IssueView>) => {
     const word = itemWord(i);
     return (
@@ -233,7 +252,9 @@ export function BacklogScreen({
           {rows.proposals.map(row)}
           <ListSection>open · {open.length}</ListSection>
           {rows.open.map(row)}
-          {open.length === 0 && proposals.length === 0 ? (
+          {/* Empty only when the daemon said so: not while it is read, not when it failed. */}
+          {reading === "loading" ? <EmptyRow>Reading the tasks…</EmptyRow> : null}
+          {reading !== "loading" && reading !== "failed" && open.length === 0 && proposals.length === 0 ? (
             <EmptyRow>Nothing open. + task adds one.</EmptyRow>
           ) : null}
           <span className="spacer" />
@@ -258,13 +279,21 @@ export function BacklogScreen({
           setRetry(undefined);
         }}
       />
-      {list.error && !list.data ? <div className="banner">{list.error}</div> : null}
+      <Freshness reads={[list]} what="The tasks" />
       {adding ? (
         <form
           className="form"
+          aria-label="a new task"
           onSubmit={(e) => {
             e.preventDefault();
             void add();
+          }}
+          onKeyDown={(e) => {
+            // Escape leaves the form as Cancel does.
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setAdding(false);
+            }
           }}
         >
           <div className="dim">a new task · yours</div>
@@ -350,11 +379,15 @@ export function BacklogScreen({
           <div className="actions" data-testid="item-actions">
             {current.status === "proposed" ? (
               <>
-                <Button variant="primary" onClick={() => void decide(current, "add")}>
+                <Button variant="primary" disabled={action.busy} onClick={() => void decide(current, "add")}>
                   Add
                 </Button>
-                <Button onClick={() => void addAndStart(current)}>Add and start a run</Button>
-                <Button onClick={() => void decide(current, "drop")}>Drop</Button>
+                <Button disabled={action.busy} onClick={() => void addAndStart(current)}>
+                  Add and start a run
+                </Button>
+                <Button disabled={action.busy} onClick={() => void decide(current, "drop")}>
+                  Drop
+                </Button>
               </>
             ) : null}
             {buttons.analyse ? (
@@ -389,10 +422,14 @@ export function BacklogScreen({
               </label>
             ) : null}
             {current.status === "open" || current.status === "in-progress" ? (
-              <Button onClick={() => act((by) => client.closeIssue(current.id, by, repo))}>Done</Button>
+              <Button disabled={action.busy} onClick={() => finish(current, "done")}>
+                Done
+              </Button>
             ) : null}
             {current.status === "open" ? (
-              <Button onClick={() => act((by) => client.dropIssue(current.id, by, repo))}>Drop</Button>
+              <Button disabled={action.busy} onClick={() => finish(current, "drop")}>
+                Drop
+              </Button>
             ) : null}
           </div>
           {/* Why a button cannot be pressed, in words: the badge says what, this says what to do. */}
@@ -410,7 +447,7 @@ export function BacklogScreen({
             start an agent in a terminal of its own; the plan changes only through that agent.
           </div>
         </div>
-      ) : (
+      ) : list.data === undefined ? null : (
         <div className="empty">
           <h2>No task</h2>
           <p>+ task adds one; agents' proposals appear here and in the inbox.</p>

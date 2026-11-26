@@ -300,7 +300,6 @@ import {
 } from "@metator/plugin-bun";
 
 export {
-  findChildRepos,
   findFolderRepos,
   findFolderRoot,
   findRepoRoot,
@@ -1114,8 +1113,22 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ),
     myReviews: asFunction(
-      ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository, notifier, panes, threads }) =>
+      ({
+        config,
+        fileSystem,
+        paths,
+        clock,
+        reviewHost,
+        initRun,
+        runRepository,
+        notifier,
+        panes,
+        threads,
+        fileLock,
+      }) =>
         new MyReviews({
+          // The daemon's scan and the CLI's `mrs triage|send|resolve` write a request's file: one at a time.
+          lock: fileLock,
           notifier,
           config: { ...config.config.reviews, sources: reviewSourcesOf(config.config.codehost) },
           analyse: config.config.codehost.mine.analyse,
@@ -1344,7 +1357,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new RunDrivers(fileSystem, runRepository, backgroundProcess, runJournal, clock),
     ),
     runJournal: asFunction(
-      ({ fileSystem, runRepository, clock }) => new RunJournal(fileSystem, runRepository, clock),
+      ({ fileSystem, runRepository, clock, fileLock }) =>
+        new RunJournal(fileSystem, runRepository, clock, fileLock),
     ).singleton(),
     driveRun: asFunction(
       ({

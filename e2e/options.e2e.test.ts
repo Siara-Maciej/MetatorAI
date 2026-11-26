@@ -5,6 +5,7 @@
  * daemon serves the same view and writes the same files.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -123,6 +124,19 @@ describe("metator config (options, real CLI)", () => {
     });
     const record = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
     expect(record).toMatchObject({ schemaVersion: 9, options: { "supervisor.wipLimit": 1 } });
+    // A run that does not exist: NOT_FOUND, and no empty run directory left behind.
+    const unknown = await mt(
+      "config",
+      "set",
+      "supervisor.wipLimit",
+      "1",
+      "--scope",
+      "run",
+      "--run",
+      "20990101-nope",
+    );
+    expect((unknown.json.error as { code: string }).code).toBe("NOT_FOUND");
+    expect(existsSync(repo.path(".metator/runs/20990101-nope"))).toBe(false);
     const schema = data(await mt("config", "schema", "--options")) as { properties: Record<string, unknown> };
     expect(Object.keys(schema.properties)).toContain("supervisor.wipLimit");
   }, 30_000);

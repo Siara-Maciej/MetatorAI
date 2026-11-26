@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 /** The topics the daemon names (ADR-0110); `activity:<run>`, and `@<repo>` in a folder, narrow one. */
-export const TOPICS = [
+const TOPICS = [
   "state",
   "inbox",
   "layout",
@@ -27,8 +27,7 @@ const Changed = z.object({
   seq: z.number().int().nonnegative(),
   topics: z.array(z.string()),
 });
-export const EventMessage = z.discriminatedUnion("type", [Hello, Changed]);
-export type EventMessage = z.infer<typeof EventMessage>;
+const EventMessage = z.discriminatedUnion("type", [Hello, Changed]);
 
 /** What the app knows of the channel: the daemon's start and the last message it read. */
 export interface Channel {

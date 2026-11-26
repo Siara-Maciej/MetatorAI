@@ -34,6 +34,14 @@ describe("ghCalls", () => {
     expect(c.approve(45)).toEqual(["pr", "review", "45", "-R", "acme/shop", "--approve"]);
   });
 
+  test("the threads query sends the owner and name as strings (-f), so `2048/true` stays text; the number as a number", () => {
+    const args = ghCalls(source({ kind: "github", repo: "2048/true" })).threads(7);
+    const flagOf = (value: string) => args[args.indexOf(value) - 1];
+    expect(flagOf("owner=2048")).toBe("-f");
+    expect(flagOf("name=true")).toBe("-f");
+    expect(flagOf("number=7")).toBe("-F");
+  });
+
   test("a review is one call: its body, COMMENT, the head, and each comment on a line in gh's array form", () => {
     const args = ghCalls(shop).publish(45, {
       body: "General",

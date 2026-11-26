@@ -9,7 +9,7 @@ import { renderThread, renderThreadTree } from "../render.ts";
 import { who } from "../who.ts";
 
 /** Why a thread made without a daemon has no chat terminal yet. */
-export const NO_PANE =
+const NO_PANE =
   "no daemon serves this repository: the thread has no chat terminal yet. Start one (`metator serve`, or the app), then `metator thread reopen <id>`.";
 
 /**

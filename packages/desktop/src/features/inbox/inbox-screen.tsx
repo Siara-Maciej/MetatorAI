@@ -7,6 +7,7 @@
  */
 
 import { useState } from "react";
+import { DaemonFreshness } from "../../shared/components/freshness.tsx";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction, useTasks } from "../../shared/hooks.ts";
@@ -78,11 +79,16 @@ export function InboxScreen({
     const next = stepNeed(needs, picked?.key, step);
     if (next) onPick(next.key);
   };
-  // Debug changes the daemon counts: an entry on Home while there are some (round 13).
+  // Debug changes the daemon counts: an entry on Home while there are some (round 13). Above them,
+  // whether what Home shows is current: its decisions come over a socket that stays open while the
+  // daemon is stopped or stuck.
   const debug = (
-    <div className="home-debug">
-      <DebugChanges />
-    </div>
+    <>
+      <DaemonFreshness />
+      <div className="home-debug">
+        <DebugChanges />
+      </div>
+    </>
   );
   if (needs.length === 0)
     return (

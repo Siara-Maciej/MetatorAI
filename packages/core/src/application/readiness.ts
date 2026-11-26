@@ -1,3 +1,4 @@
+import { parse as parseShell } from "shell-quote";
 import type { MetatorConfig } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { GateReport } from "../domain/gate.ts";
@@ -47,7 +48,8 @@ export interface ReadinessCheck {
     | "conformance"
     | "jdk"
     | "build"
-    | "build-dependencies";
+    | "build-dependencies"
+    | "metator";
   readonly status: ReadinessStatus;
   /** What this means for a run, in one sentence. */
   readonly message: string;
@@ -194,6 +196,7 @@ export class CheckReadiness {
             fix: "metator setup",
           },
     );
+    checks.push(...(await this.metatorCommand(scan.workflows)));
     const gates = this.config.config.gates;
     checks.push(
       gates.full.length > 0 || gates.quick.length > 0
@@ -268,6 +271,38 @@ export class CheckReadiness {
         status: "fail",
         message: `no AI host can start: ${why}; nothing would run a run's agents`,
         fix: "install the host's CLI, or name an installed host in hosts.targets of metator.config.yml",
+      },
+    ];
+  }
+
+  /**
+   * The command a script stage's `metator` becomes (`hosts.metatorCommand`): its first word must
+   * start, or the first such stage escalates. Said only when it cannot be found; a failure when a
+   * workflow's script calls MetatorAI, a warning otherwise (agents' hooks and commands still do).
+   */
+  private async metatorCommand(
+    workflows: readonly { readonly spec: { readonly id: string } }[],
+  ): Promise<ReadinessCheck[]> {
+    const program = firstWord(this.config.config.hosts.metatorCommand);
+    if (program !== undefined && (await this.mcp.hasCommand(program))) return [];
+    const shown = program ?? this.config.config.hosts.metatorCommand;
+    const fix = `put ${shown} on the PATH, or set hosts.metatorCommand in metator.config.yml to how this repository runs MetatorAI (e.g. "npx metator" or "bun run metator")`;
+    const calling = workflows.filter((w) => scriptsOf(w.spec).some((s) => firstWord(s) === "metator"));
+    if (calling.length > 0)
+      return [
+        {
+          id: "metator",
+          status: "fail",
+          message: `\`${shown}\` (hosts.metatorCommand) is not on the PATH: the script stages of ${calling.map((w) => w.spec.id).join(", ")} that call MetatorAI cannot start`,
+          fix,
+        },
+      ];
+    return [
+      {
+        id: "metator",
+        status: "warn",
+        message: `\`${shown}\` (hosts.metatorCommand) is not on the PATH: agents' hooks and their metator commands cannot start`,
+        fix,
       },
     ];
   }
@@ -493,6 +528,27 @@ export class CheckReadiness {
       fix: worktree ? `metator env up --worktree ${worktree}` : "metator env up",
     };
   }
+}
+
+/** The program a command line starts, as the drive splits it; undefined for an empty line. */
+const firstWord = (line: string): string | undefined =>
+  parseShell(line).find((w): w is string => typeof w === "string");
+
+/** Every script a workflow's stages run: `script:` owners and workers, and script gates. */
+function scriptsOf(spec: object): string[] {
+  const stages = (spec as { stages?: unknown }).stages;
+  if (!Array.isArray(stages)) return [];
+  const scripts: string[] = [];
+  for (const stage of stages as {
+    owner?: string | string[];
+    parallel?: string[];
+    gate?: { script?: string };
+  }[]) {
+    for (const o of [stage.owner ?? [], stage.parallel ?? []].flat())
+      if (o.startsWith("script:")) scripts.push(o.slice("script:".length));
+    if (stage.gate?.script) scripts.push(stage.gate.script);
+  }
+  return scripts;
 }
 
 const where = (place: string) => (place === "." ? "" : ` in ${place}`);

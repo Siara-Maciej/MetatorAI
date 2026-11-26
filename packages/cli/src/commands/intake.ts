@@ -1,4 +1,4 @@
-import { err, ok } from "@metator/core";
+import { err, ok, unreadableIssueWarning } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
@@ -33,7 +33,13 @@ export function registerIntakeCommands(program: Command, { action, container }: 
         const c = container();
         const report = await c.resolve("scanIntake").execute({ dryRun: opts.dryRun });
         if (report.isErr()) return { result: err(report.error) };
-        const warnings = report.value.rules.flatMap((r) => (r.error ? [`${r.rule}: ${r.error}`] : []));
+        const warnings = [
+          ...report.value.rules.flatMap((r) => [
+            ...(r.error ? [`${r.rule}: ${r.error}`] : []),
+            ...(r.failed ?? []).map((f) => `${r.rule}: issue ${f.issue} did not start: ${f.error}`),
+          ]),
+          ...(report.value.unreadable ?? []).map(unreadableIssueWarning),
+        ];
         if (opts.drive !== undefined && opts.drive !== false) {
           for (const s of report.value.rules.flatMap((r) => r.started)) {
             const driven = await resume(c, s.runId, typeof opts.drive === "string" ? opts.drive : undefined);

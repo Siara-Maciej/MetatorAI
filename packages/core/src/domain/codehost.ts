@@ -258,40 +258,73 @@ function sourceId(kind: string, name: string, taken: ReadonlySet<string>): strin
 
 type Raw = Record<string, unknown>;
 
+/** A server name `via` can hold: the characters it cannot, as dashes. */
+const viaName = (name: string): string =>
+  name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "server";
+
 /**
  * v14 → v15: `reviews.sources` and each `intake.rules[].source` become `codehost.sources` (one
- * entry per kind, repository or project and server), the rule keeps the source's id and its
- * filters, and an explicit `guard.commands.ask` gets `metator review approve`.
+ * entry per kind, repository or project, server and, for reviews, author), the rule keeps the
+ * source's id and its filters, and an explicit `guard.commands.ask` gets `metator review approve`.
+ *
+ * Total over valid v14 files: a GitHub or GitLab source that named its repository as `project`
+ * reads it as the repo, a Jira one that named its project as `repo` as the project; a rule whose
+ * source names neither is left out (v15 cannot name it). An MCP server name `via` cannot hold
+ * ("my server", "@acme/gh") is named again with dashes, here and in `mcp:` when it is there.
  */
 export function codehostFromV14(v14: unknown): unknown {
   const config = { ...(v14 as Raw) };
   const sources: Raw[] = [];
   const taken = new Set<string>();
-  const sourceFor = (s: Raw): string => {
+  const mcp = config.mcp && typeof config.mcp === "object" ? { ...(config.mcp as Raw) } : undefined;
+  const renamed = new Map<string, string>();
+  const serverName = (name: string): string => {
+    if (/^[A-Za-z0-9._-]+$/.test(name)) return name;
+    const known = renamed.get(name);
+    if (known) return known;
+    const base = viaName(name);
+    let next = base;
+    for (let n = 2; (mcp && next in mcp) || [...renamed.values()].includes(next); n++) next = `${base}-${n}`;
+    renamed.set(name, next);
+    return next;
+  };
+  /** The source's id; undefined when v15 cannot name its repository or project. */
+  const sourceFor = (s: Raw, review: boolean): string | undefined => {
     const kind = String(s.kind);
-    const via = `mcp:${typeof s.mcp === "string" ? s.mcp : kind}`;
+    const name = (v: unknown) => (typeof v === "string" && v !== "" ? v : undefined);
+    // The one written in the other's place moves there; when both are written, both stay.
+    const both = name(s.repo) !== undefined && name(s.project) !== undefined;
+    const jira = kind === "jira";
+    const repo = jira ? (both ? name(s.repo) : undefined) : (name(s.repo) ?? name(s.project));
+    const project = jira ? (name(s.project) ?? name(s.repo)) : both ? name(s.project) : undefined;
+    if (kind === "jira" ? !project : !repo) return undefined;
+    const via = `mcp:${serverName(typeof s.mcp === "string" ? s.mcp : kind)}`;
+    const author = name(s.author);
+    // A rule takes any source of its repository; a review source only one of the same author.
     const found = sources.find(
-      (x) => x.kind === kind && x.repo === s.repo && x.project === s.project && x.via === via,
+      (x) =>
+        x.kind === kind &&
+        x.repo === repo &&
+        x.project === project &&
+        x.via === via &&
+        (!review || x.author === author),
     );
-    if (found) {
-      if (s.author !== undefined && found.author === undefined) found.author = s.author;
-      return String(found.id);
-    }
-    const id = sourceId(kind, String(s.repo ?? s.project ?? kind), taken);
+    if (found) return String(found.id);
+    const id = sourceId(kind, (kind === "jira" ? project : repo) ?? kind, taken);
     taken.add(id);
     sources.push({
       id,
       kind,
-      ...(s.repo !== undefined ? { repo: s.repo } : {}),
-      ...(s.project !== undefined ? { project: s.project } : {}),
+      ...(repo !== undefined ? { repo } : {}),
+      ...(project !== undefined ? { project } : {}),
       via,
-      ...(s.author !== undefined ? { author: s.author } : {}),
+      ...(author !== undefined ? { author } : {}),
     });
     return id;
   };
   const reviews = config.reviews as Raw | undefined;
   if (reviews && Array.isArray(reviews.sources)) {
-    for (const s of reviews.sources as Raw[]) sourceFor(s);
+    for (const s of reviews.sources as Raw[]) sourceFor(s, true);
     const { sources: _moved, ...rest } = reviews;
     config.reviews = rest;
   }
@@ -299,21 +332,27 @@ export function codehostFromV14(v14: unknown): unknown {
   if (intake && Array.isArray(intake.rules)) {
     config.intake = {
       ...intake,
-      rules: (intake.rules as Raw[]).map((rule) => {
+      rules: (intake.rules as Raw[]).flatMap((rule) => {
         const s = (rule.source ?? {}) as Raw;
-        const id = sourceFor(s);
-        return {
-          ...rule,
-          source: id,
-          ...(s.labels !== undefined ? { labels: s.labels } : {}),
-          ...(s.state !== undefined ? { state: s.state } : {}),
-          ...(s.type !== undefined ? { type: s.type } : {}),
-          ...(s.tool !== undefined ? { tool: s.tool } : {}),
-        };
+        const id = sourceFor(s, false);
+        if (id === undefined) return [];
+        return [
+          {
+            ...rule,
+            source: id,
+            ...(s.labels !== undefined ? { labels: s.labels } : {}),
+            ...(s.state !== undefined ? { state: s.state } : {}),
+            ...(s.type !== undefined ? { type: s.type } : {}),
+            ...(s.tool !== undefined ? { tool: s.tool } : {}),
+          },
+        ];
       }),
     };
   }
   if (sources.length > 0) config.codehost = { ...((config.codehost as Raw | undefined) ?? {}), sources };
+  // A renamed server keeps its place and its settings in `mcp:`.
+  if (mcp && [...renamed.keys()].some((name) => name in mcp))
+    config.mcp = Object.fromEntries(Object.entries(mcp).map(([k, v]) => [renamed.get(k) ?? k, v]));
   const guard = config.guard as Raw | undefined;
   const commands = guard?.commands as Raw | undefined;
   if (guard && commands && Array.isArray(commands.ask) && !commands.ask.includes(APPROVE_PATTERN))

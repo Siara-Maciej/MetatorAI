@@ -20,7 +20,7 @@ import {
 } from "@metator/core";
 
 /** The one place that knows Claude Code's tool names. Changes go here only. */
-export const CLAUDE_TOOLS: Readonly<Record<BasicCapability, readonly string[]>> = {
+const CLAUDE_TOOLS: Readonly<Record<BasicCapability, readonly string[]>> = {
   read: ["Read", "Glob"],
   search: ["Grep", "Glob"],
   edit: ["Edit", "Write"],
@@ -31,7 +31,7 @@ export const CLAUDE_TOOLS: Readonly<Record<BasicCapability, readonly string[]>> 
 };
 
 /** Claude Code model aliases per tier, unless the config names a model. */
-export const CLAUDE_MODELS: Readonly<Record<ModelTier, string>> = {
+const CLAUDE_MODELS: Readonly<Record<ModelTier, string>> = {
   reasoning: "opus",
   standard: "sonnet",
   fast: "haiku",

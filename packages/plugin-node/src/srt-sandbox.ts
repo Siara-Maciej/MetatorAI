@@ -17,13 +17,13 @@ import {
 } from "@metator/core";
 
 /** What a process started in the sandbox finds in its environment: it is inside one. */
-export const SANDBOX_ENV = "METATOR_SANDBOX";
+const SANDBOX_ENV = "METATOR_SANDBOX";
 
 /**
  * Bun's switch that makes a compiled executable act as `bun`: a compiled `metator` runs `srt` with
  * it (ADR-0105). The session inside must not inherit it, or a hook's `metator` would be a `bun`.
  */
-export const BE_BUN_ENV = "BUN_BE_BUN";
+const BE_BUN_ENV = "BUN_BE_BUN";
 
 /** Where the sandbox runtime's command line lives (`srt`, from `@anthropic-ai/sandbox-runtime`). */
 export function srtCli(): string {

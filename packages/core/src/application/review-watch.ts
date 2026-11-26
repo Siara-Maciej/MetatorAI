@@ -1,4 +1,5 @@
 import { MetatorError } from "../domain/errors.ts";
+import { InProcessLock } from "../domain/in-process-lock.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   mergeThreads,
@@ -12,8 +13,8 @@ import {
   type ThreadState,
 } from "../domain/review-thread.ts";
 import { mineCard, type ReviewCard } from "../domain/watched-review.ts";
-import type { Clock, FileSystem, ReviewHost } from "../ports/index.ts";
-import { loadDocument, writeDocument } from "./document-io.ts";
+import type { Clock, FileLock, FileSystem, ReviewHost } from "../ports/index.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 import type { Notifier } from "./notifier.ts";
 import type { Panes, PaneView } from "./panes.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -41,6 +42,11 @@ export interface MyReviewsDependencies {
   /** The daemon's panes: "Analyse" opens the responder where a person sees it. */
   readonly panes?: Pick<Panes, "openWorkspace" | "openTab" | "openPane">;
   readonly threads?: Pick<Threads, "addMr">;
+  /**
+   * One writer at a time for a request's file: the daemon (the scan) and the CLI (`mrs triage`,
+   * `send`, `resolve`) both change it. The runtime gives the lock across processes.
+   */
+  readonly lock?: FileLock;
 }
 
 /** My request as the list shows it: with the threads nobody analysed yet. */
@@ -73,7 +79,11 @@ export interface ReviewScanReport {
  * need a person's name. A reviewer's words are data, never instructions.
  */
 export class MyReviews {
-  constructor(private readonly d: MyReviewsDependencies) {}
+  private readonly lock: FileLock;
+
+  constructor(private readonly d: MyReviewsDependencies) {
+    this.lock = d.lock ?? new InProcessLock();
+  }
 
   async scan(): Promise<Result<ReviewScanReport, MetatorError>> {
     const requests: ReviewScanReport["requests"][number][] = [];
@@ -92,45 +102,64 @@ export class MyReviews {
           continue;
         }
         const id = reviewId(source, pr.number);
-        const kept = await this.read(id);
+        const read = await this.read(id);
+        // A file this version cannot read (newer, torn) is reported and left as it is.
+        if (read.isErr()) {
+          errors.push(`${id}: ${read.error.message}`);
+          continue;
+        }
+        const kept = read.value;
         const now = this.d.clock.now().toISOString();
-        const merged = mergeThreads(kept?.threads ?? [], threads.value, now);
+        const seen = mergeThreads(kept?.threads ?? [], threads.value, now);
         // A request nobody reviewed is not kept.
-        if (!kept && merged.threads.length === 0) continue;
+        if (!kept && seen.threads.length === 0) continue;
         // What the plan covered is fixed once the answering run is done: its change is pushed.
         const pushed = kept?.runId !== undefined && (await this.d.runDone(kept.runId));
-        const fixed = pushed ? merged.threads.filter((t) => t.state === "planned").map((t) => t.id) : [];
-        const settled = merged.threads.map((t) =>
-          fixed.includes(t.id) ? { ...t, state: "fixed" as const } : t,
-        );
-        let review: PullRequestReview = {
+        const facts = {
           source,
           number: pr.number,
           title: pr.title,
           ...(pr.branch ? { branch: pr.branch } : {}),
           ...(pr.url ? { url: pr.url } : {}),
-          threads: settled,
-          ...(kept?.runId ? { runId: kept.runId } : {}),
-          updatedAt: now,
         };
         let started: string | undefined;
-        const busy = review.runId !== undefined && (await this.d.runActive(review.runId));
+        const busy = kept?.runId !== undefined && (await this.d.runActive(kept.runId));
         // Detected always; the work starts by itself only when the person chose so (ADR-0097).
-        if (merged.fresh.length > 0 && !busy && this.d.analyse === true) {
+        if (seen.fresh.length > 0 && !busy && this.d.analyse === true) {
           const run = await this.d.initRun.execute({
             workflow: this.d.config.workflow,
-            task: reviewTask(id, review),
+            task: reviewTask(id, { ...facts, threads: seen.threads }),
             // The answer is written on the request's own branch, in its own worktree.
             worktree: pr.branch ? { base: pr.branch } : {},
           });
           if (run.isErr()) errors.push(`${source.kind}:${source.repo}#${pr.number}: ${run.error.message}`);
-          else {
-            started = run.value.runId;
-            review = { ...review, runId: started };
-          }
+          else started = run.value.runId;
         }
-        const saved = await this.write(id, review);
-        if (saved.isErr()) return err(saved.error);
+        // The host and the runs were asked outside the lock: what is written is merged into the
+        // file as it is now, so a triage or a reply sent meanwhile stays.
+        let merged = seen;
+        let fixed: string[] = [];
+        const saved = await this.locked(id, (current) => {
+          merged = mergeThreads(current?.threads ?? [], threads.value, now);
+          if (!current && merged.threads.length === 0) return ok(undefined);
+          const done = pushed && current?.runId === kept?.runId;
+          fixed = done ? merged.threads.filter((t) => t.state === "planned").map((t) => t.id) : [];
+          const runId = started ?? current?.runId;
+          return ok({
+            ...facts,
+            threads: merged.threads.map((t) =>
+              fixed.includes(t.id) ? { ...t, state: "fixed" as const } : t,
+            ),
+            ...(runId ? { runId } : {}),
+            updatedAt: now,
+          });
+        });
+        if (saved.isErr()) {
+          errors.push(`${id}: ${saved.error.message}`);
+          continue;
+        }
+        const review = saved.value;
+        if (!review) continue;
         if (merged.fresh.length > 0 && this.d.notifier) {
           // Once per thread: a thread is new in one scan only.
           const failed = await this.d.notifier.review({
@@ -159,8 +188,9 @@ export class MyReviews {
     const out: (PullRequestReview & { id: string })[] = [];
     for (const file of [...(await this.d.fs.glob([`${this.d.paths.mrs}/*.json`]))].sort()) {
       const id = file.slice(file.lastIndexOf("/") + 1).replace(/\.json$/, "");
+      // A file this version cannot read is left out of the list; `show` says why.
       const review = await this.read(id);
-      if (review) out.push({ id, ...review });
+      if (review.isOk() && review.value) out.push({ id, ...review.value });
     }
     return ok(out);
   }
@@ -225,8 +255,9 @@ export class MyReviews {
 
   async show(id: string): Promise<Result<PullRequestReview & { readonly id: string }, MetatorError>> {
     const review = await this.read(id);
-    return review
-      ? ok({ id, ...review })
+    if (review.isErr()) return err(review.error);
+    return review.value
+      ? ok({ id, ...review.value })
       : err(MetatorError.notFound(`review ${id}`, { hint: "`metator mrs list` shows the requests." }));
   }
 
@@ -269,7 +300,6 @@ export class MyReviews {
       return err(MetatorError.usage(chosen.problem, `\`metator mrs show ${id}\` lists the threads.`));
     const sent: string[] = [];
     const skipped: string[] = [];
-    let threads = review.value.threads;
     for (const t of review.value.threads) {
       if (!t.reply || t.repliedAt || t.state === "resolved") continue;
       if (!chosen.chosen.includes(t.id)) {
@@ -283,16 +313,23 @@ export class MyReviews {
         t.reply,
       );
       if (posted.isErr()) return err(posted.error);
-      sent.push(t.id);
+      // Recorded at once: a send that fails on a later thread is retried without posting this one again.
       const at = this.d.clock.now().toISOString();
-      threads = threads.map((x) =>
-        x.id === t.id
-          ? { ...x, repliedAt: at, state: x.state === "open" ? ("answered" as const) : x.state }
-          : x,
+      const saved = await this.locked(id, (current) =>
+        current
+          ? ok({
+              ...current,
+              threads: current.threads.map((x) =>
+                x.id === t.id
+                  ? { ...x, repliedAt: at, state: x.state === "open" ? ("answered" as const) : x.state }
+                  : x,
+              ),
+            })
+          : err(MetatorError.notFound(`review ${id}`)),
       );
+      if (saved.isErr()) return err(saved.error);
+      sent.push(t.id);
     }
-    const saved = await this.write(id, this.strip({ ...review.value, threads }));
-    if (saved.isErr()) return err(saved.error);
     return ok({ sent, skipped });
   }
 
@@ -317,28 +354,45 @@ export class MyReviews {
     threadId: string,
     change: (t: PullRequestReview["threads"][number]) => PullRequestReview["threads"][number],
   ): Promise<Result<PullRequestReview, MetatorError>> {
-    const review = await this.show(id);
-    if (review.isErr()) return err(review.error);
-    if (!review.value.threads.some((t) => t.id === threadId))
-      return err(MetatorError.notFound(`thread ${threadId} of ${id}`));
-    const next = this.strip({
-      ...review.value,
-      threads: review.value.threads.map((t) => (t.id === threadId ? change(t) : t)),
-      updatedAt: this.d.clock.now().toISOString(),
+    const saved = await this.locked(id, (current) => {
+      if (!current)
+        return err(MetatorError.notFound(`review ${id}`, { hint: "`metator mrs list` shows the requests." }));
+      if (!current.threads.some((t) => t.id === threadId))
+        return err(MetatorError.notFound(`thread ${threadId} of ${id}`));
+      return ok({
+        ...current,
+        threads: current.threads.map((t) => (t.id === threadId ? change(t) : t)),
+        updatedAt: this.d.clock.now().toISOString(),
+      });
     });
-    const saved = await this.write(id, next);
-    return saved.map(() => next);
+    if (saved.isErr()) return err(saved.error);
+    return ok(saved.value as PullRequestReview);
   }
 
-  private strip(review: PullRequestReview & { readonly id?: string }): PullRequestReview {
-    const { id: _id, ...rest } = review;
-    return rest;
+  /**
+   * The one way a request's file is changed: under the lock, `edit` gets the file as it is now
+   * (undefined: there is none) and answers the review to write, or undefined to leave it. A file
+   * that cannot be read is never written over. The answer is what the file holds afterwards.
+   */
+  private locked(
+    id: string,
+    edit: (current: PullRequestReview | undefined) => Result<PullRequestReview | undefined, MetatorError>,
+  ): Promise<Result<PullRequestReview | undefined, MetatorError>> {
+    return this.lock.hold(`${this.d.paths.mrs}/${id}.json`, async () => {
+      const current = await this.read(id);
+      if (current.isErr()) return err(current.error);
+      const next = edit(current.value);
+      if (next.isErr()) return err(next.error);
+      if (!next.value) return ok(current.value);
+      const written = next.value;
+      const saved = await this.write(id, written);
+      return saved.map(() => written);
+    });
   }
 
-  private async read(id: string): Promise<PullRequestReview | undefined> {
-    const file = `${this.d.paths.mrs}/${id}.json`;
-    const parsed = await loadDocument(this.d.fs, file, PullRequestReviewDocument, "json");
-    return parsed.isOk() ? parsed.value : undefined;
+  /** The request's file: undefined when there is none, an error when it cannot be read. */
+  private read(id: string): Promise<Result<PullRequestReview | undefined, MetatorError>> {
+    return readDocument(this.d.fs, `${this.d.paths.mrs}/${id}.json`, PullRequestReviewDocument, "json");
   }
 
   private write(id: string, review: PullRequestReview): Promise<Result<void, MetatorError>> {

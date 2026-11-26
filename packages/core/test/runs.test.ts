@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunJournal } from "../src/application/run-journal.ts";
@@ -236,7 +237,7 @@ describe("run lifecycle", () => {
 
   test("status without any run says how to start one", async () => {
     const error = (await world().status.execute({}))._unsafeUnwrapErr();
-    expect([error.code, error.hint]).toEqual(["NOT_FOUND", "Start one with `metator run init`."]);
+    expect([error.code, error.hint]).toEqual(["NOT_FOUND", "Start one with `metator run new`."]);
   });
 
   test("unknown run id is NOT_FOUND with a hint", async () => {
@@ -319,6 +320,22 @@ describe("run lifecycle", () => {
     expect(bumps.every((b) => b.isOk())).toBe(true);
     expect((await w.repo.load(run.runId))._unsafeUnwrap().options).toEqual({ a: true, b: true, c: true });
     expect((await w.repo.update("nope", (r) => ok(r)))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+
+  test("update of a run that does not exist takes no lock: the lock file would leave its directory behind", async () => {
+    const w = world();
+    const held: string[] = [];
+    const repo = new RunRepository(w.fs, DEFAULT_PATHS, undefined, {
+      hold: async (path, work) => {
+        held.push(path);
+        return work();
+      },
+    });
+    const missing = await repo.update("20990101-x-y", (r) => ok(r));
+    expect([missing._unsafeUnwrapErr().code, held]).toEqual(["NOT_FOUND", []]);
+    const run = (await w.init.execute({ workflow: "feature", task: "first" }))._unsafeUnwrap();
+    expect((await repo.update(run.runId, (r) => ok(r))).isOk()).toBe(true);
+    expect(held).toEqual([run.files.state]);
   });
 
   test("task text that slugifies to nothing still gets a valid id", async () => {
@@ -876,6 +893,48 @@ describe("resuming an escalated run", () => {
     );
   });
 
+  test("sent back before the delivery gate (mt-feature), the push it granted is asked again; in place it stays", async () => {
+    const workflow = readFileSync(
+      new URL("../../../.github/metator/workflows/mt-feature.yml", import.meta.url),
+      "utf8",
+    );
+    const w = world({ ".github/metator/workflows/mt-feature.yml": workflow });
+    (await w.init.execute({ workflow: "mt-feature", task: "ship it" }))._unsafeUnwrap();
+    const to = async (stage: string) => {
+      for (let i = 0; i < 20; i++) {
+        const now = (await w.status.execute({}))._unsafeUnwrap();
+        if (now.stage === stage) return;
+        if (now.expects.includes("APPROVE"))
+          (await w.approve.execute({ gate: now.stage, by: "ala" }))._unsafeUnwrap();
+        else (await w.advance.execute({ event: { type: "PASS" } }))._unsafeUnwrap();
+      }
+      throw new Error(`never reached ${stage}`);
+    };
+    await to("publish");
+    expect(Object.keys((await w.status.execute({}))._unsafeUnwrap().approvals)).toContain("push");
+    const escalate = async () => {
+      await w.advance.execute({ event: { type: "FAIL", reason: "not pushed" } }); // publish loop 1 of 1
+      const out = (
+        await w.advance.execute({ event: { type: "FAIL", reason: "not pushed" } })
+      )._unsafeUnwrap();
+      expect(out.status).toBe("escalated");
+    };
+    await escalate();
+    const resume = new ResumeRun(w.catalog, w.repo, w.clock);
+    // In place: the publish stage still pushes with the delivery's approval.
+    const inPlace = (await resume.execute({ by: "ala" }))._unsafeUnwrap();
+    expect([inPlace.stage, inPlace.approvals.push?.by]).toEqual(["publish", "ala"]);
+    await escalate();
+    // Back to build: the delivery is asked again, and so is the push it granted.
+    const back = (await resume.execute({ by: "ala", to: "build" }))._unsafeUnwrap();
+    expect([back.stage, back.approvals.delivery, back.approvals.push]).toEqual([
+      "build",
+      undefined,
+      undefined,
+    ]);
+    expect(Object.keys(back.approvals)).toEqual(["plan-approval"]);
+  });
+
   test("approving an escalated run is refused with the resume that comes first", async () => {
     const w = world();
     const runId = (await w.init.execute({ workflow: "feature", task: "stuck" }))._unsafeUnwrap().runId;
@@ -1003,5 +1062,40 @@ describe("a run sent back to an earlier stage", () => {
       await advance.execute({ runId: run.runId, event: { type: "FAIL", reason: "no" } })
     )._unsafeUnwrap();
     expect(kept).toEqual([`${run.runId} ${back.stage}`]);
+  });
+
+  test("a failure that sends the run back before the gate that granted the push takes the push back", async () => {
+    const REWORK = `
+kind: Workflow
+schemaVersion: 3
+id: rework
+stages:
+  - id: build
+  - id: delivery
+    hitl: true
+    neverSkip: true
+    grants: [push]
+  - id: publish
+    onFail: { goto: build, loop: publish }
+  - id: retry
+    onFail: { goto: retry, loop: retry }
+loops: { publish: 2, retry: 2 }
+`;
+    const w = world({ ".github/metator/workflows/rework.yml": REWORK });
+    (await w.init.execute({ workflow: "rework", task: "t" }))._unsafeUnwrap();
+    await w.advance.execute({ event: { type: "PASS" } });
+    await w.approve.execute({ gate: "delivery", by: "ala" });
+    const back = (await w.advance.execute({ event: { type: "FAIL", reason: "red" } }))._unsafeUnwrap();
+    expect([back.stage, back.approvals.push, back.approvals.delivery]).toEqual([
+      "build",
+      undefined,
+      undefined,
+    ]);
+    // A failure that loops on its own stage, past the gate, keeps the push.
+    await w.advance.execute({ event: { type: "PASS" } });
+    await w.approve.execute({ gate: "delivery", by: "ola" });
+    await w.advance.execute({ event: { type: "PASS" } });
+    const again = (await w.advance.execute({ event: { type: "FAIL", reason: "flaky" } }))._unsafeUnwrap();
+    expect([again.stage, again.approvals.push?.by]).toEqual(["retry", "ola"]);
   });
 });

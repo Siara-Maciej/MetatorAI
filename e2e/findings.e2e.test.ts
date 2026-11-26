@@ -105,10 +105,10 @@ describe("metator findings", () => {
     expect((await findUnversioned(repo.root, [".metator"])).unversioned).toEqual([]);
   });
 
-  test("merge and verdict on a directory with no findings file: NOT_FOUND, nothing created", async () => {
+  test("validate, merge and verdict on a directory with no findings file: NOT_FOUND, nothing created", async () => {
     await repo.write("empty-dir/notes.md", "not a lens file\n");
     for (const dir of ["no-such-dir", "empty-dir"])
-      for (const command of ["merge", "verdict"]) {
+      for (const command of ["validate", "merge", "verdict"]) {
         const r = await metator(["findings", command, dir], repo.root);
         expect([r.code, (r.json.error as Data).code]).toEqual([1, "NOT_FOUND"]);
         expect(String((r.json.error as Data).hint)).toContain(".metator/runs/<run>/findings");

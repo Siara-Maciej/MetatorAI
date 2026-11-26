@@ -70,11 +70,12 @@ export const LOOKS = {
     modified: { glyph: "M", tone: "amber" },
     renamed: { glyph: "R", tone: "amber" },
   },
-  /** The first level's four words (`firstLevel`): the only looks the sidebar, Board and Home draw. */
+  /** The first level's words (`firstLevel`): the only looks the sidebar, Board and Home draw. */
   first: {
     "needs you": { glyph: "?", tone: "amber" },
     working: { glyph: "⋮", tone: "violet" },
     blocked: { glyph: "!", tone: "red" },
+    "to do": { glyph: "○", tone: "faint" },
     done: { glyph: "✓", tone: "green" },
   },
   /** A thread with no task yet (round 16): its row says `chat`; a closed one `closed`; else it reads `first`. */
@@ -111,14 +112,16 @@ export const LOOKS = {
 } as const satisfies Record<string, Record<string, Look>>;
 export type LookKind = keyof typeof LOOKS;
 /**
- * The four words of the first level (the sidebar, the Board, Home, a page's head): what needs
- * the person, what works, what stands still and what is finished. The finer words (asks, idle,
- * exited, aborted, escalated, done not seen) are inside a step's Details and its terminal.
+ * The words of the first level (the sidebar, the Board, Home, a page's head): what needs the
+ * person, what works, what stands still, what nobody started yet and what is finished. The finer
+ * words (asks, idle, exited, aborted, escalated, done not seen) are inside a step's Details and
+ * its terminal.
  */
-export type FirstLevel = "needs you" | "working" | "blocked" | "done";
+export type FirstLevel = "needs you" | "working" | "blocked" | "to do" | "done";
 /**
- * A fine state in one of the four words. Blocked is everything that stands still without asking:
- * escalated, waiting for another step, nothing driving it (idle, exited, a task not started).
+ * A fine state in one of the first level's words. Blocked is everything that stands still without
+ * asking: escalated, waiting for another step, nothing driving it (idle, exited). A backlog task
+ * nobody started is to do: nothing is wrong with it, so it is not red.
  */
 export function firstLevel(fine: string | undefined): FirstLevel {
   switch (fine) {
@@ -132,6 +135,8 @@ export function firstLevel(fine: string | undefined): FirstLevel {
       return "needs you";
     case "working":
       return "working";
+    case "todo":
+      return "to do";
     case "done":
     case "plan ready":
     case "aborted":

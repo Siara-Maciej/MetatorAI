@@ -27,7 +27,7 @@ export interface Requirement {
   readonly fix?: HostFix | undefined;
 }
 
-export const GIT_DOWNLOAD = "https://git-scm.com/downloads";
+const GIT_DOWNLOAD = "https://git-scm.com/downloads";
 
 const HOST_NAMES: Readonly<Record<string, string>> = {
   claude: "Claude Code",
@@ -96,7 +96,7 @@ export const defaultHost = (i: Pick<Inspection, "hosts" | "defaultHost">): HostI
   hostChoices(i).find((h) => h.enabled)?.id;
 
 /** What a folder is, as the next screen treats it. */
-export type FolderKind =
+type FolderKind =
   | "missing"
   | "no-git"
   | "too-new"
@@ -116,8 +116,7 @@ export interface Reading {
 }
 
 /** The repository a folder belongs to (a worktree's main checkout); the folder itself when none. */
-export const repoPathOf = (i: Pick<Inspection, "path" | "repository">): string =>
-  i.repository?.root ?? i.path;
+const repoPathOf = (i: Pick<Inspection, "path" | "repository">): string => i.repository?.root ?? i.path;
 
 /** The files setup writes for this host. */
 export const writesFor = (i: Pick<Inspection, "writes">, host: HostId | undefined): readonly string[] =>

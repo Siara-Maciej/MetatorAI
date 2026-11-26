@@ -7,6 +7,7 @@ import {
   normalizePath,
   type Overview,
   ok,
+  type ReadinessCheck,
   type RepoRuns,
   type RunFacts,
   readinessWarnings,
@@ -16,6 +17,7 @@ import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, liveDaemonAt } from "../daemon-client.ts";
+import { isoTime } from "../options.ts";
 import { type PaneAsk, paneAsks } from "../pane-asks.ts";
 import { renderDoctor, renderInbox, renderStatus } from "../render.ts";
 
@@ -124,7 +126,31 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
     )
     .action(
       ctx.action(async (opts: { worktree?: string; run?: string; gates: boolean }) => {
-        const c = ctx.container();
+        if (opts.run && opts.worktree)
+          return {
+            result: err(
+              MetatorError.usage(
+                "--run and --worktree both name the checkout to look at",
+                "Pass one: --run <id> looks at that run's worktree.",
+              ),
+            ),
+          };
+        let c: ReturnType<typeof ctx.container>;
+        try {
+          c = ctx.container();
+        } catch (e) {
+          // A config that does not load is what doctor is for: its failed check, not an error.
+          if (!(e instanceof MetatorError) || e.code !== "INVALID_CONFIG") throw e;
+          const source = typeof e.details?.source === "string" ? e.details.source : "metator.config.yml";
+          const config: ReadinessCheck = {
+            id: "config",
+            status: "fail",
+            message: `${e.message.trim()}; the other checks need a config that loads`,
+            fix: e.hint ?? `fix ${source} where the message says`,
+          };
+          const r = ok({ ready: false, place: ".", checks: [config] });
+          return { result: r, warnings: readinessWarnings(r.value) };
+        }
         let worktree = opts.worktree;
         if (opts.run) {
           const record = await c.resolve("runRepository").load(opts.run);
@@ -178,16 +204,18 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
     .description(
       "What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent",
     )
-    .option("--since <time>", "only runs started at or after this ISO time")
+    .option(
+      "--since <time>",
+      "only runs started at or after this ISO date or time (2026-11-01, 2026-11-01T10:30Z)",
+      isoTime,
+    )
     .option(
       "--html <file>",
       "also write the dashboard: the report and the reactions to review comments as one page",
     )
     .action(
       ctx.action(async (opts: { since?: string; html?: string }) => {
-        if (opts.since && Number.isNaN(Date.parse(opts.since)))
-          return { result: err(MetatorError.usage(`--since ${opts.since}: expected an ISO time`)) };
-        const since = opts.since ? new Date(opts.since).toISOString() : undefined;
+        const since = opts.since;
         const f = ctx.folder();
         if (opts.html) {
           if (f)

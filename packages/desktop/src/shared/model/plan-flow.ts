@@ -25,7 +25,7 @@ export const FLOW = {
 } as const;
 
 /** What a step reads as: its child run's state, or `pending` while it has none. */
-export type FlowState = RunShown | "pending";
+type FlowState = RunShown | "pending";
 
 export interface FlowNode {
   readonly id: string;
@@ -47,7 +47,7 @@ export interface FlowNode {
   readonly critical: boolean;
 }
 
-export interface FlowEdge {
+interface FlowEdge {
   readonly from: string;
   readonly to: string;
   readonly d: string;

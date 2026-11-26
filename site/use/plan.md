@@ -73,11 +73,11 @@ The **Backlog** screen lists **agents' proposals** first, then the **open** task
 
 | Button | On | Does |
 |---|---|---|
-| **+ task** | the top bar | opens a form: title, what and why, priority, labels |
+| **+ task** | the top bar | opens a form: title, what and why, priority, labels; Escape closes it |
 | **Analyse** | an open task | an agent reads the code for the task, in a terminal the app opens at once, and records its analysis on the task. **Re-analyse** once it has one |
 | **Make plan** | an open task | a run of the task's workflow that stops once you approve its plan; its conductor's terminal opens at once. Closed while the analysis is stale |
 | **Implement** | an open task | starts a run on the task in a new worktree and opens its terminal: from its plan when it has one. **Review plan, then implement** when the plan is stale. Closed while the task waits for other tasks |
-| **Done**, **Drop** | an open task | closes it as done, or as not going to be done |
+| **Done**, **Drop** | an open task | closes it as done, or as not going to be done; the app asks first, since it cannot reopen the task |
 | **Add** | a proposal | makes it a task |
 | **Add and start a run** | a proposal | makes it a task and starts a run on it |
 | **Drop** | a proposal | discards it |

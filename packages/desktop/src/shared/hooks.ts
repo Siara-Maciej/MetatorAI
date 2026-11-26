@@ -2,10 +2,41 @@
  * The hooks the screens share (D11): the work as tasks, one option of the shown repository, an action with what it answered.
  */
 import { useMemo, useState } from "react";
-import { useDaemon } from "./daemon/daemon.tsx";
+import type { Envelope } from "./api/api.ts";
+import { useDaemon, usePolled } from "./daemon/daemon.tsx";
 import { boardCards } from "./model/board.ts";
 import { refusalText } from "./model/format.ts";
+import { type Found, found } from "./model/found.ts";
 import { type WorkTask, workTasks } from "./model/tasks.ts";
+
+/**
+ * Whether what a route names (`key`: `run:<id>`, `thread:<id>`) is there. While the window does not
+ * know it (`present`), the daemon is asked (`ask`, then `has` of its answer) every few seconds;
+ * only its answer read after the screen opened for this key can say "missing": a run or a chat
+ * just made is "waiting" until the window's state catches up.
+ */
+export function useFound<T>(
+  key: string,
+  present: boolean,
+  ask: () => Promise<Envelope<T>>,
+  has: (data: T) => boolean,
+): Found {
+  const [opened, setOpened] = useState(() => ({ key, at: Date.now() }));
+  // Another key in the same screen (one missing run, then another): its own opening time.
+  if (opened.key !== key) setOpened({ key, at: Date.now() });
+  const check = usePolled(
+    `exists:${key}`,
+    async (): Promise<Envelope<boolean>> => {
+      const r = await ask();
+      return r.ok && r.data !== undefined
+        ? { ok: true, data: has(r.data) }
+        : { ok: false, ...(r.error ? { error: r.error } : {}) };
+    },
+    3000,
+    !present,
+  );
+  return found(present, check, opened.key === key ? opened.at : Number.POSITIVE_INFINITY);
+}
 
 /** The work as parent tasks (tasks.ts), from the runs and system plans: the sidebar's, Home's and a page's. */
 export function useTasks(): WorkTask[] {
@@ -62,7 +93,7 @@ export interface Answer {
       }
     | undefined;
 }
-export interface ActionNotice {
+interface ActionNotice {
   readonly text: string | undefined;
   readonly tone: "error" | "info";
   onClose(): void;

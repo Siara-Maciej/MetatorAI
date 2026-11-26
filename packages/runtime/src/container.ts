@@ -290,7 +290,7 @@ import type { LoadedConfig } from "./config.ts";
  * The cradle types every port and use case; `bootstrap()` (bootstrap.ts) registers all of them
  * statically in one container per repository root. There are no scopes and no plugin loading.
  */
-export interface Cradle {
+interface Cradle {
   // configuration values
   root: string;
   config: LoadedConfig;

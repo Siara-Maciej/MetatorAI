@@ -46,7 +46,7 @@ export interface ToolShape {
  * options (a flag is a boolean, `<values...>` a list, one with a parser a number unless it is one
  * of a few words, any other a string). An option the tool refuses (`writesWith`) or always passes (`readsWith`) is no field.
  */
-export function toolShape(cmd: Command): ToolShape {
+function toolShape(cmd: Command): ToolShape {
   const { writesWith = [], readsWith = [] } = metaOf(cmd);
   const flags: Record<string, "string" | "boolean" | "number" | "list"> = {};
   for (const o of cmd.options) {
@@ -121,7 +121,7 @@ export function mcpTools(program: Command): McpTool[] {
 }
 
 /** Typed fields under the name they had before a flag was renamed: a caller that still sends one is heard. */
-export const RENAMED_FIELDS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+const RENAMED_FIELDS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "rules pack": { files: "paths" },
 };
 

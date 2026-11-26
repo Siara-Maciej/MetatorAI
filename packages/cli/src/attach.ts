@@ -7,7 +7,7 @@ import { err, MetatorError, ok, type Result } from "@metator/core";
  * The daemon decides who may type (the run's driver lock); a refusal is shown, never retried.
  */
 export const DETACH_KEY = "\x1d";
-export const DETACH_HINT = "detach: Ctrl-]";
+const DETACH_HINT = "detach: Ctrl-]";
 
 export interface AttachIo {
   /** Writes to the person's terminal as is. */

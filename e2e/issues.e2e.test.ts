@@ -161,6 +161,11 @@ describe("metator issue (real CLI)", () => {
     );
     expect(data(await mt("issue", "show", "i001")).runId).toBe(started.runId);
     expect((await mt("issue", "close", "i001", "--by", "maciej")).code).toBe(0);
+    // Closing it again says so and rewrites nothing.
+    const closedAt = data(await mt("issue", "show", "i001")).updatedAt;
+    const again = await mt("issue", "close", "i001", "--by", "maciej");
+    expect([again.code, (again.json.error as Data).message]).toEqual([64, "issue i001 is already done"]);
+    expect(data(await mt("issue", "show", "i001")).updatedAt).toBe(closedAt);
     const fourth = data(await mt("issue", "add", "Old TODO", "--by", "maciej"));
     // Without --by the name is $METATOR_USER, else the one git signs commits with, else the login name; with none, a usage error.
     const named = { METATOR_USER: "ada" };
@@ -183,6 +188,16 @@ describe("metator issue (real CLI)", () => {
       priority: "low",
       labels: ["billing", "correctness"],
     });
+    // An edit that changes nothing is a usage error; the item is not touched.
+    const edited = data(await mt("issue", "show", "i002")).updatedAt;
+    const empty = await mt("issue", "edit", "i002");
+    expect([empty.code, (empty.json.error as Data).code]).toEqual([64, "USAGE"]);
+    expect(data(await mt("issue", "show", "i002")).updatedAt).toBe(edited);
+    // A ref with spaces is a note; a path, with or without its line, is a file.
+    const noted = data(
+      await mt("issue", "edit", "i002", "--ref", "see the thread with finance", "docs/x.md:3"),
+    );
+    expect(noted.refs).toEqual([{ note: "see the thread with finance" }, { file: "docs/x.md", line: 3 }]);
   }, 60_000);
 
   test("the daemon serves and changes the same backlog", async () => {

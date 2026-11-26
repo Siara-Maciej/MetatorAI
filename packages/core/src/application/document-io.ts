@@ -106,13 +106,13 @@ export async function readJsonLines<T>(
 }
 
 /** One file a scan could read, with its text (a Markdown document's body follows its header). */
-export interface ScannedDocument<T> {
+interface ScannedDocument<T> {
   readonly value: T;
   readonly source: string;
   readonly text: string;
 }
 
-export interface DocumentProblem {
+interface DocumentProblem {
   readonly source: string;
   readonly error: MetatorError;
 }

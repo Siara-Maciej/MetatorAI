@@ -106,6 +106,10 @@ metator run close --aborted --reason "scope changed"
 
 `metator run list`, `metator status`, `metator inbox` and `metator doctor` warn that `run <id> cannot be read and is left out`, and name the run's `state.json`. The file is cut short or was edited by hand. The other runs are listed as usual. The desktop app says the same at the bottom of the sidebar (**N runs cannot be read**), with the file of each. Restore the file from git or a backup, or delete the run's directory `.metator/runs/<id>/` to drop the run.
 
+## A task cannot be read
+
+`metator issue list` and `metator intake scan` warn that `issue <id> cannot be read and is left out`, and name its file in `.metator/issues/`. The file is cut short or was edited by hand. The other tasks are listed and scanned as usual, and a new task never takes its id. Restore the file from git or a backup, or delete it to drop the task.
+
 ## A file is locked
 
 A command fails with `<file> is locked by process <pid>`. Another MetatorAI process was changing that file for more than two minutes. Run the command again when that process has finished. If no MetatorAI process runs, delete the `<file>.lock` the hint names.
@@ -202,6 +206,12 @@ With `sandbox.enabled`, every session MetatorAI starts runs in the operating sys
 The top bar reads **no daemon** and the main area shows `metator serve`, the address and **Retry**. Start the daemon in your repository or folder (`metator serve`). If it listens on another port, type its address in the field and click **Retry** ([Get the desktop app](../guide/desktop-app.md#connect-it-to-the-daemon)).
 
 `metator serve` itself fails with `a daemon already serves <dir>: <url> (pid <pid>)` when one runs there already, also when a folder's daemon serves the repository: use that one, or stop it first.
+
+## The app says not answering
+
+The top bar reads **not answering** when the daemon still holds the connection but does not answer: its process is stopped (`kill -STOP`, a suspended terminal job) or stuck. The app asks the daemon's `/health` every few seconds and waits 4 s for it; a request of a screen waits 15 s (a change 120 s), then says `the daemon is not answering`. What the screens show stays, under a line **Not up to date: no answer since …**; it goes, and the top bar reads **connected** again, as soon as the daemon answers. Resume the process (`fg`, `kill -CONT <pid>`) or restart `metator serve`.
+
+A screen whose data could not be read says so (`The tasks could not be read: the daemon answered 500 on /issues`) with **Try again**; it never shows an empty list in its place.
 
 ## No chat opens
 

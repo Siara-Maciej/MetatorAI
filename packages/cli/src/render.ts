@@ -17,7 +17,7 @@ import type { PaneAsk } from "./pane-asks.ts";
  * functions over the same data the envelope carries; `--json` leaves them out.
  */
 
-export const ATTENTION: Readonly<Record<Attention, { readonly icon: string; readonly label: string }>> = {
+const ATTENTION: Readonly<Record<Attention, { readonly icon: string; readonly label: string }>> = {
   you: { icon: "?", label: "needs you" },
   driving: { icon: "⟳", label: "working" },
   stopped: { icon: "‖", label: "stopped" },
@@ -269,6 +269,27 @@ export function renderRunStatus(v: {
   return lines.join("\n");
 }
 
+/** `metator run list`: one run a line, newest first: its id, where it stands, its workflow, when it last moved. */
+export function renderRunList(
+  runs: readonly {
+    readonly runId: string;
+    readonly workflow: string;
+    readonly stage: string;
+    readonly status: string;
+    readonly updatedAt: string;
+  }[],
+): string {
+  if (runs.length === 0) return "No runs.";
+  return columns(
+    runs.map((r) => [
+      r.runId,
+      `${r.status} at ${r.stage}`,
+      r.workflow,
+      r.updatedAt.slice(0, 16).replace("T", " "),
+    ]),
+  ).join("\n");
+}
+
 const CHECK_MARK: Readonly<Record<string, string>> = { ok: "✓", warn: "!", fail: "✗" };
 
 /** `metator doctor`: each check with its mark, and the fix where there is one. */
@@ -312,9 +333,12 @@ export function renderInspection(i: Inspection): string {
   if (i.repository) lines.push(`  ${repo(i.repository)}`);
   for (const r of i.folder?.repos ?? []) lines.push(`  ${repo(r)}`);
   lines.push("", `  ${mark(i.git.installed)} git ${i.git.version ?? `not installed (${i.git.install.url})`}`);
+  // A tick says the host can drive a run: installed and logged in. A login nobody checked is a dot.
+  const login = (h: Inspection["hosts"][number]) =>
+    h.loggedIn === null ? "login not checked" : h.loggedIn ? "logged in" : `no login found: ${h.login}`;
   for (const h of i.hosts)
     lines.push(
-      `  ${mark(h.installed)} ${h.program} ${h.installed ? (h.loggedIn ? "logged in" : `no login found: ${h.login}`) : `not installed: ${h.install.command}`}`,
+      `  ${mark(h.installed ? h.loggedIn : false)} ${h.program} ${h.installed ? login(h) : `not installed: ${h.install.command}`}`,
     );
   const writes = i.defaultHost ? i.writes[i.defaultHost] : undefined;
   if (writes) lines.push("", `  setup --host ${i.defaultHost} writes ${writes.length} file(s)`);

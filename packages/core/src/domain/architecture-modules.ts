@@ -28,7 +28,7 @@ export interface ArchModule {
   readonly dependents: string[];
 }
 
-export interface ModuleEdge {
+interface ModuleEdge {
   readonly from: string;
   readonly to: string;
   readonly imports: number;
@@ -40,7 +40,7 @@ export interface ModuleEdge {
   readonly internalSamples: { from: string; to: string }[];
 }
 
-export interface ModuleCycle {
+interface ModuleCycle {
   readonly modules: string[];
   readonly edges: { from: string; to: string; imports: number }[];
   /** The cycle closes only through `import type`. */
@@ -197,7 +197,7 @@ export function analyzeModules(input: {
 }
 
 /** Folders that look like the modules of a modular monolith: three or more siblings with code. */
-export const MODULE_FOLDERS = ["module", "modules", "features", "domains", "contexts", "bounded-contexts"];
+const MODULE_FOLDERS = ["module", "modules", "features", "domains", "contexts", "bounded-contexts"];
 
 /** Module globs for a policy proposal (`arch init`): `<path>/module/*` with three or more modules. */
 export function proposeModuleGlobs(files: readonly string[]): string[] {

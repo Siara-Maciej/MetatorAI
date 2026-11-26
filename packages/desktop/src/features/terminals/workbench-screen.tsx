@@ -14,6 +14,7 @@ import type { PaneView, SplitNode } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
 import { StageBar } from "../../shared/components/stage-bar.tsx";
+import { useConfirmClose } from "../../shared/confirm.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction, useKeptFlag, useOption } from "../../shared/hooks.ts";
 import {
@@ -331,7 +332,7 @@ export function WorkbenchScreen({
   const controlsOf = (p: PaneView | undefined) => runControls(client, action, me, runOf(p), hostEditor);
   /** A shell takes anyone's keys; an agent's pane of a run only its attached person's. */
   const canType = (p: PaneView) => !p.runId || p.role === "shell" || controlsOf(p).attached;
-  const confirmClose = useOption("ui.confirmClosePane", true);
+  const confirmClose = useConfirmClose();
   const attachOnType = useOption<"ask" | "always" | "never">("ui.attachOnType", "ask");
   const borders = useOption<"auto" | "always" | "off">("ui.paneBorders", "auto");
   const labels = useOption("ui.paneLabels", true);
@@ -452,8 +453,7 @@ export function WorkbenchScreen({
     taskFromHere: (p) => onOpenBacklog(p?.runId ? { refs: [{ run: p.runId }] } : {}),
     closePane: (p) => {
       if (!p) return;
-      if (confirmClose && p.live?.alive && !p.ended && !window.confirm(`Close ${paneLabel(p)} (${p.id})?`))
-        return;
+      if (!confirmClose.pane(p)) return;
       void action.run(() => client.closePane(p.id, repoOf(p)));
     },
     newShellTab: () => {

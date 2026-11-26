@@ -80,7 +80,7 @@ A browser shows the app's notifications once you allow them for the page.
 
 ## Connect it to the daemon
 
-The desktop app starts the daemon of the repository it opens. In a browser, the app looks for the daemon at `http://127.0.0.1:4310`, the default address of `metator serve`. The word on the right of the top bar reads **connected** when it found it, and **no daemon** when nothing answers. Then the main area shows the command to start one, a field with the address, and **Retry**: type another address there when your daemon listens elsewhere (`metator serve --port <n>`), and the app remembers it. It also tries again by itself every two seconds.
+The desktop app starts the daemon of the repository it opens. In a browser, the app looks for the daemon at `http://127.0.0.1:4310`, the default address of `metator serve`. The word on the right of the top bar reads **connected** when it found it, and **no daemon** when nothing answers. Then the main area shows the command to start one, a field with the address, and **Retry**: type another address there when your daemon listens elsewhere (`metator serve --port <n>`), and the app remembers it. It also tries again by itself every two seconds. It reads **not answering** when the daemon holds the connection but does not answer (a stopped or stuck process); the screens then keep what they showed under **Not up to date: no answer since …** ([Troubleshooting](../reference/troubleshooting.md#the-app-says-not-answering)).
 
 In a browser, `?daemon=<url>` in the address names the daemon for that page.
 

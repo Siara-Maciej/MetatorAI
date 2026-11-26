@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { PassThrough } from "node:stream";
+import { serve } from "../src/commands/mcp.ts";
 import { describeCommands } from "../src/commands/meta.ts";
 import { alwaysOptions, mcpTools, refusedOptions, toolArgv, toolCall, typedShapes } from "../src/mcp.ts";
 import { buildProgram } from "../src/program.ts";
@@ -212,5 +214,17 @@ describe("the MCP tools (metator mcp)", () => {
         .map((t) => t.command)
         .sort(),
     ).toEqual(Object.keys(TYPED).sort());
+  });
+
+  test("the server ends when the client closes its stdin without a goodbye (it just exits)", async () => {
+    const stdin = new PassThrough();
+    const stdout = new PassThrough();
+    const served = serve(tools.slice(0, 2), async () => ({ code: 0, envelope: { ok: true } }), {
+      stdin,
+      stdout,
+    });
+    stdin.end();
+    const ended = await Promise.race([served, Bun.sleep(3000).then(() => "still serving")]);
+    expect(ended).toEqual({ tools: 2, calls: 0 });
   });
 });

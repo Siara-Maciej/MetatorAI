@@ -6,11 +6,7 @@
 
 import type {
   Attention,
-  AttentionCounts,
-  BoardStage,
-  BoardStep,
   InboxItem as CoreInboxItem,
-  DecisionCard,
   DiffLine,
   FileDiff,
   Freshness,
@@ -20,14 +16,11 @@ import type {
   IssueRef,
   IssueView,
   LayoutView,
-  OptionDescription,
   OptionDiagnostic,
   OptionScope,
-  OptionSource,
   OptionsView,
   Overview,
   PaneRole,
-  PaneState,
   PaneView,
   Plan,
   PlanBoardView,
@@ -42,7 +35,6 @@ import type {
   ReviewCard,
   ReviewNote,
   ReviewStatus,
-  ReviewThread,
   RunActivity,
   RunArtifact,
   RunArtifactKind,
@@ -55,13 +47,11 @@ import type {
   RunPlanView,
   SplitNode,
   StageProgress,
-  StageState,
   StartedStep,
   SystemDiscoveryView,
   SystemMap,
   SystemMapView,
   SystemPlan,
-  SystemPlanStepView,
   SystemPlanSummary,
   SystemPlanView,
   SystemStep,
@@ -84,10 +74,6 @@ import type { ScratchDropped } from "../model/stage1.ts";
  */
 export type {
   Attention,
-  AttentionCounts,
-  BoardStage,
-  BoardStep,
-  DecisionCard,
   DiffLine,
   FileDiff,
   Freshness,
@@ -97,14 +83,10 @@ export type {
   IssueRef,
   IssueView,
   LayoutView,
-  OptionDescription,
   OptionDiagnostic,
   OptionScope,
-  OptionSource,
   OptionsView,
-  Overview,
   PaneRole,
-  PaneState,
   PaneView,
   Plan,
   PlanBoardView,
@@ -125,13 +107,11 @@ export type {
   RunPlanView,
   SplitNode,
   StageProgress,
-  StageState,
   StartedStep,
   SystemDiscoveryView,
   SystemMap,
   SystemMapView,
   SystemPlan,
-  SystemPlanStepView,
   SystemPlanSummary,
   SystemPlanView,
   SystemStep,
@@ -140,8 +120,6 @@ export type {
   WorkPhase,
 };
 
-/** One option of a question. */
-export type QuestionOption = Question["options"][number];
 /** An event of a run's activity. */
 export type Activity = RunActivity;
 /** A live terminal of a pane, as the daemon's broker describes it. */
@@ -150,8 +128,6 @@ export type TabView = Tab;
 export type WorkspaceView = Workspace;
 /** Two runs that changed the same files, and which to merge first. */
 export type Conflict = WorktreeConflict;
-/** One review thread on my request, with what the agent made of it. */
-export type ReviewThreadView = ReviewThread;
 /** My reviewed request, by the id `metator mrs` names it. */
 export type ReviewedRequest = PullRequestReview & {
   readonly id: string;
@@ -273,14 +249,14 @@ export interface PaneAsk {
 }
 
 /** A thread's current chat terminal (the last of its `panes`) and whether it runs. */
-export interface ChatLink {
+interface ChatLink {
   readonly paneId: string;
   readonly repo?: string;
   readonly status: "live" | "paused" | "ended" | "missing";
 }
 
 /** A top run of a thread, as `GET /threads` lists it. */
-export interface TaskLink {
+interface TaskLink {
   readonly runId: string;
   readonly repo?: string;
   readonly task: string;
@@ -383,7 +359,7 @@ export interface Envelope<T> {
   };
 }
 
-export const DEFAULT_DAEMON = "http://127.0.0.1:4310";
+const DEFAULT_DAEMON = "http://127.0.0.1:4310";
 
 /** Where the daemon is: `?daemon=`, then what the person saved, then the default port. */
 export function daemonUrl(search: string, saved: string | null): string {
@@ -393,8 +369,51 @@ export function daemonUrl(search: string, saved: string | null): string {
 
 export const wsUrl = (base: string, path: string): string => `${base.replace(/^http/, "ws")}${path}`;
 
+/** A request's path without its query, as a message names it. */
+const pathOf = (path: string): string => path.split("?")[0] ?? path;
+
+/** How long a request waits for the daemon (ms): a GET only reads, a POST or PUT may start work first. */
+export interface Timeouts {
+  readonly get: number;
+  readonly post: number;
+}
+const TIMEOUTS: Timeouts = { get: 15_000, post: 120_000 };
+
+const isEnvelope = (v: unknown): v is Envelope<unknown> =>
+  typeof v === "object" && v !== null && typeof (v as { ok?: unknown }).ok === "boolean";
+
+/**
+ * One answer as an envelope: the daemon's own envelope whatever its status (a refusal keeps its
+ * message), else a refusal naming the status and the request (`label`), never a parser's message
+ * about a body that was not JSON (a proxy's or a crashed handler's "Internal Server Error").
+ */
+export async function readAnswer<T>(r: Response, label: string): Promise<Envelope<T>> {
+  const text = await r.text();
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = undefined;
+  }
+  if (isEnvelope(body)) return body as Envelope<T>;
+  if (!r.ok) {
+    const said = (text.trim().split("\n")[0] ?? "").slice(0, 120);
+    return {
+      ok: false,
+      error: {
+        code: `HTTP_${r.status}`,
+        message: `the daemon answered ${r.status} on ${label}${said ? ` (${said})` : ""}`,
+      },
+    };
+  }
+  return { ok: false, error: { code: "NOT_JSON", message: `the daemon's answer on ${label} is not JSON` } };
+}
+
 export class DaemonClient {
-  constructor(readonly base: string) {}
+  constructor(
+    readonly base: string,
+    private readonly timeouts: Timeouts = TIMEOUTS,
+  ) {}
 
   private withRepo(path: string, repo?: string): string {
     if (!repo) return `${this.base}${path}`;
@@ -402,32 +421,46 @@ export class DaemonClient {
     return `${this.base}${path}${sep}repo=${encodeURIComponent(repo)}`;
   }
 
-  async get<T>(path: string, repo?: string): Promise<Envelope<T>> {
+  /**
+   * One request with a deadline: a daemon that holds the connection but never answers (stopped,
+   * stuck) is cut after `ms` and said to be not answering, instead of being waited for forever.
+   */
+  private async ask<T>(url: string, init: RequestInit, label: string, ms: number): Promise<Envelope<T>> {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), ms);
     try {
-      const r = await fetch(this.withRepo(path, repo));
-      return (await r.json()) as Envelope<T>;
+      const r = await fetch(url, { ...init, signal: abort.signal });
+      return await readAnswer<T>(r, label);
     } catch (e) {
+      if (abort.signal.aborted)
+        return {
+          ok: false,
+          error: {
+            code: "TIMEOUT",
+            message: `the daemon is not answering: ${label} had no answer in ${ms / 1000} s`,
+          },
+        };
       return { ok: false, error: { code: "UNREACHABLE", message: (e as Error).message } };
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  async post<T>(
-    path: string,
-    body: unknown,
-    repo?: string,
-    method: "POST" | "PUT" = "POST",
-  ): Promise<Envelope<T>> {
-    try {
-      const r = await fetch(this.withRepo(path, repo), {
-        method,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      return (await r.json()) as Envelope<T>;
-    } catch (e) {
-      return { ok: false, error: { code: "UNREACHABLE", message: (e as Error).message } };
-    }
+  get<T>(path: string, repo?: string, ms = this.timeouts.get): Promise<Envelope<T>> {
+    return this.ask<T>(this.withRepo(path, repo), {}, pathOf(path), ms);
   }
+
+  post<T>(path: string, body: unknown, repo?: string, method: "POST" | "PUT" = "POST"): Promise<Envelope<T>> {
+    return this.ask<T>(
+      this.withRepo(path, repo),
+      { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+      `${method} ${pathOf(path)}`,
+      this.timeouts.post,
+    );
+  }
+
+  /** The daemon's pulse: `/health` (no envelope, but `ok: true`) with its own short deadline. */
+  health = (ms: number) => this.get<{ readonly pid: number }>("/health", undefined, ms);
 
   state = () => this.get<StateData>("/state");
   inbox = () => this.get<InboxData>("/inbox");

@@ -17,6 +17,16 @@ export interface RunCounts {
   /** Every run that is not finished: what the panel, the graph and the daemon screen list. */
   readonly open: number;
 }
+/**
+ * A setting's duration as it is set, not rounded: 90000 ms is `1.5 min` (in half minutes or half
+ * hours), else in seconds, else in milliseconds.
+ */
+export function exactDuration(ms: number): string {
+  if (ms >= 3_600_000 && ms % 1_800_000 === 0) return `${ms / 3_600_000} h`;
+  if (ms >= 60_000 && ms % 30_000 === 0) return `${ms / 60_000} min`;
+  if (ms % 1000 === 0) return `${ms / 1000} s`;
+  return `${ms} ms`;
+}
 /** The one count of runs: the top bar, the Inbox, the graph and the daemon screen all read it. */
 export function runCounts(runs: readonly Pick<RunOverview, "attention" | "status">[]): RunCounts {
   const of = (a: Attention) => runs.filter((r) => r.attention === a).length;

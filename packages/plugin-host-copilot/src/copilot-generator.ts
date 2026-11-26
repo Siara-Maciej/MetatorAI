@@ -14,7 +14,7 @@ import {
 } from "@metator/core";
 
 /** The one place that knows Copilot's tool names (VS Code custom agents). Changes go here only. */
-export const COPILOT_TOOLS: Readonly<Record<BasicCapability, readonly string[]>> = {
+const COPILOT_TOOLS: Readonly<Record<BasicCapability, readonly string[]>> = {
   read: ["read"],
   search: ["search"],
   edit: ["edit"],

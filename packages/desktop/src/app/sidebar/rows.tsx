@@ -17,7 +17,7 @@ import type { SidebarCtx } from "./model.ts";
 import { Row } from "./row.tsx";
 
 /** A task: its row, and while unfolded its panes (a run of its own) or its steps by repository. */
-export function TaskRows({ t, ctx }: { readonly t: WorkTask; readonly ctx: SidebarCtx }) {
+function TaskRows({ t, ctx }: { readonly t: WorkTask; readonly ctx: SidebarCtx }) {
   const { route, current, fold, expandedNow, runOf, wordOf, stateOf, panesOf, openDecisionOr, onRun } = ctx;
   const headRun = t.head ? runOf(t.head) : undefined;
   const word = wordOf(t);

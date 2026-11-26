@@ -75,7 +75,7 @@ export function inboxChips(item: Pick<InboxItem, "question" | "driving">): strin
 /** Whether the app may announce a question (its toast, the system notification): `notify.channel` is not `off`. */
 export const notifies = (options: readonly Pick<ResolvedOption, "key" | "value">[]): boolean =>
   options.find((o) => o.key === "notify.channel")?.value !== "off";
-export type NeedKind = "question" | "approval" | "permission" | "terminal" | "escalated" | "pane" | "review";
+type NeedKind = "question" | "approval" | "permission" | "terminal" | "escalated" | "pane" | "review";
 /** One thing that needs the person: a question on a card, a question on a terminal, an escalated run. */
 export interface NeedRow {
   /**
@@ -273,7 +273,7 @@ export const paneOfPrompt = (prompt: string): string | undefined =>
  * The answer that sends the person to the pane (`Attach and answer in the pane`): the card does
  * not answer for them, it takes them to the terminal where they answer the host themselves.
  */
-export const ATTACH_PANE = "Attach and answer in the pane";
+const ATTACH_PANE = "Attach and answer in the pane";
 export const goesToPane = (_q: Pick<Question, "source">, choice: string | undefined): boolean =>
   choice === ATTACH_PANE;
 /**

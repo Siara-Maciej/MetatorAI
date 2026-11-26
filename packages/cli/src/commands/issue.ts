@@ -6,6 +6,7 @@ import {
   type IssueRef,
   type IssueStatus,
   MetatorError,
+  unreadableIssueWarning,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
@@ -13,6 +14,24 @@ import type { CommandContext } from "../context.ts";
 import { byOption, defined } from "../options.ts";
 import { renderIssues } from "../render.ts";
 import { who } from "../who.ts";
+
+const REF_HELP =
+  "what it points at: <file>[:line], run:<id>[/<step>], or a note (text with spaces that names no file)";
+
+/**
+ * One `--ref`: a run, a file (with its line), or a note. A value is a file when it looks like a
+ * path (no whitespace) or names a file that exists; anything else is a note.
+ */
+export async function issueRef(value: string, exists: (path: string) => Promise<boolean>): Promise<IssueRef> {
+  const run = /^run:([^/]+)(?:\/(S\d+))?$/.exec(value);
+  if (run) return { run: run[1] as string, ...(run[2] ? { step: run[2] } : {}) };
+  const file = /^(.+?)(?::(\d+))?$/.exec(value);
+  const path = file?.[1];
+  if (path === undefined || value.trim() === "") return { note: value };
+  if (!/\s/.test(path) || (await exists(path)))
+    return { file: path, ...(file?.[2] ? { line: Number(file[2]) } : {}) };
+  return { note: value };
+}
 
 /**
  * `metator issue` (S4, design/13 §4): the repository's backlog. A person adds, edits, closes,
@@ -27,13 +46,10 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
       "Local tasks in .metator/issues: a person adds them, an agent only proposes (its proposal is a question in the inbox)",
     );
 
-  const refs = (values: string[] | undefined): IssueRef[] =>
-    (values ?? []).map((v) => {
-      const run = /^run:([^/]+)(?:\/(S\d+))?$/.exec(v);
-      if (run) return { run: run[1] as string, ...(run[2] ? { step: run[2] } : {}) };
-      const file = /^(.+?)(?::(\d+))?$/.exec(v);
-      return file ? { file: file[1] as string, ...(file[2] ? { line: Number(file[2]) } : {}) } : { note: v };
-    });
+  const refs = async (values: string[] | undefined): Promise<IssueRef[]> => {
+    const fs = runs().resolve("fileSystem");
+    return Promise.all((values ?? []).map((v) => issueRef(v, (path) => fs.exists(path))));
+  };
   const labels = (v: string | undefined) =>
     v
       ? v
@@ -57,6 +73,8 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
               ...(opts.run ? { runId: opts.run } : {}),
             })
         ).map((issues) => ({ issues })),
+        // An item whose file cannot be read is left out of the list; the person is told which.
+        warnings: (await runs().resolve("issues").unreadable()).map(unreadableIssueWarning),
       })),
     );
 
@@ -139,7 +157,7 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
     .option("--body <text>", "what and why, with the acceptance criterion")
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
-    .option("--ref <ref...>", "what it points at: <file>[:line], run:<id>[/<step>]")
+    .option("--ref <ref...>", REF_HELP)
     .addOption(byOption("who adds it"))
     .action(
       action(
@@ -157,7 +175,7 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
                 ...(opts.body !== undefined ? { body: opts.body } : {}),
                 ...(opts.priority ? { priority: opts.priority } : {}),
                 ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
-                refs: refs(opts.ref),
+                refs: await refs(opts.ref),
                 by: by.value,
               }),
           };
@@ -171,7 +189,7 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
     .option("--body <text>", "what and why, with the acceptance criterion")
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
-    .option("--ref <ref...>", "what it points at: <file>[:line], run:<id>[/<step>]")
+    .option("--ref <ref...>", REF_HELP)
     .requiredOption("--agent <id>", "the proposing agent (or worker)")
     .option("--run <id>", "the run it comes from (default: latest)")
     .action(
@@ -194,7 +212,7 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
               ...(opts.body !== undefined ? { body: opts.body } : {}),
               ...(opts.priority ? { priority: opts.priority } : {}),
               ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
-              refs: refs(opts.ref),
+              refs: await refs(opts.ref),
               agent: opts.agent,
               ...(opts.run ? { runId: opts.run } : {}),
             }),
@@ -241,23 +259,32 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
     .option("--body <text>")
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
-    .option("--ref <ref...>", "replaces the refs")
+    .option("--ref <ref...>", `replaces the refs (${REF_HELP})`)
     .action(
       action(
         async (
           id: string,
           opts: { title?: string; body?: string; priority?: IssuePriority; labels?: string; ref?: string[] },
-        ) => ({
-          result: await runs()
-            .resolve("issues")
-            .edit(id, {
-              ...(opts.title !== undefined ? { title: opts.title } : {}),
-              ...(opts.body !== undefined ? { body: opts.body } : {}),
-              ...(opts.priority ? { priority: opts.priority } : {}),
-              ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
-              ...(opts.ref ? { refs: refs(opts.ref) } : {}),
-            }),
-        }),
+        ) => {
+          const patch = {
+            ...(opts.title !== undefined ? { title: opts.title } : {}),
+            ...(opts.body !== undefined ? { body: opts.body } : {}),
+            ...(opts.priority ? { priority: opts.priority } : {}),
+            ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
+            ...(opts.ref ? { refs: await refs(opts.ref) } : {}),
+          };
+          // Nothing to change is a mistake, not an edit that only moves updatedAt.
+          if (Object.keys(patch).length === 0)
+            return {
+              result: err(
+                MetatorError.usage(
+                  `nothing to change in issue ${id}`,
+                  "Say what changes: --title, --body, --priority, --labels or --ref.",
+                ),
+              ),
+            };
+          return { result: await runs().resolve("issues").edit(id, patch) };
+        },
       ),
     );
 
@@ -268,7 +295,12 @@ export function registerIssueCommands(program: Command, ctx: CommandContext): vo
     .action(
       action(async (id: string, opts: { by?: string }) => {
         const by = await who(runs(), opts.by);
-        return { result: by.isErr() ? by : await runs().resolve("issues").close(id, { by: by.value }) };
+        if (by.isErr()) return { result: by };
+        // Closing a done task again would only rewrite its updatedAt.
+        const known = await runs().resolve("issues").show(id);
+        if (known.isOk() && known.value.status === "done")
+          return { result: err(MetatorError.usage(`issue ${id} is already done`)) };
+        return { result: await runs().resolve("issues").close(id, { by: by.value }) };
       }),
     );
 

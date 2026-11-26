@@ -21,7 +21,7 @@ import type {
 } from "./tauri-commands.ts";
 
 /** A folder of the fake computer. */
-export interface FakeFolder {
+interface FakeFolder {
   kind: "not-git" | "repo" | "folder";
   /** A repository: set up, not yet, or by a newer MetatorAI. */
   setUp?: "yes" | "no" | "newer";

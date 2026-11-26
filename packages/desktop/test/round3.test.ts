@@ -27,7 +27,7 @@ import {
 } from "../src/features/plans/plan-edit.ts";
 import { problemsAt } from "../src/features/runs/model.ts";
 import { GRAPH, graphLayout, linkPath, whoWorks } from "../src/features/system/model.ts";
-import type { Plan, RunOverview, SystemMap, SystemPlan } from "../src/shared/api/api.ts";
+import type { Plan, SystemMap, SystemPlan } from "../src/shared/api/api.ts";
 import {
   artifactBlocks,
   compactLines,
@@ -496,9 +496,6 @@ describe("editing a system plan and the map", () => {
     expect(mapChanges(map, after)).toEqual(["application shop-api changed: kind"]);
   });
 });
-
-// Keep the type import used.
-export type { RunOverview };
 
 describe("groupStepText", () => {
   test("the system plan's step count wins over the children started so far", () => {

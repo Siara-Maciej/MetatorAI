@@ -11,14 +11,14 @@ import { delimiter, dirname, join } from "node:path";
  */
 
 /** The variable that names the resources folder; the app and the launcher set it. */
-export const RESOURCES_ENV = "METATOR_RESOURCES";
+const RESOURCES_ENV = "METATOR_RESOURCES";
 /** The folder's name, wherever the installation puts it. */
-export const RESOURCES_DIR = "metator-resources";
+const RESOURCES_DIR = "metator-resources";
 /** Makes a compiled executable act as the `bun` it was built from (Bun's own switch). */
-export const BE_BUN_ENV = "BUN_BE_BUN";
+const BE_BUN_ENV = "BUN_BE_BUN";
 
 /** The native addons a compiled `metator` loads from the resources folder, by the package that needs them. */
-export const NATIVE_ADDONS = {
+const NATIVE_ADDONS = {
   "oxc-parser": "oxc-parser.node",
   "oxc-resolver": "oxc-resolver.node",
 } as const;
@@ -76,9 +76,7 @@ export const canonDir = (resources: string): string => join(resources, "canon");
  * The Java parser's WebAssembly (ADR-0107): web-tree-sitter's runtime and tree-sitter-java's
  * grammar, in the resources folder's `wasm`. The same files on every platform.
  */
-export const javaGrammarFiles = (
-  resources: string,
-): { readonly runtime: string; readonly language: string } => ({
+const javaGrammarFiles = (resources: string): { readonly runtime: string; readonly language: string } => ({
   runtime: join(resources, "wasm", "web-tree-sitter.wasm"),
   language: join(resources, "wasm", "tree-sitter-java.wasm"),
 });
@@ -119,7 +117,7 @@ export function installationEnv(o: {
 }
 
 /** The variable that names the folder of the Linux CLI bundles (`<arch>/metator-bundle.json`, ADR-0106). */
-export const LINUX_BUNDLES_ENV = "METATOR_LINUX_BUNDLES";
+const LINUX_BUNDLES_ENV = "METATOR_LINUX_BUNDLES";
 
 /**
  * The Linux CLI bundles `metator devcontainer` copies into a container: `$METATOR_LINUX_BUNDLES`,
@@ -142,7 +140,7 @@ export function linuxBundlesDir(
 }
 
 /** The variable plugin-host-claude reads for the `claude` program its Agent SDK runs. */
-export const CLAUDE_EXECUTABLE_ENV = "METATOR_CLAUDE_EXECUTABLE";
+const CLAUDE_EXECUTABLE_ENV = "METATOR_CLAUDE_EXECUTABLE";
 
 /**
  * This program's own command line, to start itself again (the daemon, a drive): the executable
@@ -204,6 +202,8 @@ export function actingAsBun<T>(f: () => T): T {
  * node_modules, which a compiled executable does not have. The loaders run when the program
  * starts: an addon that is not there must not stop every command, so it is a stand-in whose every
  * use throws why (`missingAddon`), and only the commands that parse say so.
+ *
+ * @public Imported by the loaders `scripts/compile-cli.ts` rewrites, not by a source file.
  */
 export function nativeAddon(addon: NativeAddon): unknown {
   const resources = findResources(process.env, dirname(process.execPath), existsSync);

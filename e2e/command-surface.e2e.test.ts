@@ -154,6 +154,57 @@ describe("the command surface (real CLI)", () => {
     expect([closed.code, (data(closed) as { runId: string }).runId]).toEqual([0, a]);
   }, 120_000);
 
+  test("the commands that act on one run take it as a word too; run list narrows; a bad --parent is refused before the run exists", async () => {
+    const a = data(await mt("run", "new", "--workflow", "demo", "--task", "Word A")).runId as string;
+    const b = data(await mt("run", "new", "--workflow", "demo", "--task", "Word B")).runId as string;
+    const taken = await mt("run", "take", a, "--by", "ola");
+    expect([taken.code, JSON.stringify(taken.json).includes(a)]).toEqual([0, true]);
+    expect((await mt("run", "release", a)).code).toBe(0);
+    expect((data(await mt("run", "messages", a)) as { runId: string }).runId).toBe(a);
+    expect((await mt("run", "checkpoint", a)).code).toBe(0);
+    expect(JSON.stringify((await mt("run", "handoff", a)).json)).toContain(a);
+    for (const argv of [
+      ["run", "advance", "pass", a, "--run", b],
+      ["run", "approve", "approval", a, "--run", b, "--by", "ola"],
+      ["run", "resume", a, "--run", b],
+      ["run", "write", "plan.md", a, "--run", b],
+    ]) {
+      const two = await mt(...argv);
+      expect([argv.join(" "), two.code, error(two).message]).toEqual([
+        argv.join(" "),
+        64,
+        `two runs named: ${a} and --run ${b}`,
+      ]);
+    }
+
+    const newest = (await mt("run", "list", "--limit", "1", "--workflow", "demo", "--status", "active")).json
+      .data as { runId: string }[];
+    // Newest is the latest change: A was taken, released and checkpointed after B was made.
+    expect(newest.map((r) => r.runId)).toEqual([a]);
+    expect((await mt("run", "list", "--workflow", "nope")).json.data).toEqual([]);
+    expect((await mt("run", "list", "--status", "finished")).code).toBe(64);
+
+    const before = ((await mt("run", "list")).json.data as unknown[]).length;
+    const parent = await mt("run", "new", "--workflow", "demo", "--task", "Child", "--parent", "not a run");
+    expect([parent.code, error(parent).code]).toEqual([64, "USAGE"]);
+    expect(((await mt("run", "list")).json.data as unknown[]).length).toBe(before);
+  }, 120_000);
+
+  test("at a terminal: run list is text, and a failure is said once, without the JSON line", async () => {
+    const id = data(await mt("run", "new", "--workflow", "demo", "--task", "Listed at a terminal"))
+      .runId as string;
+    const list = await inTerminal(["run", "list"], repo.root, [], 30_000, env);
+    expect(list.code).toBe(0);
+    expect(list.screen).toMatch(new RegExp(`${id} +active at plan +demo`));
+    expect(list.screen).not.toContain('{"ok"');
+    const failed = await inTerminal(["run", "status", "nosuch-run"], repo.root, [], 30_000, env);
+    expect(failed.code).toBe(1);
+    expect(failed.screen).toContain("✗ ");
+    expect(failed.screen).not.toContain('{"ok"');
+    const quiet = await inTerminal(["run", "status", "nosuch-run", "--json"], repo.root, [], 30_000, env);
+    expect((quiet.json.error as { code: string }).code).toBe("NOT_FOUND");
+  }, 120_000);
+
   test("who acts without --by: $METATOR_USER, else git's user.name, else the login name; an approval never the login name", async () => {
     const id = data(await mt("run", "new", "--workflow", "demo", "--task", "Who")).runId as string;
     const by = async (extra: Record<string, string>) => {

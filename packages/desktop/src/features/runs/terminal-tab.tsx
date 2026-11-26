@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Chip } from "../../shared/components/chips.tsx";
 import { CommandText, commandOf } from "../../shared/components/command-text.tsx";
+import { useConfirmClose } from "../../shared/confirm.ts";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { plainKey } from "../../shared/model/keys.ts";
@@ -28,8 +29,9 @@ import {
   type TerminalHandle,
   type TerminalStatus,
 } from "../terminals/terminal.tsx";
-import { portsText, runPhase } from "./model.ts";
+import { portsText, runPhase, sessionOfferedAbove } from "./model.ts";
 import { useRunControls } from "./run-controls.ts";
+import { StartRun } from "./start-run.tsx";
 
 export function TerminalTab({
   run,
@@ -80,7 +82,7 @@ export function TerminalTab({
   /**
    * The run's own terminal is shown once its session lives, or once the person opened one here.
    * Coming to this screen never starts a process: a run driven in the background, or one that
-   * has no session yet, says so and offers "Open a session".
+   * has no session yet, says so and offers "Open a session" (here, or in the bar above).
    */
   const [terminalOf, setTerminalOf] = useState<string>();
   const live = conductor?.live?.alive === true;
@@ -88,6 +90,10 @@ export function TerminalTab({
     if (live) setTerminalOf(runId);
   }, [live, runId]);
   const hasTerminal = terminalOf === runId;
+  // Nothing to type into: the composer waits for a terminal shown here, attaching for any of the
+  // run's terminals to live (a worker's that asks can be shown with "Show the pane").
+  const noTerminal = !hasTerminal && !(shown && shown !== conductor?.id);
+  const nothingLives = noTerminal && !panes.some((p) => p.live?.alive);
   const openShell = async () => {
     let pane: string | undefined;
     await action.run(async () => {
@@ -97,7 +103,9 @@ export function TerminalTab({
     });
     if (pane) setChosenPane(pane);
   };
+  const confirmClose = useConfirmClose();
   const close = async (id: string) => {
+    if (!confirmClose.pane(panes.find((p) => p.id === id))) return;
     if ((await closePane(id)) && chosenPane === id) setChosenPane(undefined);
   };
   const send = async () => {
@@ -110,11 +118,12 @@ export function TerminalTab({
     if (!refused) setLine("");
   };
   const phase = runPhase(run);
+  const offeredAbove = sessionOfferedAbove(run, panesOf(repo));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (phase !== "active" || document.querySelector("dialog[open]")) return;
       const k = plainKey(e);
-      if (k === "a" && !attached) void attach();
+      if (k === "a" && !attached && !nothingLives) void attach();
       if (k === "c" && attached) void release();
     };
     window.addEventListener("keydown", onKey);
@@ -178,7 +187,12 @@ export function TerminalTab({
             {attached ? (
               <Button onClick={() => void release()}>Release to agent · c</Button>
             ) : (
-              <Button variant="primary" onClick={() => void attach()} disabled={taken}>
+              <Button
+                variant="primary"
+                onClick={() => void attach()}
+                disabled={taken || nothingLives}
+                title={nothingLives ? "No terminal to type into: open a session first" : undefined}
+              >
                 Attach · a
               </Button>
             )}
@@ -249,13 +263,17 @@ export function TerminalTab({
               {phase === "active"
                 ? run.driving
                   ? "An agent works on it in the background, without a terminal. Opening a session starts the host in a terminal of its own."
-                  : "Nothing works on it. Opening a session starts the host in a terminal."
+                  : offeredAbove
+                    ? "Nothing works on it. Open a session in the bar above to start the host in a terminal."
+                    : "Nothing works on it. Opening a session starts the host in a terminal."
                 : phase === "escalated"
                   ? "The run stopped. Resume it above; its events say what happened."
                   : "The run is finished. Its events and its changes are what is left."}
             </p>
-            {phase === "active" ? null : (
+            {phase !== "active" ? (
               <a href={routeHash({ screen: "run", runId, tab: "activity" })}>Activity</a>
+            ) : offeredAbove ? null : (
+              <StartRun run={run} action={action} compact sessionOnly />
             )}
           </div>
         )}
@@ -270,10 +288,13 @@ export function TerminalTab({
           >
             <input
               aria-label="message to the session"
+              disabled={noTerminal}
               placeholder={
-                attached
-                  ? "type to the session · y / a / p / n are shortcuts the host knows"
-                  : "attach to type (click here attaches)"
+                noTerminal
+                  ? "no terminal yet: open a session first"
+                  : attached
+                    ? "type to the session · y / a / p / n are shortcuts the host knows"
+                    : "attach to type (click here attaches)"
               }
               value={line}
               onFocus={() => {
@@ -281,7 +302,7 @@ export function TerminalTab({
               }}
               onChange={(e) => setLine(e.target.value)}
             />
-            <Button type="submit" disabled={!attached}>
+            <Button type="submit" disabled={!attached || noTerminal}>
               Send
             </Button>
           </form>

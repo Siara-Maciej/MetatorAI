@@ -91,3 +91,20 @@ rules:
     summary: An optional property is either missing or a value; build objects with conditional spreads instead of assigning undefined.
     rationale: docs/adr/0016-versioned-documents.md
     source: { ref: tsconfig.json, verified: 2026-10-26 }
+  - id: MT-CODE-010
+    title: No dead code
+    applyTo:
+      [
+        "packages/**/*.ts",
+        "packages/**/*.tsx",
+        "scripts/**/*.ts",
+        "e2e/**/*.ts",
+        "package.json",
+        "packages/*/package.json",
+        "knip.jsonc",
+      ]
+    enforcement: E1
+    implementation: test:mt-code-010
+    summary: knip finds no unused file, export, exported type or dependency; an exception is written in knip.jsonc with why knip cannot see the use, never added to make code pass.
+    rationale: docs/adr/0112-knip-dead-code.md
+    source: { ref: knip.jsonc, verified: 2026-11-26 }

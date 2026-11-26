@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Ways a stand-in host falls short of the conformance suite, each on purpose. */
-export type StandInFault =
+type StandInFault =
   /** Never calls a hook: the guard neither denies, nor asks, nor hears a consent. */
   | "skip-hooks"
   /** Runs a command the pre-tool hook denied. */

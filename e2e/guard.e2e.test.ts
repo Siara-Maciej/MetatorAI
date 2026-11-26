@@ -286,6 +286,31 @@ describe("metator guard (real hook processes)", () => {
     );
     expect(decision(coordinator)?.permissionDecision).toBe("deny");
 
+    // The run's records are MetatorAI's: a driven agent that wrote an approval or an answer would
+    // pass its own gate. Its artifacts it writes; its records it reads.
+    const drivenEnv = { METATOR_DRIVEN: "1" };
+    for (const call of [
+      { tool_name: "Write", tool_input: { file_path: repo.path(`.metator/runs/${runId}/state.json`) } },
+      {
+        tool_name: "Edit",
+        tool_input: { file_path: repo.path(`.metator/runs/${runId}/questions/q001.json`) },
+      },
+      { tool_name: "Write", tool_input: { file_path: repo.path(".metator/worktrees.json") } },
+      { tool_name: "Bash", tool_input: { command: `sed -i s/a/b/ .metator/runs/${runId}/state.json` } },
+    ]) {
+      const forged = decision(await hook(["guard", "pre-tool"], call, repo.root, drivenEnv));
+      expect([call, forged?.permissionDecision]).toEqual([call, "deny"]);
+      expect(forged?.permissionDecisionReason).toContain("metator run write");
+    }
+    for (const call of [
+      { tool_name: "Write", tool_input: { file_path: repo.path(`.metator/runs/${runId}/notes.md`) } },
+      { tool_name: "Bash", tool_input: { command: `cat .metator/runs/${runId}/state.json` } },
+    ])
+      expect([
+        call,
+        decision(await hook(["guard", "pre-tool"], call, repo.root, drivenEnv))?.permissionDecision,
+      ]).not.toEqual([call, "deny"]);
+
     const push = { tool_name: "Bash", tool_input: { command: "git push origin feature" } };
     // With a terminal the person is asked; a drive without one is refused with how to approve;
     // a pane under the daemon has a terminal, so it asks too.

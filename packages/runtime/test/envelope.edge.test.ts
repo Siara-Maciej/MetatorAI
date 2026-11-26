@@ -16,6 +16,19 @@ describe("envelope edge cases", () => {
     expect(parsed.next).toBe("use --package billing");
   });
 
+  test("a cut answer names the command's own way to narrow it, never options it does not have", () => {
+    const data = Array.from({ length: 300 }, (_, i) => `run-${i}`);
+    const own = JSON.parse(serialize({ ok: true, data }, 512, "Narrow it with --limit."));
+    expect([own.truncated, own.next]).toEqual([true, "Narrow it with --limit."]);
+    const generic = JSON.parse(serialize({ ok: true, data }, 512)).next as string;
+    expect(generic).not.toContain("--path");
+    // Not cut: no hint at all.
+    expect(JSON.parse(serialize({ ok: true, data: [1] }, 512, "Narrow it with --limit."))).toEqual({
+      ok: true,
+      data: [1],
+    });
+  });
+
   test("non-array payloads are never mangled, even when large", () => {
     const big = { text: "x".repeat(20_000) };
     expect(JSON.parse(serialize({ ok: true, data: big }, 1024)).data).toEqual(big);

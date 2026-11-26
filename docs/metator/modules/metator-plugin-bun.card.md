@@ -25,7 +25,7 @@ Adapters on the Bun runtime: `FileSystem` (a write replaces the file whole), `Fi
 
 ## Invariants
 
-- Process failures are values, not exceptions: a missing binary is exit 127, a timeout 124 [[cite: packages/plugin-bun/src/bun-process-runner.ts:5 | "code 127 and a timeout is 124 (coreutils convention), both with a message on stderr."]].
+- Process failures are values, not exceptions: a missing binary is exit 127, a timeout 124 [[cite: packages/plugin-bun/src/bun-process-runner.ts:9 | "code 127 and a timeout is 124 (coreutils convention), both with a message on stderr."]].
 - A conformance test counts as tested only with a case that proves it rejects bad input [[cite: packages/plugin-bun/src/bun-test-engine.ts:15 | "A conformance test proves its own check with at least one `test(\"rejects ...\")` case."]].
 
 - Stopping a background service signals its whole process group, so nothing it started outlives it [[cite: packages/plugin-bun/src/bun-background-process.ts:55 | "// The whole group: the shell and every process it started."]].

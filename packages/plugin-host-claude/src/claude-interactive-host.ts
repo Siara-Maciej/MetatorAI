@@ -39,7 +39,7 @@ export class ClaudeInteractiveHost extends PtyInteractiveHost {
 }
 
 /** The Claude Code command line of a session: the mode (start or resume) first, then the run's context. */
-export function claudeArgv(
+function claudeArgv(
   bin: string,
   task: AgentTask,
   mode: readonly string[],

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { ProcessRunner } from "@metator/core";
 
@@ -39,6 +40,28 @@ export function processRunnerContract(name: string, make: () => ProcessRunner): 
       expect(r.exitCode).toBe(124);
       expect(r.stderr).toContain("timed out");
       expect(performance.now() - started).toBeLessThan(3000);
+    });
+
+    test("a timeout also kills what the process started, and does not wait for it to close the output", async () => {
+      const started = performance.now();
+      // The grandchild holds stdout open; killing only `sh` would leave the read waiting 8 s.
+      const r = await make().run({ argv: ["sh", "-c", "sleep 8 & echo $!; wait"], cwd }, { timeoutMs: 500 });
+      expect(r.exitCode).toBe(124);
+      expect(performance.now() - started).toBeLessThan(3000);
+      const pid = Number(r.stdout.trim());
+      expect(pid).toBeGreaterThan(0);
+      const alive = () => {
+        try {
+          process.kill(pid, 0);
+        } catch {
+          return false;
+        }
+        // A killed process nobody reaped yet (a container's init may not) is a zombie: dead.
+        const stat = existsSync(`/proc/${pid}/stat`) ? readFileSync(`/proc/${pid}/stat`, "utf8") : "";
+        return !/\) Z /.test(stat);
+      };
+      for (let i = 0; i < 20 && alive(); i++) await Bun.sleep(50);
+      expect(alive()).toBe(false);
     });
 
     test("reports a duration", async () => {

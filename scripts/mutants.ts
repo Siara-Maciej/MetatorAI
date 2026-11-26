@@ -1181,8 +1181,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/run.ts",
-    from: "  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));\n  return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
-    to: "  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));\n  return 0;",
+    from: "  if (!(rendered && textOnly)) io.out(line);\n  return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
+    to: "  if (!(rendered && textOnly)) io.out(line);\n  return 0;",
     why: "failures must produce a non-zero exit code",
   },
   {
@@ -3034,14 +3034,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: "        if (attempts >= this.d.policy.respawn.maxAttempts) {",
-    to: "        if (false) {",
+    from: "    if (attempts >= max) {",
+    to: "    if (false) {",
     why: "the supervisor gives up after the policy's attempts",
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: '          const said = activity.value.at(-1)?.text.startsWith("gave up");',
-    to: "          const said = false;",
+    from: '      const said = activity.value.at(-1)?.text.startsWith("gave up");',
+    to: "      const said = false;",
     why: "giving up is said once",
   },
   {
@@ -3895,7 +3895,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/issues.ts",
-    from: 'if (status === "dropped") await this.settleProposal(issue.value, PROPOSAL_DROP, by);',
+    from: 'if (status === "dropped") await this.settleProposal(changed.value.before, PROPOSAL_DROP, by);',
     to: "",
     why: "dropping a proposal settles its question",
   },
@@ -5548,14 +5548,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: '        if (record.value.driver?.by === "human") continue;',
+    from: '    if (record.value.driver?.by === "human") return ok(undefined);',
     to: "",
     why: "a session a person holds is not resumed over them",
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: "        if (attempts >= this.d.policy.respawn.maxAttempts) {",
-    to: "        if (false) {",
+    from: "    if (attempts >= limit) {",
+    to: "    if (false) {",
     why: "a conductor is resumed only up to the policy's attempts",
   },
   {
@@ -5790,8 +5790,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/review-watch.ts",
-    from: "        if (merged.fresh.length > 0 && !busy && this.d.analyse === true) {",
-    to: "        if (merged.fresh.length > 0 && this.d.analyse === true) {",
+    from: "        if (seen.fresh.length > 0 && !busy && this.d.analyse === true) {",
+    to: "        if (seen.fresh.length > 0 && this.d.analyse === true) {",
     why: "a request has one answering run at a time",
   },
   {
@@ -6205,8 +6205,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/options.ts",
-    from: "n < 0",
-    to: "n < -1",
+    from: 'if (!DIGITS.test(value) || !Number.isSafeInteger(n))\n    throw new InvalidArgumentError("expected an integer, 0 or more");',
+    to: 'if (!Number.isSafeInteger(n))\n    throw new InvalidArgumentError("expected an integer, 0 or more");',
     why: "a negative number is not a port or an interval",
   },
   {
@@ -6313,7 +6313,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/supervisor.ts",
-    from: "if (record.isErr()) continue;",
+    from: "if (record.isErr()) return ok(undefined);",
     to: "if (record.isErr()) return err(record.error);",
     why: "one unreadable record never stops the supervisor watching the others (R2)",
   },
@@ -6769,8 +6769,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/runs.ts",
-    from: "const again = state.stage === from ? [] : machine.stagesFrom(state.stage);",
-    to: "const again: string[] = [];",
+    from: "const approvals = state.stage === from ? current.approvals : withdrawn(machine, current, state.stage);",
+    to: "const approvals = current.approvals;",
     why: "sent back, the approvals on the way are asked again",
   },
   {
@@ -7490,8 +7490,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/desktop/src/shared/model/look.ts",
-    from: '    case "working":\n      return "working";\n    case "done":',
-    to: '    case "working":\n    case "escalated":\n      return "working";\n    case "done":',
+    from: '    case "working":\n      return "working";\n    case "todo":',
+    to: '    case "working":\n    case "escalated":\n      return "working";\n    case "todo":',
     why: "an escalated run reads blocked on the first level, never working",
   },
   {
@@ -8882,8 +8882,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/unprompted.ts",
-    from: "if (artifact === undefined || RUN_RECORDS.test(artifact)) return undefined;",
-    to: "if (artifact === undefined) return undefined;",
+    from: 'if (top === "runs") return run === undefined || file.length === 0 || isRunRecord(file.join("/"));',
+    to: 'if (top === "runs") return run === undefined || file.length === 0;',
     why: "MetatorAI's records of a run are not an agent's to edit unasked",
   },
   {
@@ -10626,5 +10626,337 @@ export const MUTANTS: readonly Mutant[] = [
     from: "const branch = [key, ...rowsBelow(rows, key).map((r) => r.key)];",
     to: "const branch = [key];",
     why: "the tree's eye hides a terminal with every terminal below it",
+  },
+  // No agent forges a run's approvals or answers; a run sent back loses the push its gate granted.
+  {
+    file: "packages/core/src/domain/hook.ts",
+    from: "  if (record) return deny(RECORD_WRITE(record));",
+    to: "",
+    why: "an agent never writes MetatorAI's records (state.json, questions/, worktrees.json)",
+  },
+  {
+    file: "packages/core/src/domain/hook.ts",
+    from: "    if (target) return target;",
+    to: "",
+    why: "a shell redirection into a run's record is a write of it",
+  },
+  {
+    file: "packages/core/src/domain/unprompted.ts",
+    from: 'return run === undefined && top.endsWith(".json");',
+    to: "return false;",
+    why: "the files .metator keeps at its top (worktrees.json) are MetatorAI's records",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: "const taken = new Set([...again, ...again.flatMap((s) => grantsOf(machine, s))]);",
+    to: "const taken = new Set(again);",
+    why: "a run sent back before its delivery gate loses the push the gate granted",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: ": sentBack(machine, before, next.value)",
+    to: ": false",
+    why: "a failure that sends the run back past a granting gate takes the grant back",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: '      if (record) return permissionResponse({ decision: "deny", reason: RECORD_WRITE(record) });',
+    to: "",
+    why: "the in-process host denies writes of the run's records",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "!merging && !recordOf(tool, input) && needsNoPerson(tool, input)",
+    to: "!merging && needsNoPerson(tool, input)",
+    why: "a write of the run's records never passes without a person",
+  },
+  // Backlog, intake, run journal and supervisor under concurrency and damage.
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: "return this.update(id, (current) => ok({ ...current, ...patchOf(patch) }));",
+    to: "return this.update(id, () => ok({ ...issue.value, ...patchOf(patch) }));",
+    why: "an edit changes the item as it is under its lock, not as it was read before (a start meanwhile stays)",
+  },
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: "else unreadable.push({ id: idOf(file), file, message: parsed.error.message });",
+    to: "",
+    why: "an unreadable item is named, and its id stays taken",
+  },
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: "const saved = await this.save(next);\n    if (saved.isErr()) return err(saved.error);\n    // The brief",
+    to: "const saved = ok(undefined);\n    if (saved.isErr()) return err(saved.error);\n    // The brief",
+    why: "an item is linked to its run as soon as the run exists, before anything else can fail",
+  },
+  {
+    file: "packages/core/src/application/intake.ts",
+    from: "if (run.isErr()) failed.push({ issue: id, error: run.error.message });",
+    to: "if (run.isErr()) return err(run.error);",
+    why: "one item that cannot start never stops the intake scan",
+  },
+  {
+    file: "packages/core/src/application/run-journal.ts",
+    from: "return this.questionsLocked(runId, () => this.askLocked(runId, q, pendingSince));",
+    to: "return this.askLocked(runId, q, pendingSince);",
+    why: "two questions asked at once never take one id",
+  },
+  {
+    file: "packages/core/src/application/run-journal.ts",
+    from: "return this.questionsLocked(runId, () => this.answerLocked(runId, id, input));",
+    to: "return this.answerLocked(runId, id, input);",
+    why: "two answers to one question at once never both count",
+  },
+  {
+    file: "packages/core/src/application/run-journal.ts",
+    from: 'this.usageFile(runId), AgentUsageDocument, "skip")',
+    to: 'this.usageFile(runId), AgentUsageDocument, "fail")',
+    why: "a torn usage line is skipped, the rest of the run's usage still reads",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: 'a.type === "restart" && !a.text.startsWith(RESUMED)',
+    to: 'a.type === "restart"',
+    why: "a resumed conductor pane uses none of the drive's restarts",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: "if (done.isErr()) failed.push({ runId, message: done.error.message });",
+    to: "if (done.isErr()) return err(done.error);",
+    why: "one run the supervisor cannot restart never stops the others being watched",
+  },
+  // Review handling, the v14 config migration and the process runner (fixes).
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "repliedAt: at, state:",
+    to: "state:",
+    why: "a reply is recorded as sent the moment it is posted (a retry does not post it again)",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "if (current.isErr()) return err(current.error);",
+    to: "if (current.isErr()) return ok(undefined);",
+    why: "a request file that cannot be read is never taken for none",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "merged = mergeThreads(current?.threads ?? [], threads.value, now);",
+    to: "merged = mergeThreads(kept?.threads ?? [], threads.value, now);",
+    why: "a scan merges into the file as it is under the lock: a triage written meanwhile stays",
+  },
+  {
+    file: "packages/core/src/application/watched-reviews.ts",
+    from: "if (loaded.isErr()) return err(loaded.error);\n      const current = loaded.value;",
+    to: "const current = loaded.isOk() ? loaded.value : undefined;",
+    why: "a watched review that cannot be read is never written over",
+  },
+  {
+    file: "packages/core/src/application/watched-reviews.ts",
+    from: "return ok({ ...current, publishedRuns: [...(current.publishedRuns ?? []), runId] });",
+    to: "return ok(undefined);",
+    why: "a run is marked published before its review is posted: a retry after a failed save posts nothing",
+  },
+  {
+    file: "packages/core/src/application/watched-reviews.ts",
+    from: "const known = new Set([...all.map((r) => r.id), ...unreadable.map((u) => u.id)]);",
+    to: "const known = new Set(all.map((r) => r.id));",
+    why: "the watcher does not record a requested MR over a review it cannot read",
+  },
+  {
+    file: "packages/core/src/domain/codehost.ts",
+    from: "(!review || x.author === author),",
+    to: "true,",
+    why: "v14 review sources of one repository with different authors stay separate sources",
+  },
+  {
+    file: "packages/core/src/domain/codehost.ts",
+    from: "if (id === undefined) return [];",
+    to: "",
+    why: "an intake rule whose source v15 cannot name is left out, not made invalid",
+  },
+  {
+    file: "packages/core/src/domain/codehost.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    from: 'const via = `mcp:${serverName(typeof s.mcp === "string" ? s.mcp : kind)}`;',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    to: 'const via = `mcp:${typeof s.mcp === "string" ? s.mcp : kind}`;',
+    why: "an MCP server name `via` cannot hold is named again",
+  },
+  {
+    file: "packages/core/src/application/config-file.ts",
+    from: 'if (!kept.has(name)) out.push({ path: ["mcp", name], value: undefined });',
+    to: "",
+    why: "a v14 YAML file saved at v15 renames the MCP server, not copies it",
+  },
+  {
+    file: "packages/plugin-codehost-gh/src/gh-review-host.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    from: '"-f",\n      `owner=${owner}`',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    to: '"-F",\n      `owner=${owner}`',
+    why: "gh sends the owner as a string (-f), so an owner `2048` stays text",
+  },
+  {
+    file: "packages/plugin-bun/src/bun-process-runner.ts",
+    from: 'process.kill(-proc.pid, "SIGKILL");',
+    to: 'proc.kill("SIGKILL");',
+    why: "a timeout kills the process group, not only the direct child",
+  },
+  {
+    file: "packages/cli/src/commands/mcp.ts",
+    from: '    stdio.stdin.once("end", resolve);\n    stdio.stdin.once("close", resolve);',
+    to: "",
+    why: "metator mcp ends when the client closes its stdin, not only on the transport's own close",
+  },
+  {
+    file: "packages/runtime/src/envelope.ts",
+    from: "next: current.next ?? narrow,",
+    to: "next: current.next ?? NARROW_HINT,",
+    why: "a cut answer names the command's own options that narrow it",
+  },
+  {
+    file: "packages/cli/src/commands/run.ts",
+    from: "Object.hasOwn(RUN_ARTIFACTS, name)",
+    to: "name in RUN_ARTIFACTS",
+    why: "run schema toString is a usage error, not a crash on Object.prototype",
+  },
+  {
+    file: "packages/cli/src/commands/run.ts",
+    from: "if (opts.parent !== undefined && !RUN_ID.test(opts.parent))",
+    to: "if (false)",
+    why: "run new --parent that is no run id is refused before anything is written",
+  },
+  {
+    file: "packages/cli/src/commands/run.ts",
+    from: ".slice(0, opts.limit),",
+    to: ",",
+    why: "run list --limit keeps only the newest n",
+  },
+  {
+    file: "packages/cli/src/program.ts",
+    from: 'if (kind !== "directory")',
+    to: 'if (kind === "other")',
+    why: "-C <dir> that does not exist is a usage error, not a raw ENOENT",
+  },
+  {
+    file: "packages/cli/src/program.ts",
+    from: "const close = similar(word, names);",
+    to: "const close = undefined;",
+    why: "a mistyped command of a group suggests the closest one",
+  },
+  {
+    file: "packages/cli/src/run.ts",
+    from: "    say(renderError(final.result.error));\n    rendered = true;",
+    to: "    say(renderError(final.result.error));",
+    why: "at a terminal a failure is said once, without the JSON line after its text",
+  },
+  {
+    file: "packages/cli/src/serve/server.ts",
+    from: "    return start();\n  } catch (e) {\n    throw MetatorError.usage(",
+    to: '    return start();\n  } catch (e) {\n    throw new MetatorError("INTERNAL",',
+    why: "serve on a taken port is a usage error with the way out, not INTERNAL",
+  },
+  // The desktop app's loading, errors and a hung daemon.
+  {
+    file: "packages/desktop/src/shared/api/api.ts",
+    from: "if (isEnvelope(body)) return body as Envelope<T>;",
+    to: "return body as Envelope<T>;",
+    why: "a 500 with a text body says the status and the path, not a parser's message",
+  },
+  {
+    file: "packages/desktop/src/shared/api/api.ts",
+    from: "if (abort.signal.aborted)",
+    to: "if (false)",
+    why: "a request cut at its deadline says the daemon is not answering",
+  },
+  {
+    file: "packages/desktop/src/shared/model/freshness.ts",
+    from: 'if (read.data === undefined) return read.error === undefined ? "loading" : "failed";',
+    to: 'if (read.data === undefined) return "loading";',
+    why: "a read that failed with no data is a failure, not a list being read",
+  },
+  {
+    file: "packages/desktop/src/shared/model/found.ts",
+    from: "(check.updatedAt ?? 0) >= openedAt",
+    to: "true",
+    why: "only an answer read after the screen opened says a run or a chat is missing",
+  },
+  {
+    file: "packages/desktop/src/shared/daemon/heartbeat.ts",
+    from: 'if (result === "timeout" && p.answering)',
+    to: 'if (result !== "answered" && p.answering)',
+    why: "nothing at the address is the sockets' no daemon, not a silent daemon",
+  },
+  {
+    file: "packages/desktop/src/features/runs/model.ts",
+    from: "if (!workflows.ok || !workflows.data)",
+    to: "if (workflows.data === null)",
+    why: "workflows that could not be read are a refusal in the new-run form, not an empty list",
+  },
+  {
+    file: "packages/desktop/src/shared/model/confirm.ts",
+    from: "p.live?.alive === true && !p.ended;",
+    to: "p.live?.alive === true;",
+    why: "a pane whose process ended closes without a confirm",
+  },
+  {
+    file: "packages/desktop/src/shared/model/confirm.ts",
+    from: "return ask && lives(p) ?",
+    to: "return lives(p) ?",
+    why: "ui.confirmClosePane off closes a live pane without asking",
+  },
+  {
+    file: "packages/desktop/src/features/backlog/model.ts",
+    from: 'title.trim() === "" ? "a task needs a title"',
+    to: 'title === "" ? "a task needs a title"',
+    why: "a + task title of spaces is no title",
+  },
+  {
+    file: "packages/desktop/src/features/settings/model.ts",
+    from: 'const n = raw.trim() === "" ? Number.NaN : Number(raw);',
+    to: "const n = Number(raw);",
+    why: "an emptied number field changes nothing instead of sending 0",
+  },
+  {
+    file: "packages/desktop/src/features/settings/model.ts",
+    from: '.map((part) => (part === "esc" ? "escape" : part))',
+    to: "",
+    why: "prefix+esc and prefix+escape are the same key and conflict",
+  },
+  {
+    file: "packages/desktop/src/shared/model/look.ts",
+    from: 'case "todo":\n      return "to do";',
+    to: "",
+    why: "a backlog task nobody started reads to do, not blocked",
+  },
+  {
+    file: "packages/desktop/src/features/runs/model.ts",
+    from: `e.agent && !e.text.startsWith(\`\${e.agent} \`) ?`,
+    to: "e.agent ?",
+    why: "an event that names its agent does not name it twice",
+  },
+  {
+    file: "packages/desktop/src/features/runs/model.ts",
+    from: "(asksWithoutSession(r, panes) || idleRuns([r], panes).length > 0)",
+    to: "idleRuns([r], panes).length > 0",
+    why: "a run whose question waits on a card is offered a session in the bar, not twice",
+  },
+  {
+    file: "packages/desktop/src/features/system/model.ts",
+    from: "ms % 30_000 === 0) return",
+    to: "ms % 60_000 === 0) return",
+    why: "90000 ms reads 1.5 min, not 90 s or 2 min",
+  },
+  {
+    file: "packages/desktop/src/features/plans/plan-edit.ts",
+    from: '(boardHasPlan || view.artifactsOfWorkflow.includes("plan.json"))',
+    to: "true",
+    why: "a workflow with no plan stage shows no plan lint",
+  },
+  {
+    file: "packages/desktop/src/features/board/tiles.tsx",
+    from: 'if (e.key !== " " || e.target !== e.currentTarget) return false;',
+    to: 'if (e.key !== " ") return false;',
+    why: "Space on a card's own Start a run presses that button, not the card",
   },
 ];

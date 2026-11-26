@@ -2,11 +2,11 @@ import type { MetatorError } from "../domain/errors.ts";
 import { type IntakeConfig, type IntakeRule, intakeBody, sourceKey } from "../domain/intake.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { CodeHost } from "../ports/index.ts";
-import type { Issues } from "./issues.ts";
+import type { Issues, UnreadableIssue } from "./issues.ts";
 
 export interface ScanIntakeDependencies {
   readonly config: IntakeConfig;
-  readonly issues: Pick<Issues, "list" | "add" | "start">;
+  readonly issues: Pick<Issues, "list" | "add" | "start"> & Partial<Pick<Issues, "unreadable">>;
   readonly codeHost: CodeHost;
   /** Runs started by intake that are still active (against `maxActive`). */
   readonly activeRuns: () => Promise<Result<number, MetatorError>>;
@@ -30,11 +30,15 @@ export interface IntakeRuleReport {
   readonly waiting: readonly string[];
   /** Why the source could not be read; the other rules are scanned all the same. */
   readonly error?: string;
+  /** Issues whose run could not start; they stay open and are tried again on the next scan. */
+  readonly failed?: readonly { readonly issue: string; readonly error: string }[];
 }
 
 export interface IntakeReport {
   readonly rules: readonly IntakeRuleReport[];
   readonly started: number;
+  /** Backlog items whose file cannot be read: left out of the scan until restored or deleted. */
+  readonly unreadable?: readonly UnreadableIssue[];
 }
 
 /**
@@ -64,7 +68,12 @@ export class ScanIntake {
       free -= report.value.started.length;
       rules.push(report.value);
     }
-    return ok({ rules, started: rules.reduce((n, r) => n + r.started.length, 0) });
+    const unreadable = (await this.d.issues.unreadable?.()) ?? [];
+    return ok({
+      rules,
+      started: rules.reduce((n, r) => n + r.started.length, 0),
+      ...(unreadable.length > 0 ? { unreadable } : {}),
+    });
   }
 
   private async scanRule(
@@ -113,6 +122,7 @@ export class ScanIntake {
     }
     const started: { issue: string; runId: string }[] = [];
     const waiting: string[] = [];
+    const failed: { issue: string; error: string }[] = [];
     for (const id of queue) {
       if (started.length >= free) {
         waiting.push(id);
@@ -126,9 +136,10 @@ export class ScanIntake {
         allowDirty: true,
         ...(rule.autonomy === "full" ? { autonomy: "L1" as const } : {}),
       });
-      if (run.isErr()) return err(run.error);
-      started.push({ issue: id, runId: run.value.runId });
+      // One item that cannot start never stops the others: it is said, and tried again next scan.
+      if (run.isErr()) failed.push({ issue: id, error: run.error.message });
+      else started.push({ issue: id, runId: run.value.runId });
     }
-    return ok({ ...base, started, waiting });
+    return ok({ ...base, started, waiting, ...(failed.length > 0 ? { failed } : {}) });
   }
 }

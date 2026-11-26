@@ -13,7 +13,7 @@ import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { conflictCurrent, documentText, parseDocumentText, refusedProblems } from "./plan-edit.ts";
 
-export type EditMode = "view" | "form" | "text";
+type EditMode = "view" | "form" | "text";
 
 export interface DocSource<V, D> {
   /** The view as the daemon answered it last; none while it is read. */

@@ -15,7 +15,7 @@ const BEL = "\u0007";
 /** Lines kept above the visible screen. */
 const SCROLLBACK = 1000;
 
-export class TextScreen {
+class TextScreen {
   private cols: number;
   private rows: number;
   private readonly scrollback: number;

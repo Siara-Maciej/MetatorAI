@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import { basename } from "node:path";
 import { MetatorError, NO_REAL_HOSTS } from "@metator/core";
 import {
@@ -40,7 +41,7 @@ import { registerJavaCommands } from "./commands/java.ts";
 import { registerLessonsCommands } from "./commands/lessons.ts";
 import { registerMcpCommand } from "./commands/mcp.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
-import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
+import { describeCommandFor, describeCommands, registerMetaCommands } from "./commands/meta.ts";
 import { registerMrsCommands } from "./commands/mrs.ts";
 import { registerOpenCommands } from "./commands/open.ts";
 import { registerOwnersCommand } from "./commands/owners.ts";
@@ -229,8 +230,18 @@ export function buildProgram(
   registerDevcontainerCommands(program, ctx);
   registerTunnelCommand(program, ctx);
 
-  // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
   program.hook("preAction", (_root, action) => {
+    // `-C <dir>` names a directory that is there: never a raw ENOENT, never a file's parent walked up from.
+    const given = root();
+    if (given !== undefined) {
+      const kind = directoryKind(given);
+      if (kind !== "directory")
+        throw MetatorError.usage(
+          `${kind === "missing" ? "no such directory" : "not a directory"}: ${given}`,
+          "`-C <dir>` (`--root <dir>`) names the repository's directory, or a directory inside it.",
+        );
+    }
+    // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
     const f = folderOf();
     if (!f || metaOf(action).folder) return;
     const name = commandWords(action);
@@ -242,14 +253,82 @@ export function buildProgram(
   return program;
 }
 
-export function fromCommander(e: CommanderError, program: Command): MetatorError {
+function directoryKind(path: string): "directory" | "other" | "missing" {
+  try {
+    return statSync(path).isDirectory() ? "directory" : "other";
+  } catch {
+    return "missing";
+  }
+}
+
+/**
+ * Commander's error as a usage error. Once the words name a command, its own help is the way out
+ * (`metator run status --help`), not the whole list; a word after a group that is none of its
+ * commands (`metator run nosuch`) says so with commander's "did you mean", even where the group
+ * runs on its own and commander took the word for an argument.
+ */
+export function fromCommander(
+  e: CommanderError,
+  program: Command,
+  argv: readonly string[] = [],
+): MetatorError {
   if (e.code === "commander.helpDisplayed" || e.code === "commander.help") {
     return new MetatorError("USAGE", "Use `metator help` for machine-readable help", {
       details: describeCommands(program),
     });
   }
+  const message = e.message.replace(/^error:\s*/, "");
+  const end = argv.indexOf("--");
+  const words = end === -1 ? argv : argv.slice(0, end);
+  const at = describeCommandFor(program, [...words, "--help"]);
+  if (!at) return MetatorError.usage(message, "Run `metator help` to list commands and options.");
+  const word = at.commands ? wordAfter(words, at.name.split(" ")) : undefined;
+  if (word && (e.code === "commander.excessArguments" || e.code === "commander.unknownCommand"))
+    return unknownCommand(program, [...at.name.split(" "), word]);
+  return MetatorError.usage(message, `Run \`metator ${at.name} --help\` for its options and arguments.`);
+}
+
+/**
+ * `metator <words>` names no command: the words up to the one that is none, and the command of
+ * the group it came after that is closest to it (commander's own suggestion).
+ */
+export function unknownCommand(program: Command, words: readonly string[]): MetatorError {
+  const at = describeCommandFor(program, [...words, "--help"]);
+  const group = at ? at.name.split(" ") : [];
+  const word = words[group.length] ?? "";
+  const names = at
+    ? (at.commands ?? []).map((c) => c.name.slice(at.name.length + 1).split(" ")[0] as string)
+    : describeCommands(program).commands.map((c) => c.name.split(" ")[0] as string);
+  const close = similar(word, names);
+  const prefix = at ? `metator ${at.name}` : "metator";
+  const list = at
+    ? `\`metator ${at.name} --help\` lists its commands.`
+    : "`metator help` lists every command.";
   return MetatorError.usage(
-    e.message.replace(/^error:\s*/, ""),
-    "Run `metator help` to list commands and options.",
+    `unknown command: ${prefix} ${word}`,
+    `${close ? `Did you mean \`${prefix} ${close}\`? ` : ""}${list}`,
   );
+}
+
+/** The first word after the command's own words that is not an option. */
+function wordAfter(words: readonly string[], path: readonly string[]): string | undefined {
+  let i = 0;
+  for (const name of path) {
+    const at = words.indexOf(name, i);
+    if (at === -1) return undefined;
+    i = at + 1;
+  }
+  return words.slice(i).find((w) => !w.startsWith("-"));
+}
+
+/** Commander's own suggestion among these names (its edit distance), or nothing close enough. */
+function similar(word: string, names: readonly string[]): string | undefined {
+  const probe = new Command().exitOverride().configureOutput({ writeOut: () => {}, writeErr: () => {} });
+  for (const name of new Set(names)) probe.command(name);
+  try {
+    probe.parse([word], { from: "user" });
+  } catch (e) {
+    return /\(Did you mean (\S+?)\?\)/.exec((e as Error).message)?.[1];
+  }
+  return undefined;
 }

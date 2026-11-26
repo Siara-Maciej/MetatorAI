@@ -1,7 +1,7 @@
 ---
 kind: InstructionsAdapter
 schemaVersion: 2
-applyTo: docs/metator/dependencies.yml,docs/metator/schemas/**,e2e/**/*.ts,package.json,packages/**/*.ts,packages/*/package.json,packages/cli/src/**,packages/core/src/**,packages/core/src/domain/**,packages/plugin-*/src/**,scripts/**/*.ts
+applyTo: docs/metator/dependencies.yml,docs/metator/schemas/**,e2e/**/*.ts,knip.jsonc,package.json,packages/**/*.ts,packages/**/*.tsx,packages/*/package.json,packages/cli/src/**,packages/core/src/**,packages/core/src/domain/**,packages/plugin-*/src/**,scripts/**/*.ts
 excludeAgent: code-review
 description: Coding conventions of MetatorAI.
 generatedFrom: docs/metator/rules/code.yml
@@ -26,3 +26,4 @@ CI fails on these; no need to re-check them by hand.
 - MT-CODE-007: Node builtins use the node protocol (`biome:lint/style/useNodejsImportProtocol`)
 - MT-CODE-008: Indexed access may be undefined (`tsc:noUncheckedIndexedAccess`)
 - MT-CODE-009: Optional means absent, not undefined (`tsc:exactOptionalPropertyTypes`)
+- MT-CODE-010: No dead code (`test:mt-code-010`)

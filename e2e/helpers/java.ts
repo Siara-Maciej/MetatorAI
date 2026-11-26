@@ -10,7 +10,7 @@ import { ScratchRepo } from "./repo.ts";
  *   `Broken.java` has a syntax error and the default build never compiles it.
  * - `gradle`: "inventory", a two-project Gradle build in the Kotlin DSL.
  */
-export const JAVA_FIXTURES = join(import.meta.dir, "../fixtures/java");
+const JAVA_FIXTURES = join(import.meta.dir, "../fixtures/java");
 
 export type JavaFixture = "maven" | "gradle";
 

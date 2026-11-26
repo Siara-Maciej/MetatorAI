@@ -17,6 +17,8 @@ import { browser, closeBrowser } from "./helpers/browser.ts";
 import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 
 const ROOT = join(import.meta.dir, "..");
+/** Where the screenshots of the user docs go when METATOR_SHOTS names a directory. */
+const SHOTS = process.env.METATOR_SHOTS;
 const TASK = "Add a currency to prices";
 const PLAN_ID = "add-a-currency-to-prices";
 const MAP = `kind: SystemMap
@@ -270,7 +272,7 @@ beforeAll(async () => {
     return line ? (JSON.parse(line) as { serving: { url: string } }).serving.url : undefined;
   });
   const b = await browser();
-  page = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  page = await b.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: SHOTS ? 2 : 1 });
   page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
   page.on("console", (m) => {
     if (m.type() === "error") errors.push(m.text());
@@ -386,6 +388,7 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
       "web-integration · waits for: api-model, api-endpoint, web-price-tag",
     );
     expect(await flow.textContent()).toContain("wave 2");
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "system-plan.png") });
     // Nowhere else: Overview → Dependencies has one line that leads to the task's page.
     await page.goto(app("overview/dependencies"));
     await page.getByTestId(`task-line-${PLAN_ID}`).waitFor({ timeout: 20_000 });

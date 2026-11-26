@@ -14,10 +14,13 @@ import {
   declaredWithDocument,
   deliveryCommand,
   type HostUsage,
+  isRunRecord,
   mergeAttempt,
   permissionResponse,
+  RECORD_WRITE,
   RunRecordDocument,
   readOnlyCommand,
+  recordWrite,
   removeInside,
   runArtifactWrite,
   runControlCommand,
@@ -37,7 +40,7 @@ export const LOCAL_METATOR =
   "There is no ./metator program here: metator is on PATH. Run `metator <command>` on its own, without ./ and without a `||` fallback.";
 
 /** The command runs `./metator`, and no directory it could mean holds a metator program. */
-export function noLocalMetator(command: string, dirs: readonly string[]): boolean {
+function noLocalMetator(command: string, dirs: readonly string[]): boolean {
   if (!/(^|[\s;&|(])\.\/metator(\s|$)/.test(command)) return false;
   return !dirs.some((d) => {
     try {
@@ -199,6 +202,20 @@ export class ClaudeAgentHost implements AgentHost {
     const declared = declaredCommands(join(task.projectRoot, ".claude", "agents", `${task.agent}.md`)).map(
       (t) => t.slice("Bash(".length, -":*)".length),
     );
+    // What MetatorAI keeps in the run directory (state.json with its approvals, the questions with
+    // their answers): never an agent's to write, wherever the run directory is.
+    const runRecord = (file: string): string | undefined => {
+      const at = resolve(task.cwd, file);
+      return runDirs.some((d) => inside(d, at) && isRunRecord(relative(real(d), real(at))))
+        ? file
+        : undefined;
+    };
+    const recordOf = (tool: string, input: Record<string, unknown>): string | undefined => {
+      const written = recordWrite({ tool, input, stopActive: false }, task.cwd);
+      if (written || !WRITES.has(tool)) return written;
+      const file = input.file_path ?? input.path;
+      return typeof file === "string" ? runRecord(file) : undefined;
+    };
     const needsNoPerson = (
       tool: string,
       input: Record<string, unknown>,
@@ -231,7 +248,8 @@ export class ClaudeAgentHost implements AgentHost {
         return { behavior: "allow", updatedInput: await answerQuestions(input, ask) };
       // A merge always goes to the person, whatever needs no person otherwise.
       const merging = mergeAttempt({ tool, input, stopActive: false });
-      if (!merging && needsNoPerson(tool, input)) return { behavior: "allow", updatedInput: input };
+      if (!merging && !recordOf(tool, input) && needsNoPerson(tool, input))
+        return { behavior: "allow", updatedInput: input };
       const answer = await ask({
         source: "permission",
         prompt: merging
@@ -272,6 +290,9 @@ export class ClaudeAgentHost implements AgentHost {
           decision: "ask",
           reason: `\`${merging}\` merges: it needs the person's consent.`,
         });
+      // A run's records are MetatorAI's: an agent that wrote its approvals or answers would pass its own gate.
+      const record = recordOf(hook.tool, hook.input);
+      if (record) return permissionResponse({ decision: "deny", reason: RECORD_WRITE(record) });
       // The drive moves a run it carries: an agent that advances it makes the drive's own event
       // land on the next stage, which is then skipped.
       const control = task.driven ? runControlCommand(hook) : undefined;

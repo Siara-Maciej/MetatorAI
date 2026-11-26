@@ -7,7 +7,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import type { ComponentProps } from "react";
 import { cn } from "./cn.ts";
 
-export const buttonVariants = cva("", {
+const buttonVariants = cva("", {
   variants: {
     variant: {
       default: "",

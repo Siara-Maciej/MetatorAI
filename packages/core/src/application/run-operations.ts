@@ -327,7 +327,7 @@ export type Answered = Question & {
  */
 export class AnswerQuestion {
   constructor(
-    private readonly repo: Pick<RunRepository, "resolveId" | "load">,
+    private readonly repo: Pick<RunRepository, "resolveId" | "load" | "list">,
     private readonly journal: Pick<RunJournal, "questions" | "answer">,
     private readonly policies: Pick<AnswerPolicyStore, "list" | "add">,
     private readonly drivers: Pick<RunDrivers, "status">,
@@ -356,11 +356,29 @@ export class AnswerQuestion {
   ) {}
 
   async execute(input: AnswerInput): Promise<Result<Answered, MetatorError>> {
-    const id = await this.repo.resolveId(input.runId);
+    // Who answers is asked before anything is looked up, as the journal would refuse it after.
+    if (input.by.trim() === "")
+      return err(MetatorError.usage("say who answers: --by <name>", "An answer records who gave it."));
+    const id =
+      input.runId === undefined
+        ? await this.runAsking(input.question)
+        : await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const runId = id.value;
-    if (input.choices.length === 0 && !input.text)
-      return err(MetatorError.usage("an answer needs a choice or your own words"));
+    const asked = await this.journal.questions(runId);
+    if (asked.isErr()) return err(asked.error);
+    const question = asked.value.find((q) => q.id === input.question);
+    if (!question) return err(MetatorError.notFound(`question ${input.question} of run ${runId}`));
+    // What to answer is said once the question is known: its options are the hint.
+    if (input.choices.length === 0 && !input.text) {
+      const labels = question.options.map((o) => o.label);
+      return err(
+        MetatorError.usage(
+          "an answer needs a choice or your own words",
+          `Answer with --choice <label>${labels.length > 0 ? ` (${labels.join(", ")})` : ""} or --text <your own words>: metator run answer ${input.question} --run ${runId} ${labels[0] ? `--choice ${labels[0]}` : "--text <answer>"}`,
+        ),
+      );
+    }
     let choices = [...input.choices];
     // A human gate the run stands at: its answer decides the gate (below); an Approve the gate
     // refuses now (a system plan with lint errors) is refused before anything is recorded.
@@ -377,10 +395,7 @@ export class AnswerQuestion {
         text = text ? `${text}\n${refused.value.message}` : refused.value.message;
     }
     if (input.always) {
-      const all = await this.journal.questions(runId);
-      if (all.isErr()) return err(all.error);
-      const q = all.value.find((x) => x.id === input.question);
-      if (!q) return err(MetatorError.notFound(`question ${input.question} of run ${runId}`));
+      const q = question;
       // The policy is judged and written with the labels the question has, however they were typed.
       const labels = q.options.map((o) => o.label);
       choices = choices.map((choice) => labelFor(labels, choice));
@@ -452,6 +467,29 @@ export class AnswerQuestion {
     }
     const drive = input.drive ? await this.carryOn(runId) : undefined;
     return ok({ ...answered.value, ...(policy ? { policy } : {}), ...(drive ? { drive } : {}) });
+  }
+
+  /**
+   * The run a question with no run named belongs to: the one run where it is open. Question ids
+   * are per run (every run has a q001), so the latest run is no answer, and two runs are a guess.
+   */
+  private async runAsking(question: string): Promise<Result<string, MetatorError>> {
+    const open: string[] = [];
+    for (const runId of await this.repo.list()) {
+      const asked = await this.journal.questions(runId);
+      if (asked.isOk() && asked.value.some((q) => q.id === question && !q.answer)) open.push(runId);
+    }
+    if (open.length === 1) return ok(open[0] as string);
+    const hint = "`metator run questions` lists them; add --run <id>.";
+    return err(
+      new MetatorError(
+        "NOT_FOUND",
+        open.length === 0
+          ? `no run has an open question ${question}`
+          : `question ${question} is open in ${open.length} runs: ${open.join(", ")}`,
+        { hint, details: { question, runs: open } },
+      ),
+    );
   }
 
   /** The stage of the gate this question decides: an open gate question of the stage the run stands at. */
