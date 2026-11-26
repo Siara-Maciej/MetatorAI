@@ -8,7 +8,7 @@ import { type HostStatus, hostChoice, noHostText, workflowChoice } from "../../s
 import { Button } from "../../ui/button.tsx";
 import { Modal } from "../../ui/modal.tsx";
 import { Notice } from "../../ui/notice.tsx";
-import { autonomyLabel, autonomyLevels, refusedForDirtyTree, START_FROM_COMMIT } from "./model.ts";
+import { autonomyLabel, autonomyLevels, formOffer, refusedForDirtyTree, START_FROM_COMMIT } from "./model.ts";
 
 export function NewSessionDialog({
   onClose,
@@ -20,6 +20,7 @@ export function NewSessionDialog({
   const { client, repos, repo: listRepo, runs } = useDaemon("client", "repos", "repo", "runs");
   const [repo, setRepo] = useState(listRepo ?? "");
   // What the form offers, asked once per repository: its workflows, its hosts and its limit.
+  // Workflows that could not be read are said, and nothing can be created until they are.
   const offered = usePolled(
     `new-session:${repo}`,
     async () => {
@@ -27,10 +28,13 @@ export function NewSessionDialog({
         client.workflows(repo || undefined),
         client.supervisor(repo || undefined),
       ]);
-      return { ok: true, data: { workflows: w.data?.workflows ?? [], supervisor: s.data } };
+      return formOffer(w, s);
     },
     0,
   );
+  const unread = offered.data === undefined;
+  const [hiddenError, hideError] = useState<string>();
+  const readError = offered.data === undefined && offered.error !== hiddenError ? offered.error : undefined;
   const workflows: readonly Workflow[] = offered.data?.workflows ?? [];
   const supervisor = offered.data?.supervisor;
   // An older daemon does not say what is installed: every host it knows is offered.
@@ -188,6 +192,11 @@ export function NewSessionDialog({
         </div>
       ) : null}
       <Notice
+        text={readError}
+        action={{ label: "Try again", run: () => void offered.reload() }}
+        onClose={() => hideError(readError)}
+      />
+      <Notice
         text={error}
         action={
           dirty ? { label: START_FROM_COMMIT, run: () => void create(dirty.andAttach, true) } : undefined
@@ -200,10 +209,19 @@ export function NewSessionDialog({
       <div className="foot">
         <code>{command}</code>
         <Button onClick={onClose}>Cancel</Button>
-        <Button disabled={busy} onClick={() => void create(false)}>
+        <Button
+          disabled={busy || unread}
+          title={unread ? "the workflows are not read yet" : undefined}
+          onClick={() => void create(false)}
+        >
           Create in background
         </Button>
-        <Button variant="primary" disabled={busy} onClick={() => void create(true)}>
+        <Button
+          variant="primary"
+          disabled={busy || unread}
+          title={unread ? "the workflows are not read yet" : undefined}
+          onClick={() => void create(true)}
+        >
           Create and attach
         </Button>
       </div>

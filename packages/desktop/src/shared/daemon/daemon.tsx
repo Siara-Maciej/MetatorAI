@@ -42,6 +42,7 @@ import { threadsStamp } from "../model/threads.ts";
 import { useLatest } from "../use-latest.ts";
 import { createStateStore, publish, type Store, useFields } from "./daemon-store.ts";
 import { useDaemonEvents } from "./events.ts";
+import { usePulse } from "./heartbeat.ts";
 import {
   changeName,
   daemonAnswered,
@@ -64,6 +65,13 @@ export interface Daemon {
   readonly connected: boolean;
   /** Nothing answers at the address (D3): the screens have nothing true to show. */
   readonly down: boolean;
+  /**
+   * The daemon answers its pulse (`heartbeat.ts`). False while it holds the connection but says
+   * nothing (stopped, stuck): what the screens show is from before `silentSince`.
+   */
+  readonly answering: boolean;
+  /** When the daemon last answered, while it does not. */
+  readonly silentSince?: number;
   readonly error?: string;
   /**
    * Every run of every repository, each with the repository it belongs to (a folder) or none; a
@@ -172,12 +180,18 @@ export function useRun(runId: string | undefined, repo?: string): Run | undefine
 /**
  * A request repeated on an interval (D11): the last good answer, the last failure, and a way to
  * ask again now. A new `key` (another run, another repository) starts over with what the app last
- * read for it, or nothing; `ms` 0 asks once. A failure keeps the data that was there: the screen
- * says it is stale, not empty. An answer equal to the last one draws nothing again.
+ * read for it, or nothing; `ms` 0 asks once; `enabled` false asks nothing. A failure keeps the
+ * data that was there: the screen says it is stale (`<Freshness>`), not empty. An answer equal to
+ * the last one draws nothing again.
  */
-export function usePolled<T>(key: string, fn: () => Promise<Envelope<T>>, ms: number): Polled<T> {
+export function usePolled<T>(
+  key: string,
+  fn: () => Promise<Envelope<T>>,
+  ms: number,
+  enabled = true,
+): Polled<T> {
   const { url } = useDaemon("url");
-  return usePolledAt(url, key, fn, ms);
+  return usePolledAt(url, key, fn, ms, enabled);
 }
 
 /** A socket that is opened again after it drops, with a fetch meanwhile. */
@@ -330,6 +344,8 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
   const runs = useMemo(() => withTerminalAsks(stateRuns, panes), [stateRuns, panes]);
   // Down: the socket is closed and the last request failed. A socket that only blinked is not down.
   const down = !stateUp && error !== undefined;
+  // A socket stays open while the daemon is stopped or stuck: its pulse says whether it answers.
+  const pulse = usePulse(client);
   // In the app's shell the daemon is started for the remembered folder, without a terminal.
   useEffect(() => {
     void folder;
@@ -417,6 +433,8 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     url,
     connected: stateUp,
     down,
+    answering: pulse.answering,
+    ...(pulse.silentSince !== undefined ? { silentSince: pulse.silentSince } : {}),
     ...(error ? { error } : {}),
     runs: shownRuns,
     repos,

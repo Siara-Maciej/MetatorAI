@@ -9,9 +9,11 @@
 
 import { useEffect } from "react";
 import { Chip } from "../../shared/components/chips.tsx";
+import { NotFound } from "../../shared/components/not-found.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
-import { useAction, useTasks } from "../../shared/hooks.ts";
+import { useAction, useFound, useTasks } from "../../shared/hooks.ts";
 import { duration } from "../../shared/model/format.ts";
+import { stateHasRun } from "../../shared/model/found.ts";
 import { plainKey } from "../../shared/model/keys.ts";
 import { idleRuns } from "../../shared/model/needs.ts";
 import { paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
@@ -49,8 +51,10 @@ export function RunScreen({
   const go = navigate;
   const onOpenRun = useOpenRun();
   const answerIn = useAnswerIn(runId);
-  const { run: runOf, markSeen, panesOf } = useDaemon("run", "markSeen", "panesOf");
+  const { run: runOf, markSeen, panesOf, client } = useDaemon("run", "markSeen", "panesOf", "client");
   const run = runOf(runId);
+  // A run the state does not hold yet may have just been made: missing only on the daemon's word.
+  const lookup = useFound(`run:${runId}`, run !== undefined, client.state, (s) => stateHasRun(s, runId));
   const tasks = useTasks();
   const fine = run
     ? runWithPanes(
@@ -82,6 +86,7 @@ export function RunScreen({
     return () => window.removeEventListener("keydown", onKey);
   });
   const phase = run ? runPhase(run) : "active";
+  if (lookup === "missing") return <NotFound what="run" id={runId} />;
   return (
     <div className="run-screen" data-testid="run" data-tab={tab}>
       <RunHeader

@@ -7,11 +7,13 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import type { Issue, IssueView, PlanStarted } from "../../shared/api/api.ts";
+import { Freshness } from "../../shared/components/freshness.tsx";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { type Answer, useAction } from "../../shared/hooks.ts";
 import { duration, issueRefText, plural } from "../../shared/model/format.ts";
+import { readingOf } from "../../shared/model/freshness.ts";
 import { workflowChoice } from "../../shared/model/runs.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { Button } from "../../ui/button.tsx";
@@ -53,6 +55,7 @@ export function BacklogScreen({
   const { client, repo, run: runOf } = useDaemon("client", "repo", "run");
   const list = usePolled(`issues:${repo ?? ""}`, () => client.issues(repo), 2000);
   const issues = list.data?.issues ?? NO_ISSUES;
+  const reading = readingOf(list);
   // What an action answered stays until closed: the list's refresh never clears it (D5).
   const action = useAction(list.reload);
   // The workflows this repository has (D5): a run is started on one of them, never on a guess.
@@ -233,7 +236,9 @@ export function BacklogScreen({
           {rows.proposals.map(row)}
           <ListSection>open · {open.length}</ListSection>
           {rows.open.map(row)}
-          {open.length === 0 && proposals.length === 0 ? (
+          {/* Empty only when the daemon said so: not while it is read, not when it failed. */}
+          {reading === "loading" ? <EmptyRow>Reading the tasks…</EmptyRow> : null}
+          {reading !== "loading" && reading !== "failed" && open.length === 0 && proposals.length === 0 ? (
             <EmptyRow>Nothing open. + task adds one.</EmptyRow>
           ) : null}
           <span className="spacer" />
@@ -258,7 +263,7 @@ export function BacklogScreen({
           setRetry(undefined);
         }}
       />
-      {list.error && !list.data ? <div className="banner">{list.error}</div> : null}
+      <Freshness reads={[list]} what="The tasks" />
       {adding ? (
         <form
           className="form"
@@ -410,7 +415,7 @@ export function BacklogScreen({
             start an agent in a terminal of its own; the plan changes only through that agent.
           </div>
         </div>
-      ) : (
+      ) : list.data === undefined ? null : (
         <div className="empty">
           <h2>No task</h2>
           <p>+ task adds one; agents' proposals appear here and in the inbox.</p>

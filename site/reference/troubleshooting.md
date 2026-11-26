@@ -203,6 +203,12 @@ The top bar reads **no daemon** and the main area shows `metator serve`, the add
 
 `metator serve` itself fails with `a daemon already serves <dir>: <url> (pid <pid>)` when one runs there already, also when a folder's daemon serves the repository: use that one, or stop it first.
 
+## The app says not answering
+
+The top bar reads **not answering** when the daemon still holds the connection but does not answer: its process is stopped (`kill -STOP`, a suspended terminal job) or stuck. The app asks the daemon's `/health` every few seconds and waits 4 s for it; a request of a screen waits 15 s (a change 120 s), then says `the daemon is not answering`. What the screens show stays, under a line **Not up to date: no answer since …**; it goes, and the top bar reads **connected** again, as soon as the daemon answers. Resume the process (`fg`, `kill -CONT <pid>`) or restart `metator serve`.
+
+A screen whose data could not be read says so (`The tasks could not be read: the daemon answered 500 on /issues`) with **Try again**; it never shows an empty list in its place.
+
 ## No chat opens
 
 **+ New chat** says that no AI host is installed and names the programs the daemon looked for. Install Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), log in once in a terminal, and click **+ New chat** again; the daemon needs no restart. A chat whose terminal ends at once with **Ended with code …** usually means the host is not logged in. [Copilot and Claude Code](../guide/hosts.md#which-host-runs-what) says which host the daemon picks.

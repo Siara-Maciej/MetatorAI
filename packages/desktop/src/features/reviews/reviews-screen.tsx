@@ -9,11 +9,13 @@
 
 import { useState } from "react";
 import type { ReviewedRequest, ReviewView } from "../../shared/api/api.ts";
+import { Freshness } from "../../shared/components/freshness.tsx";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
 import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
 import { useAction } from "../../shared/hooks.ts";
 import { plural } from "../../shared/model/format.ts";
+import { type Reading, readingOf } from "../../shared/model/freshness.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { Button } from "../../ui/button.tsx";
@@ -57,7 +59,10 @@ export function ReviewsScreen({ id }: { readonly id?: string | undefined }) {
   const ended = watched.filter((w) => watchEnded(w.status));
   const current: ReviewView | ReviewedRequest | undefined =
     watched.find((w) => w.id === id) ?? mine.find((m) => m.id === id) ?? active[0] ?? mine[0];
-  const error = (!watchedList.data && watchedList.error) || (!mineList.data && mineList.error) || undefined;
+  // A list says it is empty only when the daemon said so: not while it is read, not when it failed.
+  const watchedRead = readingOf(watchedList);
+  const mineRead = readingOf(mineList);
+  const known = (r: Reading) => r === "fresh" || r === "stale";
   const watchedRow = (w: ReviewView) => {
     const word = watchedWord(w.status);
     return (
@@ -93,7 +98,8 @@ export function ReviewsScreen({ id }: { readonly id?: string | undefined }) {
         <>
           <ListSection>watched · {active.length}</ListSection>
           {active.map(watchedRow)}
-          {active.length === 0 ? (
+          {watchedRead === "loading" ? <EmptyRow>Reading the watched MRs…</EmptyRow> : null}
+          {known(watchedRead) && active.length === 0 ? (
             <EmptyRow>Nothing watched. Paste an MR's link into a chat and the agent reviews it.</EmptyRow>
           ) : null}
           <ListSection>mine · {mine.length}</ListSection>
@@ -113,7 +119,8 @@ export function ReviewsScreen({ id }: { readonly id?: string | undefined }) {
               />
             );
           })}
-          {mine.length === 0 ? (
+          {mineRead === "loading" ? <EmptyRow>Reading your MRs…</EmptyRow> : null}
+          {known(mineRead) && mine.length === 0 ? (
             <EmptyRow>
               No reviews of your MRs yet. Add a source under `codehost:` in metator.config.yml; the daemon
               looks every two minutes.
@@ -133,7 +140,7 @@ export function ReviewsScreen({ id }: { readonly id?: string | undefined }) {
         </>
       }
     >
-      {error ? <div className="banner">{error}</div> : null}
+      <Freshness reads={[watchedList, mineList]} what="The reviews" />
       {current && "status" in current ? (
         <WatchedDetail key={current.id} review={current} reload={reload} onOpenSession={onOpenSession} />
       ) : current ? (

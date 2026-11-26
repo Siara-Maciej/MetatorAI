@@ -10627,4 +10627,41 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const branch = [key];",
     why: "the tree's eye hides a terminal with every terminal below it",
   },
+  // The desktop app's loading, errors and a hung daemon.
+  {
+    file: "packages/desktop/src/shared/api/api.ts",
+    from: "if (isEnvelope(body)) return body as Envelope<T>;",
+    to: "return body as Envelope<T>;",
+    why: "a 500 with a text body says the status and the path, not a parser's message",
+  },
+  {
+    file: "packages/desktop/src/shared/api/api.ts",
+    from: "if (abort.signal.aborted)",
+    to: "if (false)",
+    why: "a request cut at its deadline says the daemon is not answering",
+  },
+  {
+    file: "packages/desktop/src/shared/model/freshness.ts",
+    from: 'if (read.data === undefined) return read.error === undefined ? "loading" : "failed";',
+    to: 'if (read.data === undefined) return "loading";',
+    why: "a read that failed with no data is a failure, not a list being read",
+  },
+  {
+    file: "packages/desktop/src/shared/model/found.ts",
+    from: "(check.updatedAt ?? 0) >= openedAt",
+    to: "true",
+    why: "only an answer read after the screen opened says a run or a chat is missing",
+  },
+  {
+    file: "packages/desktop/src/shared/daemon/heartbeat.ts",
+    from: 'if (result === "timeout" && p.answering)',
+    to: 'if (result !== "answered" && p.answering)',
+    why: "nothing at the address is the sockets' no daemon, not a silent daemon",
+  },
+  {
+    file: "packages/desktop/src/features/runs/model.ts",
+    from: "if (!workflows.ok || !workflows.data)",
+    to: "if (workflows.data === null)",
+    why: "workflows that could not be read are a refusal in the new-run form, not an empty list",
+  },
 ];
