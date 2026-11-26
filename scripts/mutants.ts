@@ -10669,6 +10669,7 @@ export const MUTANTS: readonly Mutant[] = [
     from: "!merging && !recordOf(tool, input) && needsNoPerson(tool, input)",
     to: "!merging && needsNoPerson(tool, input)",
     why: "a write of the run's records never passes without a person",
+  },
   // Backlog, intake, run journal and supervisor under concurrency and damage.
   {
     file: "packages/core/src/application/issues.ts",
@@ -10723,6 +10724,7 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (done.isErr()) failed.push({ runId, message: done.error.message });",
     to: "if (done.isErr()) return err(done.error);",
     why: "one run the supervisor cannot restart never stops the others being watched",
+  },
   // Review handling, the v14 config migration and the process runner (fixes).
   {
     file: "packages/core/src/application/review-watch.ts",
@@ -10774,7 +10776,9 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/codehost.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
     from: 'const via = `mcp:${serverName(typeof s.mcp === "string" ? s.mcp : kind)}`;',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
     to: 'const via = `mcp:${typeof s.mcp === "string" ? s.mcp : kind}`;',
     why: "an MCP server name `via` cannot hold is named again",
   },
@@ -10786,7 +10790,9 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-codehost-gh/src/gh-review-host.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
     from: '"-f",\n      `owner=${owner}`',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
     to: '"-F",\n      `owner=${owner}`',
     why: "gh sends the owner as a string (-f), so an owner `2048` stays text",
   },
@@ -10795,6 +10801,7 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'process.kill(-proc.pid, "SIGKILL");',
     to: 'proc.kill("SIGKILL");',
     why: "a timeout kills the process group, not only the direct child",
+  },
   {
     file: "packages/cli/src/commands/mcp.ts",
     from: '    stdio.stdin.once("end", resolve);\n    stdio.stdin.once("close", resolve);',
@@ -10848,6 +10855,7 @@ export const MUTANTS: readonly Mutant[] = [
     from: "    return start();\n  } catch (e) {\n    throw MetatorError.usage(",
     to: '    return start();\n  } catch (e) {\n    throw new MetatorError("INTERNAL",',
     why: "serve on a taken port is a usage error with the way out, not INTERNAL",
+  },
   // The desktop app's loading, errors and a hung daemon.
   {
     file: "packages/desktop/src/shared/api/api.ts",
@@ -10884,6 +10892,7 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (!workflows.ok || !workflows.data)",
     to: "if (workflows.data === null)",
     why: "workflows that could not be read are a refusal in the new-run form, not an empty list",
+  },
   {
     file: "packages/desktop/src/shared/model/confirm.ts",
     from: "p.live?.alive === true && !p.ended;",

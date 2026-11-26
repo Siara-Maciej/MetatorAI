@@ -25,8 +25,8 @@ The `ReviewHost` and `ReviewerHost` ports over GitHub's `gh` CLI (ADR-0097): rea
 
 ## Invariants
 
-- GitHub only: a GitLab source is an error value [[cite: packages/plugin-codehost-gh/src/gh-review-host.ts:327 | "if (source.kind !== \"github\")"]].
-- While real hosts are refused, a real gh is never asked about its login [[cite: packages/plugin-codehost-gh/src/gh-review-host.ts:249 | "if (options.standIn && !line.includes(\"stand-in\")) return { ready: false, version: line };"]].
+- GitHub only: a GitLab source is an error value [[cite: packages/plugin-codehost-gh/src/gh-review-host.ts:328 | "if (source.kind !== \"github\")"]].
+- While real hosts are refused, a real gh is never asked about its login [[cite: packages/plugin-codehost-gh/src/gh-review-host.ts:250 | "if (options.standIn && !line.includes(\"stand-in\")) return { ready: false, version: line };"]].
 
 ## Allowed dependencies
 

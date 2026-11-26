@@ -212,7 +212,7 @@ describe("run commands in a repository", () => {
     expect(listed.length).toBeGreaterThan(0);
     expect(
       ((await at("run", "list", "--limit", "1")).json.data as { runId: string }[]).map((r) => r.runId),
-    ).toEqual([listed[0]?.runId]);
+    ).toEqual(listed.slice(0, 1).map((r) => r.runId));
     expect((await at("run", "list", "--workflow", "nope")).json.data).toEqual([]);
     expect((await at("run", "list", "--status", "done")).json.data).toEqual([]);
     expect(
