@@ -366,6 +366,51 @@ describe("AnswerQuestion", () => {
     );
   });
 
+  test("no run named: the one run where the question is open, not the latest; none or several is NOT_FOUND with the way on", async () => {
+    const w = world();
+    const first = await w.newRun();
+    const q = await w.ask(first);
+    const second = await w.newRun("Another task with enough words");
+    expect((await w.ask(second)).id).toBe(q.id);
+    const two = (
+      await w.answer.execute({ question: q.id, choices: ["Approve"], by: "ola" })
+    )._unsafeUnwrapErr();
+    expect([two.code, two.message, two.hint]).toEqual([
+      "NOT_FOUND",
+      `question ${q.id} is open in 2 runs: ${first}, ${second}`,
+      "`metator run questions` lists them; add --run <id>.",
+    ]);
+    (
+      await w.answer.execute({ runId: second, question: q.id, choices: ["Reject"], by: "ola" })
+    )._unsafeUnwrap();
+    // Open in the first run only, which is not the latest.
+    const a = (await w.answer.execute({ question: q.id, choices: ["Approve"], by: "ola" }))._unsafeUnwrap();
+    expect([a.runId, a.answer?.choices]).toEqual([first, ["Approve"]]);
+    const none = (
+      await w.answer.execute({ question: "q777", choices: ["Approve"], by: "ola" })
+    )._unsafeUnwrapErr();
+    expect([none.code, none.message, none.hint]).toEqual([
+      "NOT_FOUND",
+      "no run has an open question q777",
+      "`metator run questions` lists them; add --run <id>.",
+    ]);
+  });
+
+  test("a choice or words are asked for once the question is found, with its options; an unknown question is NOT_FOUND first", async () => {
+    const w = world();
+    const runId = await w.newRun();
+    const q = await w.ask(runId, ["Yes", "No"]);
+    const unknown = (
+      await w.answer.execute({ runId, question: "q999", choices: [], by: "ola" })
+    )._unsafeUnwrapErr();
+    expect([unknown.code, unknown.message]).toEqual(["NOT_FOUND", `question q999 of run ${runId} not found`]);
+    const empty = (await w.answer.execute({ question: q.id, choices: [], by: "ola" }))._unsafeUnwrapErr();
+    expect([empty.code, empty.hint]).toEqual([
+      "USAGE",
+      `Answer with --choice <label> (Yes, No, Other) or --text <your own words>: metator run answer ${q.id} --run ${runId} --choice Yes`,
+    ]);
+  });
+
   test("always: the answer becomes a policy with the question's own labels; never for Other, never for an unknown question", async () => {
     const w = world();
     const runId = await w.newRun();
