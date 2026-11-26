@@ -230,7 +230,7 @@ describe("run commands in a repository", () => {
     const cut = (await at("run", "list")).json;
     expect([cut.truncated, cut.next]).toEqual([
       true,
-      "Narrow it with --status <status>, --workflow <id> or --limit <n> (the newest n).",
+      "Narrow it with --status <status>, --workflow <id> or --limit <n> (the n changed last).",
     ]);
     const ten = await at("run", "list", "--limit", "10");
     expect([ten.json.truncated, (ten.json.data as unknown[]).length]).toEqual([undefined, 10]);
