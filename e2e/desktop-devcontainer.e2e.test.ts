@@ -188,6 +188,8 @@ describe("Add repository from a dev container (the shell and its engine faked, a
       await page.getByTestId("first-run").getByRole("link", { name: "Add repository" }).click();
       const add = page.getByTestId("add-repo");
       const sources = add.getByTestId("sources");
+      // The tabs are drawn after the form opens: read them once the last one is there.
+      await sources.getByRole("tab", { name: "Dev Container" }).waitFor({ timeout: 10_000 });
       expect(await sources.getByRole("tab").allTextContents()).toEqual([
         "Folder on this computer",
         "Folder of repositories",
