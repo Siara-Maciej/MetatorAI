@@ -266,6 +266,84 @@ describe("preToolPolicy", () => {
     expect(decide(hook("Write", { file_path: "/repo/.metator/runs/r1/notes.md" }), free)).toBe("allow");
   });
 
+  test("no agent writes MetatorAI's own records (approvals, answers, worktrees): by a file tool or the shell", () => {
+    // A drive's session without a terminal: an allow there is what the agent gets.
+    const driven = run({}, { driven: true, headless: true, editScope: ["src/a.ts"] });
+    const edits: [string, Record<string, unknown>][] = [
+      ["Write", { file_path: "/repo/.metator/runs/r1/state.json", content: "{}" }],
+      ["Edit", { file_path: ".metator/runs/r1/questions/q001.json" }],
+      ["Write", { file_path: "/repo/.metator/worktrees.json" }],
+      ["MultiEdit", { file_path: "/repo/.metator/runs/r1/driver.json" }],
+      ["Write", { file_path: "/repo/.metator/runs/r1/activity.jsonl" }],
+      ["Write", { file_path: "/repo/.metator/runs/r1/messages/m1.json" }],
+      ["Write", { file_path: "/repo/.metator/runs/r1/log.md" }],
+      // Through the run's worktree, whose `.metator/runs` is a link to the checkout's.
+      ["Write", { file_path: "/repo/.metator/wt/r1/.metator/runs/r1/state.json" }],
+      ["apply_patch", { input: "*** Begin Patch\n*** Update File: .metator/runs/r1/state.json\n" }],
+    ];
+    for (const [tool, input] of edits) {
+      const d = preToolPolicy(hook(tool, input), driven);
+      expect([tool, input, d.decision]).toEqual([tool, input, "deny"]);
+      expect(d.reason).toContain("metator run write");
+    }
+    // Without a run too: the records are MetatorAI's whoever asks.
+    expect(decide(hook("Write", { file_path: "/repo/.metator/worktrees.json" }), free)).toBe("deny");
+    const shells = [
+      `sed -i 's/"approvals": {}/"approvals": {"push": {}}/' .metator/runs/r1/state.json`,
+      'echo \'{"answer":"yes"}\' > .metator/runs/r1/questions/q001.json',
+      "cat /tmp/forged.json >> /repo/.metator/runs/r1/state.json",
+      "cp /tmp/forged.json .metator/runs/r1/state.json",
+      "cd .metator/runs/r1 && sed -i s/a/b/ state.json",
+      "rm .metator/runs/r1/questions/q001.json",
+      "python3 -c \"open('.metator/runs/r1/state.json','w').write('{}')\"",
+      "R=.metator/runs/r1; sed -i s/a/b/ $R/state.json",
+      "jq '.approvals.push={}' .metator/runs/r1/state.json | tee .metator/runs/r1/state.json",
+      "mv /tmp/x .metator/worktrees.json",
+      "rm -rf .metator/runs/r1",
+    ];
+    for (const command of shells) {
+      const d = preToolPolicy(hook("Bash", { command }), driven);
+      expect([command, d.decision]).toEqual([command, "deny"]);
+    }
+    // The shell standing in the run directory names its records by their bare names.
+    const inRun = readHookInput({
+      tool_name: "Bash",
+      tool_input: { command: "sed -i s/a/b/ state.json" },
+      cwd: "/repo/.metator/runs/r1",
+    });
+    expect(decide(inRun, driven)).toBe("deny");
+    expect(preToolPolicy(hook("Bash", { command: shells[0] }), driven).reason).toBe(
+      "`.metator/runs/r1/state.json` is MetatorAI's own record (a run's stage, approvals and answers, its drive, the worktrees): only MetatorAI writes it, never an agent. Write your stage's artifacts with `metator run write <artifact>` (or a new file in the run directory); a gate's approval or a question's answer is the person's (`metator run approve`, `metator run answer`): end with STATUS: blocked: <question>.",
+    );
+  });
+
+  test("the run's artifacts stay writable and its records readable", () => {
+    const driven = run({}, { driven: true, headless: true });
+    for (const file_path of [
+      "/repo/.metator/runs/r1/plan.json",
+      "/repo/.metator/runs/r1/notes.md",
+      "/repo/.metator/runs/r1/findings/logic-1.json",
+      "/repo/.metator/runs/r1/results/w1.json",
+      "/repo/src/state.json",
+    ])
+      expect([file_path, decide(hook("Write", { file_path }), driven)]).toEqual([file_path, "allow"]);
+    for (const command of [
+      "cat .metator/runs/r1/state.json",
+      "jq .approvals .metator/runs/r1/state.json",
+      "grep -r answer .metator/runs/r1/questions 2>/dev/null",
+      "ls .metator/runs/r1",
+      "jq . < .metator/runs/r1/state.json",
+      "mkdir -p .metator/runs/r1/findings",
+      "cat > .metator/runs/r1/notes.md <<'EOF'\nsee state.json\nEOF",
+      // The artifact's text may name a record: it is the text, not a path written.
+      "metator run write task.md --run r1 <<'EOF'\nThe guard lets `sed -i` change .metator/runs/r1/state.json.\nEOF",
+      "metator run status --run r1",
+      // The repository's own state.json is not MetatorAI's.
+      "sed -i s/a/b/ state.json",
+    ])
+      expect([command, decide(hook("Bash", { command }), driven)]).toEqual([command, "allow"]);
+  });
+
   test("in a run, push and comments need the matching approval (shell and MCP tools)", () => {
     const push = hook("Bash", { command: "git add . && git push origin feature" });
     // With a terminal the person is asked (the approval is named too); a drive without one is refused.

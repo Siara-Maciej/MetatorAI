@@ -1,9 +1,18 @@
+import { parse, quote } from "shell-quote";
 import { WORKER_RUN_CONTROL } from "./conductor.ts";
 import { commandsOf } from "./discovery.ts";
 import { matchesAny } from "./glob.ts";
 import { DEFAULT_GUARD_COMMANDS, type GuardCommands, guardCommand } from "./guard-commands.ts";
+import { asMetator, readOnlyCommand } from "./read-only-command.ts";
 import type { Approval } from "./run-record.ts";
-import { personsMetatorCommand, type Unprompted, unpromptedCommand, unpromptedEdit } from "./unprompted.ts";
+import { resolvePath } from "./shell-words.ts";
+import {
+  metatorRecord,
+  personsMetatorCommand,
+  type Unprompted,
+  unpromptedCommand,
+  unpromptedEdit,
+} from "./unprompted.ts";
 
 /**
  * Host hooks (`metator guard <event>`, ADR-0038). Hosts send a JSON payload on stdin and read a
@@ -146,6 +155,122 @@ const deny = (reason: string): ToolDecision => ({ decision: "deny", reason });
 export const COMMIT_DEBUG_CONSENT = "commit-debug";
 /** Where the person's consents are kept: no agent writes there. */
 export const CONSENTS_DIR = ".metator/consents";
+
+/** Why no agent writes one of MetatorAI's records, and what it does instead. */
+export const RECORD_WRITE = (path: string) =>
+  `\`${path}\` is MetatorAI's own record (a run's stage, approvals and answers, its drive, the worktrees): only MetatorAI writes it, never an agent. Write your stage's artifacts with \`metator run write <artifact>\` (or a new file in the run directory); a gate's approval or a question's answer is the person's (\`metator run approve\`, \`metator run answer\`): end with STATUS: blocked: <question>.`;
+
+/** A path as an absolute one, from where the tool stands. */
+const absoluteFrom = (path: string, cwd: string): string => {
+  const norm = path.replaceAll("\\", "/");
+  return /^[A-Za-z]:\//.test(norm) ? norm : resolvePath(norm.startsWith("/") ? norm : `${cwd}/${norm}`);
+};
+
+/** The command without its here-documents' text (data, never a path written), one command per line. */
+function commandLines(command: string): string {
+  const bare = command.replace(
+    /<<-?[ \t]*(['"]?)([A-Za-z_]\w*)\1([^\n]*)\n(?:[\s\S]*?\n)?\t*\2[ \t]*(?=\n|$)/g,
+    "$3",
+  );
+  let out = "";
+  let quoted: string | undefined;
+  for (let i = 0; i < bare.length; i++) {
+    const c = bare[i] as string;
+    if (c === "\\" && quoted !== "'") {
+      out += c + (bare[i + 1] ?? "");
+      i++;
+    } else if (quoted) {
+      if (c === quoted) quoted = undefined;
+      out += c;
+    } else if (c === "'" || c === '"') {
+      quoted = c;
+      out += c;
+    } else out += c === "\n" || c === "\r" ? ";" : c;
+  }
+  // Output thrown away or joined writes nothing.
+  return out
+    .replace(/(^|\s)[12]?>>?\s*\/dev\/null(?=$|[\s;&|])/g, "$1")
+    .replace(/(^|\s)[12]>&[12](?=$|[\s;&|])/g, "$1");
+}
+
+/** `metator …` however it is started: MetatorAI's command writes only what is its own to write. */
+const metatorCommand = (argv: readonly string[]) =>
+  asMetator(argv) !== undefined ||
+  (argv[0] ?? "").endsWith("/metator") ||
+  (["bun", "node"].includes(argv[0] as string) && (argv[1] ?? "").endsWith("cli/src/main.ts"));
+
+/** Commands that only read what they are given, besides those `readOnlyCommand` knows. */
+const READERS = new Set(["jq"]);
+
+/**
+ * The record of MetatorAI's (`metatorRecord`) a shell command writes, as the command names it:
+ * a redirection into one, or a command that does not only read and names one (by path, from the
+ * directory the shell stands in, through a variable set before it, or inside a script's text).
+ * Here-documents are data; `mkdir` only creates; MetatorAI's own commands write what is theirs.
+ */
+function shellRecordWrite(command: string, cwd: string): string | undefined {
+  type Part = { argv: string[]; writes: string[] };
+  const parts: Part[] = [{ argv: [], writes: [] }];
+  let into = false;
+  for (const token of parse(commandLines(command), (name) => `$${name}`)) {
+    const part = parts.at(-1) as Part;
+    if (typeof token === "string" || ("op" in token && token.op === "glob")) {
+      (into ? part.writes : part.argv).push(typeof token === "string" ? token : token.pattern);
+      into = false;
+    } else if (!("op" in token)) {
+      // A comment: nothing it says runs.
+    } else if (token.op.startsWith(">")) into = true;
+    else if (token.op === "<") into = false;
+    else {
+      parts.push({ argv: [], writes: [] });
+      into = false;
+    }
+  }
+  const vars = new Map<string, string>();
+  let base = cwd;
+  const expand = (word: string) =>
+    word.replace(/\$\{?([A-Za-z_]\w*)\}?/g, (all, name: string) => vars.get(name) ?? all);
+  // The word itself, what follows `=`, and any `.metator/…` path inside it (a script's text).
+  const record = (word: string): string | undefined => {
+    const w = expand(word);
+    const inside = w.match(/[^\s'"`()=,;:]*\.metator\b[^\s'"`()=,;:]*/g) ?? [];
+    return [w, w.slice(w.indexOf("=") + 1), ...inside].find(
+      (c) => c !== "" && !c.includes("$") && metatorRecord(absoluteFrom(c, base)),
+    );
+  };
+  for (const { argv: words, writes } of parts) {
+    const argv = [...words];
+    while (argv[0] !== undefined && /^[A-Za-z_]\w*=/.test(argv[0])) {
+      const [name, ...value] = (argv.shift() as string).split("=");
+      vars.set(name as string, expand(value.join("=")));
+    }
+    const target = writes.map(record).find((r) => r !== undefined);
+    if (target) return target;
+    if (argv[0] === "cd" && argv.length === 2) {
+      base = absoluteFrom(expand(argv[1] as string), base);
+      continue;
+    }
+    if (argv.length === 0 || argv[0] === "mkdir" || metatorCommand(argv)) continue;
+    const named = argv
+      .slice(1)
+      .map(record)
+      .find((r) => r !== undefined);
+    if (named === undefined) continue;
+    const reads = READERS.has(argv[0] as string) || readOnlyCommand(quote(argv.map(expand)), ["/"]);
+    if (!reads) return named;
+  }
+  return undefined;
+}
+
+/**
+ * The record of MetatorAI's a tool call would write (an edit tool's file, a shell command's
+ * target), as the call names it; undefined when it writes none. Paths are read from `cwd`.
+ * Hosts check it in-process too, where no hook runs.
+ */
+export function recordWrite(hook: HookInput, cwd: string): string | undefined {
+  if (isEditTool(hook.tool)) return touchedPaths(hook).find((p) => metatorRecord(absoluteFrom(p, cwd)));
+  return SHELL_TOOL.test(hook.tool) ? shellRecordWrite(text(hook.input.command) ?? "", cwd) : undefined;
+}
 
 /** A command as a person reads it in a prompt: its words, cut when long. */
 const shown = (argv: readonly string[]): string => {
@@ -402,6 +527,9 @@ function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
     paths.some((p) => (repoRelative(p, ctx.root) ?? p).replaceAll("\\", "/").startsWith(`${CONSENTS_DIR}/`))
   )
     return deny(`${CONSENTS_DIR} holds the person's consents: only their own words in the chat write there.`);
+  // A run's approvals and answers are MetatorAI's records: an agent that wrote them would pass its own gate.
+  const record = recordWrite(hook, hook.cwd ?? ctx.root);
+  if (record) return deny(RECORD_WRITE(record));
 
   // Dangerous commands, from the one list in the config (ADR-0094): never, or with consent.
   const commands = ctx.commands ?? DEFAULT_GUARD_COMMANDS;
@@ -481,7 +609,7 @@ function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
     for (const p of paths) {
       const rel = repoRelative(p, ctx.root);
       if (rel === undefined) return deny(`${p} is outside the repository.`);
-      if (rel.startsWith(".metator/")) continue; // run artifacts are always writable
+      if (rel.startsWith(".metator/")) continue; // run artifacts are always writable; records were denied above
       if (ctx.editScope && !ctx.editScope.includes(rel))
         return deny(`${rel} is outside plan-scope.json; update the plan (mt-planner) or ask the user.`);
     }
