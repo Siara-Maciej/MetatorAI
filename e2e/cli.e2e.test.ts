@@ -419,6 +419,43 @@ describe("metator CLI (process e2e)", () => {
     expect((run.json.error as { hint: string }).hint).toContain("metator help");
   });
 
+  test("the command line as people type it: --version, help <command>, a mistyped command of a group, -C that is no directory, a schema name every object has", async () => {
+    for (const argv of [["--version"], ["-V"]]) {
+      const r = await metator(argv, repo);
+      expect([argv[0], r.code, r.json.data]).toEqual([argv[0], 0, { name: "metator-ai", version: "0.0.0" }]);
+    }
+    const help = await metator(["help", "run", "status"], repo);
+    expect([help.code, (help.json.data as { usage: string }).usage]).toEqual([
+      0,
+      "metator run status [options] [run]",
+    ]);
+    const typo = await metator(["run", "stauts"], repo);
+    expect([typo.code, typo.json.error]).toEqual([
+      64,
+      {
+        code: "USAGE",
+        message: "unknown command: metator run stauts",
+        hint: "Did you mean `metator run status`? `metator run --help` lists its commands.",
+      },
+    ]);
+    const option = await metator(["run", "list", "--bogus"], repo);
+    expect((option.json.error as { hint: string }).hint).toBe(
+      "Run `metator run list --help` for its options and arguments.",
+    );
+    const missing = await metator(["-C", join(repo, "nope"), "status"], repo);
+    expect([missing.code, (missing.json.error as { code: string; message: string }).message]).toEqual([
+      64,
+      `no such directory: ${join(repo, "nope")}`,
+    ]);
+    const file = await metator(["-C", join(repo, "package.json"), "status"], repo);
+    expect([file.code, (file.json.error as { message: string }).message]).toEqual([
+      64,
+      `not a directory: ${join(repo, "package.json")}`,
+    ]);
+    const schema = await metator(["run", "schema", "toString"], repo);
+    expect([schema.code, (schema.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+  }, 30_000);
+
   test("output is pure JSON: no ANSI colors, no banners", async () => {
     const run = await metator(["version"], repo);
     expect(run.stdout).not.toContain(String.fromCharCode(27)); // ESC starts ANSI color codes

@@ -269,6 +269,27 @@ export function renderRunStatus(v: {
   return lines.join("\n");
 }
 
+/** `metator run list`: one run a line, newest first: its id, where it stands, its workflow, when it last moved. */
+export function renderRunList(
+  runs: readonly {
+    readonly runId: string;
+    readonly workflow: string;
+    readonly stage: string;
+    readonly status: string;
+    readonly updatedAt: string;
+  }[],
+): string {
+  if (runs.length === 0) return "No runs.";
+  return columns(
+    runs.map((r) => [
+      r.runId,
+      `${r.status} at ${r.stage}`,
+      r.workflow,
+      r.updatedAt.slice(0, 16).replace("T", " "),
+    ]),
+  ).join("\n");
+}
+
 const CHECK_MARK: Readonly<Record<string, string>> = { ok: "✓", warn: "!", fail: "✗" };
 
 /** `metator doctor`: each check with its mark, and the fix where there is one. */

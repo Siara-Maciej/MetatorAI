@@ -136,6 +136,21 @@ describe("metator serve (real daemon)", () => {
     expect((await get("/health")).ok).toBe(true);
   });
 
+  test("a port another program holds is a usage error with the way out, and the repository is left as it was", async () => {
+    const other = await ScratchRepo.create();
+    const holder = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response("mine") });
+    try {
+      const r = await metator(["serve", "--port", String(holder.port)], other.root);
+      expect([r.code, (r.json.error as Data).code]).toEqual([64, "USAGE"]);
+      expect(String((r.json.error as Data).message)).toContain(`127.0.0.1:${holder.port}`);
+      expect(String((r.json.error as Data).hint)).toContain("`--port 0` takes a free one");
+      expect(existsSync(other.path(".metator", "daemon.json"))).toBe(false);
+    } finally {
+      holder.stop(true);
+      await other.dispose();
+    }
+  }, 30_000);
+
   test("an approval or an answer through the API without a name is refused; the state still reads (R1)", async () => {
     const runId = ((await get("/state")).data as { runs: { runId: string }[] }).runs[0]?.runId as string;
     const approved = await post(`/runs/${runId}/approve`, { gate: "push" });

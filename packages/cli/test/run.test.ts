@@ -68,8 +68,14 @@ describe("metator CLI", () => {
       expect(JSON.parse(piped.lines[0] as string)).toEqual({ ok: true, data: { issues: [] } });
       const json = await at(["issue", "list", "--json"], true);
       expect([json.lines.length, json.shown]).toEqual([1, ""]);
-      // A failure keeps its JSON line at a terminal too: its text and its envelope.
-      expect((await at(["issue", "show", "i404"], true)).lines).toHaveLength(1);
+      // A failure is said once at a terminal: its text, without the JSON line; piped or --json, the line.
+      const failed = await at(["issue", "show", "i404"], true);
+      expect([failed.code, failed.lines]).toEqual([1, []]);
+      expect(failed.shown).toStartWith("✗ ");
+      expect((await at(["issue", "show", "i404"], false)).lines).toHaveLength(1);
+      expect((await at(["issue", "show", "i404", "--json"], true)).lines).toHaveLength(1);
+      // A usage error commander found, too.
+      expect((await at(["run", "nosuch"], true)).lines).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

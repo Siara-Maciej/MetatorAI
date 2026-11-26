@@ -115,6 +115,21 @@ export function daemonInTheWay(roots: readonly string[]): MetatorError | undefin
   return undefined;
 }
 
+/**
+ * Bun.serve, with a port it cannot have (taken, or not ours to take) said as the usage error it
+ * is, and the way out; Bun says only "Failed to start server".
+ */
+function listen<S>(hostname: string, port: number, start: () => S): S {
+  try {
+    return start();
+  } catch (e) {
+    throw MetatorError.usage(
+      `cannot listen on ${hostname}:${port}: ${e instanceof Error ? e.message : String(e)}`,
+      "Another program may hold the port: `--port <n>` names another one, `--port 0` takes a free one.",
+    );
+  }
+}
+
 export async function startServer(ctx: CommandContext, opts: ServeOptions): Promise<Served> {
   const folder = ctx.folder();
   const pollMs = opts.pollMs ?? 1000;
@@ -366,29 +381,31 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     },
   });
 
-  const server = Bun.serve<Socket>({
-    port: opts.port,
-    hostname: opts.hostname,
-    async fetch(req, server) {
-      const url = new URL(req.url);
-      if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-      const path = url.pathname.replace(/\/+$/, "") || "/";
-      // A request that may change a run: the sockets' next tick reads the runs again.
-      if (req.method !== "GET") overviews.clear();
-      // The daemon's own pulse: not an envelope, so a probe reads it without knowing MetatorAI.
-      if (path === "/health")
-        return json({
-          ok: true,
-          pid: process.pid,
-          uptimeMs: Date.now() - started,
-          folder: folder?.root ?? null,
-        });
-      const socket = upgrade(req, server, url, path);
-      if (socket) return socket.upgraded ? undefined : json({ ok: false }, 400);
-      return dispatch(req, url, path);
-    },
-    websocket: socketHandlers({ pollMs, containerFor, state, inbox, events: hub, sweep }, sockets),
-  });
+  const server = listen(opts.hostname, opts.port, () =>
+    Bun.serve<Socket>({
+      port: opts.port,
+      hostname: opts.hostname,
+      async fetch(req, server) {
+        const url = new URL(req.url);
+        if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+        const path = url.pathname.replace(/\/+$/, "") || "/";
+        // A request that may change a run: the sockets' next tick reads the runs again.
+        if (req.method !== "GET") overviews.clear();
+        // The daemon's own pulse: not an envelope, so a probe reads it without knowing MetatorAI.
+        if (path === "/health")
+          return json({
+            ok: true,
+            pid: process.pid,
+            uptimeMs: Date.now() - started,
+            folder: folder?.root ?? null,
+          });
+        const socket = upgrade(req, server, url, path);
+        if (socket) return socket.upgraded ? undefined : json({ ok: false }, 400);
+        return dispatch(req, url, path);
+      },
+      websocket: socketHandlers({ pollMs, containerFor, state, inbox, events: hub, sweep }, sockets),
+    }),
+  );
   listening = server;
   bound = server.port ?? opts.port;
   const timers = startTimers({

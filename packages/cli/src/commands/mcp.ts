@@ -1,3 +1,4 @@
+import type { Readable, Writable } from "node:stream";
 import { ok } from "@metator/core";
 import { serialize, toEnvelope } from "@metator/runtime";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -70,15 +71,23 @@ export interface ServedReport {
   readonly calls: number;
 }
 
-/** Serves until the client closes the connection; the tools run through `invoke`. */
+/**
+ * Serves until the client closes the connection, or its end of stdin (a client that just exits
+ * never says goodbye); the calls still running answer first. The tools run through `invoke`.
+ */
 export async function serve(
   tools: readonly McpTool[],
   invoke: (
     argv: readonly string[],
   ) => Promise<{ readonly code: number; readonly envelope: Record<string, unknown> }>,
+  stdio: { readonly stdin: Readable; readonly stdout: Writable } = {
+    stdin: process.stdin,
+    stdout: process.stdout,
+  },
 ): Promise<ServedReport> {
   const server = new McpServer({ name: "metator", version: pkg.version });
   let calls = 0;
+  const running = new Set<Promise<unknown>>();
   for (const tool of tools) {
     server.registerTool(
       tool.name,
@@ -93,7 +102,9 @@ export async function serve(
         const argv = toolCall(tool, input as { readonly args?: readonly string[] });
         if (argv.isErr())
           return { content: [{ type: "text", text: serialize(toEnvelope(argv, [])) }], isError: true };
-        const r = await invoke(argv.value);
+        const call = invoke(argv.value);
+        running.add(call);
+        const r = await call.finally(() => running.delete(call));
         return {
           content: [{ type: "text", text: JSON.stringify(r.envelope) }],
           isError: r.code !== 0,
@@ -101,11 +112,16 @@ export async function serve(
       },
     );
   }
-  const transport = new StdioServerTransport();
+  const transport = new StdioServerTransport(stdio.stdin, stdio.stdout);
+  // The transport hears only its own close(): the end of stdin is the client going too.
   const closed = new Promise<void>((resolve) => {
     transport.onclose = () => resolve();
+    stdio.stdin.once("end", resolve);
+    stdio.stdin.once("close", resolve);
   });
   await server.connect(transport);
   await closed;
+  await Promise.allSettled([...running]);
+  await server.close();
   return { tools: tools.length, calls };
 }
