@@ -1,6 +1,6 @@
 # ADR-0112: Martwy kod tego repozytorium: knip w `bun run check`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-25
 
 ## Kontekst
@@ -31,5 +31,6 @@ ADR-0063 odrzucił knip jako **adapter produktu** (`arch` liczy martwe eksporty 
 | `ts-prune`, `unimported` | nieutrzymywane; autorzy odsyłają do knip |
 
 ## Implikacje dla kodu
+ADR-0112 egzekwuje reguła kanonu MT-CODE-010 (`metator rules show MT-CODE-010`): test zgodności `rules/conformance/mt-code-010.test.ts` uruchamia knip.
 - `knip.jsonc`, skrypt `knip` i `check` w `package.json`, krok w `.github/workflows/ci.yml`.
 - Rejestr zależności: `knip`.
