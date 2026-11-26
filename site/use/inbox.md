@@ -178,4 +178,4 @@ To make an answer you always give a policy, add `--always` ([Answers that repeat
 
 A click on a system task (or Enter) opens **its** board: the same columns with its steps and their child runs across repositories, steps not started in To do with what they wait for (a click opens [the step's detail](./plan.md#a-steps-detail), with **Plan this step**), and **Board ›** `<task>` at the top to go back (also Backspace or Escape).
 
-Above the board you filter by repository (several at once), by the words needs you, working and blocked, by host, and by a search. Arrows move between cards. **Start a run** on a To-do task starts it. Cards cannot be dragged to another column: the engine decides the phase.
+Above the board you filter by repository (several at once), by the words needs you, working and blocked (a backlog task not started reads `to do` and is not blocked), by host, and by a search. Arrows move between cards; Enter or Space opens one. **Start a run** on a To-do task starts it. Cards cannot be dragged to another column: the engine decides the phase.

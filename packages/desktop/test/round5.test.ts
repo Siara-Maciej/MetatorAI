@@ -301,11 +301,11 @@ describe("the board", () => {
     const keys = (f: Partial<typeof NO_FILTER>) =>
       filterCards(cards, { ...NO_FILTER, ...f }).map((c) => c.key);
     expect(keys({ repos: ["shop-api"] })).toEqual(["run:shop-api/sys", "run:shop-api/c1", "run:shop-api/c2"]);
-    // Four words: a proposal needs you; a backlog task and a pending step stand still (blocked).
+    // A proposal needs you; a pending step stands still (blocked); a backlog task not started is
+    // to do, not blocked.
     expect(keys({ states: ["needs you", "blocked"] })).toEqual([
       "run:shop-api/c1",
       "run:shop-web/c3",
-      "issue:shop-web/i001",
       "issue:shop-web/i002",
       "step:shop-api/add-currency/web-integration",
     ]);
@@ -372,7 +372,7 @@ describe("the board", () => {
     // Filters on the top level: a task works in every repository its steps do.
     const f = (x: object) => filterTasks(tasks, { repos: [], states: [], text: "", ...x }).map((t) => t.key);
     expect(f({ repos: ["shop-api"] })).toEqual(["plan:add-currency"]);
-    expect(f({ states: ["blocked"] })).toEqual(["plan:add-currency", "issue:shop-web/i001"]);
+    expect(f({ states: ["blocked"] })).toEqual(["plan:add-currency"]);
     expect(f({ text: "integration" })).toEqual(["plan:add-currency"]);
     expect(f({ host: "claude" })).toEqual(["run:shop-web/alone"]);
   });

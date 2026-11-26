@@ -21,7 +21,7 @@ Each row is one option: its name, what it does, its value, and where the value c
 | **repo** | the repository's `metator.config.yml` sets it |
 | **run** | a run overrides it for itself |
 
-Change a value in place: tick a box, pick from a list, or type and leave the field. The change is saved at once. A value the daemon refuses is not kept: the field goes back to the value that holds, and the reason stays at the top of the list until you close it. A row whose value is not the default has a button, **default**, which removes the value from the file and shows the default in the field. A chip **restart** marks an option that the daemon reads only when it starts.
+Change a value in place: tick a box, pick from a list, or type and press Enter or leave the field. The change is saved at once; an emptied number field changes nothing. A key bound to two actions says so on both rows. A value the daemon refuses is not kept: the field goes back to the value that holds, and the reason stays at the top of the list until you close it. A row whose value is not the default has a button, **default**, which removes the value from the file and shows the default in the field. A chip **restart** marks an option that the daemon reads only when it starts.
 
 The app writes your own options to your file and the repository's options to `metator.config.yml`. The bottom of the left column names both files.
 
@@ -79,7 +79,7 @@ metator config unset ui.paneBorders --scope user       # back to the default
 | `ui.paneBorders` | `auto`, `always`, `off` | `auto` | frames around terminal panes: only when a tab has several panes, always, or never |
 | `ui.paneLabels` | `true`, `false` | `true` | the title on a pane's frame, with the agent's name and state |
 | `ui.statusIndicators` | `symbols`, `dots` | `symbols` | a pane's state as a symbol (`✓` `⋮` `!` `?`) or as a dot |
-| `ui.confirmClosePane` | `true`, `false` | `true` | ask before a pane with a live process is closed |
+| `ui.confirmClosePane` | `true`, `false` | `true` | ask before a pane with a live process is closed (on Terminals, on a run's Terminal tab, and **Close chat** while its agent runs) |
 | `ui.attachOnType` | `ask`, `always`, `never` | `ask` | a key typed into an agent's pane: ask to take the keyboard, take it at once, or ignore the key |
 | `notify.channel` | `off` or any other value | `app` | `off` hides the toast that **Terminals** shows for a waiting question |
 

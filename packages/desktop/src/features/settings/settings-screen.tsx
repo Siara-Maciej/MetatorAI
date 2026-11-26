@@ -4,7 +4,7 @@
  * default. The app draws; the daemon validates and writes the scope's file.
  */
 
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import type { OptionDiagnostic, OptionScope, ResolvedOption } from "../../shared/api/api.ts";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
@@ -13,7 +13,7 @@ import { refusalText } from "../../shared/model/format.ts";
 import { Button } from "../../ui/button.tsx";
 import { moveInList } from "../../ui/list-keys.ts";
 import { Notice } from "../../ui/notice.tsx";
-import { optionMatches } from "./model.ts";
+import { fieldValue, keyConflicts, optionMatches } from "./model.ts";
 
 export function SettingsScreen() {
   const {
@@ -53,6 +53,8 @@ export function SettingsScreen() {
   }, [view, section, query]);
   const diagnosticsOf = (key: string): OptionDiagnostic[] =>
     (view?.diagnostics ?? []).filter((d) => d.key === key);
+  // A key bound to two actions is said on both rows; the daemon accepts each on its own.
+  const conflicts = useMemo(() => keyConflicts(view?.options ?? []), [view]);
   const change = async (o: ResolvedOption, value: unknown, reset = false) => {
     const scope: OptionScope = o.definition.scope === "user" ? "user" : "repo";
     // The options are read again either way: a refused value must not stay in the field (D6).
@@ -132,6 +134,7 @@ export function SettingsScreen() {
                 key={url}
                 aria-label="daemon url"
                 defaultValue={url}
+                onKeyDown={commitOnEnter}
                 onBlur={(e) => {
                   if (e.target.value.trim() !== "" && e.target.value !== url) setUrl(e.target.value);
                 }}
@@ -147,6 +150,7 @@ export function SettingsScreen() {
                 key={me}
                 aria-label="your name"
                 defaultValue={me}
+                onKeyDown={commitOnEnter}
                 onBlur={(e) => setMe(e.target.value.trim())}
               />
               <span className="src dim">this window</span>
@@ -167,6 +171,7 @@ export function SettingsScreen() {
                 key={`${o.key}:${JSON.stringify(o.value)}:${String(refused)}`}
                 option={o}
                 diagnostics={diagnosticsOf(o.key)}
+                conflicts={conflicts[o.key] ?? []}
                 onChange={change}
               />
             ))}
@@ -181,10 +186,13 @@ export function SettingsScreen() {
 function OptionRow({
   option: o,
   diagnostics,
+  conflicts,
   onChange,
 }: {
   readonly option: ResolvedOption;
   readonly diagnostics: readonly OptionDiagnostic[];
+  /** The other actions bound to one of its keys. */
+  readonly conflicts: readonly string[];
   onChange(option: ResolvedOption, value: unknown, reset?: boolean): Promise<void>;
 }) {
   const d = o.definition;
@@ -199,6 +207,11 @@ function OptionRow({
         {diagnostics.map((x) => (
           <div key={x.message} className="d amber">
             {x.source}: {x.message}
+          </div>
+        ))}
+        {conflicts.map((c) => (
+          <div key={c} className="d amber" data-testid="key-conflict">
+            {c}: one key, two actions
           </div>
         ))}
       </div>
@@ -252,41 +265,32 @@ function OptionInput({
         ))}
       </select>
     );
-  if (d.kind === "number")
-    return (
-      <input
-        type="number"
-        aria-label={o.key}
-        defaultValue={Number(o.value)}
-        min={d.min}
-        max={d.max}
-        disabled={disabled}
-        onBlur={(e) => {
-          const n = Number(e.target.value);
-          if (n !== o.value) onChange(n);
-        }}
-      />
-    );
-  // list, keybinding, string, command: one text field; lists and keys as `a, b`.
+  // number, list, keybinding, string, command: one field committed on Enter or when left; lists
+  // and keys as `a, b`. What changes nothing (an emptied number) puts back the value that holds.
   const text = Array.isArray(o.value) ? (o.value as string[]).join(", ") : String(o.value ?? "");
   return (
     <input
+      type={d.kind === "number" ? "number" : undefined}
       aria-label={o.key}
       className={d.kind === "keybinding" || d.kind === "command" ? "mono" : undefined}
       defaultValue={text}
+      min={d.min}
+      max={d.max}
       disabled={disabled}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") e.currentTarget.value = text;
+        commitOnEnter(e);
+      }}
       onBlur={(e) => {
-        const v = e.target.value;
-        if (v === text) return;
-        onChange(
-          d.kind === "list" || d.kind === "keybinding"
-            ? v
-                .split(",")
-                .map((s) => s.trim())
-                .filter((s) => s !== "")
-            : v,
-        );
+        const next = fieldValue(d, e.target.value, o.value);
+        if (next) onChange(next.value);
+        else e.target.value = text;
       }}
     />
   );
+}
+
+/** Enter commits a field as leaving it does. */
+function commitOnEnter(e: KeyboardEvent<HTMLInputElement>) {
+  if (e.key === "Enter") e.currentTarget.blur();
 }

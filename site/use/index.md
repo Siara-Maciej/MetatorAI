@@ -37,13 +37,14 @@ The app is built so that the first thing you see is simple, and the details come
 2. **A task**: how this task goes. Its page has its flow, its steps by repository and the one thing to decide.
 3. **A step**: what the agent does exactly. Its page has its terminal, its changes, its activity, its plan and its artifacts.
 
-On the first level a thing reads one of four words:
+On the first level a thing reads one of five words:
 
 | Word | Means |
 |---|---|
 | `needs you` | it asks: a decision on Home, or a question in its terminal |
 | `working` | an agent works on it |
 | `blocked` | it stands still and does not ask: it escalated, it waits for another step, or nothing drives it |
+| `to do` | a backlog task nobody started yet: nothing is wrong with it |
 | `done` | it finished, also when it was closed without its work |
 
 A blocked thing says why in one line on its task's page and its own: `escalated at build: …`, `waits for price-endpoint`, `nothing drives it: Open a session`. The finer words of a run or a pane (`asks`, `idle`, `exited`, `aborted`, `escalated`) are in its terminal and in **Details** on its page.
@@ -56,7 +57,7 @@ Everything else is two parts: the sidebar on the left, which stays on every scre
 
 ## The sidebar
 
-The sidebar is the first level. Every row is built the same way: the glyph of one of the four words, a name, the word at the right, and one dim line under the name. A row has no run id, no host and no age: those are on the run's page, under **Details**.
+The sidebar is the first level. Every row is built the same way: the glyph of one of the five words, a name, the word at the right, and one dim line under the name. A row has no run id, no host and no age: those are on the run's page, under **Details**.
 
 **Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens Home, which shows them one at a time ([Home and the Board](./inbox.md)).
 

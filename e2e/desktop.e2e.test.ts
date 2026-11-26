@@ -453,6 +453,11 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       ((await api("/layout")).data.panes as { runId?: string }[]).filter((p) => p.runId === runId),
     ).toEqual([]);
     expect(await term.count()).toBe(0);
+    // With no terminal there is nothing to attach to or type into; the tab points at the bar's
+    // one "Open a session" instead of offering a second.
+    expect(await page.getByRole("button", { name: "Attach · a" }).isDisabled()).toBe(true);
+    expect(await page.getByLabel("message to the session").isDisabled()).toBe(true);
+    expect(await page.getByTestId("no-session").textContent()).toContain("in the bar above");
     await page.getByRole("button", { name: "Open a session" }).click();
     await nameIfAsked();
     await term.waitFor({ timeout: 20_000 });
@@ -508,7 +513,14 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the shell tab", async () =>
       (await panes.textContent())?.includes("shell") ? true : undefined,
     );
+    // A live pane asks before it closes (ui.confirmClosePane), here as on Terminals.
+    const closing: string[] = [];
+    page.once("dialog", (d) => {
+      closing.push(d.message());
+      void d.accept();
+    });
     await panes.getByTitle(/^close w\d+:p\d+$/).click();
+    expect(closing[0]).toMatch(/^Close shell \(w\d+:p\d+\)\?$/);
     await until("the shell tab gone", async () =>
       (await panes.textContent())?.includes("shell") ? undefined : true,
     );
@@ -633,6 +645,15 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/backlog`);
     await page.getByTestId("backlog").waitFor({ timeout: 20_000 });
     await page.getByRole("button", { name: "+ task" }).click();
+    // A title of spaces is no title; Escape leaves the form as Cancel does.
+    await page.getByLabel("title").fill("   ");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.locator(".backlog .notice").waitFor({ timeout: 5000 });
+    expect(await page.locator(".backlog .notice .msg").textContent()).toBe("a task needs a title");
+    await page.locator(".backlog .notice").getByLabel("dismiss").click();
+    await page.getByLabel("title").press("Escape");
+    expect(await page.getByRole("form", { name: "a new task" }).count()).toBe(0);
+    await page.getByRole("button", { name: "+ task" }).click();
     await page.getByLabel("title").fill("Flaky checkout.spec");
     await page.getByLabel("what and why").fill("Fails one run in five.");
     await page.getByRole("button", { name: "Add", exact: true }).click();
@@ -648,6 +669,16 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
         body: JSON.stringify({ ok: false, error: { code: "USAGE", message: "the task is locked" } }),
       }),
     );
+    // Done cannot be taken back: it asks first, and a No does nothing.
+    const asked: string[] = [];
+    page.once("dialog", (d) => {
+      asked.push(d.message());
+      void d.dismiss();
+    });
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    expect(asked).toEqual(['Mark i001 "Flaky checkout.spec" done? The app cannot reopen it.']);
+    expect(await page.locator(".backlog .notice").count()).toBe(0);
+    page.once("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Done", exact: true }).click();
     await page.locator(".backlog .notice").waitFor({ timeout: 5000 });
     await Bun.sleep(4500);
@@ -748,8 +779,13 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     expect(await page.locator(".settings-screen .notice .msg").textContent()).toContain(
       "supervisor.wipLimit was not changed",
     );
-    await limit.locator("input").fill("7");
+    // An emptied number changes nothing (never 0); Enter commits as leaving the field does.
+    await limit.locator("input").fill("");
     await limit.locator("input").blur();
+    expect(await limit.locator("input").inputValue()).toBe("4");
+    expect(await limit.getAttribute("data-source")).toBe("default");
+    await limit.locator("input").fill("7");
+    await limit.locator("input").press("Enter");
     await until("the limit set", async () =>
       (await limit.getAttribute("data-source")) === "repo" ? true : undefined,
     );

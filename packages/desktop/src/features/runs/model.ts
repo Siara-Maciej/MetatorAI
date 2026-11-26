@@ -2,6 +2,7 @@
  * A run's page: its phase, its conductor, its terminal's ports, why it stopped, the new-run form's choices.
  */
 import type { Activity, PaneView, PlanLintProblem, RunOverview } from "../../shared/api/api.ts";
+import { idleRuns } from "../../shared/model/needs.ts";
 import { sameRepo } from "../../shared/model/places.ts";
 import { isFinished, type Run } from "../../shared/model/runs.ts";
 
@@ -82,3 +83,14 @@ export const problemsAt = <P extends Pick<PlanLintProblem, "step" | "field">>(
   problems.filter(
     (p) => p.step === step && (field === undefined || p.field === field || p.field?.endsWith(`.${field}`)),
   );
+/**
+ * The run's page offers "Open a session" in its bar above the tabs (an idle run, or one whose
+ * question waits on a card): the Terminal tab points there instead of offering it twice.
+ */
+export const sessionOfferedAbove = <R extends Run>(
+  r: R,
+  panes: readonly (Pick<PaneView, "runId" | "live"> & { readonly repo?: string | undefined })[],
+): boolean => runPhase(r) === "active" && (asksWithoutSession(r, panes) || idleRuns([r], panes).length > 0);
+/** An event's line in a plain list: its agent first, unless the text already starts with it. */
+export const activityLine = (e: Pick<Activity, "agent" | "text">): string =>
+  e.agent && !e.text.startsWith(`${e.agent} `) ? `${e.agent} ${e.text}` : e.text;

@@ -21,6 +21,15 @@ export const listOf = (text: string): string[] =>
 
 export const textOf = (list: readonly string[] | undefined): string => (list ?? []).join(", ");
 
+/**
+ * A run's plan has a lint to show when its workflow writes `plan.json` or its board holds a plan:
+ * a workflow with no plan stage has no plan to lint, not "no problems".
+ */
+export const planLintShown = (
+  view: { readonly artifactsOfWorkflow: readonly string[] } | undefined,
+  boardHasPlan: boolean,
+): boolean => view !== undefined && (boardHasPlan || view.artifactsOfWorkflow.includes("plan.json"));
+
 /** The next id of a list whose ids are a prefix and a number: `S3` after `S1, S2`. */
 export function nextId(ids: readonly string[], prefix: string): string {
   const numbers = ids.map((id) => Number(id.startsWith(prefix) ? id.slice(prefix.length) : Number.NaN));

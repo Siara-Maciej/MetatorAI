@@ -6,6 +6,7 @@
 
 import type { ThreadView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
+import { useConfirmClose } from "../../shared/confirm.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useTasks } from "../../shared/hooks.ts";
 import { lookOf } from "../../shared/model/look.ts";
@@ -20,9 +21,13 @@ import { useThreadAct } from "./chat-actions.ts";
 
 export function ThreadScreen({ id }: { readonly id: string }) {
   const act = useThreadAct();
-  const onClose = (t: ThreadView) => void act(t, "close");
-  const onReopen = (t: ThreadView) => void act(t, "reopen");
+  const confirmClose = useConfirmClose();
   const { panes, paneAsks, threads } = useDaemon("panes", "paneAsks", "threads");
+  // Close chat stops its agent: asked first while it lives (ui.confirmClosePane).
+  const onClose = (t: ThreadView) => {
+    if (confirmClose.thread(t, threadPane(t, panes))) void act(t, "close");
+  };
+  const onReopen = (t: ThreadView) => void act(t, "reopen");
   const tasks = byAttentionFirst(useTasks());
   const thread = threads.find((t) => t.id === id);
   if (!thread) return <div className="empty">No chat {id} here: it may still be on its way.</div>;

@@ -20,6 +20,7 @@ import { problemsAt } from "../runs/model.ts";
 import { FieldProblems, ProblemList } from "./doc-editor.tsx";
 import { FromPlanButton } from "./from-plan-button.tsx";
 import { PlanChanges } from "./plan-changes.tsx";
+import { planLintShown } from "./plan-edit.ts";
 
 const or = (items: readonly string[]): string => (items.length > 0 ? items.join(", ") : "—");
 
@@ -67,10 +68,12 @@ export function StepPlan({
     : [];
   // The planner writes the plan; a person reads it here and asks for changes on its approval card.
   const errors = problems.filter((p) => p.severity === "error");
-  const bar = planned.data ? (
+  // A workflow with no plan stage has no plan to lint: no bar, rather than "no problems".
+  const lint = planLintShown(planned.data, board.plan !== undefined) ? planned.data?.lint : undefined;
+  const bar = lint ? (
     <div className="lint-bar" data-testid="plan-lint-bar">
       <span className={errors.length > 0 ? "red" : problems.length > 0 ? "amber" : "green"}>
-        lint: {lintSummary(planned.data.lint)}
+        lint: {lintSummary(lint)}
       </span>
       <span className="faint">
         {" "}

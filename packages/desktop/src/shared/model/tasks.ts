@@ -249,7 +249,8 @@ export function filterTasks(
   return tasks.filter((t) => {
     if (f.repos.length > 0 && !t.repos.some((r) => f.repos.includes(r))) return false;
     if (f.states.length > 0) {
-      // The four words: a task is in "needs you" or "blocked" when any of its runs is.
+      // The first level's words: a task is in "needs you" or "blocked" when any of its runs is; a
+      // task nobody started is "to do", not blocked.
       const has = (s: string) =>
         s === "needs you"
           ? t.needsYou > 0
