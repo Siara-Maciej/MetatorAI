@@ -40,7 +40,8 @@ export const WatchedFindingSchema = z.strictObject({
 });
 export type WatchedFinding = z.output<typeof WatchedFindingSchema>;
 
-export const WatchedReviewSchema = z.strictObject({
+/** v1. Never change it. */
+const WatchedReviewV1Schema = z.strictObject({
   id: z.string().min(1),
   url: z.string().min(1),
   /** GitHub or GitLab (a document's `kind` is its own type, so the host's kind is named here). */
@@ -92,10 +93,22 @@ export const WatchedReviewSchema = z.strictObject({
   createdAt: iso,
   updatedAt: iso,
 });
+
+/**
+ * v2 adds `publishedRuns`: the review runs whose review was posted (or is being posted), so a
+ * run is published once; a retry after a failed save posts nothing twice. Every v1 file is a v2
+ * file (none recorded: a v1 file never said which run it published).
+ */
+export const WatchedReviewSchema = z.strictObject({
+  ...WatchedReviewV1Schema.shape,
+  publishedRuns: z.array(z.string().min(1)).optional(),
+});
 export type WatchedReview = z.output<typeof WatchedReviewSchema>;
 
 export const WatchedReviewDocument = defineDocument("WatchedReview", {
+  history: [{ schema: WatchedReviewV1Schema }],
   latest: WatchedReviewSchema,
+  upgrade: (v1) => v1,
   hint: "Written by `metator review …` and the daemon; do not edit by hand.",
 });
 

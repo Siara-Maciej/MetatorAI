@@ -38,7 +38,7 @@ import {
 } from "../domain/watched-review.ts";
 import type { Clock, FileLock, FileSystem, ReviewerHost, ReviewHost } from "../ports/index.ts";
 import type { ConductorSession } from "../ports/run-drive.ts";
-import { loadDocument, writeDocument } from "./document-io.ts";
+import { loadDocument, readDocument, writeDocument } from "./document-io.ts";
 import type { StartRun } from "./run-operations.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { Threads } from "./threads.ts";
@@ -94,6 +94,12 @@ const refOf = (r: Pick<WatchedReview, "codehost" | "host" | "repo" | "number" | 
   number: r.number,
   url: r.url,
 });
+/** A run's review is posted once: what a second publish of it is told. */
+const publishedAlready = (id: string, number: number, runId: string) =>
+  new MetatorError("CONFLICT", `the review run ${runId} of MR #${number} was published already`, {
+    hint: `Nothing was posted again. \`metator review show ${id}\` shows what was recorded; check the MR at its host. A re-review (\`metator review rereview ${id}\`) is a new run to publish.`,
+    details: { review: id, runId },
+  });
 /** The local branch a full review fetches a request into. */
 const reviewBranch = (id: string) => `metator/review-${id}`;
 /** The request's head as its host names it to `git fetch`. */
@@ -267,6 +273,8 @@ export class WatchedReviews {
     if (review.isErr()) return err(review.error);
     const runId = input.runId ?? review.value.runs.at(-1);
     if (!runId) return err(MetatorError.usage(`MR #${review.value.number} has no review run to publish`));
+    if (review.value.publishedRuns?.includes(runId))
+      return err(publishedAlready(review.value.id, review.value.number, runId));
     const run = await this.d.runs.load(runId);
     if (run.isErr()) return err(run.error);
     // One consent covers the whole review: the approval gate (or autonomy) granted `comment`.
@@ -288,6 +296,15 @@ export class WatchedReviews {
     const comments = formatted.comments.map((c) => ({ file: c.path, line: c.line, body: c.body }));
     const routed = await this.route(refOf(review.value));
     if (routed.isErr()) return err(routed.error);
+    // The run is marked published under the lock before anything is posted: a second publish
+    // meanwhile, or a retry after the record below failed, is refused instead of posting twice.
+    const claimed = await this.locked(review.value.id, (current) => {
+      if (!current) return err(MetatorError.notFound(`review ${review.value.id}`));
+      if (current.publishedRuns?.includes(runId))
+        return err(publishedAlready(review.value.id, review.value.number, runId));
+      return ok({ ...current, publishedRuns: [...(current.publishedRuns ?? []), runId] });
+    });
+    if (claimed.isErr()) return err(claimed.error);
     const posted = await routed.value.host.publish(routed.value.source, review.value.number, {
       body,
       // The head the review read: a commit pushed since is not what it comments on.
@@ -295,6 +312,13 @@ export class WatchedReviews {
       comments,
     });
     if (posted.isErr()) {
+      // Nothing was posted: the run may be published again.
+      const released = await this.locked(review.value.id, (current) =>
+        ok(
+          current && { ...current, publishedRuns: (current.publishedRuns ?? []).filter((r) => r !== runId) },
+        ),
+      );
+      if (released.isErr()) return err(released.error);
       if (posted.error.details?.inline === false)
         return ok({
           published: false,
@@ -339,6 +363,7 @@ export class WatchedReviews {
         ...base,
         comments: [...base.comments, ...published],
         findings: [...base.findings, ...findings],
+        publishedRuns: [...(base.publishedRuns ?? []).filter((r) => r !== runId), runId],
         watch: { active: this.d.codehost.review.watch },
       });
     });
@@ -413,6 +438,8 @@ export class WatchedReviews {
   async watch(idOrUrl: string, input: { readonly by: string }): Promise<Result<ReviewView, MetatorError>> {
     const known = await this.show(idOrUrl);
     if (known.isOk()) return this.change(known.value.id, (r) => ok({ ...r, watch: { active: true } }));
+    // A file that cannot be read is not "no review": it says why.
+    if (known.error.code !== "NOT_FOUND") return err(known.error);
     const ref = parseMrUrl(idOrUrl);
     if (ref.isErr()) return err(known.error);
     const read = await this.read(ref.value);
@@ -467,8 +494,9 @@ export class WatchedReviews {
     const ended: string[] = [];
     const news: string[] = [];
     const requested: string[] = [];
-    const errors: string[] = [];
-    const all = await this.all();
+    const { reviews: all, unreadable } = await this.all();
+    // Reported, and left as they are: a request of the same MR is not recorded over one.
+    const errors = unreadable.map((u) => `${u.id}: ${u.error.message}`);
     for (const review of all) {
       if (!review.watch.active) continue;
       const read = await this.read(refOf(review));
@@ -515,10 +543,10 @@ export class WatchedReviews {
         }
         return ok(dirty ? next : undefined);
       });
-      if (saved.isErr()) return err(saved.error);
+      if (saved.isErr()) errors.push(`${review.id}: ${saved.error.message}`);
     }
     if (this.d.codehost.review.watch) {
-      const known = new Set(all.map((r) => r.id));
+      const known = new Set([...all.map((r) => r.id), ...unreadable.map((u) => u.id)]);
       for (const source of reviewSourcesOf(this.d.codehost)) {
         const routed = await this.route({ ...source, host: `${source.kind}.com` });
         if (routed.isErr()) {
@@ -547,7 +575,10 @@ export class WatchedReviews {
             created = current === undefined;
             return ok(current ? undefined : made);
           });
-          if (saved.isErr()) return err(saved.error);
+          if (saved.isErr()) {
+            errors.push(`${id}: ${saved.error.message}`);
+            continue;
+          }
           known.add(id);
           if (created) requested.push(id);
         }
@@ -560,7 +591,8 @@ export class WatchedReviews {
     Result<{ readonly reviews: readonly ReviewView[]; readonly cards: readonly ReviewCard[] }, MetatorError>
   > {
     const views: ReviewView[] = [];
-    for (const r of await this.all()) views.push(await this.view(r));
+    // A file that cannot be read is left out of the list; `show` and the watcher say why.
+    for (const r of (await this.all()).reviews) views.push(await this.view(r));
     const sorted = views.sort(
       (a, b) => Number(b.watch.active) - Number(a.watch.active) || b.updatedAt.localeCompare(a.updatedAt),
     );
@@ -576,8 +608,9 @@ export class WatchedReviews {
     const ref = parseMrUrl(idOrUrl);
     const id = ref.isOk() ? reviewId(ref.value, ref.value.number) : idOrUrl;
     const review = await this.load(id);
-    return review
-      ? ok(await this.view(review))
+    if (review.isErr()) return err(review.error);
+    return review.value
+      ? ok(await this.view(review.value))
       : err(MetatorError.notFound(`review ${id}`, { hint: "`metator review list` shows the watched MRs." }));
   }
 
@@ -638,7 +671,9 @@ export class WatchedReviews {
       readonly delta?: string;
     },
   ): Promise<Result<Omit<StartedReview, "mode">, MetatorError>> {
-    const review = shape(await this.load(id));
+    const loaded = await this.load(id);
+    if (loaded.isErr()) return err(loaded.error);
+    const review = shape(loaded.value);
     const local = review.mode === "local";
     if (local && this.d.fetchRef) {
       const fetched = await this.d.fetchRef(headRef(refOf(review)), reviewBranch(review.id));
@@ -785,7 +820,10 @@ export class WatchedReviews {
     edit: (current: WatchedReview | undefined) => Result<WatchedReview | undefined, MetatorError>,
   ): Promise<Result<WatchedReview | undefined, MetatorError>> {
     return this.lock.hold(`${this.d.dir}/${id}.json`, async () => {
-      const current = await this.load(id);
+      const loaded = await this.load(id);
+      // A file this version cannot read is never taken for none and written over.
+      if (loaded.isErr()) return err(loaded.error);
+      const current = loaded.value;
       const next = edit(current);
       if (next.isErr()) return err(next.error);
       if (!next.value) return ok(current);
@@ -795,20 +833,27 @@ export class WatchedReviews {
     });
   }
 
-  private async all(): Promise<WatchedReview[]> {
-    const out: WatchedReview[] = [];
+  /** Every review that can be read, and the ids of the files that cannot (with why). */
+  private async all(): Promise<{
+    readonly reviews: WatchedReview[];
+    readonly unreadable: readonly { readonly id: string; readonly error: MetatorError }[];
+  }> {
+    const reviews: WatchedReview[] = [];
+    const unreadable: { id: string; error: MetatorError }[] = [];
     const files = await this.d.fs.glob([`${this.d.dir}/github-*.json`, `${this.d.dir}/gitlab-*.json`]);
     for (const file of [...files].sort()) {
       const r = await loadDocument(this.d.fs, file, WatchedReviewDocument, "json");
-      if (r.isOk()) out.push(r.value);
+      if (r.isOk()) reviews.push(r.value);
+      else
+        unreadable.push({ id: file.slice(file.lastIndexOf("/") + 1).replace(/\.json$/, ""), error: r.error });
     }
-    return out;
+    return { reviews, unreadable };
   }
 
-  private async load(id: string): Promise<WatchedReview | undefined> {
-    if (!/^(?:github|gitlab)-[A-Za-z0-9-]+$/.test(id)) return undefined;
-    const r = await loadDocument(this.d.fs, `${this.d.dir}/${id}.json`, WatchedReviewDocument, "json");
-    return r.isOk() ? r.value : undefined;
+  /** A review's file: undefined when there is none, an error when it cannot be read (newer, torn). */
+  private async load(id: string): Promise<Result<WatchedReview | undefined, MetatorError>> {
+    if (!/^(?:github|gitlab)-[A-Za-z0-9-]+$/.test(id)) return ok(undefined);
+    return readDocument(this.d.fs, `${this.d.dir}/${id}.json`, WatchedReviewDocument, "json");
   }
 
   private save(review: WatchedReview): Promise<Result<void, MetatorError>> {

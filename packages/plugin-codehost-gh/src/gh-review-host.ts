@@ -163,9 +163,10 @@ export function ghCalls(source: ReviewSource): {
       "graphql",
       "-f",
       `query=${THREADS_QUERY}`,
-      "-F",
+      // -f: a string as it is; -F would send an owner `2048` or a repo `true` as a number or boolean.
+      "-f",
       `owner=${owner}`,
-      "-F",
+      "-f",
       `name=${name}`,
       "-F",
       `number=${number}`,

@@ -58,9 +58,9 @@ Reviewed from the diff only: no local checkout, so the repository's rules, contr
 
 It is one workflow: its input `source` is `local` or `diff`.
 
-**Publishing.** The review is first the agent's answer in the chat. The `approval` gate is the card **Publish the review of MR #45? (3 inline comments, 1 general)**: one Yes publishes all of it, inline where the host allows. When the host or the tool cannot comment on lines, nothing is posted: the agent says so and gives you the list, and you decide the other form. With `codehost.review.autoPublish: true` the gate is skipped.
+**Publishing.** The review is first the agent's answer in the chat. The `approval` gate is the card **Publish the review of MR #45? (3 inline comments, 1 general)**: one Yes publishes all of it, inline where the host allows. When the host or the tool cannot comment on lines, nothing is posted: the agent says so and gives you the list, and you decide the other form. A review run is published once: publishing the same run again is refused (`CONFLICT`) and posts nothing; a re-review is a new run to publish. With `codehost.review.autoPublish: true` the gate is skipped.
 
-**Watching.** A reviewed request, and one where you are a requested reviewer, is kept in `.metator/reviews/<id>.json` (`github-acme-shop-45`) and watched every `codehost.review.everyMs` (two minutes by default) for new commits and the author's replies. Watching ends when the request is merged or closed, when you approve it, or with `metator review unwatch`.
+**Watching.** A reviewed request, and one where you are a requested reviewer, is kept in `.metator/reviews/<id>.json` (`github-acme-shop-45`) and watched every `codehost.review.everyMs` (two minutes by default) for new commits and the author's replies. Watching ends when the request is merged or closed, when you approve it, or with `metator review unwatch`. A file there that this version cannot read (written by a newer MetatorAI, or damaged) is reported and left as it is, never written over; the same holds for `.metator/mrs/`.
 
 **Re-review.** New commits or a reply make one card, **MR #45: 2 new commits, 1 reply**. **Re-review** opens the agent's terminal: the lenses read only what the new commits changed (`delta.diff`), and the judge decides the state of every earlier finding (`fixed`, `not-fixed`, `disputed`, `outdated`) with a reason. MetatorAI first marks candidates: the commented code changed, the author resolved the thread, or replied in it. A candidate is a hint; only the agent's `metator review finding` sets a state.
 
@@ -185,4 +185,4 @@ metator mrs resolve github-acme-shop-45 --thread T1 --by maciej
 metator mrs analyse github-acme-shop-45                       # Analyse, through the daemon: the responder in a pane
 ```
 
-Both commands refuse to run without `--by`: what leaves your machine is sent under a name you typed.
+Both commands refuse to run without `--by`: what leaves your machine is sent under a name you typed. Each reply is recorded as sent the moment the host takes it, so when a send stops halfway (the host refused one reply), running it again posts only the replies not sent yet.

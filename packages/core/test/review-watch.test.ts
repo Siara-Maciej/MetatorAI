@@ -24,8 +24,17 @@ const thread = (id: string, extra: Partial<HostThread> = {}): HostThread => ({
   ...extra,
 });
 
-function world(threads: () => HostThread[] | MetatorError, notifyExit = 0, analyse = true) {
+function world(
+  threads: () => HostThread[] | MetatorError,
+  notifyExit = 0,
+  analyse = true,
+  opts: { readonly more?: boolean } = {},
+) {
   const fs = new InMemoryFileSystem();
+  /** Threads whose reply the host refuses. */
+  const failing = new Set<string>();
+  /** Runs once, the next time the scan asks whether a run goes on (between its read and its write). */
+  const hooks: { onRunActive?: (() => Promise<void>) | undefined } = {};
   const panes: Record<string, unknown>[] = [];
   const started: { workflow: string; task: string; base?: string }[] = [];
   const sent: string[] = [];
@@ -67,6 +76,7 @@ function world(threads: () => HostThread[] | MetatorError, notifyExit = 0, analy
             author: "maciej",
           },
           { number: 46, title: "Someone else's", author: "ola" },
+          ...(opts.more ? [{ number: 47, title: "Rename the cart", author: "maciej" }] : []),
         ]),
       listThreads: async (_s, n) => {
         // The other author's request is reviewed too: only the author filter keeps it out.
@@ -74,6 +84,7 @@ function world(threads: () => HostThread[] | MetatorError, notifyExit = 0, analy
         return t instanceof MetatorError ? err(t) : ok(t);
       },
       reply: async (_s, n, id, text) => {
+        if (failing.has(id)) return err(MetatorError.usage(`the host refused the reply to ${id}`));
         sent.push(`reply #${n} ${id}: ${text}`);
         return ok(undefined);
       },
@@ -93,10 +104,15 @@ function world(threads: () => HostThread[] | MetatorError, notifyExit = 0, analy
         return ok({ runId: `run-${started.length}` } as never);
       },
     },
-    runActive: async (runId) => runId === "run-1" && !done.has(runId),
+    runActive: async (runId) => {
+      const hook = hooks.onRunActive;
+      hooks.onRunActive = undefined;
+      if (hook) await hook();
+      return runId === "run-1" && !done.has(runId);
+    },
     runDone: async (runId) => done.has(runId),
   });
-  return { fs, reviews, started, sent, notified, done, panes };
+  return { fs, reviews, started, sent, notified, done, panes, failing, hooks };
 }
 
 describe("reviews of my requests (T3, design/14 §4)", () => {
@@ -329,5 +345,71 @@ describe("reviews of my requests (T3, design/14 §4)", () => {
     expect((await bare.analyse("github-acme-shop-45"))._unsafeUnwrapErr().message).toContain(
       "needs the daemon",
     );
+  });
+
+  test("a send that fails halfway keeps what it posted: a retry posts only the rest", async () => {
+    const w = world(() => [thread("t1"), thread("t2"), thread("t3")]);
+    await w.reviews.scan();
+    const id = "github-acme-shop-45";
+    for (const t of ["t1", "t2", "t3"])
+      await w.reviews.triage(id, t, { kind: "question", reply: `About ${t}.` });
+    w.failing.add("t2");
+    expect((await w.reviews.send(id, { by: "maciej" }))._unsafeUnwrapErr().message).toContain("t2");
+    expect(w.sent).toEqual(["reply #45 t1: About t1."]);
+    const between = (await w.reviews.show(id))._unsafeUnwrap();
+    expect(between.threads.map((t) => [t.id, t.state, t.repliedAt !== undefined])).toEqual([
+      ["t1", "answered", true],
+      ["t2", "open", false],
+      ["t3", "open", false],
+    ]);
+    w.failing.clear();
+    expect((await w.reviews.send(id, { by: "maciej" }))._unsafeUnwrap().sent).toEqual(["t2", "t3"]);
+    expect(w.sent).toEqual(["reply #45 t1: About t1.", "reply #45 t2: About t2.", "reply #45 t3: About t3."]);
+  });
+
+  test("a review file that cannot be read is reported and never written over; the scan goes on with the others", async () => {
+    const w = world(() => [thread("t1")], 0, true, { more: true });
+    const id = "github-acme-shop-45";
+    const file = `${DEFAULT_PATHS.mrs}/${id}.json`;
+    const newer = JSON.stringify({ kind: "PullRequestReview", schemaVersion: 99, from: "a newer metator" });
+    await w.fs.write(file, newer);
+    const report = (await w.reviews.scan())._unsafeUnwrap();
+    expect(report.errors).toEqual([expect.stringContaining(`${id}: `)]);
+    expect(report.errors[0]).toContain("newer than supported");
+    expect(report.requests.map((r) => r.id)).toEqual(["github-acme-shop-47"]);
+    expect((await w.fs.read(file))._unsafeUnwrap()).toBe(newer);
+    // Shown, triaged, sent or resolved: the reason, not "not found", and the file as it was.
+    expect((await w.reviews.show(id))._unsafeUnwrapErr().code).toBe("INVALID_ARTIFACT");
+    expect((await w.reviews.triage(id, "t1", { kind: "nit" }))._unsafeUnwrapErr().code).toBe(
+      "INVALID_ARTIFACT",
+    );
+    expect((await w.reviews.send(id, { by: "maciej" }))._unsafeUnwrapErr().code).toBe("INVALID_ARTIFACT");
+    expect((await w.reviews.resolve(id, "t1", { by: "maciej" }))._unsafeUnwrapErr().code).toBe(
+      "INVALID_ARTIFACT",
+    );
+    await w.fs.write(file, "{ torn");
+    expect((await w.reviews.scan())._unsafeUnwrap().errors).toEqual([
+      expect.stringContaining("not valid JSON"),
+    ]);
+    expect((await w.fs.read(file))._unsafeUnwrap()).toBe("{ torn");
+    expect(w.sent).toEqual([]);
+  });
+
+  test("a triage written while a scan waits on the host is kept: the scan writes over the file as it is then", async () => {
+    let listed = [thread("t1")];
+    const w = world(() => listed);
+    await w.reviews.scan();
+    const id = "github-acme-shop-45";
+    listed = [thread("t1"), thread("t2")];
+    w.hooks.onRunActive = async () => {
+      (await w.reviews.triage(id, "t1", { kind: "question", reply: "Cents." }))._unsafeUnwrap();
+    };
+    const report = (await w.reviews.scan())._unsafeUnwrap();
+    expect(report.requests[0]).toMatchObject({ fresh: ["t2"] });
+    const kept = (await w.reviews.show(id))._unsafeUnwrap();
+    expect(kept.threads.map((t) => [t.id, t.kind, t.reply])).toEqual([
+      ["t1", "question", "Cents."],
+      ["t2", "unsorted", undefined],
+    ]);
   });
 });

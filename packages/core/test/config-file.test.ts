@@ -70,6 +70,28 @@ test("saving a setting into a config that is not valid as it is changes nothing,
   expect((await fs.read("metator.config.yml"))._unsafeUnwrap()).toBe(before);
 });
 
+test("a v14 YAML file whose MCP server name `via` cannot hold is saved with the server renamed in mcp too", async () => {
+  const yaml = new InMemoryFileSystem({
+    "metator.config.yml": [
+      "kind: MetatorConfig",
+      "schemaVersion: 14",
+      "mcp:",
+      "  github: { command: gh-mcp } # ours",
+      '  "my server": { command: lab-mcp }',
+      "reviews:",
+      "  sources:",
+      '    - { kind: gitlab, repo: grp/app, mcp: "my server" }',
+      "",
+    ].join("\n"),
+  });
+  (await editRepoConfig(yaml, [{ path: ["editor"], value: "zed" }], "Why."))._unsafeUnwrap();
+  const text = (await yaml.read("metator.config.yml"))._unsafeUnwrap();
+  expect(text).toContain("# ours");
+  const doc = parse(text);
+  expect(doc.mcp).toEqual({ github: { command: "gh-mcp" }, "my-server": { command: "lab-mcp" } });
+  expect(doc.codehost.sources[0].via).toBe("mcp:my-server");
+});
+
 test("a setting saved into a v14 file moves its sources to codehost (ADR-0097): YAML keeps its comments, JSON too", async () => {
   const yaml = new InMemoryFileSystem({
     "metator.config.yml": [
