@@ -237,7 +237,7 @@ describe("run lifecycle", () => {
 
   test("status without any run says how to start one", async () => {
     const error = (await world().status.execute({}))._unsafeUnwrapErr();
-    expect([error.code, error.hint]).toEqual(["NOT_FOUND", "Start one with `metator run init`."]);
+    expect([error.code, error.hint]).toEqual(["NOT_FOUND", "Start one with `metator run new`."]);
   });
 
   test("unknown run id is NOT_FOUND with a hint", async () => {
@@ -320,6 +320,22 @@ describe("run lifecycle", () => {
     expect(bumps.every((b) => b.isOk())).toBe(true);
     expect((await w.repo.load(run.runId))._unsafeUnwrap().options).toEqual({ a: true, b: true, c: true });
     expect((await w.repo.update("nope", (r) => ok(r)))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+
+  test("update of a run that does not exist takes no lock: the lock file would leave its directory behind", async () => {
+    const w = world();
+    const held: string[] = [];
+    const repo = new RunRepository(w.fs, DEFAULT_PATHS, undefined, {
+      hold: async (path, work) => {
+        held.push(path);
+        return work();
+      },
+    });
+    const missing = await repo.update("20990101-x-y", (r) => ok(r));
+    expect([missing._unsafeUnwrapErr().code, held]).toEqual(["NOT_FOUND", []]);
+    const run = (await w.init.execute({ workflow: "feature", task: "first" }))._unsafeUnwrap();
+    expect((await repo.update(run.runId, (r) => ok(r))).isOk()).toBe(true);
+    expect(held).toEqual([run.files.state]);
   });
 
   test("task text that slugifies to nothing still gets a valid id", async () => {

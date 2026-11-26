@@ -389,6 +389,9 @@ describe("metator CLI (process e2e)", () => {
       true,
       true,
     ]);
+    // `--help` as an option's value is that value: the command runs.
+    const added = await metator(["issue", "add", "Help flag", "--body", "--help", "--by", "ada"], repo);
+    expect([added.code, (added.json.data as { body: string }).body]).toEqual([0, "--help"]);
   }, 30_000);
 
   test("a number option that is not a number is a usage error (64), never an internal one", async () => {
@@ -400,6 +403,12 @@ describe("metator CLI (process e2e)", () => {
       ["run", "board", "--timeline", "many"],
       ["open", "--file", "a.ts", "--line", "abc"],
       ["review", "notes", "add", "note", "--by", "m", "--line", "abc"],
+      // `Number` reads these as numbers; a count is written in decimal digits.
+      ["run", "board", "--timeline", "1e2"],
+      ["serve", "--port", "0x10"],
+      // A time that is not ISO is not read as some other date.
+      ["report", "--since", "5"],
+      ["report", "--since", "2026-02-30"],
     ];
     for (const argv of bad) {
       const r = await metator(argv, repo);

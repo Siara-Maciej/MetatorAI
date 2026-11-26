@@ -95,6 +95,25 @@ function helpOf(cmd: Command, path: readonly string[]): CommandHelp {
 }
 
 /**
+ * Whether the words after the command's name hold `--help` or `-h` as a flag: the value of an
+ * option that takes one (`issue add x --body --help`) is that value, as commander parses it.
+ */
+function asksHelp(cmd: Command, rest: readonly string[]): boolean {
+  const options: Option[] = [];
+  for (let c: Command | null = cmd; c; c = c.parent) options.push(...c.options);
+  for (let i = 0; i < rest.length; i++) {
+    const word = rest[i] as string;
+    if (word === "--help" || word === "-h") return true;
+    if (!word.startsWith("-") || word.includes("=")) continue;
+    const option = options.find((o) => o.short === word || o.long === word);
+    // A required value is the next word whatever it is; an optional one only when it is no flag.
+    if (option?.required) i++;
+    else if (option?.optional && !(rest[i + 1] ?? "-").startsWith("-")) i++;
+  }
+  return false;
+}
+
+/**
  * `metator <command> --help`: the command the words before the flag name, with its options (and
  * the commands of a group). `--help` with no command, or after `--`, is the whole list. A group
  * that does not run on its own, typed bare (`metator repos`), is its help too.
@@ -102,10 +121,9 @@ function helpOf(cmd: Command, path: readonly string[]): CommandHelp {
 export function describeCommandFor(program: Command, argv: readonly string[]): CommandHelp | undefined {
   const end = argv.indexOf("--");
   const words = end === -1 ? argv : argv.slice(0, end);
-  const asked = words.some((a) => a === "--help" || a === "-h");
   const { cmd, path, rest } = commandAt(program, words);
   if (path.length === 0) return undefined;
-  if (asked) return helpOf(cmd, path);
+  if (asksHelp(cmd, rest)) return helpOf(cmd, path);
   const runsItself = (cmd as unknown as { _actionHandler?: unknown })._actionHandler != null;
   const bareGroup = rest.length === 0 && end === -1 && cmd.commands.length > 0 && !runsItself;
   return bareGroup ? helpOf(cmd, path) : undefined;

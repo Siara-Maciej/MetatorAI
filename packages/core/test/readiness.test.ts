@@ -572,3 +572,55 @@ describe("CheckReadiness in a Java repository (round 22)", () => {
     expect(checks.map((c) => c.id)).toEqual(["dependencies"]);
   });
 });
+
+describe("CheckReadiness: the command scripts call MetatorAI by (hosts.metatorCommand)", () => {
+  const stages = (...owners: string[]) => ({ stages: owners.map((owner, i) => ({ id: `s${i}`, owner })) });
+  const doctor = (metatorCommand: string, onPath: string[], workflows: Record<string, unknown>[]) =>
+    new CheckReadiness(
+      present("metator/install.lock.json", "package.json"),
+      DEFAULT_PATHS,
+      {
+        config: { ...DEFAULT_CONFIG, hosts: { ...DEFAULT_CONFIG.hosts, metatorCommand } } as never,
+        source: "metator.config.yml",
+      },
+      { scan: async () => ({ workflows: workflows.map((spec) => ({ spec })), problems: [] }) as never },
+      new FakeVcs([], [], "git@example.com:a/b.git"),
+      async () => true,
+      undefined,
+      undefined,
+      { servers: async () => ok({}), hasCommand: async (bin) => onPath.includes(bin) },
+    )
+      .execute()
+      .then((r) => r._unsafeUnwrap());
+
+  test("a script stage that calls metator, which is not on the PATH: not ready, with the fix", async () => {
+    const r = await doctor("metator", [], [{ id: "mt-feature", ...stages("script:metator index build") }]);
+    expect(r.ready).toBe(false);
+    expect(r.checks.find((c) => c.id === "metator")).toEqual({
+      id: "metator",
+      status: "fail",
+      message:
+        "`metator` (hosts.metatorCommand) is not on the PATH: the script stages of mt-feature that call MetatorAI cannot start",
+      fix: 'put metator on the PATH, or set hosts.metatorCommand in metator.config.yml to how this repository runs MetatorAI (e.g. "npx metator" or "bun run metator")',
+    });
+  });
+
+  test("a gate script and a parallel worker count; the first word of the command is what must be found", async () => {
+    const gated = [
+      { id: "w", stages: [{ id: "g", gate: { script: "metator gate quick" } }] },
+      { id: "v", stages: [{ id: "p", parallel: ["mt-reviewer", "script:metator rules check"] }] },
+    ];
+    const missing = await doctor("bun run metator", ["metator"], gated);
+    expect([missing.ready, missing.checks.find((c) => c.id === "metator")?.message]).toEqual([
+      false,
+      "`bun` (hosts.metatorCommand) is not on the PATH: the script stages of w, v that call MetatorAI cannot start",
+    ]);
+    const found = await doctor("bun run metator", ["bun"], gated);
+    expect([found.ready, found.checks.some((c) => c.id === "metator")]).toEqual([true, false]);
+  });
+
+  test("no workflow script calls metator: only a warning (agents' hooks and commands still call it)", async () => {
+    const r = await doctor("metator", [], [{ id: "w", ...stages("mt-implementer", "script:bun test") }]);
+    expect([r.ready, r.checks.find((c) => c.id === "metator")?.status]).toEqual([true, "warn"]);
+  });
+});

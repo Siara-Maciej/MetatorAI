@@ -312,9 +312,12 @@ export function renderInspection(i: Inspection): string {
   if (i.repository) lines.push(`  ${repo(i.repository)}`);
   for (const r of i.folder?.repos ?? []) lines.push(`  ${repo(r)}`);
   lines.push("", `  ${mark(i.git.installed)} git ${i.git.version ?? `not installed (${i.git.install.url})`}`);
+  // A tick says the host can drive a run: installed and logged in. A login nobody checked is a dot.
+  const login = (h: Inspection["hosts"][number]) =>
+    h.loggedIn === null ? "login not checked" : h.loggedIn ? "logged in" : `no login found: ${h.login}`;
   for (const h of i.hosts)
     lines.push(
-      `  ${mark(h.installed)} ${h.program} ${h.installed ? (h.loggedIn ? "logged in" : `no login found: ${h.login}`) : `not installed: ${h.install.command}`}`,
+      `  ${mark(h.installed ? h.loggedIn : false)} ${h.program} ${h.installed ? login(h) : `not installed: ${h.install.command}`}`,
     );
   const writes = i.defaultHost ? i.writes[i.defaultHost] : undefined;
   if (writes) lines.push("", `  setup --host ${i.defaultHost} writes ${writes.length} file(s)`);

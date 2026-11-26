@@ -343,7 +343,7 @@ export function registerDriveCommands(
       "Record the answer to a question; the run continues when a drive is waiting for it (with none, `metator run continue` starts one)",
     )
     .argument("<question>", "question id, e.g. q001")
-    .addOption(runOption())
+    .addOption(runOption("run id (default: the one run where the question is open)"))
     .option("--choice <labels...>", "the option label(s) chosen")
     .option("--text <text>", "your own words (with Other, or a reason with Reject)")
     .addOption(byOption("who answers"))
@@ -361,9 +361,8 @@ export function registerDriveCommands(
           const c = container();
           const by = await who(c, opts.by);
           if (by.isErr()) return { result: by };
-          if (!opts.choice && !opts.text) {
-            return { result: err(MetatorError.usage("give --choice <label> or --text <answer>")) };
-          }
+          // Without --run the run is the one where the question is open; a missing --choice or
+          // --text is said once the question is found, with its options.
           return {
             result: await c.resolve("answerQuestion").execute({
               ...defined({ runId: opts.run, text: opts.text }),

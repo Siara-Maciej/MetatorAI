@@ -8,6 +8,7 @@ import {
   type FindingState,
   LENSES,
   MetatorError,
+  noFindingsFile,
   normalizePath,
   ok,
   REACTION_STATES,
@@ -60,6 +61,9 @@ export function registerFindingsCommands(program: Command, { action, container }
             ...(opts.diff ? { diff: normalizePath(opts.diff) } : {}),
           });
         if (report.isErr()) return { result: report };
+        // Nothing validated is a wrong path, not a pass: the same answer merge and verdict give.
+        if (report.value.files === 0 && report.value.unreadable.length === 0)
+          return { result: err(noFindingsFile(normalizePath(dir))) };
         const { invalid, moved } = report.value.counts;
         const unreadable = report.value.unreadable.length;
         const missing = report.value.missing.length;

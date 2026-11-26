@@ -248,4 +248,42 @@ describe("metator run drive (real CLI, scenario host)", () => {
     }
     expect(CLI_ENTRY.endsWith("main.ts")).toBe(true);
   });
+
+  test("run answer without --run: the one run where the question is open, else NOT_FOUND with the way on", async () => {
+    const two = await ScratchRepo.create();
+    try {
+      await two.write(".github/metator/workflows/demo.yml", WORKFLOW);
+      await two.commit("init");
+      const at = (args: string[]) => metator(args, two.root);
+      const newRun = async (task: string) =>
+        ((await at(["run", "new", "--workflow", "demo", "--task", task])).json.data as { runId: string })
+          .runId;
+      const first = await newRun("Add the first discount to the basket");
+      const second = await newRun("Add the second discount to the basket");
+      for (const run of [first, second])
+        expect(
+          (await at(["run", "ask", "Which rounding?", "--option", "up", "down", "--run", run])).code,
+        ).toBe(0);
+      const answer = (...more: string[]) => at(["run", "answer", "q001", "--by", "ada", ...more]);
+      const both = await answer("--choice", "up");
+      const e = both.json.error as { code: string; message: string; hint: string };
+      expect([both.code, e.code, e.message, e.hint]).toEqual([
+        1,
+        "NOT_FOUND",
+        `question q001 is open in 2 runs: ${first}, ${second}`,
+        "`metator run questions` lists them; add --run <id>.",
+      ]);
+      expect((await answer("--run", second, "--choice", "down")).code).toBe(0);
+      // Open in the first run only, which is not the latest: a missing answer names its options.
+      const empty = await answer();
+      expect([empty.code, (empty.json.error as { hint: string }).hint]).toEqual([
+        64,
+        `Answer with --choice <label> (up, down, Other) or --text <your own words>: metator run answer q001 --run ${first} --choice up`,
+      ]);
+      const answered = await answer("--choice", "up");
+      expect([answered.code, (answered.json.data as { runId: string }).runId]).toEqual([0, first]);
+    } finally {
+      await two.dispose();
+    }
+  }, 60_000);
 });
