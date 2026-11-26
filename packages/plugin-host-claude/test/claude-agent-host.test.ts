@@ -539,6 +539,74 @@ describe("ClaudeAgentHost", () => {
     expect(asked).toHaveLength(2);
   });
 
+  test("no agent writes the run's records in-process (approvals, answers, the drive's lock); its artifacts it does", async () => {
+    type Hook = (
+      input: unknown,
+    ) => Promise<{ hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason?: string } }>;
+    const decisions: unknown[] = [];
+    const { query, calls } = fakeQuery(async (can) => {
+      decisions.push(await can("Write", { file_path: "/repo/.metator/runs/r/state.json", content: "{}" }));
+      decisions.push(
+        await can("Bash", { command: "cat > /repo/.metator/runs/r/state.json <<'EOF'\n{}\nEOF" }),
+      );
+      decisions.push(await can("Bash", { command: "rm /repo/.metator/runs/r/questions/q001.json" }));
+      decisions.push(await can("Write", { file_path: "/elsewhere/run/driver.json" }));
+      decisions.push(await can("Write", { file_path: "/elsewhere/run/plan.json" }));
+      return [init, success];
+    });
+    const asked: string[] = [];
+    await collect(new ClaudeAgentHost(query), { ...task, driven: true }, async (q) => {
+      asked.push(q.prompt);
+      return { choices: ["Deny"], text: "no" };
+    });
+    // Nothing the run keeps for itself passes without a person, whatever the hook says.
+    expect(decisions.map((d) => (d as { behavior: string }).behavior)).toEqual([
+      "deny",
+      "deny",
+      "deny",
+      "deny",
+      "deny",
+    ]);
+    expect(asked).toHaveLength(5);
+    const elsewhere = fakeQuery(async (can) => {
+      decisions.push(await can("Write", { file_path: "/elsewhere/run/driver.json" }));
+      decisions.push(await can("Write", { file_path: "/elsewhere/run/plan.json" }));
+      return [init, success];
+    });
+    await collect(new ClaudeAgentHost(elsewhere.query), { ...task, runDir: "/elsewhere/run" }, async () => ({
+      choices: ["Deny"],
+      text: "no",
+    }));
+    expect(decisions.slice(5).map((d) => (d as { behavior: string }).behavior)).toEqual(["deny", "allow"]);
+
+    const preTool = (options: Record<string, unknown> | undefined) => {
+      const hooks = options?.hooks as { PreToolUse: { hooks: Hook[] }[] };
+      return hooks.PreToolUse[0]?.hooks[0] as Hook;
+    };
+    const hook = preTool(calls[0]?.options);
+    const decide = async (tool_name: string, tool_input: Record<string, unknown>) =>
+      (await hook({ hook_event_name: "PreToolUse", tool_name, tool_input })).hookSpecificOutput;
+    for (const [tool, input] of [
+      ["Write", { file_path: "/repo/.metator/runs/r/state.json" }],
+      ["Edit", { file_path: "/repo/.metator/runs/r/questions/q001.json" }],
+      ["Write", { file_path: "/repo/.metator/worktrees.json" }],
+      ["Bash", { command: "sed -i s/a/b/ /repo/.metator/runs/r/state.json" }],
+    ] as const) {
+      const out = await decide(tool, input);
+      expect([tool, out?.permissionDecision]).toEqual([tool, "deny"]);
+      expect(out?.permissionDecisionReason).toContain("metator run write");
+    }
+    expect(await decide("Write", { file_path: "/repo/.metator/runs/r/plan.json" })).toBeUndefined();
+    expect(await decide("Bash", { command: "cat /repo/.metator/runs/r/state.json" })).toBeUndefined();
+    // A run directory that is not under `.metator`: its records are still known by their names.
+    const out = await preTool(elsewhere.calls[0]?.options)({
+      hook_event_name: "PreToolUse",
+      tool_name: "Write",
+      tool_input: { file_path: "/elsewhere/run/state.json" },
+    });
+    expect(out.hookSpecificOutput?.permissionDecision).toBe("deny");
+  });
+
   test("in the run's own worktree edits need no person; in the checkout itself they ask", async () => {
     const decisions: unknown[] = [];
     const asked: string[] = [];

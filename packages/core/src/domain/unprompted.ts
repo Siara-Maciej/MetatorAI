@@ -228,7 +228,27 @@ const KEEP_PROMPT = [
 ];
 /** What MetatorAI itself keeps in a run's directory: a run's artifacts are every other file there. */
 const RUN_RECORDS =
-  /^(state\.json|log\.md|activity\.jsonl|usage\.jsonl|summary\.json|quick\.json|driver\.json|seen\.json|(questions|messages|work|review)\/.*)$/;
+  /^(state\.json|log\.md|handoff\.md|[^/]*\.jsonl|summary\.json|quick\.json|driver\.json|seen\.json|(questions|messages|work|review)(\/.*)?)$/;
+
+/** Whether a file of a run directory (relative to it) is what MetatorAI keeps there, not an artifact. */
+export const isRunRecord = (file: string): boolean => RUN_RECORDS.test(file.replaceAll("\\", "/"));
+
+/**
+ * Whether a path (absolute or relative, also through a run's worktree) names one of MetatorAI's
+ * own records: a run's bookkeeping (state.json with its approvals, the questions with their
+ * answers, the drive's lock, the log), a file `.metator/` keeps at its top (worktrees.json), a
+ * person's consent, or a directory that holds them. MetatorAI's processes write them and decide
+ * by them: an agent that wrote one could approve its own gate. A run's artifacts are not records.
+ */
+export function metatorRecord(path: string): boolean {
+  const parts = path.replaceAll("\\", "/").split("/");
+  const at = parts.lastIndexOf(".metator");
+  if (at < 0) return false;
+  const [top, run, ...file] = parts.slice(at + 1).filter((p) => p !== "" && p !== ".");
+  if (top === undefined || top === "consents") return true;
+  if (top === "runs") return run === undefined || file.length === 0 || isRunRecord(file.join("/"));
+  return run === undefined && top.endsWith(".json");
+}
 
 /**
  * Why a file edit needs no approval prompt, or undefined when the host is to ask: every file is
@@ -245,8 +265,7 @@ export function unpromptedEdit(paths: readonly string[], u: Unprompted): string 
     const rel = at.slice(root.length + 1);
     if (matchesAny(rel, KEEP_PROMPT)) return undefined;
     if (rel === ".metator" || rel.startsWith(".metator/")) {
-      const artifact = /^\.metator\/runs\/[^/]+\/(.+)$/.exec(rel)?.[1];
-      if (artifact === undefined || RUN_RECORDS.test(artifact)) return undefined;
+      if (!/^\.metator\/runs\/[^/]+\/./.test(rel) || metatorRecord(rel)) return undefined;
     }
   }
   return "an edit inside the repository";

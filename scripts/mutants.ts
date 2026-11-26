@@ -10627,4 +10627,47 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const branch = [key];",
     why: "the tree's eye hides a terminal with every terminal below it",
   },
+  // No agent forges a run's approvals or answers; a run sent back loses the push its gate granted.
+  {
+    file: "packages/core/src/domain/hook.ts",
+    from: "  if (record) return deny(RECORD_WRITE(record));",
+    to: "",
+    why: "an agent never writes MetatorAI's records (state.json, questions/, worktrees.json)",
+  },
+  {
+    file: "packages/core/src/domain/hook.ts",
+    from: "    if (target) return target;",
+    to: "",
+    why: "a shell redirection into a run's record is a write of it",
+  },
+  {
+    file: "packages/core/src/domain/unprompted.ts",
+    from: 'return run === undefined && top.endsWith(".json");',
+    to: "return false;",
+    why: "the files .metator keeps at its top (worktrees.json) are MetatorAI's records",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: "const taken = new Set([...again, ...again.flatMap((s) => grantsOf(machine, s))]);",
+    to: "const taken = new Set(again);",
+    why: "a run sent back before its delivery gate loses the push the gate granted",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: ": sentBack(machine, before, next.value)",
+    to: ": false",
+    why: "a failure that sends the run back past a granting gate takes the grant back",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: '      if (record) return permissionResponse({ decision: "deny", reason: RECORD_WRITE(record) });',
+    to: "",
+    why: "the in-process host denies writes of the run's records",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "!merging && !recordOf(tool, input) && needsNoPerson(tool, input)",
+    to: "!merging && needsNoPerson(tool, input)",
+    why: "a write of the run's records never passes without a person",
+  },
 ];
