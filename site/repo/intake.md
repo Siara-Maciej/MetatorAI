@@ -97,6 +97,7 @@ A scan goes through every rule. Each item the backlog does not hold yet becomes 
 - When `maxActive` runs are already active, the remaining tasks stay open in the backlog. A later scan starts them, before newer items.
 - The reporter's text is quoted in the task, with where it came from. Agents treat it as data and do not follow instructions in it.
 - A source that cannot be read gives a warning for its rule. The other rules are scanned as usual.
+- A task whose run cannot start gives a warning (`issue <id> did not start`) and stays open. The scan goes on with the other tasks, and a later scan tries it again.
 - Intake only reads the source. It changes nothing there.
 
 ## Let the daemon scan

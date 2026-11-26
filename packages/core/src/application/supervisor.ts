@@ -47,6 +47,8 @@ export interface SupervisorReport {
   readonly resumed: readonly { readonly runId: string; readonly paneId: string; readonly attempt: number }[];
   /** Runs whose record cannot be read: not watched until the file is restored or deleted. */
   readonly unreadable: readonly UnreadableRun[];
+  /** Runs this tick could not look at or start again; the other runs were watched all the same. */
+  readonly failed?: readonly { readonly runId: string; readonly message: string }[];
 }
 
 const RESUMED = "resumed conductor";
@@ -72,41 +74,14 @@ export class Supervisor {
   async tick(): Promise<Result<SupervisorReport, MetatorError>> {
     const revived: SupervisorReport["revived"][number][] = [];
     const gaveUp: string[] = [];
+    // One run that cannot be looked at or started again never stops the others being watched.
+    const failed: { runId: string; message: string }[] = [];
     if (this.d.policy.respawn.enabled) {
       for (const runId of await this.d.repo.list()) {
-        const record = await this.d.repo.load(runId);
-        // One unreadable record never stops the others being watched; the report names it.
-        if (record.isErr()) continue;
-        if (record.value.state.status !== "active") continue;
-        const driver = await this.d.drivers.status(runId);
-        if (driver.isErr()) return err(driver.error);
-        // No file: nobody drove it, or its drive left on purpose (stopped, a host limit).
-        if (!driver.value || driver.value.alive) continue;
-        const activity = await this.d.journal.activity(runId);
-        if (activity.isErr()) return err(activity.error);
-        const attempts = activity.value.filter((a) => a.type === "restart").length;
-        if (attempts >= this.d.policy.respawn.maxAttempts) {
-          const said = activity.value.at(-1)?.text.startsWith("gave up");
-          if (!said) {
-            const noted = await this.d.journal.record(runId, {
-              type: "error",
-              origin: "run",
-              text: `gave up: its drive died ${attempts} time(s), the policy allows ${this.d.policy.respawn.maxAttempts} restart(s); continue it yourself (metator run continue)`,
-            });
-            if (noted.isErr()) return err(noted.error);
-          }
-          gaveUp.push(runId);
-          continue;
-        }
-        const noted = await this.d.journal.record(runId, {
-          type: "restart",
-          origin: "run",
-          text: `restart ${attempts + 1} of ${this.d.policy.respawn.maxAttempts}: its drive (process ${driver.value.pid}) had died`,
-        });
-        if (noted.isErr()) return err(noted.error);
-        const started = await this.d.restart(runId);
-        if (started.isErr()) return err(started.error);
-        revived.push({ runId, stage: started.value.stage, attempt: attempts + 1 });
+        const done = await this.revive(runId);
+        if (done.isErr()) failed.push({ runId, message: done.error.message });
+        else if (done.value === "gave up") gaveUp.push(runId);
+        else if (done.value) revived.push(done.value);
       }
     }
 
@@ -118,38 +93,11 @@ export class Supervisor {
       if (view.isErr()) return err(view.error);
       for (const pane of view.value.panes) {
         if (pane.role !== "conductor" || !pane.runId || !pane.live || pane.live.alive) continue;
-        const record = await this.d.repo.load(pane.runId);
-        if (record.isErr() || record.value.state.status !== "active") continue;
-        // A person holds the session: they ended it, or will go on themselves.
-        if (record.value.driver?.by === "human") continue;
-        const activity = await this.d.journal.activity(pane.runId);
-        if (activity.isErr()) return err(activity.error);
-        const attempts = activity.value.filter(
-          (a) => a.type === "restart" && a.text.startsWith(RESUMED),
-        ).length;
-        if (attempts >= this.d.policy.respawn.maxAttempts) {
-          const said = activity.value.at(-1)?.text.startsWith("gave up");
-          if (!said) {
-            const noted = await this.d.journal.record(pane.runId, {
-              type: "error",
-              origin: "run",
-              text: `gave up: its conductor session ended ${attempts} time(s) while the run went on, the policy allows ${this.d.policy.respawn.maxAttempts} resume(s); start it yourself (metator run start)`,
-            });
-            if (noted.isErr()) return err(noted.error);
-          }
+        const done = await this.resume(this.d.panes, { ...pane, runId: pane.runId, live: pane.live });
+        if (done.isErr()) failed.push({ runId: pane.runId, message: done.error.message });
+        else if (done.value === "gave up") {
           if (!gaveUp.includes(pane.runId)) gaveUp.push(pane.runId);
-          continue;
-        }
-        const noted = await this.d.journal.record(pane.runId, {
-          type: "restart",
-          origin: "run",
-          agent: pane.live.host,
-          text: `${RESUMED} ${attempts + 1} of ${this.d.policy.respawn.maxAttempts}: its session ${pane.live.sessionId} had exited with ${pane.live.exitCode ?? "no code"} (pane ${pane.id})`,
-        });
-        if (noted.isErr()) return err(noted.error);
-        const opened = await this.d.panes.openRun({ runId: pane.runId });
-        if (opened.isErr()) return err(opened.error);
-        resumed.push({ runId: pane.runId, paneId: opened.value.id, attempt: attempts + 1 });
+        } else if (done.value) resumed.push(done.value);
       }
     }
 
@@ -193,7 +141,7 @@ export class Supervisor {
           agent: session.host,
           text: "nudged: go on with the next step of the plan",
         });
-        if (noted.isErr()) return err(noted.error);
+        if (noted.isErr()) failed.push({ runId, message: noted.error.message });
         this.episodes.set(runId, { nudged: true });
         nudged.push(runId);
         continue;
@@ -210,7 +158,10 @@ export class Supervisor {
           ],
           multiSelect: false,
         });
-        if (q.isErr()) return err(q.error);
+        if (q.isErr()) {
+          failed.push({ runId, message: q.error.message });
+          continue;
+        }
         episode.question = q.value.id;
         asked.push(runId);
         continue;
@@ -247,7 +198,89 @@ export class Supervisor {
       ...(prompts ? { prompts } : {}),
       resumed,
       unreadable: overview.value.unreadable,
+      ...(failed.length > 0 ? { failed } : {}),
     });
+  }
+
+  /** A run whose drive died is started again, or given up on once its restarts are used up. */
+  private async revive(
+    runId: string,
+  ): Promise<Result<SupervisorReport["revived"][number] | "gave up" | undefined, MetatorError>> {
+    const record = await this.d.repo.load(runId);
+    // One unreadable record never stops the others being watched; the report names it.
+    if (record.isErr()) return ok(undefined);
+    if (record.value.state.status !== "active") return ok(undefined);
+    const driver = await this.d.drivers.status(runId);
+    if (driver.isErr()) return err(driver.error);
+    // No file: nobody drove it, or its drive left on purpose (stopped, a host limit).
+    if (!driver.value || driver.value.alive) return ok(undefined);
+    const activity = await this.d.journal.activity(runId);
+    if (activity.isErr()) return err(activity.error);
+    // A resumed conductor pane is counted apart (below): it uses none of the drive's restarts.
+    const attempts = activity.value.filter((a) => a.type === "restart" && !a.text.startsWith(RESUMED)).length;
+    const max = this.d.policy.respawn.maxAttempts;
+    if (attempts >= max) {
+      const said = activity.value.at(-1)?.text.startsWith("gave up");
+      if (!said) {
+        const noted = await this.d.journal.record(runId, {
+          type: "error",
+          origin: "run",
+          text: `gave up: its drive died ${attempts} time(s), the policy allows ${max} restart(s); continue it yourself (metator run continue)`,
+        });
+        if (noted.isErr()) return err(noted.error);
+      }
+      return ok("gave up");
+    }
+    const noted = await this.d.journal.record(runId, {
+      type: "restart",
+      origin: "run",
+      text: `restart ${attempts + 1} of ${max}: its drive (process ${driver.value.pid}) had died`,
+    });
+    if (noted.isErr()) return err(noted.error);
+    const started = await this.d.restart(runId);
+    if (started.isErr()) return err(started.error);
+    return ok({ runId, stage: started.value.stage, attempt: attempts + 1 });
+  }
+
+  /** A conductor pane whose session ended is opened again, or given up on once its resumes are used up. */
+  private async resume(
+    panes: NonNullable<SupervisorDependencies["panes"]>,
+    pane: {
+      readonly id: string;
+      readonly runId: string;
+      readonly live: { readonly host: string; readonly sessionId: string; readonly exitCode?: number | null };
+    },
+  ): Promise<Result<SupervisorReport["resumed"][number] | "gave up" | undefined, MetatorError>> {
+    const record = await this.d.repo.load(pane.runId);
+    if (record.isErr() || record.value.state.status !== "active") return ok(undefined);
+    // A person holds the session: they ended it, or will go on themselves.
+    if (record.value.driver?.by === "human") return ok(undefined);
+    const activity = await this.d.journal.activity(pane.runId);
+    if (activity.isErr()) return err(activity.error);
+    const attempts = activity.value.filter((a) => a.type === "restart" && a.text.startsWith(RESUMED)).length;
+    const limit = this.d.policy.respawn.maxAttempts;
+    if (attempts >= limit) {
+      const said = activity.value.at(-1)?.text.startsWith("gave up");
+      if (!said) {
+        const noted = await this.d.journal.record(pane.runId, {
+          type: "error",
+          origin: "run",
+          text: `gave up: its conductor session ended ${attempts} time(s) while the run went on, the policy allows ${limit} resume(s); start it yourself (metator run start)`,
+        });
+        if (noted.isErr()) return err(noted.error);
+      }
+      return ok("gave up");
+    }
+    const noted = await this.d.journal.record(pane.runId, {
+      type: "restart",
+      origin: "run",
+      agent: pane.live.host,
+      text: `${RESUMED} ${attempts + 1} of ${limit}: its session ${pane.live.sessionId} had exited with ${pane.live.exitCode ?? "no code"} (pane ${pane.id})`,
+    });
+    if (noted.isErr()) return err(noted.error);
+    const opened = await panes.openRun({ runId: pane.runId });
+    if (opened.isErr()) return err(opened.error);
+    return ok({ runId: pane.runId, paneId: opened.value.id, attempt: attempts + 1 });
   }
 
   private async answered(runId: string, questionId: string): Promise<string | undefined> {

@@ -66,6 +66,17 @@ export interface StartIssueInput {
   readonly session?: { readonly host?: string };
 }
 
+/** An item whose file cannot be read (torn or hand-edited): left out of the backlog, and said. */
+export interface UnreadableIssue {
+  readonly id: string;
+  readonly file: string;
+  readonly message: string;
+}
+
+/** What a person is told about an unreadable item: the file, and the two ways out. */
+export const unreadableIssueWarning = (u: UnreadableIssue): string =>
+  `issue ${u.id} cannot be read and is left out (${u.message}): restore ${u.file} (from git or a backup), or delete it to drop the item`;
+
 /** What starting a run on an item gives back. */
 export interface StartedIssue {
   readonly issue: Issue;
@@ -96,12 +107,12 @@ export class Issues {
     return `${this.d.paths.issues}/${id}.json`;
   }
 
+  /** The backlog that can be read; an item whose file cannot be read is left out (see `unreadable`). */
   async list(
     input: { readonly status?: Issue["status"]; readonly runId?: string } = {},
   ): Promise<Result<readonly Issue[], MetatorError>> {
     const all = await this.load();
-    if (all.isErr()) return err(all.error);
-    const answered = await this.applyAnswers(all.value);
+    const answered = await this.applyAnswers(all.issues);
     if (answered.isErr()) return err(answered.error);
     const synced = await this.settleParents(answered.value);
     if (synced.isErr()) return err(synced.error);
@@ -119,13 +130,22 @@ export class Issues {
     );
   }
 
+  /** Items whose file cannot be read: one broken file never hides the rest of the backlog. */
+  async unreadable(): Promise<readonly UnreadableIssue[]> {
+    return (await this.load()).unreadable;
+  }
+
   async show(id: string): Promise<Result<Issue, MetatorError>> {
     const all = await this.list();
     if (all.isErr()) return err(all.error);
     const found = all.value.find((i) => i.id === id);
-    return found
-      ? ok(found)
-      : err(MetatorError.notFound(`issue ${id}`, { hint: "`metator issue list` shows the backlog." }));
+    if (found) return ok(found);
+    // An item left out because its file cannot be read says why, not that it is missing.
+    if (await this.d.fs.exists(this.file(id))) {
+      const broken = await this.read(this.file(id));
+      if (broken.isErr()) return err(broken.error);
+    }
+    return err(MetatorError.notFound(`issue ${id}`, { hint: "`metator issue list` shows the backlog." }));
   }
 
   /** A person adds a task: open at once, decided by them. */
@@ -140,11 +160,10 @@ export class Issues {
     if (input.by.trim() === "") return err(MetatorError.usage("say who adds the task: --by <name>"));
     if (input.title.trim() === "") return err(MetatorError.usage("a task needs a title"));
     return this.numbered(async () => {
-      const all = await this.load();
-      if (all.isErr()) return err(all.error);
+      const taken = await this.takenIds();
       const now = this.d.clock.now().toISOString();
       const issue: Issue = {
-        id: nextIssueId(all.value.map((i) => i.id)),
+        id: nextIssueId(taken),
         title: input.title,
         body: input.body ?? "",
         status: "open",
@@ -189,11 +208,10 @@ export class Issues {
     runId: string,
     stage: string,
   ): Promise<Result<{ readonly issue: Issue; readonly questionId: string }, MetatorError>> {
-    const all = await this.load();
-    if (all.isErr()) return err(all.error);
+    const taken = await this.takenIds();
     const now = this.d.clock.now().toISOString();
     const draft: Issue = {
-      id: nextIssueId(all.value.map((i) => i.id)),
+      id: nextIssueId(taken),
       title: input.title,
       body: input.body ?? "",
       status: "proposed",
@@ -227,17 +245,22 @@ export class Issues {
       return err(MetatorError.usage(`issue ${id} is ${issue.value.status}, not a proposal`));
     if (input.by.trim() === "") return err(MetatorError.usage("say who decides: --by <name>"));
     const now = this.d.clock.now().toISOString();
-    const next: Issue = {
-      ...issue.value,
-      ...patchOf(input),
-      status: input.decision === "add" ? "open" : "dropped",
-      decidedBy: { by: input.by, at: now, decision: input.decision === "add" ? "added" : "dropped" },
-      updatedAt: now,
-    };
-    const saved = await this.save(next);
-    if (saved.isErr()) return err(saved.error);
-    await this.settleProposal(issue.value, input.decision === "add" ? PROPOSAL_ADD : PROPOSAL_DROP, input.by);
-    return ok(next);
+    // Looked at again under the lock: a proposal decided meanwhile is not decided a second time.
+    const decided = await this.rewrite(id, (current) =>
+      current.status !== "proposed"
+        ? err(MetatorError.usage(`issue ${id} is ${current.status}, not a proposal`))
+        : ok({
+            ...current,
+            ...patchOf(input),
+            status: input.decision === "add" ? "open" : "dropped",
+            decidedBy: { by: input.by, at: now, decision: input.decision === "add" ? "added" : "dropped" },
+            updatedAt: now,
+          }),
+    );
+    if (decided.isErr()) return err(decided.error);
+    const { before, after } = decided.value;
+    await this.settleProposal(before, input.decision === "add" ? PROPOSAL_ADD : PROPOSAL_DROP, input.by);
+    return ok(after);
   }
 
   /**
@@ -254,11 +277,10 @@ export class Issues {
   }
 
   async edit(id: string, patch: IssuePatch): Promise<Result<Issue, MetatorError>> {
+    // Answers given in the inbox are applied first; the edit itself changes the item as it is now.
     const issue = await this.show(id);
     if (issue.isErr()) return err(issue.error);
-    const next: Issue = { ...issue.value, ...patchOf(patch), updatedAt: this.d.clock.now().toISOString() };
-    const saved = await this.save(next);
-    return saved.map(() => next);
+    return this.update(id, (current) => ok({ ...current, ...patchOf(patch) }));
   }
 
   async close(id: string, input: { readonly by: string }): Promise<Result<Issue, MetatorError>> {
@@ -303,9 +325,7 @@ export class Issues {
         );
     }
     // One rule decides what may start (the system plan's steps use it too): every item it depends on is done.
-    const all = await this.load();
-    if (all.isErr()) return err(all.error);
-    const waits = waitRefusal(issue.value, all.value);
+    const waits = waitRefusal(issue.value, (await this.load()).issues);
     if (waits) return err(waits);
     const run = {
       workflow: input.workflow,
@@ -327,6 +347,15 @@ export class Issues {
       : await this.d.initRun.execute(run);
     if (started.isErr()) return err(started.error);
     const runId = started.value.runId;
+    // Linked as soon as the run exists: an item left open without it would start a second run.
+    const next: Issue = {
+      ...issue.value,
+      status: "in-progress",
+      runId,
+      updatedAt: this.d.clock.now().toISOString(),
+    };
+    const saved = await this.save(next);
+    if (saved.isErr()) return err(saved.error);
     // The brief is there before its conductor opens: the first thing every agent reads.
     const brief = await this.d.fs.write(
       `${this.d.repo.runDir(runId)}/${TASK_BRIEF}`,
@@ -344,14 +373,6 @@ export class Issues {
         ...(seen.value.noSession ? { noSession: seen.value.noSession } : {}),
       };
     }
-    const next: Issue = {
-      ...issue.value,
-      status: "in-progress",
-      runId,
-      updatedAt: this.d.clock.now().toISOString(),
-    };
-    const saved = await this.save(next);
-    if (saved.isErr()) return err(saved.error);
     return ok({ issue: next, runId, ...opened });
   }
 
@@ -364,16 +385,17 @@ export class Issues {
     if (issue.isErr()) return err(issue.error);
     if (by.trim() === "") return err(MetatorError.usage("say who decides: --by <name>"));
     const now = this.d.clock.now().toISOString();
-    const next: Issue = {
-      ...issue.value,
-      status,
-      ...(status === "dropped" ? { decidedBy: { by, at: now, decision: "dropped" as const } } : {}),
-      updatedAt: now,
-    };
-    const saved = await this.save(next);
-    if (saved.isErr()) return err(saved.error);
-    if (status === "dropped") await this.settleProposal(issue.value, PROPOSAL_DROP, by);
-    return ok(next);
+    const changed = await this.rewrite(id, (current) =>
+      ok({
+        ...current,
+        status,
+        ...(status === "dropped" ? { decidedBy: { by, at: now, decision: "dropped" as const } } : {}),
+        updatedAt: now,
+      }),
+    );
+    if (changed.isErr()) return err(changed.error);
+    if (status === "dropped") await this.settleProposal(changed.value.before, PROPOSAL_DROP, by);
+    return ok(changed.value.after);
   }
 
   /**
@@ -390,10 +412,14 @@ export class Issues {
         out.push(issue);
         continue;
       }
-      const done: Issue = { ...issue, status: "done", updatedAt: now };
-      const saved = await this.save(done);
-      if (saved.isErr()) return err(saved.error);
-      out.push(done);
+      // Under its lock, and only if nobody changed its status since the backlog was read.
+      const done = await this.rewrite(issue.id, (current) =>
+        ok(
+          current.status === issue.status ? { ...current, status: "done" as const, updatedAt: now } : current,
+        ),
+      );
+      if (done.isErr()) return err(done.error);
+      out.push(done.value.after);
     }
     return ok(out);
   }
@@ -407,10 +433,9 @@ export class Issues {
     ) => Result<readonly Issue[], MetatorError> | Promise<Result<readonly Issue[], MetatorError>>,
   ): Promise<Result<readonly Issue[], MetatorError>> {
     return this.numbered(async () => {
-      const all = await this.load();
-      if (all.isErr()) return err(all.error);
+      const taken = await this.takenIds();
       const ids: string[] = [];
-      for (let i = 0; i < count; i++) ids.push(nextIssueId([...all.value.map((x) => x.id), ...ids]));
+      for (let i = 0; i < count; i++) ids.push(nextIssueId([...taken, ...ids]));
       const made = await make(ids, this.d.clock.now().toISOString());
       if (made.isErr()) return err(made.error);
       for (const issue of made.value) {
@@ -426,14 +451,31 @@ export class Issues {
     id: string,
     change: (issue: Issue) => Result<Issue, MetatorError>,
   ): Promise<Result<Issue, MetatorError>> {
+    const changed = await this.rewrite(id, (current) =>
+      change(current).map((next) =>
+        next === current ? current : { ...next, updatedAt: this.d.clock.now().toISOString() },
+      ),
+    );
+    return changed.map((c) => c.after);
+  }
+
+  /**
+   * Every change of an item goes through here: read, change and write under the item's lock, so a
+   * start, an edit and a decision at once never write over each other. `change` sees the item as it
+   * is now; what it returns is written as it is (the same object: nothing is written).
+   */
+  private rewrite(
+    id: string,
+    change: (issue: Issue) => Result<Issue, MetatorError>,
+  ): Promise<Result<{ readonly before: Issue; readonly after: Issue }, MetatorError>> {
     return this.lock.hold(this.file(id), async () => {
       const current = await this.read(this.file(id));
       if (current.isErr()) return err(current.error);
       const next = change(current.value);
       if (next.isErr()) return err(next.error);
-      if (next.value === current.value) return ok(current.value);
-      const saved = await this.save({ ...next.value, updatedAt: this.d.clock.now().toISOString() });
-      return saved.isErr() ? err(saved.error) : this.read(this.file(id));
+      if (next.value === current.value) return ok({ before: current.value, after: current.value });
+      const saved = await this.save(next.value);
+      return saved.map(() => ({ before: current.value, after: next.value }));
     });
   }
 
@@ -457,16 +499,22 @@ export class Issues {
         out.push(issue);
         continue;
       }
-      const now = q.answer.at;
-      let next: Issue = {
-        ...issue,
-        status: decision === "dropped" ? "dropped" : "open",
-        decidedBy: { by: q.answer.by, at: now, decision: decision === "dropped" ? "dropped" : "added" },
-        updatedAt: now,
-      };
-      const saved = await this.save(next);
-      if (saved.isErr()) return err(saved.error);
-      if (decision === "start") {
+      const answer = q.answer;
+      // Under its lock: a proposal decided meanwhile (`issue decide`, another reader) stays decided.
+      let applied = false;
+      const decided = await this.rewrite(issue.id, (current) => {
+        if (current.status !== "proposed") return ok(current);
+        applied = true;
+        return ok({
+          ...current,
+          status: decision === "dropped" ? "dropped" : "open",
+          decidedBy: { by: answer.by, at: answer.at, decision: decision === "dropped" ? "dropped" : "added" },
+          updatedAt: answer.at,
+        });
+      });
+      if (decided.isErr()) return err(decided.error);
+      let next = decided.value.after;
+      if (applied && decision === "start") {
         // In a new worktree where one can be made; without one where worktrees are not wired.
         const workflow = await this.workflowOf(p.runId);
         let started = await this.start(next.id, { workflow });
@@ -483,15 +531,23 @@ export class Issues {
     return record.isOk() ? record.value.workflow.id : "mt-feature";
   }
 
-  private async load(): Promise<Result<Issue[], MetatorError>> {
+  /** Every item that can be read; one broken file never hides the others (as runs, R2). */
+  private async load(): Promise<{ issues: Issue[]; unreadable: UnreadableIssue[] }> {
     const files = await this.d.fs.glob([`${this.d.paths.issues}/*.json`]);
-    const out: Issue[] = [];
+    const issues: Issue[] = [];
+    const unreadable: UnreadableIssue[] = [];
     for (const file of [...files].sort()) {
       const parsed = await this.read(file);
-      if (parsed.isErr()) return err(parsed.error);
-      out.push(parsed.value);
+      if (parsed.isOk()) issues.push(parsed.value);
+      else unreadable.push({ id: idOf(file), file, message: parsed.error.message });
     }
-    return ok(out);
+    return { issues, unreadable };
+  }
+
+  /** Ids in use, an unreadable item's too: a new item never writes over a file a person may restore. */
+  private async takenIds(): Promise<string[]> {
+    const all = await this.load();
+    return [...all.issues.map((i) => i.id), ...all.unreadable.map((u) => u.id)];
   }
 
   private async read(file: string): Promise<Result<Issue, MetatorError>> {
@@ -502,6 +558,8 @@ export class Issues {
     return writeDocument(this.d.fs, this.file(issue.id), IssueDocument, issue);
   }
 }
+
+const idOf = (file: string): string => (file.split("/").at(-1) ?? file).replace(/\.json$/, "");
 
 const patchOf = (p: IssuePatch): Partial<Issue> => ({
   ...(p.title !== undefined ? { title: p.title } : {}),

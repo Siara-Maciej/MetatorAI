@@ -20,7 +20,12 @@ const item = (n: number, extra: Partial<IntakeItem> = {}): IntakeItem => ({
   ...extra,
 });
 
-function world(config: unknown, items: Record<string, IntakeItem[] | MetatorError>) {
+function world(
+  config: unknown,
+  items: Record<string, IntakeItem[] | MetatorError>,
+  /** A run on this task cannot be made (its workflow is broken, a worktree cannot be set up). */
+  failTask?: string,
+) {
   const fs = new InMemoryFileSystem();
   const started: { workflow: string; task: string; autonomy?: string; worktree: boolean }[] = [];
   /** Per started run: what its worktree was allowed (undefined for a run in the checkout). */
@@ -42,6 +47,7 @@ function world(config: unknown, items: Record<string, IntakeItem[] | MetatorErro
     },
     initRun: {
       execute: async (input) => {
+        if (failTask && input.task === failTask) return err(MetatorError.usage(`cannot start ${input.task}`));
         started.push({
           workflow: input.workflow,
           task: input.task,
@@ -202,5 +208,35 @@ describe("intake (T2, design/14 §3)", () => {
         "x",
       ).isOk(),
     ).toBe(true);
+  });
+
+  test("one item that cannot start is reported and the scan goes on: the next items and rules still start", async () => {
+    const w = world(
+      { ...RULES, maxActive: 3 },
+      { github: [item(1), item(2)], jira: [item(3, { ref: "SHOP-3" })] },
+      "Bug 1",
+    );
+    const r = (await w.scan.execute())._unsafeUnwrap();
+    expect(r.rules[0]?.failed).toEqual([{ issue: "i001", error: "cannot start Bug 1" }]);
+    expect(r.rules[0]?.started.map((s) => s.issue)).toEqual(["i002"]);
+    expect(r.rules[1]?.started.map((s) => s.issue)).toEqual(["i003"]);
+    expect(r.started).toBe(2);
+    // The item that failed waits open and is tried again; it never stops the scan.
+    const again = (await w.scan.execute())._unsafeUnwrap();
+    expect(again.rules[0]).toMatchObject({
+      known: 2,
+      failed: [{ issue: "i001", error: "cannot start Bug 1" }],
+    });
+    // A rule where everything started says nothing about failures.
+    expect(again.rules[1]?.failed).toBeUndefined();
+  });
+
+  test("an unreadable item in the backlog is named in the report; the scan reads and starts the rest", async () => {
+    const w = world(RULES, { github: [item(1)], jira: [] });
+    await w.fs.write(".metator/issues/i007.json", "{ torn");
+    const r = (await w.scan.execute())._unsafeUnwrap();
+    expect(r.started).toBe(1);
+    expect(r.unreadable?.map((u) => u.id)).toEqual(["i007"]);
+    expect((await w.issues.list())._unsafeUnwrap().map((i) => i.id)).toEqual(["i008"]);
   });
 });

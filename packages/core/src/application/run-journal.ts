@@ -10,10 +10,11 @@ import {
   RunSeenDocument,
 } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { InProcessLock } from "../domain/in-process-lock.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type AgentUsage, AgentUsageDocument } from "../domain/telemetry.ts";
 import { serializeJsonLine } from "../domain/versioned.ts";
-import type { Clock, FileSystem, Timer } from "../ports/index.ts";
+import type { Clock, FileLock, FileSystem, Timer } from "../ports/index.ts";
 import { loadDocument, readDocument, readJsonLines, writeDocument } from "./document-io.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -28,7 +29,20 @@ export class RunJournal {
     private readonly fs: FileSystem,
     private readonly repo: RunRepository,
     private readonly clock: Clock,
+    /** One writer at a time of a run's questions; the runtime gives the lock that holds across processes. */
+    private readonly lock: FileLock = new InProcessLock(),
   ) {}
+
+  /**
+   * Looking at a run's questions and writing one is one step: two askers never take one id, and
+   * two answers to one question never both count (hooks, the daemon and the CLI at once).
+   */
+  private questionsLocked<T>(
+    runId: string,
+    work: () => Promise<Result<T, MetatorError>>,
+  ): Promise<Result<T, MetatorError>> {
+    return this.lock.hold(`${this.repo.runDir(runId)}/questions`, work);
+  }
 
   activityFile(runId: string): string {
     return `${this.repo.runDir(runId)}/activity.jsonl`;
@@ -52,7 +66,8 @@ export class RunJournal {
   }
 
   async usage(runId: string): Promise<Result<readonly AgentUsage[], MetatorError>> {
-    return readJsonLines(this.fs, this.usageFile(runId), AgentUsageDocument, "fail");
+    // A torn line (a writer killed mid-append) is skipped, as in `activity`: the rest still counts.
+    return readJsonLines(this.fs, this.usageFile(runId), AgentUsageDocument, "skip");
   }
 
   seenFile(runId: string): string {
@@ -117,6 +132,14 @@ export class RunJournal {
     },
     pendingSince?: string,
   ): Promise<Result<Question, MetatorError>> {
+    return this.questionsLocked(runId, () => this.askLocked(runId, q, pendingSince));
+  }
+
+  private async askLocked(
+    runId: string,
+    q: Parameters<RunJournal["ask"]>[1],
+    pendingSince?: string,
+  ): Promise<Result<Question, MetatorError>> {
     const existing = await this.questions(runId);
     if (existing.isErr()) return err(existing.error);
     const standing = existing.value.find(
@@ -170,6 +193,14 @@ export class RunJournal {
   ): Promise<Result<Question, MetatorError>> {
     if (input.by.trim() === "")
       return err(MetatorError.usage("say who answers: --by <name>", "An answer records who gave it."));
+    return this.questionsLocked(runId, () => this.answerLocked(runId, id, input));
+  }
+
+  private async answerLocked(
+    runId: string,
+    id: string,
+    input: Parameters<RunJournal["answer"]>[2],
+  ): Promise<Result<Question, MetatorError>> {
     const file = this.questionFile(runId, id);
     if (!(await this.fs.exists(file))) return err(MetatorError.notFound(`question ${id} of run ${runId}`));
     const q = await this.load(file);
@@ -222,19 +253,22 @@ export class RunJournal {
     stage: string,
     by: string,
   ): Promise<Result<readonly Question[], MetatorError>> {
-    const all = await this.questions(runId);
-    if (all.isErr()) return err(all.error);
-    const out: Question[] = [];
-    for (const q of all.value) {
-      if (q.answer || q.stage !== stage || q.source !== "gate") continue;
-      const settled = await this.settle({
-        ...q,
-        answer: { choices: ["Approve"], by, at: this.clock.now().toISOString() },
-      });
-      if (settled.isErr()) return err(settled.error);
-      out.push(settled.value);
-    }
-    return ok(out);
+    // Under the questions' lock: a person answering a card at that moment is not written over.
+    return this.questionsLocked(runId, async () => {
+      const all = await this.questions(runId);
+      if (all.isErr()) return err(all.error);
+      const out: Question[] = [];
+      for (const q of all.value) {
+        if (q.answer || q.stage !== stage || q.source !== "gate") continue;
+        const settled = await this.settle({
+          ...q,
+          answer: { choices: ["Approve"], by, at: this.clock.now().toISOString() },
+        });
+        if (settled.isErr()) return err(settled.error);
+        out.push(settled.value);
+      }
+      return ok(out);
+    });
   }
 
   private async settle(answered: Question, origin?: "inbox"): Promise<Result<Question, MetatorError>> {

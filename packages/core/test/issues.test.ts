@@ -3,11 +3,14 @@ import {
   AdvanceRun,
   byBacklogOrder,
   DEFAULT_PATHS,
+  err,
   InitRun,
   type Issue,
   IssueDocument,
   Issues,
+  type IssuesDependencies,
   issueBrief,
+  MetatorError,
   nextIssueId,
   PROPOSAL_ADD,
   PROPOSAL_DROP,
@@ -17,6 +20,8 @@ import {
   RunJournal,
   RunRepository,
   refText,
+  type UnreadableIssue,
+  unreadableIssueWarning,
   WorkflowCatalog,
 } from "@metator/core";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
@@ -277,5 +282,127 @@ describe("Issues", () => {
     expect(after.status).toBe("in-progress");
     expect(after.runId).toBeDefined();
     expect((await w.repo.load(after.runId as string))._unsafeUnwrap().task).toBe("Edge test");
+  });
+});
+
+describe("Issues under concurrency and damage", () => {
+  /** The world's backlog with some of its dependencies replaced. */
+  const issuesOf = (w: ReturnType<typeof world>, over: Partial<IssuesDependencies>) =>
+    new Issues({
+      fs: w.fs,
+      paths: DEFAULT_PATHS,
+      clock: w.clock,
+      journal: w.journal,
+      repo: w.repo,
+      initRun: new InitRun(new WorkflowCatalog(w.fs, DEFAULT_PATHS), w.repo, w.clock),
+      ...over,
+    });
+
+  test("an edit while the item starts keeps both: the edit and the run the start linked (one issue, one run)", async () => {
+    const w = world();
+    const real = new InitRun(new WorkflowCatalog(w.fs, DEFAULT_PATHS), w.repo, w.clock);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = false;
+    const issues = issuesOf(w, {
+      initRun: {
+        execute: async (input) => {
+          entered = true;
+          await gate;
+          return real.execute(input);
+        },
+      },
+    });
+    const added = (await issues.add({ title: "PDF cents", by: "maciej" }))._unsafeUnwrap();
+    const starting = issues.start(added.id, { workflow: "demo", worktree: false });
+    while (!entered) await Bun.sleep(1);
+    const editing = issues.edit(added.id, { title: "PDF cents, rounded" });
+    await Bun.sleep(5);
+    release();
+    const [started, edited] = await Promise.all([starting, editing]);
+    const runId = started._unsafeUnwrap().runId;
+    expect(edited._unsafeUnwrap()).toMatchObject({
+      status: "in-progress",
+      runId,
+      title: "PDF cents, rounded",
+    });
+    expect((await issues.show(added.id))._unsafeUnwrap()).toMatchObject({
+      status: "in-progress",
+      runId,
+      title: "PDF cents, rounded",
+    });
+  });
+
+  test("a close or a decision while the item changes reads it under the lock: neither undoes the other", async () => {
+    const w = world();
+    const added = (await w.issues.add({ title: "One", by: "maciej" }))._unsafeUnwrap();
+    const [closed, edited] = await Promise.all([
+      w.issues.close(added.id, { by: "maciej" }),
+      w.issues.edit(added.id, { body: "the body" }),
+    ]);
+    expect(closed.isOk() && edited.isOk()).toBe(true);
+    expect((await w.issues.show(added.id))._unsafeUnwrap()).toMatchObject({
+      status: "done",
+      body: "the body",
+    });
+    // A proposal decided twice at once is decided once: the second sees it is no proposal any more.
+    const run = (await w.init("Add the discount"))._unsafeUnwrap();
+    const proposed = (
+      await w.issues.propose({ title: "Edge test", agent: "mt-plan-critic", runId: run.runId })
+    )._unsafeUnwrap();
+    const decided = await Promise.all([
+      w.issues.decide(proposed.issue.id, { by: "maciej", decision: "add" }),
+      w.issues.decide(proposed.issue.id, { by: "ola", decision: "drop" }),
+    ]);
+    expect(decided.map((d) => d.isOk())).toEqual([true, false]);
+    expect(decided[1]?._unsafeUnwrapErr().message).toBe(`issue ${proposed.issue.id} is open, not a proposal`);
+    expect((await w.issues.show(proposed.issue.id))._unsafeUnwrap().status).toBe("open");
+  });
+
+  test("an unreadable item is left out and named: the rest of the backlog lists, shows, adds and starts", async () => {
+    const w = world();
+    for (const title of ["One", "Two", "Three"])
+      (await w.issues.add({ title, by: "maciej" }))._unsafeUnwrap();
+    await w.fs.write(".metator/issues/i002.json", '{"kind":"Issue","schemaVersion":2,"id":"i0');
+    expect((await w.issues.list())._unsafeUnwrap().map((i) => i.id)).toEqual(["i001", "i003"]);
+    const unreadable = await w.issues.unreadable();
+    expect(unreadable.map((u) => [u.id, u.file])).toEqual([["i002", ".metator/issues/i002.json"]]);
+    expect(unreadableIssueWarning(unreadable[0] as UnreadableIssue)).toContain(
+      "issue i002 cannot be read and is left out (",
+    );
+    // Its id stays taken: a new item never writes over the file a person may still restore.
+    expect((await w.issues.add({ title: "Four", by: "maciej" }))._unsafeUnwrap().id).toBe("i004");
+    // The broken item itself says why it cannot be shown or started.
+    expect((await w.issues.show("i002"))._unsafeUnwrapErr().message).toContain("i002.json");
+    expect((await w.issues.start("i002", { workflow: "demo", worktree: false })).isErr()).toBe(true);
+    expect((await w.issues.start("i001", { workflow: "demo", worktree: false })).isOk()).toBe(true);
+  });
+
+  test("a start that fails after its run exists has linked the item already: the next start makes no second run", async () => {
+    const w = world();
+    const failing = new Proxy(w.fs, {
+      get(target, p) {
+        if (p === "write")
+          return async (path: string, text: string) =>
+            path.endsWith("/task.md")
+              ? err(new MetatorError("COMMAND_FAILED", `disk full: ${path}`))
+              : target.write(path, text);
+        const v = Reflect.get(target, p, target);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    const issues = issuesOf(w, { fs: failing });
+    const added = (await issues.add({ title: "PDF cents", by: "maciej" }))._unsafeUnwrap();
+    expect((await issues.start(added.id, { workflow: "demo", worktree: false })).isErr()).toBe(true);
+    const runs = await w.repo.list();
+    expect(runs).toHaveLength(1);
+    expect((await issues.show(added.id))._unsafeUnwrap()).toMatchObject({
+      status: "in-progress",
+      runId: runs[0],
+    });
+    expect((await issues.start(added.id, { workflow: "demo", worktree: false })).isErr()).toBe(true);
+    expect(await w.repo.list()).toHaveLength(1);
   });
 });

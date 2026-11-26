@@ -173,3 +173,66 @@ describe("metator intake (real CLI, real MCP server process)", () => {
     expect(await repo.exists(".metator/issues/intake.lock")).toBe(false);
   }, 60_000);
 });
+
+describe("metator intake when an item cannot start or an item's file is torn", () => {
+  let own: ScratchRepo;
+  beforeAll(async () => {
+    own = await ScratchRepo.create();
+    await own.write(".gitignore", ".metator/\nissues.json\n");
+    await own.write("issues.json", JSON.stringify(ISSUES));
+    await own.write(
+      ".github/metator/workflows/demo.yml",
+      "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n",
+    );
+    // The docs rule names a workflow that does not exist: its item never starts.
+    await own.write(
+      "metator.config.yml",
+      `kind: MetatorConfig
+schemaVersion: 10
+mcp:
+  github:
+    command: bun
+    args: ["${FAKE}"]
+    env:
+      FAKE_MCP_ISSUES: "${own.path("issues.json")}"
+intake:
+  maxActive: 3
+  rules:
+    - id: gh-docs
+      source: { kind: github, repo: acme/shop, labels: [docs] }
+      workflow: no-such-workflow
+      worktree: false
+    - id: gh-bugs
+      source: { kind: github, repo: acme/shop, labels: [bug] }
+      workflow: demo
+      worktree: false
+`,
+    );
+    await own.commit("init");
+  });
+  afterAll(async () => {
+    await own.dispose();
+  });
+
+  test("an item that cannot start is a warning; the scan goes on and the other rule's items start", async () => {
+    const r = await metator(["intake", "scan"], own.root);
+    expect(r.code).toBe(0);
+    const rules = data(r).rules as Data[];
+    expect(((rules[0]?.failed ?? []) as Data[]).map((f) => f.issue)).toEqual(["i001"]);
+    expect(((rules[1]?.started ?? []) as Data[]).map((s) => s.issue)).toEqual(["i002", "i003"]);
+    expect((r.json.warnings as string[])[0]).toStartWith("gh-docs: issue i001 did not start: ");
+  }, 60_000);
+
+  test("a torn item file is left out and named: issue list and the next scan still work", async () => {
+    await own.write(".metator/issues/i003.json", '{"kind":"Issue","schemaVer');
+    const listed = await metator(["issue", "list"], own.root);
+    expect(listed.code).toBe(0);
+    expect((data(listed).issues as Data[]).map((i) => i.id)).toEqual(["i002", "i001"]);
+    expect(listed.json.warnings).toEqual([
+      expect.stringContaining("issue i003 cannot be read and is left out ("),
+    ]);
+    const scan = await metator(["intake", "scan"], own.root);
+    expect(scan.code).toBe(0);
+    expect(((data(scan).unreadable ?? []) as Data[]).map((u) => u.id)).toEqual(["i003"]);
+  }, 60_000);
+});
