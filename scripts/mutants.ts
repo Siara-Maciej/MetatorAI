@@ -10627,4 +10627,77 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const branch = [key];",
     why: "the tree's eye hides a terminal with every terminal below it",
   },
+  // Review handling, the v14 config migration and the process runner (fixes).
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "repliedAt: at, state:",
+    to: "state:",
+    why: "a reply is recorded as sent the moment it is posted (a retry does not post it again)",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "if (current.isErr()) return err(current.error);",
+    to: "if (current.isErr()) return ok(undefined);",
+    why: "a request file that cannot be read is never taken for none",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "merged = mergeThreads(current?.threads ?? [], threads.value, now);",
+    to: "merged = mergeThreads(kept?.threads ?? [], threads.value, now);",
+    why: "a scan merges into the file as it is under the lock: a triage written meanwhile stays",
+  },
+  {
+    file: "packages/core/src/application/watched-reviews.ts",
+    from: "if (loaded.isErr()) return err(loaded.error);\n      const current = loaded.value;",
+    to: "const current = loaded.isOk() ? loaded.value : undefined;",
+    why: "a watched review that cannot be read is never written over",
+  },
+  {
+    file: "packages/core/src/application/watched-reviews.ts",
+    from: "return ok({ ...current, publishedRuns: [...(current.publishedRuns ?? []), runId] });",
+    to: "return ok(undefined);",
+    why: "a run is marked published before its review is posted: a retry after a failed save posts nothing",
+  },
+  {
+    file: "packages/core/src/application/watched-reviews.ts",
+    from: "const known = new Set([...all.map((r) => r.id), ...unreadable.map((u) => u.id)]);",
+    to: "const known = new Set(all.map((r) => r.id));",
+    why: "the watcher does not record a requested MR over a review it cannot read",
+  },
+  {
+    file: "packages/core/src/domain/codehost.ts",
+    from: "(!review || x.author === author),",
+    to: "true,",
+    why: "v14 review sources of one repository with different authors stay separate sources",
+  },
+  {
+    file: "packages/core/src/domain/codehost.ts",
+    from: "if (id === undefined) return [];",
+    to: "",
+    why: "an intake rule whose source v15 cannot name is left out, not made invalid",
+  },
+  {
+    file: "packages/core/src/domain/codehost.ts",
+    from: 'const via = `mcp:${serverName(typeof s.mcp === "string" ? s.mcp : kind)}`;',
+    to: 'const via = `mcp:${typeof s.mcp === "string" ? s.mcp : kind}`;',
+    why: "an MCP server name `via` cannot hold is named again",
+  },
+  {
+    file: "packages/core/src/application/config-file.ts",
+    from: 'if (!kept.has(name)) out.push({ path: ["mcp", name], value: undefined });',
+    to: "",
+    why: "a v14 YAML file saved at v15 renames the MCP server, not copies it",
+  },
+  {
+    file: "packages/plugin-codehost-gh/src/gh-review-host.ts",
+    from: '"-f",\n      `owner=${owner}`',
+    to: '"-F",\n      `owner=${owner}`',
+    why: "gh sends the owner as a string (-f), so an owner `2048` stays text",
+  },
+  {
+    file: "packages/plugin-bun/src/bun-process-runner.ts",
+    from: 'process.kill(-proc.pid, "SIGKILL");',
+    to: 'proc.kill("SIGKILL");',
+    why: "a timeout kills the process group, not only the direct child",
+  },
 ];
