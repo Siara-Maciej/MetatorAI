@@ -602,10 +602,10 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     );
 
   meta(runs.command("list"), { reads: true, render: renderRunList })
-    .description("List runs, newest first")
+    .description("List runs, the last changed first")
     .addOption(new Option("--status <status>", "only runs in this state").choices(RUN_STATUSES))
     .option("--workflow <id>", "only runs of this workflow")
-    .option("--limit <n>", "only the newest n", positiveInt)
+    .option("--limit <n>", "only the n changed last", positiveInt)
     .action(
       action(async (opts: { status?: string; workflow?: string; limit?: number }) => {
         const listed = await container().resolve("listRuns").execute();
@@ -617,7 +617,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
               .slice(0, opts.limit),
           ),
           warnings: listed.isOk() ? listed.value.unreadable.map(unreadableRunWarning) : [],
-          next: "Narrow it with --status <status>, --workflow <id> or --limit <n> (the newest n).",
+          next: "Narrow it with --status <status>, --workflow <id> or --limit <n> (the n changed last).",
         };
       }),
     );

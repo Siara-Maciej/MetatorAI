@@ -5790,8 +5790,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/review-watch.ts",
-    from: "        if (merged.fresh.length > 0 && !busy && this.d.analyse === true) {",
-    to: "        if (merged.fresh.length > 0 && this.d.analyse === true) {",
+    from: "        if (seen.fresh.length > 0 && !busy && this.d.analyse === true) {",
+    to: "        if (seen.fresh.length > 0 && this.d.analyse === true) {",
     why: "a request has one answering run at a time",
   },
   {
@@ -6205,8 +6205,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/options.ts",
-    from: "n < 0",
-    to: "n < -1",
+    from: 'if (!DIGITS.test(value) || !Number.isSafeInteger(n))\n    throw new InvalidArgumentError("expected an integer, 0 or more");',
+    to: 'if (!Number.isSafeInteger(n))\n    throw new InvalidArgumentError("expected an integer, 0 or more");',
     why: "a negative number is not a port or an interval",
   },
   {
@@ -6769,8 +6769,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/runs.ts",
-    from: "const again = state.stage === from ? [] : machine.stagesFrom(state.stage);",
-    to: "const again: string[] = [];",
+    from: "const approvals = state.stage === from ? current.approvals : withdrawn(machine, current, state.stage);",
+    to: "const approvals = current.approvals;",
     why: "sent back, the approvals on the way are asked again",
   },
   {
@@ -7490,8 +7490,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/desktop/src/shared/model/look.ts",
-    from: '    case "working":\n      return "working";\n    case "done":',
-    to: '    case "working":\n    case "escalated":\n      return "working";\n    case "done":',
+    from: '    case "working":\n      return "working";\n    case "todo":',
+    to: '    case "working":\n    case "escalated":\n      return "working";\n    case "todo":',
     why: "an escalated run reads blocked on the first level, never working",
   },
   {
@@ -8882,8 +8882,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/unprompted.ts",
-    from: "if (artifact === undefined || RUN_RECORDS.test(artifact)) return undefined;",
-    to: "if (artifact === undefined) return undefined;",
+    from: 'if (top === "runs") return run === undefined || file.length === 0 || isRunRecord(file.join("/"));',
+    to: 'if (top === "runs") return run === undefined || file.length === 0;',
     why: "MetatorAI's records of a run are not an agent's to edit unasked",
   },
   {

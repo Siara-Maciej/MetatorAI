@@ -264,6 +264,10 @@ describe("preToolPolicy", () => {
       expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "deny"]);
     expect(decide(hook("Write", { file_path: "/repo/.metator/consents/w1-p1.json" }), free)).toBe("deny");
     expect(decide(hook("Write", { file_path: "/repo/.metator/runs/r1/notes.md" }), free)).toBe("allow");
+    // The refusal says whose they are, not only that a record was written.
+    expect(
+      preToolPolicy(hook("Bash", { command: "echo x > .metator/consents/w1-p1.json" }), free).reason,
+    ).toContain("holds the person's consents");
   });
 
   test("no agent writes MetatorAI's own records (approvals, answers, worktrees): by a file tool or the shell", () => {

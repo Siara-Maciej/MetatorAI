@@ -356,6 +356,9 @@ export class AnswerQuestion {
   ) {}
 
   async execute(input: AnswerInput): Promise<Result<Answered, MetatorError>> {
+    // Who answers is asked before anything is looked up, as the journal would refuse it after.
+    if (input.by.trim() === "")
+      return err(MetatorError.usage("say who answers: --by <name>", "An answer records who gave it."));
     const id =
       input.runId === undefined
         ? await this.runAsking(input.question)

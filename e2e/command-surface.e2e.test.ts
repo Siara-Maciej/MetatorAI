@@ -179,7 +179,8 @@ describe("the command surface (real CLI)", () => {
 
     const newest = (await mt("run", "list", "--limit", "1", "--workflow", "demo", "--status", "active")).json
       .data as { runId: string }[];
-    expect(newest.map((r) => r.runId)).toEqual([b]);
+    // Newest is the latest change: A was taken, released and checkpointed after B was made.
+    expect(newest.map((r) => r.runId)).toEqual([a]);
     expect((await mt("run", "list", "--workflow", "nope")).json.data).toEqual([]);
     expect((await mt("run", "list", "--status", "finished")).code).toBe(64);
 

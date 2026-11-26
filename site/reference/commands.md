@@ -2402,7 +2402,7 @@ metator run schema [options] <artifact>
 
 ### `metator run list`
 
-List runs, newest first
+List runs, the last changed first
 
 ```bash
 metator run list [options]
@@ -2412,7 +2412,7 @@ metator run list [options]
 |---|---|---|
 | `--status <status>` | only runs in this state (one of: active, done, escalated, aborted, planned) |  |
 | `--workflow <id>` | only runs of this workflow |  |
-| `--limit <n>` | only the newest n |  |
+| `--limit <n>` | only the n changed last |  |
 
 ### `metator run continue`
 
@@ -2511,7 +2511,7 @@ metator run answer [options] <question>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<question>` | question id, e.g. q001 | |
-| `--run <id>` | run id (default: latest) |  |
+| `--run <id>` | run id (default: the one run where the question is open) |  |
 | `--choice <labels...>` | the option label(s) chosen |  |
 | `--text <text>` | your own words (with Other, or a reason with Reject) |  |
 | `--by <name>` | who answers (default: $METATOR_USER, else git's user.name, else your login name) |  |
@@ -3185,7 +3185,7 @@ metator report [options]
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `--since <time>` | only runs started at or after this ISO time |  |
+| `--since <time>` | only runs started at or after this ISO date or time (2026-11-01, 2026-11-01T10:30Z) |  |
 | `--html <file>` | also write the dashboard: the report and the reactions to review comments as one page |  |
 
 ## serve
@@ -3347,7 +3347,7 @@ metator issue add [options] <title>
 | `--body <text>` | what and why, with the acceptance criterion |  |
 | `--priority <level>` | how urgent (one of: low, normal, high) |  |
 | `--labels <a,b>` | labels, comma-separated |  |
-| `--ref <ref...>` | what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;] |  |
+| `--ref <ref...>` | what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;], or a note (text with spaces that names no file) |  |
 | `--by <name>` | who adds it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator issue propose`
@@ -3364,7 +3364,7 @@ metator issue propose [options] <title>
 | `--body <text>` | what and why, with the acceptance criterion |  |
 | `--priority <level>` | how urgent (one of: low, normal, high) |  |
 | `--labels <a,b>` | labels, comma-separated |  |
-| `--ref <ref...>` | what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;] |  |
+| `--ref <ref...>` | what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;], or a note (text with spaces that names no file) |  |
 | `--agent <id>` | the proposing agent (or worker) **Required.** |  |
 | `--run <id>` | the run it comes from (default: latest) |  |
 
@@ -3400,7 +3400,7 @@ metator issue edit [options] <id>
 | `--body <text>` |  |  |
 | `--priority <level>` | how urgent (one of: low, normal, high) |  |
 | `--labels <a,b>` | labels, comma-separated |  |
-| `--ref <ref...>` | replaces the refs |  |
+| `--ref <ref...>` | replaces the refs (what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;], or a note (text with spaces that names no file)) |  |
 
 ### `metator issue close`
 

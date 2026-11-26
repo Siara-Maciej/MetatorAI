@@ -366,6 +366,15 @@ describe("AnswerQuestion", () => {
     );
   });
 
+  test("an answer without a name is refused before the question is looked up", async () => {
+    const w = world();
+    const runId = await w.newRun();
+    const refused = (
+      await w.answer.execute({ runId, question: "q999", choices: ["x"], by: " " })
+    )._unsafeUnwrapErr();
+    expect([refused.code, refused.message]).toEqual(["USAGE", "say who answers: --by <name>"]);
+  });
+
   test("no run named: the one run where the question is open, not the latest; none or several is NOT_FOUND with the way on", async () => {
     const w = world();
     const first = await w.newRun();
