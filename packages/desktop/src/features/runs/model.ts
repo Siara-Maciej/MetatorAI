@@ -1,7 +1,15 @@
 /**
  * A run's page: its phase, its conductor, its terminal's ports, why it stopped, the new-run form's choices.
  */
-import type { Activity, PaneView, PlanLintProblem, RunOverview } from "../../shared/api/api.ts";
+import type {
+  Activity,
+  Envelope,
+  PaneView,
+  PlanLintProblem,
+  RunOverview,
+  SupervisorView,
+  Workflow,
+} from "../../shared/api/api.ts";
 import { sameRepo } from "../../shared/model/places.ts";
 import { isFinished, type Run } from "../../shared/model/runs.ts";
 
@@ -20,6 +28,25 @@ export const autonomyLabel = (level: string): string =>
       : level === "L2"
         ? "L2: no person at hand; only the approvals that are never skipped wait"
         : level;
+/**
+ * What the new-run form offers: the workflows and the supervisor's hosts. Workflows that could not
+ * be read are a refusal (the form says why and creates nothing), never an empty list; a supervisor
+ * that could not be read only leaves the hosts unknown.
+ */
+export function formOffer(
+  workflows: Envelope<{ readonly workflows: readonly Workflow[] }>,
+  supervisor: Envelope<SupervisorView>,
+): Envelope<{ readonly workflows: readonly Workflow[]; readonly supervisor: SupervisorView | undefined }> {
+  if (!workflows.ok || !workflows.data)
+    return {
+      ok: false,
+      error: {
+        code: workflows.error?.code ?? "UNREACHABLE",
+        message: `The workflows could not be read: ${workflows.error?.message ?? "the daemon did not answer"}`,
+      },
+    };
+  return { ok: true, data: { workflows: workflows.data.workflows, supervisor: supervisor.data } };
+}
 /** The autonomy levels the form offers for a workflow: the ones it lists; L0 and L1 when the daemon does not say. */
 export const autonomyLevels = (
   workflow: { readonly autonomy?: readonly string[] | undefined } | undefined,

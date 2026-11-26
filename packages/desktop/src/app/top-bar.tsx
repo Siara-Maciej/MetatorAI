@@ -22,14 +22,17 @@ export function TopBar({
   readonly drawerOpen: boolean;
   onDrawer(): void;
 }) {
-  const { repos, runs, me, connected, down, changeName } = useDaemon(
+  const { repos, runs, me, connected, down, answering, changeName } = useDaemon(
     "repos",
     "runs",
     "me",
     "connected",
     "down",
+    "answering",
     "changeName",
   );
+  // An open socket to a daemon that does not answer its pulse is not a connection worth the name.
+  const word = connected ? (answering ? "connected" : "not answering") : down ? "no daemon" : "connecting…";
   return (
     <header className="topbar">
       <span className="logo">MetatorAI</span>
@@ -53,8 +56,14 @@ export function TopBar({
           >
             {me ? `you: ${me}` : "set your name"}
           </Button>
-          <span className={`conn ${connected ? "green" : "red"}`} data-testid="connection">
-            {connected ? "connected" : down ? "no daemon" : "connecting…"}
+          <span
+            className={`conn ${word === "connected" ? "green" : "red"}`}
+            data-testid="connection"
+            title={
+              word === "not answering" ? "The daemon holds the connection but does not answer." : undefined
+            }
+          >
+            {word}
           </span>
         </>
       )}
