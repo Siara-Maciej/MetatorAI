@@ -3,8 +3,8 @@
  */
 import type { DaemonClient } from "../../shared/api/api.ts";
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
-import type { Action } from "../../shared/hooks.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import type { Action } from "../../shared/state/action.ts";
 import type { HostEditor } from "../repos/devcontainers.ts";
 import { useHostEditor } from "../repos/repos-context.tsx";
 

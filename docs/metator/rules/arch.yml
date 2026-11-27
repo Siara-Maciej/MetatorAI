@@ -149,3 +149,16 @@ rules:
       - '<Button variant="primary" onClick={go}>Start</Button>'
     dont:
       - '<button type="button" className="primary" onClick={go}>Start</button>'
+  - id: MT-ARCH-015
+    title: A desktop screen keeps its state in a zustand store
+    applyTo:
+      ["packages/desktop/src/app/**", "packages/desktop/src/features/**", "packages/desktop/src/shared/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-desktop-state
+    summary: Outside shared/state/ and ui/, the desktop app calls no useState or useReducer; a screen's values and actions are its store (scopedStore in features/<name>/state.ts, or a module store for app-wide state), and each small part reads the one value it draws with a selector.
+    rationale: docs/adr/0113-desktop-screen-state.md
+    source: { ref: docs/adr/0113-desktop-screen-state.md, verified: 2026-11-27 }
+    do:
+      - "const busy = useBacklog((s) => s.busy);"
+    dont:
+      - "const [busy, setBusy] = useState(false);"

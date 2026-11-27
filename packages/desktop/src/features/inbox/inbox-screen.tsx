@@ -4,13 +4,15 @@
  * decision (its ids, evidence, "since you left", what each answer does, the command it writes)
  * is folded under the card's Details. With nothing to decide: the tasks in short with their
  * state, the runs nothing drives, and "Describe a task"; with no run at all, only the latter.
+ *
+ * The cards keep what they are given in stores of their own (ADR-0113); quiet Home keeps the task
+ * being described and the start of a run nothing drives in the Home store (`state.ts`).
  */
 
-import { useState } from "react";
 import { DaemonFreshness } from "../../shared/components/freshness.tsx";
 import { Glyph } from "../../shared/components/glyph.tsx";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
-import { useAction, useTasks } from "../../shared/hooks.ts";
+import { useDaemon, useDaemonStore } from "../../shared/daemon/daemon.tsx";
+import { useTasks } from "../../shared/hooks.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import {
   decisionKey,
@@ -23,12 +25,15 @@ import {
   stepNeed,
 } from "../../shared/model/needs.ts";
 import { routeHash } from "../../shared/model/route.ts";
-import { openRuns } from "../../shared/model/runs.ts";
+import { openRuns, type Run } from "../../shared/model/runs.ts";
 import { byAttentionFirst, taskLine, taskState } from "../../shared/model/tasks.ts";
 import { threadTitleOf } from "../../shared/model/threads.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { say } from "../../shared/notice.ts";
 import { openNewRun } from "../../shared/overlays.ts";
+import type { Action } from "../../shared/state/action.ts";
+import { runAction } from "../../shared/state/action.ts";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { isReviewCard, reviewCardKey } from "../reviews/model.ts";
@@ -41,6 +46,7 @@ import { DecisionCard } from "./decision-card.tsx";
 import { EscalatedCard } from "./escalated-card.tsx";
 import { isFirstRun, quietHeading, quietInboxText, taskNeed } from "./model.ts";
 import { PaneAskCard } from "./pane-ask-card.tsx";
+import { Home, useHome, useHomeApi } from "./state.ts";
 import { useAnswered } from "./use-answered.ts";
 
 export function InboxScreen({
@@ -64,6 +70,7 @@ export function InboxScreen({
   const onStart = (task: string) => void newChat(task);
   const onForm = openNewRun;
   const { inbox, runs, paneAsks, reviewCards } = useDaemon("inbox", "runs", "paneAsks", "reviewCards");
+  const daemon = useDaemonStore();
   const item = picked ? inbox.find((i) => decisionKey(i) === picked.key) : undefined;
   // A pane without a run that asks (the intake chat): its own card, answered into the pane.
   const paneAsk = picked && isPaneAsk(picked) ? paneAskOf(paneAsks, picked.key) : undefined;
@@ -92,14 +99,16 @@ export function InboxScreen({
   );
   if (needs.length === 0)
     return (
-      <div className="home">
-        {debug}
-        {isFirstRun(runs, needs) ? (
-          <FirstRun onStart={onStart} onForm={onForm} />
-        ) : (
-          <QuietHome onOpenRun={onOpenRun} onStart={onStart} onForm={onForm} />
-        )}
-      </div>
+      <ScopeProvider store={Home} init={{ daemon }}>
+        <div className="home">
+          {debug}
+          {isFirstRun(runs, needs) ? (
+            <FirstRun onStart={onStart} onForm={onForm} />
+          ) : (
+            <QuietHome onOpenRun={onOpenRun} onStart={onStart} onForm={onForm} />
+          )}
+        </div>
+      </ScopeProvider>
     );
   return (
     <div className="home">
@@ -171,14 +180,16 @@ export function InboxScreen({
 
 /** Nothing was ever started here: say what to do, or fill the form. */
 function FirstRun({ onStart, onForm }: { onStart(task: string): void; onForm(): void }) {
-  const [task, setTask] = useState("");
+  const api = useHomeApi();
+  const blank = useHome((s) => s.task.trim() === "");
   return (
     <form
       className="first-run"
       data-testid="first-run"
       onSubmit={(e) => {
         e.preventDefault();
-        if (task.trim() !== "") onStart(task.trim());
+        const task = api.getState().task.trim();
+        if (task !== "") onStart(task);
       }}
     >
       <h1>Describe a task</h1>
@@ -186,18 +197,9 @@ function FirstRun({ onStart, onForm }: { onStart(task: string): void; onForm(): 
         Say what to do in a sentence or two. The agent opens in a terminal, asks what is unclear and starts
         the run; every decision it needs from you comes here.
       </p>
-      <textarea
-        aria-label="Describe a task"
-        rows={4}
-        placeholder="for example: add a 10% discount to invoices over 1000, with a test"
-        value={task}
-        onChange={(e) => setTask(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && task.trim() !== "") onStart(task.trim());
-        }}
-      />
+      <TaskField onStart={onStart} />
       <div className="actions">
-        <Button type="submit" variant="primary" disabled={task.trim() === ""}>
+        <Button type="submit" variant="primary" disabled={blank}>
           Start
         </Button>
         <Button onClick={onForm}>Use the form</Button>
@@ -206,6 +208,24 @@ function FirstRun({ onStart, onForm }: { onStart(task: string): void; onForm(): 
         </span>
       </div>
     </form>
+  );
+}
+
+/** The task's words: typing draws only this field (and Start, when it is no longer blank). */
+export function TaskField({ onStart }: { onStart(task: string): void }) {
+  const task = useHome((s) => s.task);
+  const setTask = useHome((s) => s.setTask);
+  return (
+    <textarea
+      aria-label="Describe a task"
+      rows={4}
+      placeholder="for example: add a 10% discount to invoices over 1000, with a test"
+      value={task}
+      onChange={(e) => setTask(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && task.trim() !== "") onStart(task.trim());
+      }}
+    />
   );
 }
 
@@ -224,7 +244,6 @@ function QuietHome({
 }) {
   const { runs, panes, threads } = useDaemon("runs", "panes", "threads");
   const tasks = byAttentionFirst(useTasks()).filter((t) => t.column !== "done");
-  const action = useAction();
   const open = openRuns(runs);
   const idle = idleRuns(open, panes);
   // A blocked task without a question still waits for the person to look: Home never says "nothing" then.
@@ -241,12 +260,12 @@ function QuietHome({
                 {r.task}
               </Button>{" "}
               <span className="faint">{r.repo ? `${r.repo} · ` : ""}nothing drives it</span>
-              <StartRun run={r} action={action} compact />
+              <IdleRunStart run={r} />
             </li>
           ))}
         </ul>
       ) : null}
-      <Notice {...action.notice} />
+      <HomeNotice />
       {tasks.length > 0 ? (
         <ul className="home-tasks" aria-label="tasks" data-testid="home-tasks">
           {tasks.map((t) => {
@@ -276,4 +295,25 @@ function QuietHome({
       <FirstRun onStart={onStart} onForm={onForm} />
     </div>
   );
+}
+
+/** Starting a run nothing drives: its request runs as Home's action, its answer in Home's notice. */
+function IdleRunStart({ run }: { readonly run: Run }) {
+  const busy = useHome((s) => s.busy);
+  const api = useHomeApi();
+  const { daemon, closeNotice } = api.getState();
+  const action: Action = {
+    run: (fn, options) => runAction(api, daemon, fn, options),
+    busy,
+    // StartRun shows no notice of its own: Home's notice says what the start answered.
+    notice: { text: undefined, tone: "error", onClose: closeNotice },
+    say: (text, tone = "error") => api.setState({ notice: text ? { text, tone } : undefined }),
+  };
+  return <StartRun run={run} action={action} compact />;
+}
+
+function HomeNotice() {
+  const notice = useHome((s) => s.notice);
+  const closeNotice = useHome((s) => s.closeNotice);
+  return <Notice text={notice?.text} tone={notice?.tone ?? "error"} onClose={closeNotice} />;
 }

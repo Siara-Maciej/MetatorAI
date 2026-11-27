@@ -1,21 +1,25 @@
 /**
  * The system map's editor (the only document the app edits): the map as tables, a draft as fields or JSON, Check (the daemon's lint) and Save (what changes, then a write that names the digest it was read at).
+ *
+ * The screen only lays its parts out (ADR-0113): what it keeps is the SystemMap store
+ * (`system-map-state.ts`) and the document editor's store; a row of the form reads only its own
+ * application or contract, so typing in a field draws that row again, not the form.
  */
-import { useState } from "react";
-import type { SystemDiscoveryView, SystemMap, SystemMapView } from "../../shared/api/api.ts";
-import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
-import { useAction } from "../../shared/hooks.ts";
+import { useShallow } from "zustand/react/shallow";
+import type { SystemMap, SystemMapView } from "../../shared/api/api.ts";
+import { useDaemon, useDaemonStore, usePolled, usePolledSelect } from "../../shared/daemon/daemon.tsx";
 import { plural } from "../../shared/model/format.ts";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
-import { type DocSource, EditBar, ProblemList, useDocEditor } from "../plans/doc-editor.tsx";
+import { DocEditorScope, EditBar, ProblemList, useProblems } from "../plans/doc-editor.tsx";
+import { type DocSource, useDocEdit } from "../plans/doc-editor-state.ts";
 import {
   blankApplication,
   blankContract,
   listOf,
   type MapApplication,
   type MapContract,
-  mapChanges,
   moved,
   sourceOf,
   sourceText,
@@ -23,209 +27,465 @@ import {
 } from "../plans/plan-edit.ts";
 import { TextEditor } from "../plans/plan-form.tsx";
 import { rootsProblems } from "./model.ts";
+import { mapSource, SystemMapScreen, systemMapKey, useSystemMap } from "./system-map-state.ts";
+
+type MapSource = DocSource<SystemMapView, SystemMap>;
 
 export function SystemMapEditor() {
-  const { client, repo, optionsView, reloadOptions } = useDaemon(
-    "client",
-    "repo",
-    "optionsView",
-    "reloadOptions",
+  const daemon = useDaemonStore();
+  const source = mapSource(daemon);
+  return (
+    <ScopeProvider store={SystemMapScreen} init={{ daemon }}>
+      <DocEditorScope source={source}>
+        <div className="system-map" data-testid="system-map">
+          <MapHead />
+          <MapReadError />
+          <MapNotice />
+          <Discovery />
+          <Roots />
+          <MapEditBar source={source} />
+          <MapBody source={source} />
+        </div>
+      </DocEditorScope>
+    </ScopeProvider>
   );
-  const map = usePolled(`system-map:${repo ?? ""}`, () => client.systemMap(repo), 5000);
-  const action = useAction(map.reload);
-  const source: DocSource<SystemMapView, SystemMap> = {
-    view: map.data,
-    reload: map.reload,
-    docOf: (v) => v.map,
-    digestOf: (v) => v.digest,
-    lintOf: (v) => v.lint,
-    editable: (v) => v.editable,
-    readOnlyBecause: (v) => v.readOnlyBecause,
-    save: (m, digest, by) => client.saveSystemMap({ map: m, digest, by }, repo),
-    changes: mapChanges,
-    blank: () =>
-      ({
-        system: "system",
-        applications: [blankApplication({ applications: [] })],
-        contracts: [],
-        policies: { deployOrder: "providers-first", breaking: "expand-contract" },
-      }) as SystemMap,
-  };
-  const editor = useDocEditor(source);
-  const [found, setFound] = useState<SystemDiscoveryView>();
+}
+
+/** The map as the daemon answered it last, or `select`'s part of it (undefined before the first answer). */
+function useMapView<R>(select: (view: SystemMapView | undefined) => R): R {
+  const { client, repo } = useDaemon("client", "repo");
+  return usePolledSelect(systemMapKey(repo), () => client.systemMap(repo), 5000, select);
+}
+const whole = (v: SystemMapView | undefined) => v;
+
+function MapHead() {
+  const file = useMapView((v) => v?.file);
+  const busy = useSystemMap((s) => s.busy);
+  const discover = useSystemMap((s) => s.discover);
+  return (
+    <header className="sp-head">
+      <h2>System map</h2>
+      {file ? <span className="faint mono">{file}</span> : null}
+      <span className="spacer" />
+      <Button disabled={busy} onClick={() => void discover(false)}>
+        Discover…
+      </Button>
+    </header>
+  );
+}
+
+/** The map could not be read, and there is none to show. */
+function MapReadError() {
+  const { client, repo } = useDaemon("client", "repo");
+  const map = usePolled(systemMapKey(repo), () => client.systemMap(repo), 5000);
+  return map.error && !map.data ? <div className="banner">{map.error}</div> : null;
+}
+
+function MapNotice() {
+  const notice = useSystemMap((s) => s.notice);
+  const closeNotice = useSystemMap((s) => s.closeNotice);
+  return <Notice text={notice?.text} tone={notice?.tone ?? "error"} onClose={closeNotice} />;
+}
+
+/** What "Discover…" found that the map lacks, before it is written. */
+function Discovery() {
+  const found = useSystemMap((s) => s.found);
+  const busy = useSystemMap((s) => s.busy);
+  const discover = useSystemMap((s) => s.discover);
+  const closeFound = useSystemMap((s) => s.closeFound);
+  const m = useMapView((v) => v?.map);
+  const file = useMapView((v) => v?.file);
+  if (!found) return null;
+  return (
+    <section className="discovery" aria-label="what discovery found" data-testid="discovery">
+      <h3>What the code shows that the map lacks</h3>
+      {!m ? (
+        <>
+          <div className="faint">
+            There is no map yet: this is the map the code shows. "Write the map" saves it to{" "}
+            <span className="mono">{found.file ?? file ?? "the map's file"}</span>.
+          </div>
+          <MapTables map={found.proposed} />
+        </>
+      ) : found.changes.length === 0 ? (
+        <div className="faint">Nothing: the map says what the code shows.</div>
+      ) : (
+        <ul>
+          {found.changes.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+      )}
+      <div className="actions">
+        <Button
+          variant="primary"
+          disabled={(m !== null && m !== undefined && found.changes.length === 0) || busy}
+          onClick={() => void discover(true)}
+        >
+          Write the map
+        </Button>
+        <Button onClick={closeFound}>Cancel</Button>
+      </div>
+    </section>
+  );
+}
+
+const NO_ROOTS: readonly string[] = [];
+
+/** Where the applications' code is on this machine (`system.roots`), edited as a list. */
+function Roots() {
+  const { optionsView } = useDaemon("optionsView");
+  const rootsDraft = useSystemMap((s) => s.rootsDraft);
+  const busy = useSystemMap((s) => s.busy);
+  const editRoots = useSystemMap((s) => s.editRoots);
+  const cancelRoots = useSystemMap((s) => s.cancelRoots);
+  const saveRoots = useSystemMap((s) => s.saveRoots);
+  const found = useMapView((v) => v?.roots ?? NO_ROOTS);
   const rootsOption = optionsView?.options.find((o) => o.key === "system.roots");
   const roots = Array.isArray(rootsOption?.value) ? (rootsOption?.value as string[]) : [];
-  // The roots as a list being edited: one path per row; undefined while nothing changed.
-  const [rootsDraft, setRootsDraft] = useState<string[]>();
-  const view = map.data;
-  const m = view?.map;
-  const discover = async (write: boolean) => {
-    let answer: SystemDiscoveryView | undefined;
-    const ok = await action.run(
-      async (by) => {
-        const r = await client.discover(write ? { write, by } : { write }, repo);
-        answer = r.data;
-        return r;
-      },
-      write ? { who: true, done: "the map is written" } : { refused: "discovery did not answer" },
-    );
-    if (ok) setFound(write ? undefined : answer);
-  };
   const rootsList = rootsDraft ?? roots;
-  const rootsWrong = rootsDraft ? rootsProblems(rootsDraft) : [];
-  const editRoots = (next: string[]) => setRootsDraft(next);
-  const saveRoots = (paths: readonly string[]) =>
-    action
-      .run(
-        () =>
-          client.setOption(
-            "system.roots",
-            {
-              scope: rootsOption?.definition.scope === "user" ? "user" : "repo",
-              value: paths.map((p) => p.trim()),
-            },
-            repo,
-          ),
-        { done: "the roots are saved" },
-      )
-      .then(async (r) => {
-        if (r) setRootsDraft(undefined);
-        await reloadOptions();
-        return r;
-      });
+  const rootsWrong = rootsDraft ? rootsProblems([...rootsDraft]) : [];
   return (
-    <div className="system-map" data-testid="system-map">
-      <header className="sp-head">
-        <h2>System map</h2>
-        {view ? <span className="faint mono">{view.file}</span> : null}
-        <span className="spacer" />
-        <Button disabled={action.busy} onClick={() => void discover(false)}>
-          Discover…
-        </Button>
-      </header>
-      {map.error && !view ? <div className="banner">{map.error}</div> : null}
-      <Notice {...action.notice} />
-      {found ? (
-        <section className="discovery" aria-label="what discovery found" data-testid="discovery">
-          <h3>What the code shows that the map lacks</h3>
-          {!m ? (
-            <>
-              <div className="faint">
-                There is no map yet: this is the map the code shows. "Write the map" saves it to{" "}
-                <span className="mono">{found.file ?? view?.file ?? "the map's file"}</span>.
-              </div>
-              <MapTables map={found.proposed} />
-            </>
-          ) : found.changes.length === 0 ? (
-            <div className="faint">Nothing: the map says what the code shows.</div>
-          ) : (
-            <ul>
-              {found.changes.map((c) => (
-                <li key={c}>{c}</li>
+    <section className="roots" aria-label="where the code is">
+      <h3>Where the applications' code is</h3>
+      {rootsOption ? (
+        <>
+          <p className="faint">
+            The directories that hold the applications' checkouts (option{" "}
+            <span className="mono">system.roots</span>, {rootsOption.definition.scope} scope).
+          </p>
+          <ul className="roots-list" aria-label="system roots" data-testid="system-roots">
+            {rootsList.length === 0 ? (
+              <li className="faint">No root yet: the map's own paths are used.</li>
+            ) : null}
+            {rootsList.map((path, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: a row is its place in the list
+              <li key={i} className="row">
+                <input
+                  aria-label={`root ${i + 1}`}
+                  className="mono"
+                  placeholder="/home/you/code"
+                  value={path}
+                  onChange={(e) => editRoots(rootsList.map((p, j) => (j === i ? e.target.value : p)))}
+                />
+                <Button
+                  variant="ghost"
+                  aria-label={`remove root ${i + 1}`}
+                  title="remove this path"
+                  onClick={() => editRoots(rootsList.filter((_, j) => j !== i))}
+                >
+                  ✕
+                </Button>
+              </li>
+            ))}
+          </ul>
+          {rootsWrong.length > 0 ? (
+            <ul className="red" data-testid="roots-problems">
+              {rootsWrong.map((p) => (
+                <li key={p}>{p}</li>
               ))}
             </ul>
-          )}
+          ) : null}
           <div className="actions">
+            <Button onClick={() => editRoots([...rootsList, ""])}>+ Path</Button>
             <Button
               variant="primary"
-              disabled={(m !== null && m !== undefined && found.changes.length === 0) || action.busy}
-              onClick={() => void discover(true)}
+              disabled={rootsDraft === undefined || rootsWrong.length > 0 || busy}
+              onClick={() =>
+                void saveRoots(rootsList, rootsOption.definition.scope === "user" ? "user" : "repo")
+              }
             >
-              Write the map
+              Save roots
             </Button>
-            <Button onClick={() => setFound(undefined)}>Cancel</Button>
+            {rootsDraft ? <Button onClick={cancelRoots}>Cancel</Button> : null}
           </div>
-        </section>
-      ) : null}
-      <section className="roots" aria-label="where the code is">
-        <h3>Where the applications' code is</h3>
-        {rootsOption ? (
-          <>
-            <p className="faint">
-              The directories that hold the applications' checkouts (option{" "}
-              <span className="mono">system.roots</span>, {rootsOption.definition.scope} scope).
-            </p>
-            <ul className="roots-list" aria-label="system roots" data-testid="system-roots">
-              {rootsList.length === 0 ? (
-                <li className="faint">No root yet: the map's own paths are used.</li>
-              ) : null}
-              {rootsList.map((path, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: a row is its place in the list
-                <li key={i} className="row">
-                  <input
-                    aria-label={`root ${i + 1}`}
-                    className="mono"
-                    placeholder="/home/you/code"
-                    value={path}
-                    onChange={(e) => editRoots(rootsList.map((p, j) => (j === i ? e.target.value : p)))}
-                  />
-                  <Button
-                    variant="ghost"
-                    aria-label={`remove root ${i + 1}`}
-                    title="remove this path"
-                    onClick={() => editRoots(rootsList.filter((_, j) => j !== i))}
-                  >
-                    ✕
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            {rootsWrong.length > 0 ? (
-              <ul className="red" data-testid="roots-problems">
-                {rootsWrong.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ul>
-            ) : null}
-            <div className="actions">
-              <Button onClick={() => editRoots([...rootsList, ""])}>+ Path</Button>
-              <Button
-                variant="primary"
-                disabled={rootsDraft === undefined || rootsWrong.length > 0 || action.busy}
-                onClick={() => void saveRoots(rootsList)}
-              >
-                Save roots
-              </Button>
-              {rootsDraft ? <Button onClick={() => setRootsDraft(undefined)}>Cancel</Button> : null}
-            </div>
-          </>
-        ) : (
-          <p className="faint" data-testid="roots-unknown">
-            This daemon has no option <span className="mono">system.roots</span>: the paths come from the map.
-          </p>
-        )}
-        {view && view.roots.length > 0 ? (
-          <div className="faint">
-            Found: <span className="mono">{view.roots.join(", ")}</span>
-          </div>
-        ) : null}
-      </section>
-      {view ? (
-        <EditBar editor={editor} source={source} noun="system map" testId="system-map-edit-bar" />
-      ) : null}
-      {editor.mode === "text" ? (
-        <TextEditor
-          text={editor.text}
-          label="the system map as JSON"
-          problems={editor.problems}
-          onChange={editor.setText}
-        />
-      ) : editor.mode === "form" && editor.draft ? (
-        <MapForm map={editor.draft} onChange={editor.setDraft} />
-      ) : m ? (
-        <>
-          <ProblemList problems={editor.problems} />
-          <MapTables map={m} />
         </>
-      ) : view ? (
-        <div className="empty">
-          <h2>No system map</h2>
-          <p>Discover proposes one from the code, or edit one by hand.</p>
+      ) : (
+        <p className="faint" data-testid="roots-unknown">
+          This daemon has no option <span className="mono">system.roots</span>: the paths come from the map.
+        </p>
+      )}
+      {found.length > 0 ? (
+        <div className="faint">
+          Found: <span className="mono">{found.join(", ")}</span>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+function MapEditBar({ source }: { readonly source: MapSource }) {
+  const view = useMapView(whole);
+  return view ? <EditBar view={view} source={source} noun="system map" testId="system-map-edit-bar" /> : null;
+}
+
+/** The draft as text, as fields, or the map as tables. */
+function MapBody({ source }: { readonly source: MapSource }) {
+  const mode = useDocEdit((s) => s.mode);
+  const drafted = useDocEdit((s) => s.draft !== undefined);
+  if (mode === "text") return <MapText source={source} />;
+  if (mode === "form" && drafted) return <MapForm />;
+  return <MapShown source={source} />;
+}
+
+function MapText({ source }: { readonly source: MapSource }) {
+  const view = useMapView(whole);
+  const problems = useProblems(view, source);
+  const text = useDocEdit((s) => s.text);
+  const setText = useDocEdit((s) => s.setText);
+  return <TextEditor text={text} label="the system map as JSON" problems={problems} onChange={setText} />;
+}
+
+function MapShown({ source }: { readonly source: MapSource }) {
+  const view = useMapView(whole);
+  const problems = useProblems(view, source);
+  const m = view?.map;
+  return m ? (
+    <>
+      <ProblemList problems={problems} />
+      <MapTables map={m} />
+    </>
+  ) : view ? (
+    <div className="empty">
+      <h2>No system map</h2>
+      <p>Discover proposes one from the code, or edit one by hand.</p>
+    </div>
+  ) : null;
+}
+
+/* ---------- the map as fields: each row reads its own part of the draft ---------- */
+
+/** A part of the draft (a map while the form shows). */
+const useDraft = <T,>(select: (m: SystemMap) => T): T =>
+  useDocEdit((s) => select((s.draft ?? EMPTY_MAP) as SystemMap));
+const EMPTY_MAP = { system: "", applications: [], contracts: [] } as unknown as SystemMap;
+
+/** Changes the draft at the moment of an event. */
+function useChange(): (change: (m: SystemMap) => SystemMap) => void {
+  const setDraft = useDocEdit((s) => s.setDraft);
+  return (change) => setDraft<SystemMap>(change);
+}
+
+function MapForm() {
+  const apps = useDraft((m) => m.applications.length);
+  const contracts = useDraft((m) => m.contracts.length);
+  const change = useChange();
+  return (
+    <div className="plan-form" data-testid="system-map-form">
+      <SystemNameField />
+      <h3>Applications</h3>
+      <ol className="pf-steps">
+        {Array.from({ length: apps }, (_, i) => (
+          <AppRow key={`app-${String(i)}`} i={i} />
+        ))}
+      </ol>
+      <Button
+        onClick={() => change((m) => ({ ...m, applications: [...m.applications, blankApplication(m)] }))}
+      >
+        + Application
+      </Button>
+      <h3>Contracts</h3>
+      <ol className="pf-steps">
+        {Array.from({ length: contracts }, (_, i) => (
+          <ContractRow key={`contract-${String(i)}`} i={i} />
+        ))}
+      </ol>
+      <Button onClick={() => change((m) => ({ ...m, contracts: [...m.contracts, blankContract(m)] }))}>
+        + Contract
+      </Button>
     </div>
   );
 }
+
+export function SystemNameField() {
+  const system = useDraft((m) => m.system);
+  const change = useChange();
+  return (
+    <label className="pf-field">
+      <span>System</span>
+      <input
+        aria-label="system name"
+        className="mono"
+        value={system}
+        onChange={(e) => change((m) => ({ ...m, system: e.target.value }))}
+      />
+    </label>
+  );
+}
+
+const KINDS = ["frontend", "service", "worker", "gateway", "library", "other"] as const;
+
+export function AppRow({ i }: { readonly i: number }) {
+  const a = useDraft((m) => m.applications[i]);
+  const last = useDraft((m) => i === m.applications.length - 1);
+  const change = useChange();
+  if (!a) return null;
+  const app = (patch: Partial<MapApplication>) =>
+    change((m) => ({ ...m, applications: m.applications.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
+  return (
+    <li className="pf-step" aria-label={`application ${a.id}`}>
+      <div className="pf-head">
+        <b className="mono">{a.id || "(no id)"}</b>
+        <span className="spacer" />
+        <Button
+          variant="ghost"
+          aria-label={`move ${a.id} up`}
+          disabled={i === 0}
+          onClick={() => change((m) => ({ ...m, applications: moved(m.applications, i, -1) }))}
+        >
+          ↑
+        </Button>
+        <Button
+          variant="ghost"
+          aria-label={`move ${a.id} down`}
+          disabled={last}
+          onClick={() => change((m) => ({ ...m, applications: moved(m.applications, i, 1) }))}
+        >
+          ↓
+        </Button>
+        <Button
+          variant="ghost"
+          aria-label={`remove ${a.id}`}
+          onClick={() => change((m) => ({ ...m, applications: m.applications.filter((_, j) => j !== i) }))}
+        >
+          ✕
+        </Button>
+      </div>
+      <div className="pf-grid">
+        <label className="pf-field">
+          <span>Id</span>
+          <input
+            aria-label={`application ${i + 1} id`}
+            className="mono"
+            value={a.id}
+            onChange={(e) => app({ id: e.target.value })}
+          />
+        </label>
+        <label className="pf-field">
+          <span>Kind</span>
+          <select
+            aria-label={`${a.id} kind`}
+            value={a.kind}
+            onChange={(e) => app({ kind: e.target.value as MapApplication["kind"] })}
+          >
+            {KINDS.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="pf-field">
+          <span>Code</span>
+          <input
+            aria-label={`${a.id} code`}
+            className="mono"
+            placeholder="a path here, or repo:<repo>[@ref][:path]"
+            value={sourceText(a.source)}
+            onChange={(e) => app({ source: sourceOf(e.target.value) })}
+          />
+        </label>
+        <label className="pf-field">
+          <span>Owners</span>
+          <input
+            aria-label={`${a.id} owners`}
+            value={textOf(a.owners)}
+            onChange={(e) => app({ owners: listOf(e.target.value) })}
+          />
+        </label>
+        <label className="pf-field">
+          <span>Consumes</span>
+          <input
+            aria-label={`${a.id} consumes`}
+            className="mono"
+            placeholder="contract or contract@^2"
+            value={textOf(a.consumes)}
+            onChange={(e) => app({ consumes: listOf(e.target.value) })}
+          />
+        </label>
+      </div>
+    </li>
+  );
+}
+
+function ContractRow({ i }: { readonly i: number }) {
+  const c = useDraft((m) => m.contracts[i]);
+  // The owners it may name: the applications' ids, read as one list that changes only with them.
+  const ids = useDocEdit(
+    useShallow((s) => ((s.draft ?? EMPTY_MAP) as SystemMap).applications.map((a) => a.id)),
+  );
+  const change = useChange();
+  if (!c) return null;
+  const contract = (patch: Partial<MapContract>) =>
+    change((m) => ({
+      ...m,
+      contracts: m.contracts.map((x, j) => (j === i ? ({ ...x, ...patch } as MapContract) : x)),
+    }));
+  return (
+    <li className="pf-step" aria-label={`contract ${c.id}`}>
+      <div className="pf-head">
+        <b className="mono">{c.id || "(no id)"}</b>
+        <span className="spacer" />
+        <Button
+          variant="ghost"
+          aria-label={`remove ${c.id}`}
+          onClick={() => change((m) => ({ ...m, contracts: m.contracts.filter((_, j) => j !== i) }))}
+        >
+          ✕
+        </Button>
+      </div>
+      <div className="pf-grid">
+        <label className="pf-field">
+          <span>Id</span>
+          <input
+            aria-label={`contract ${i + 1} id`}
+            className="mono"
+            value={c.id}
+            onChange={(e) => contract({ id: e.target.value })}
+          />
+        </label>
+        <label className="pf-field">
+          <span>Kind</span>
+          <input
+            aria-label={`${c.id} kind`}
+            className="mono"
+            value={c.kind}
+            onChange={(e) => contract({ kind: e.target.value })}
+          />
+        </label>
+        <label className="pf-field">
+          <span>Owner</span>
+          <select
+            aria-label={`${c.id} owner`}
+            value={c.owner}
+            onChange={(e) => contract({ owner: e.target.value })}
+          >
+            {ids.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="pf-field">
+          <span>Specification</span>
+          <input
+            aria-label={`${c.id} specification`}
+            className="mono"
+            placeholder="openapi.yaml, or /docs-json when served"
+            value={"path" in c.spec ? c.spec.path : c.spec.served}
+            onChange={(e) =>
+              contract({
+                spec: e.target.value.startsWith("/") ? { served: e.target.value } : { path: e.target.value },
+              })
+            }
+          />
+        </label>
+      </div>
+    </li>
+  );
+}
+
 function MapTables({ map }: { readonly map: SystemMap }) {
   return (
     <>
@@ -278,202 +538,5 @@ function MapTables({ map }: { readonly map: SystemMap }) {
         </tbody>
       </table>
     </>
-  );
-}
-const KINDS = ["frontend", "service", "worker", "gateway", "library", "other"] as const;
-function MapForm({
-  map,
-  onChange,
-}: {
-  readonly map: SystemMap;
-  onChange(change: (m: SystemMap) => SystemMap): void;
-}) {
-  const app = (i: number, patch: Partial<MapApplication>) =>
-    onChange((m) => ({
-      ...m,
-      applications: m.applications.map((a, j) => (j === i ? { ...a, ...patch } : a)),
-    }));
-  const contract = (i: number, patch: Partial<MapContract>) =>
-    onChange((m) => ({
-      ...m,
-      contracts: m.contracts.map((c, j) => (j === i ? ({ ...c, ...patch } as MapContract) : c)),
-    }));
-  return (
-    <div className="plan-form" data-testid="system-map-form">
-      <label className="pf-field">
-        <span>System</span>
-        <input
-          aria-label="system name"
-          className="mono"
-          value={map.system}
-          onChange={(e) => onChange((m) => ({ ...m, system: e.target.value }))}
-        />
-      </label>
-      <h3>Applications</h3>
-      <ol className="pf-steps">
-        {map.applications.map((a, i) => (
-          <li key={`app-${String(i)}`} className="pf-step" aria-label={`application ${a.id}`}>
-            <div className="pf-head">
-              <b className="mono">{a.id || "(no id)"}</b>
-              <span className="spacer" />
-              <Button
-                variant="ghost"
-                aria-label={`move ${a.id} up`}
-                disabled={i === 0}
-                onClick={() => onChange((m) => ({ ...m, applications: moved(m.applications, i, -1) }))}
-              >
-                ↑
-              </Button>
-              <Button
-                variant="ghost"
-                aria-label={`move ${a.id} down`}
-                disabled={i === map.applications.length - 1}
-                onClick={() => onChange((m) => ({ ...m, applications: moved(m.applications, i, 1) }))}
-              >
-                ↓
-              </Button>
-              <Button
-                variant="ghost"
-                aria-label={`remove ${a.id}`}
-                onClick={() =>
-                  onChange((m) => ({ ...m, applications: m.applications.filter((_, j) => j !== i) }))
-                }
-              >
-                ✕
-              </Button>
-            </div>
-            <div className="pf-grid">
-              <label className="pf-field">
-                <span>Id</span>
-                <input
-                  aria-label={`application ${i + 1} id`}
-                  className="mono"
-                  value={a.id}
-                  onChange={(e) => app(i, { id: e.target.value })}
-                />
-              </label>
-              <label className="pf-field">
-                <span>Kind</span>
-                <select
-                  aria-label={`${a.id} kind`}
-                  value={a.kind}
-                  onChange={(e) => app(i, { kind: e.target.value as MapApplication["kind"] })}
-                >
-                  {KINDS.map((k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="pf-field">
-                <span>Code</span>
-                <input
-                  aria-label={`${a.id} code`}
-                  className="mono"
-                  placeholder="a path here, or repo:<repo>[@ref][:path]"
-                  value={sourceText(a.source)}
-                  onChange={(e) => app(i, { source: sourceOf(e.target.value) })}
-                />
-              </label>
-              <label className="pf-field">
-                <span>Owners</span>
-                <input
-                  aria-label={`${a.id} owners`}
-                  value={textOf(a.owners)}
-                  onChange={(e) => app(i, { owners: listOf(e.target.value) })}
-                />
-              </label>
-              <label className="pf-field">
-                <span>Consumes</span>
-                <input
-                  aria-label={`${a.id} consumes`}
-                  className="mono"
-                  placeholder="contract or contract@^2"
-                  value={textOf(a.consumes)}
-                  onChange={(e) => app(i, { consumes: listOf(e.target.value) })}
-                />
-              </label>
-            </div>
-          </li>
-        ))}
-      </ol>
-      <Button
-        onClick={() => onChange((m) => ({ ...m, applications: [...m.applications, blankApplication(m)] }))}
-      >
-        + Application
-      </Button>
-      <h3>Contracts</h3>
-      <ol className="pf-steps">
-        {map.contracts.map((c, i) => (
-          <li key={`contract-${String(i)}`} className="pf-step" aria-label={`contract ${c.id}`}>
-            <div className="pf-head">
-              <b className="mono">{c.id || "(no id)"}</b>
-              <span className="spacer" />
-              <Button
-                variant="ghost"
-                aria-label={`remove ${c.id}`}
-                onClick={() => onChange((m) => ({ ...m, contracts: m.contracts.filter((_, j) => j !== i) }))}
-              >
-                ✕
-              </Button>
-            </div>
-            <div className="pf-grid">
-              <label className="pf-field">
-                <span>Id</span>
-                <input
-                  aria-label={`contract ${i + 1} id`}
-                  className="mono"
-                  value={c.id}
-                  onChange={(e) => contract(i, { id: e.target.value })}
-                />
-              </label>
-              <label className="pf-field">
-                <span>Kind</span>
-                <input
-                  aria-label={`${c.id} kind`}
-                  className="mono"
-                  value={c.kind}
-                  onChange={(e) => contract(i, { kind: e.target.value })}
-                />
-              </label>
-              <label className="pf-field">
-                <span>Owner</span>
-                <select
-                  aria-label={`${c.id} owner`}
-                  value={c.owner}
-                  onChange={(e) => contract(i, { owner: e.target.value })}
-                >
-                  {map.applications.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="pf-field">
-                <span>Specification</span>
-                <input
-                  aria-label={`${c.id} specification`}
-                  className="mono"
-                  placeholder="openapi.yaml, or /docs-json when served"
-                  value={"path" in c.spec ? c.spec.path : c.spec.served}
-                  onChange={(e) =>
-                    contract(i, {
-                      spec: e.target.value.startsWith("/")
-                        ? { served: e.target.value }
-                        : { path: e.target.value },
-                    })
-                  }
-                />
-              </label>
-            </div>
-          </li>
-        ))}
-      </ol>
-      <Button onClick={() => onChange((m) => ({ ...m, contracts: [...m.contracts, blankContract(m)] }))}>
-        + Contract
-      </Button>
-    </div>
   );
 }

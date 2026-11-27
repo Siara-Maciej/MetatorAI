@@ -1,12 +1,11 @@
 /**
  * The parts of Add repository (round 20, ADR-0105): what an inspection found, the dev containers to choose from (round 21, ADR-0106), the AI host to set up with, a command's output, and the browser's version (the commands to run).
  */
-import { useState } from "react";
 import type { DevContainer } from "../../shared/platform/tauri-commands.ts";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
+import { CopyButton } from "../../ui/copy-button.tsx";
 import {
-  type ContainerEvent,
-  type ContainerFlow,
   containerRows,
   DEVCONTAINER_DOCS,
   folderName,
@@ -18,7 +17,6 @@ import {
   alreadyAdded,
   DESKTOP_DOWNLOAD,
   type Flow,
-  type FlowEvent,
   hostChoices,
   readInspection,
   requirements,
@@ -26,28 +24,24 @@ import {
   webCommands,
   writesFor,
 } from "./repos.ts";
-import { useRepos } from "./repos-context.tsx";
+import { reposActs, useReposOf } from "./repos-context.tsx";
+import { useAddRepo, useWebAdd, WebAdd as WebAddForm } from "./state.ts";
 
-/** What the inspection found, and the one next action. */
-export function Inspected({
-  flow,
-  where,
-  container,
-  dispatch,
-  output,
-  onOutput,
-  onOpenKnown,
-}: {
-  readonly flow: Extract<Flow, { step: "inspected" }>;
-  readonly where: Where;
+type InspectedFlow = Extract<Flow, { step: "inspected" }>;
+
+/** What the inspection found, and the one next action (while the flow is at that step). */
+export function Inspected() {
+  const flow = useAddRepo((s) => (s.flow.step === "inspected" ? s.flow : undefined));
+  return flow ? <InspectedFlowOf flow={flow} /> : null;
+}
+
+function InspectedFlowOf({ flow }: { readonly flow: InspectedFlow }) {
+  const known = useReposOf((r) => r.known);
+  const dispatch = useAddRepo((s) => s.dispatch);
   /** The dev container's local folder label, when the folder is in one. */
-  readonly container: string | undefined;
-  dispatch(e: FlowEvent): void;
-  readonly output: boolean;
-  onOutput(): void;
-  onOpenKnown(path: string): void;
-}) {
-  const { known } = useRepos();
+  const container = useAddRepo((s) => s.place?.localFolder);
+  const where: Where = container !== undefined ? "container" : "here";
+  const onOpenKnown = (path: string) => void reposActs.open(path);
   const i = flow.inspection;
   const reading = readInspection(i, flow.host, where);
   const added = alreadyAdded(known, i, container);
@@ -103,11 +97,9 @@ export function Inspected({
           ))}
         </ul>
       ) : null}
-      {!added && needsHost ? <HostPick flow={flow} dispatch={dispatch} /> : null}
+      {!added && needsHost ? <HostPick flow={flow} /> : null}
       {flow.error ? <p className="refusal">{flow.error}</p> : null}
-      {flow.lines && flow.lines.length > 0 ? (
-        <Output lines={flow.lines} open={output} onToggle={onOutput} />
-      ) : null}
+      {flow.lines && flow.lines.length > 0 ? <Output lines={flow.lines} /> : null}
       <div className="actions">
         {added ? (
           <Button variant="primary" onClick={() => onOpenKnown(added.path)}>
@@ -146,20 +138,14 @@ const STATE_WORDS = { running: "running", stopped: "stopped" } as const;
  * The Dev Container source: the containers the engine lists, each with its state and workspace
  * folder; Start for a stopped one, Choose for a running one, Refresh; then the install's progress.
  */
-export function Containers({
-  flow,
-  dispatch,
-  onOpenKnown,
-  output,
-  onOutput,
-}: {
-  readonly flow: ContainerFlow;
-  dispatch(e: ContainerEvent): void;
-  onOpenKnown(localFolder: string): void;
-  readonly output: boolean;
-  onOutput(): void;
-}) {
-  const { known } = useRepos();
+export function Containers() {
+  const flow = useAddRepo((s) => s.boxes);
+  const dispatch = useAddRepo((s) => s.box);
+  const known = useReposOf((r) => r.known);
+  const onOpenKnown = (localFolder: string) => {
+    const k = known?.find((x) => x.devcontainer?.localFolder === localFolder);
+    if (k) void reposActs.open(k.path);
+  };
   if (flow.step === "installing" || flow.step === "installed")
     return (
       <section className="progress" data-testid="install-progress" aria-live="polite">
@@ -173,7 +159,7 @@ export function Containers({
           Into a folder of its own in the container ({"~/.metator/server"}); nothing else in the container
           changes.
         </p>
-        {flow.step === "installing" ? <Output lines={flow.lines} open={output} onToggle={onOutput} /> : null}
+        {flow.step === "installing" ? <Output lines={flow.lines} /> : null}
       </section>
     );
   const list = flow.list;
@@ -243,13 +229,8 @@ export function Containers({
   );
 }
 /** The AI host for setup: only an installed one can be chosen. */
-function HostPick({
-  flow,
-  dispatch,
-}: {
-  readonly flow: Extract<Flow, { step: "inspected" }>;
-  dispatch(e: FlowEvent): void;
-}) {
+function HostPick({ flow }: { readonly flow: InspectedFlow }) {
+  const dispatch = useAddRepo((s) => s.dispatch);
   return (
     <fieldset className="hosts" data-testid="hosts">
       <legend>AI host</legend>
@@ -270,16 +251,10 @@ function HostPick({
     </fieldset>
   );
 }
-/** Setup's output: folded to one line until "Show output". */
-export function Output({
-  lines,
-  open,
-  onToggle,
-}: {
-  readonly lines: readonly string[];
-  readonly open: boolean;
-  onToggle(): void;
-}) {
+/** Setup's output: folded to one line until "Show output" (one fold for the whole screen). */
+export function Output({ lines }: { readonly lines: readonly string[] }) {
+  const open = useAddRepo((s) => s.output);
+  const onToggle = useAddRepo((s) => s.toggleOutput);
   return (
     <div className="output">
       <Button variant="ghost" aria-expanded={open} onClick={onToggle}>
@@ -291,10 +266,14 @@ export function Output({
 }
 /** The browser cannot pick a folder or run a program: the commands, for a terminal. */
 export function WebAdd() {
-  const [path, setPath] = useState("");
-  const [host, setHost] = useState("claude");
-  const [copied, setCopied] = useState(false);
-  const lines = webCommands(path, host);
+  return (
+    <ScopeProvider store={WebAddForm} init={undefined}>
+      <WebAddPanel />
+    </ScopeProvider>
+  );
+}
+
+function WebAddPanel() {
   return (
     <div className="setup-page" data-testid="add-repo-web">
       <div className="panel">
@@ -307,36 +286,50 @@ export function WebAdd() {
         </p>
         <p className="muted">Here in the browser, run these in a terminal, then come back to this page.</p>
         <div className="addr">
-          <input
-            aria-label="folder path"
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            placeholder="/path/to/your/repository"
-          />
-          <select aria-label="AI host" value={host} onChange={(e) => setHost(e.target.value)}>
-            <option value="claude">Claude Code</option>
-            <option value="copilot">GitHub Copilot CLI</option>
-          </select>
+          <WebPathField />
+          <WebHostField />
         </div>
-        <div className="cmds">
-          <pre data-testid="web-commands">{lines.join("\n")}</pre>
-          <Button
-            variant="ghost"
-            onClick={() =>
-              void navigator.clipboard
-                ?.writeText(lines.join("\n"))
-                .then(() => setCopied(true))
-                .catch(() => undefined)
-            }
-          >
-            {copied ? "copied" : "copy"}
-          </Button>
-        </div>
+        <WebCommands />
         <p className="dim">
           The second command says what it found; setup lists the files it writes; the commit is yours to make.
         </p>
         <p className="dim">A repository in a dev container is added from the desktop app.</p>
       </div>
+    </div>
+  );
+}
+
+function WebPathField() {
+  const path = useWebAdd((s) => s.path);
+  const typePath = useWebAdd((s) => s.typePath);
+  return (
+    <input
+      aria-label="folder path"
+      value={path}
+      onChange={(e) => typePath(e.target.value)}
+      placeholder="/path/to/your/repository"
+    />
+  );
+}
+
+function WebHostField() {
+  const host = useWebAdd((s) => s.host);
+  const chooseHost = useWebAdd((s) => s.chooseHost);
+  return (
+    <select aria-label="AI host" value={host} onChange={(e) => chooseHost(e.target.value)}>
+      <option value="claude">Claude Code</option>
+      <option value="copilot">GitHub Copilot CLI</option>
+    </select>
+  );
+}
+
+/** The commands for the path and host chosen, with Copy. */
+function WebCommands() {
+  const text = useWebAdd((s) => webCommands(s.path, s.host).join("\n"));
+  return (
+    <div className="cmds">
+      <pre data-testid="web-commands">{text}</pre>
+      <CopyButton text={text} />
     </div>
   );
 }

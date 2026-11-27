@@ -5,7 +5,9 @@
  * gets no answer in time makes the daemon "not answering" since it was last heard; any answer
  * brings it back. Nothing at the address is not silence: that is the sockets' "no daemon".
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 import type { DaemonClient, Envelope } from "../api/api.ts";
 
 /** How often the pulse is asked, and how long it waits for an answer (ms). */
@@ -34,15 +36,20 @@ export function pulseAfter(p: Pulse, result: PulseResult, now: number): Pulse {
   return p;
 }
 
+/** What the app shows of the pulse (app-wide, ADR-0113): whether the daemon answers, since when not. */
+interface Shown {
+  readonly answering: boolean;
+  readonly silentSince?: number;
+}
+
+const pulseStore = createStore<Shown>(() => ({ answering: true }));
+const setShown = (shown: Shown) => pulseStore.setState(shown, true);
+
 /**
  * The pulse of the daemon at `client`'s address: whether it answers, and since when it does not.
  * Only a change of `answering` draws again; the time it was last heard is kept aside meanwhile.
  */
-export function usePulse(client: DaemonClient): {
-  readonly answering: boolean;
-  readonly silentSince?: number;
-} {
-  const [shown, setShown] = useState<{ answering: boolean; silentSince?: number }>({ answering: true });
+export function usePulse(client: DaemonClient): Shown {
   const pulse = useRef<Pulse>({ answering: true, heardAt: undefined });
   useEffect(() => {
     let closed = false;
@@ -68,5 +75,5 @@ export function usePulse(client: DaemonClient): {
       clearInterval(timer);
     };
   }, [client]);
-  return shown;
+  return useStore(pulseStore, (s) => s);
 }

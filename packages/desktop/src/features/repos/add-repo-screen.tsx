@@ -8,71 +8,80 @@
  * Round 21 (ADR-0106): a third source, "Dev Container": the containers the engine lists (Start a
  * stopped one, Refresh), then the one picked gets MetatorAI installed with its progress
  * (`containerStep`, devcontainers.ts), and the same flow runs in the container (`inContainer`).
+ *
+ * The screen only lays its parts out (ADR-0113): what it keeps is the AddRepo store (`state.ts`),
+ * and each part reads only the value it draws, so typing a path draws the field and Continue.
  */
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
   asCommandError,
   type Commands,
-  type DevContainer,
   errorText,
   installWithOutput,
   setupWithOutput,
 } from "../../shared/platform/tauri-commands.ts";
-import { useLatest } from "../../shared/use-latest.ts";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { Tabs } from "../../ui/tabs.tsx";
 import { Containers, folderOf, Inspected, Output, WebAdd } from "./add-repo-parts.tsx";
-import {
-  type ContainerEvent,
-  containerStep,
-  inContainer,
-  installErrorText,
-  LISTING,
-} from "./devcontainers.ts";
+import { type ContainerEvent, inContainer, installErrorText } from "./devcontainers.ts";
 import {
   commitQuestion,
   type FlowEvent,
-  flowStep,
   hostName,
   pathOf,
   progressLine,
   repoName,
-  START,
   shortSha,
-  type Where,
 } from "./repos.ts";
-import { useRepos } from "./repos-context.tsx";
+import { reposActs, useReposOf } from "./repos-context.tsx";
+import { AddRepo, isPicking, type Source, useAddRepo, useAddRepoApi } from "./state.ts";
 
-/** Where the repository comes from. */
-type Source = "folder" | "repos" | "devcontainer";
 const SOURCES: readonly { readonly id: Source; readonly label: string }[] = [
   { id: "folder", label: "Folder on this computer" },
   { id: "repos", label: "Folder of repositories" },
   { id: "devcontainer", label: "Dev Container" },
 ];
 export function AddRepoScreen() {
-  const { commands } = useRepos();
+  const commands = useReposOf((r) => r.commands);
   return commands ? <AddFlow commands={commands} /> : <WebAdd />;
 }
 function AddFlow({ commands }: { readonly commands: Commands }) {
-  const repos = useRepos();
-  const [source, setSource] = useState<Source>("folder");
-  const [flow, dispatch] = useReducer(flowStep, START);
-  const [boxes, box] = useReducer(containerStep, LISTING);
-  // The dev container the flow runs in, once MetatorAI is installed there; none on this computer.
-  const [place, setPlace] = useState<DevContainer>();
-  const where: Where = place ? "container" : "here";
+  return (
+    <ScopeProvider store={AddRepo} init={{ commands }}>
+      <FlowRunner commands={commands} />
+      <BoxRunner commands={commands} />
+      <div className="setup-page" data-testid="add-repo">
+        <div className="panel">
+          <h1>Add repository</h1>
+          <SourceTabs />
+          <PickOrWhere />
+          <PlaceError />
+          <Inspecting />
+          <InspectedStep />
+          <Initializing />
+          <SettingUp />
+          <CommitCard />
+          <Ready />
+          <Opening />
+        </div>
+      </div>
+    </ScopeProvider>
+  );
+}
+
+/** Each busy step runs its one command; what it answers is the next event. Draws nothing. */
+function FlowRunner({ commands }: { readonly commands: Commands }) {
+  const api = useAddRepoApi();
+  const step = useAddRepo((s) => s.flow.step);
+  const place = useAddRepo((s) => s.place);
   const run = useMemo(() => (place ? inContainer(commands, place.localFolder) : commands), [commands, place]);
-  const now = useLatest(flow);
-  const addAndOpen = useLatest(repos.addAndOpen);
-  const step = flow.step;
-  // Each busy step runs its one command; what it answers is the next event.
   useEffect(() => {
     void step;
-    const f = now.current;
+    const f = api.getState().flow;
     let live = true;
     const say = (e: FlowEvent) => {
-      if (live) dispatch(e);
+      if (live) api.getState().dispatch(e);
     };
     const fail = (e: unknown) => say({ type: "failed", error: errorText(e) });
     switch (f.step) {
@@ -100,24 +109,28 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
         run.commitSetup(f.target, f.written).then((r) => say({ type: "committed", commit: r.commit }), fail);
         break;
       case "opening":
-        void addAndOpen
-          .current(f.path, place?.localFolder)
+        void reposActs
+          .addAndOpen(f.path, place?.localFolder)
           .then((why) => say(why ? { type: "failed", error: why } : { type: "opened" }));
         break;
     }
     return () => {
       live = false;
     };
-  }, [step, run, place]);
-  // The Dev Container source's busy steps, the same way: list, start, install.
-  const boxNow = useLatest(boxes);
-  const boxStep = source === "devcontainer" ? boxes.step : undefined;
+  }, [step, run, place, api]);
+  return null;
+}
+
+/** The Dev Container source's busy steps, the same way: list, start, install. Draws nothing. */
+function BoxRunner({ commands }: { readonly commands: Commands }) {
+  const api = useAddRepoApi();
+  const boxStep = useAddRepo((s) => (s.source === "devcontainer" ? s.boxes.step : undefined));
   useEffect(() => {
     void boxStep;
-    const b = boxNow.current;
+    const b = api.getState().boxes;
     let live = true;
     const say = (e: ContainerEvent) => {
-      if (live) box(e);
+      if (live) api.getState().box(e);
     };
     const fail = (e: unknown) => say({ type: "failed", error: errorText(e) });
     if (boxStep === undefined) return;
@@ -144,190 +157,246 @@ function AddFlow({ commands }: { readonly commands: Commands }) {
         break;
       case "installed":
         // Installed: the round-20 flow takes over, in the container, at its workspace folder.
-        setPlace(b.container);
-        dispatch({ type: "inspect", path: b.container.workspaceFolder ?? "" });
+        api.getState().installed(b.container);
         break;
     }
     return () => {
       live = false;
     };
-  }, [boxStep, commands]);
-  const [output, setOutput] = useState(false);
-  const [pickError, setPickError] = useState<string>();
-  const pick = async () => {
-    setPickError(undefined);
-    try {
-      const path = await commands.pickFolder();
-      if (path) dispatch({ type: "inspect", path });
-    } catch (e) {
-      setPickError(`The folder picker did not open: ${errorText(e)}. Type the path instead.`);
-    }
-  };
-  const resting = flow.step === "inspected" || flow.step === "ready";
-  /** Change: back to the folder, or to the list of dev containers. */
-  const change = () => {
-    dispatch({ type: "back" });
-    if (place) {
-      setPlace(undefined);
-      box({ type: "back" });
-      dispatch({ type: "type", path: "" });
-    }
-  };
-  const picking = flow.step === "pick" && !place;
+  }, [boxStep, commands, api]);
+  return null;
+}
+
+function SourceTabs() {
+  const shown = useAddRepo(
+    (s) =>
+      isPicking(s) &&
+      !(s.source === "devcontainer" && (s.boxes.step === "installing" || s.boxes.step === "installed")),
+  );
+  const source = useAddRepo((s) => s.source);
+  const choose = useAddRepo((s) => s.choose);
+  return shown ? (
+    <Tabs
+      label="where the repository is"
+      items={SOURCES}
+      current={source}
+      onSelect={(id) => choose(id)}
+      className="tabs sources"
+      testId="sources"
+    />
+  ) : null;
+}
+
+/** The first step: the dev containers, or the folder; past it, where the flow is. */
+function PickOrWhere() {
+  const picking = useAddRepo(isPicking);
+  const source = useAddRepo((s) => s.source);
+  if (picking && source === "devcontainer") return <Containers />;
+  return picking ? <PickFolder /> : <Where />;
+}
+
+function PickFolder() {
+  const source = useAddRepo((s) => s.source);
+  const api = useAddRepoApi();
   return (
-    <div className="setup-page" data-testid="add-repo">
-      <div className="panel">
-        <h1>Add repository</h1>
-        {picking &&
-        !(source === "devcontainer" && (boxes.step === "installing" || boxes.step === "installed")) ? (
-          <Tabs
-            label="where the repository is"
-            items={SOURCES}
-            current={source}
-            onSelect={(id) => setSource(id)}
-            className="tabs sources"
-            testId="sources"
-          />
-        ) : null}
-        {picking && source === "devcontainer" ? (
-          <Containers
-            flow={boxes}
-            dispatch={box}
-            onOpenKnown={(localFolder) => {
-              const k = repos.known?.find((x) => x.devcontainer?.localFolder === localFolder);
-              if (k) void repos.open(k.path);
-            }}
-            output={output}
-            onOutput={() => setOutput(!output)}
-          />
-        ) : picking ? (
-          <>
-            <p className="muted">
-              {source === "repos"
-                ? "Choose the folder that holds your repositories."
-                : "Choose your repository, or a folder of repositories."}
-            </p>
-            <form
-              className="addr"
-              onSubmit={(e) => {
-                e.preventDefault();
-                dispatch({ type: "inspect", path: flow.path });
-              }}
-            >
-              <Button variant="primary" onClick={() => void pick()}>
-                Choose folder…
-              </Button>
-              <input
-                aria-label="folder path"
-                value={flow.path}
-                onChange={(e) => dispatch({ type: "type", path: e.target.value })}
-                placeholder="or type its path"
-              />
-              <Button type="submit" disabled={flow.path.trim() === ""}>
-                Continue
-              </Button>
-            </form>
-            {flow.error ? <p className="refusal">{flow.error}</p> : null}
-            {pickError ? <p className="refusal">{pickError}</p> : null}
-          </>
-        ) : (
-          <div className="where" data-testid="where">
-            {place ? (
-              <span className="dim">{repoName({ name: folderOf(place), kind: "devcontainer" })}</span>
-            ) : null}
-            <code>{pathOf(flow)}</code>
-            {resting || (place && flow.step === "pick") ? (
-              <Button variant="ghost" onClick={change}>
-                Change
-              </Button>
-            ) : null}
-          </div>
-        )}
-        {place && flow.step === "pick" && flow.error ? <p className="refusal">{flow.error}</p> : null}
-        {flow.step === "inspecting" ? (
-          <p className="busy">
-            {place ? "Looking at the folder in the container…" : "Looking at the folder…"}
-          </p>
-        ) : null}
-        {flow.step === "inspected" ? (
-          <Inspected
-            flow={flow}
-            where={where}
-            container={place?.localFolder}
-            dispatch={dispatch}
-            output={output}
-            onOutput={() => setOutput(!output)}
-            onOpenKnown={(path) => void repos.open(path)}
-          />
-        ) : null}
-        {flow.step === "initializing" ? <p className="busy">Running git init…</p> : null}
-        {flow.step === "setting-up" ? (
-          <section className="progress" data-testid="setup-progress" aria-live="polite">
-            <p className="busy">
-              Setting up {flow.target.split(/[\\/]/).pop()} for {hostName(flow.host)}
-              {place ? " in the container" : ""}…
-            </p>
-            <p className="line" data-testid="progress-line">
-              {progressLine(flow.lines)}
-            </p>
-            <Output lines={flow.lines} open={output} onToggle={() => setOutput(!output)} />
-          </section>
-        ) : null}
-        {flow.step === "set-up" || flow.step === "committing" ? (
-          <section className="commit-card" data-testid="commit-card" aria-label="commit card">
-            <h2>{commitQuestion(flow.written)}</h2>
-            <ul className="files">
-              {flow.written.map((f) => (
-                <li key={f}>
-                  <code>{f}</code>
-                </li>
-              ))}
-            </ul>
-            <p className="dim">
-              Only these files go in the commit, with the message “Set up MetatorAI”. Your other changes stay
-              as they are.
-            </p>
-            {flow.step === "set-up" && flow.error ? (
-              <p className="refusal">The commit failed: {flow.error}</p>
-            ) : null}
-            <div className="actions">
-              <Button
-                variant="primary"
-                disabled={flow.step === "committing"}
-                onClick={() => dispatch({ type: "commit" })}
-              >
-                {flow.step === "committing" ? "Committing…" : "Commit"}
-              </Button>
-              <Button disabled={flow.step === "committing"} onClick={() => dispatch({ type: "not-now" })}>
-                Not now
-              </Button>
-            </div>
-            <Output lines={flow.lines} open={output} onToggle={() => setOutput(!output)} />
-          </section>
-        ) : null}
-        {flow.step === "ready" ? (
-          <section className="ready" data-testid="ready">
-            <h2>Ready</h2>
-            <p>
-              {flow.commit
-                ? `Committed as ${shortSha(flow.commit)}.`
-                : flow.uncommitted
-                  ? `The ${flow.uncommitted === 1 ? "file is" : `${flow.uncommitted} files are`} not committed. Commit when you want.`
-                  : "MetatorAI is set up here."}
-            </p>
-            {flow.error ? <p className="refusal">The app could not open it: {flow.error}</p> : null}
-            <div className="actions">
-              <Button variant="primary" onClick={() => dispatch({ type: "open" })}>
-                Open
-              </Button>
-            </div>
-          </section>
-        ) : null}
-        {flow.step === "opening" || flow.step === "open" ? (
-          <p className="busy">{place ? "Starting its daemon in the container…" : "Starting its daemon…"}</p>
-        ) : null}
-      </div>
+    <>
+      <p className="muted">
+        {source === "repos"
+          ? "Choose the folder that holds your repositories."
+          : "Choose your repository, or a folder of repositories."}
+      </p>
+      <form
+        className="addr"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const { flow, dispatch } = api.getState();
+          dispatch({ type: "inspect", path: flow.step === "pick" ? flow.path : "" });
+        }}
+      >
+        <Button variant="primary" onClick={() => void api.getState().pick()}>
+          Choose folder…
+        </Button>
+        <PathField />
+        <ContinueButton />
+      </form>
+      <PickErrors />
+    </>
+  );
+}
+
+/** The path being typed, while the flow is at its first step. */
+const typedPath = (s: { readonly flow: { readonly step: string; readonly path?: string } }): string =>
+  s.flow.step === "pick" ? (s.flow.path ?? "") : "";
+
+export function PathField() {
+  const path = useAddRepo(typedPath);
+  const dispatch = useAddRepo((s) => s.dispatch);
+  return (
+    <input
+      aria-label="folder path"
+      value={path}
+      onChange={(e) => dispatch({ type: "type", path: e.target.value })}
+      placeholder="or type its path"
+    />
+  );
+}
+
+export function ContinueButton() {
+  const blank = useAddRepo((s) => typedPath(s).trim() === "");
+  return (
+    <Button type="submit" disabled={blank}>
+      Continue
+    </Button>
+  );
+}
+
+export function PickErrors() {
+  const error = useAddRepo((s) => (s.flow.step === "pick" ? s.flow.error : undefined));
+  const pickError = useAddRepo((s) => s.pickError);
+  return (
+    <>
+      {error ? <p className="refusal">{error}</p> : null}
+      {pickError ? <p className="refusal">{pickError}</p> : null}
+    </>
+  );
+}
+
+function Where() {
+  const place = useAddRepo((s) => s.place);
+  const path = useAddRepo((s) => pathOf(s.flow));
+  const canChange = useAddRepo(
+    (s) =>
+      s.flow.step === "inspected" ||
+      s.flow.step === "ready" ||
+      (s.place !== undefined && s.flow.step === "pick"),
+  );
+  const change = useAddRepo((s) => s.change);
+  return (
+    <div className="where" data-testid="where">
+      {place ? (
+        <span className="dim">{repoName({ name: folderOf(place), kind: "devcontainer" })}</span>
+      ) : null}
+      <code>{path}</code>
+      {canChange ? (
+        <Button variant="ghost" onClick={change}>
+          Change
+        </Button>
+      ) : null}
     </div>
   );
 }
-/** A dev container's folder name: its local folder's. */
+
+/** In a container, a refusal at the first step shows under where the flow is. */
+function PlaceError() {
+  const error = useAddRepo((s) => (s.place && s.flow.step === "pick" ? s.flow.error : undefined));
+  return error ? <p className="refusal">{error}</p> : null;
+}
+
+function Inspecting() {
+  const on = useAddRepo((s) => s.flow.step === "inspecting");
+  const inContainerNow = useAddRepo((s) => s.place !== undefined);
+  return on ? (
+    <p className="busy">
+      {inContainerNow ? "Looking at the folder in the container…" : "Looking at the folder…"}
+    </p>
+  ) : null;
+}
+
+function InspectedStep() {
+  const on = useAddRepo((s) => s.flow.step === "inspected");
+  return on ? <Inspected /> : null;
+}
+
+function Initializing() {
+  const on = useAddRepo((s) => s.flow.step === "initializing");
+  return on ? <p className="busy">Running git init…</p> : null;
+}
+
+function SettingUp() {
+  const flow = useAddRepo((s) => (s.flow.step === "setting-up" ? s.flow : undefined));
+  const inContainerNow = useAddRepo((s) => s.place !== undefined);
+  return flow ? (
+    <section className="progress" data-testid="setup-progress" aria-live="polite">
+      <p className="busy">
+        Setting up {flow.target.split(/[\\/]/).pop()} for {hostName(flow.host)}
+        {inContainerNow ? " in the container" : ""}…
+      </p>
+      <p className="line" data-testid="progress-line">
+        {progressLine(flow.lines)}
+      </p>
+      <Output lines={flow.lines} />
+    </section>
+  ) : null;
+}
+
+function CommitCard() {
+  const flow = useAddRepo((s) =>
+    s.flow.step === "set-up" || s.flow.step === "committing" ? s.flow : undefined,
+  );
+  const dispatch = useAddRepo((s) => s.dispatch);
+  return flow ? (
+    <section className="commit-card" data-testid="commit-card" aria-label="commit card">
+      <h2>{commitQuestion(flow.written)}</h2>
+      <ul className="files">
+        {flow.written.map((f) => (
+          <li key={f}>
+            <code>{f}</code>
+          </li>
+        ))}
+      </ul>
+      <p className="dim">
+        Only these files go in the commit, with the message “Set up MetatorAI”. Your other changes stay as
+        they are.
+      </p>
+      {flow.step === "set-up" && flow.error ? (
+        <p className="refusal">The commit failed: {flow.error}</p>
+      ) : null}
+      <div className="actions">
+        <Button
+          variant="primary"
+          disabled={flow.step === "committing"}
+          onClick={() => dispatch({ type: "commit" })}
+        >
+          {flow.step === "committing" ? "Committing…" : "Commit"}
+        </Button>
+        <Button disabled={flow.step === "committing"} onClick={() => dispatch({ type: "not-now" })}>
+          Not now
+        </Button>
+      </div>
+      <Output lines={flow.lines} />
+    </section>
+  ) : null;
+}
+
+function Ready() {
+  const flow = useAddRepo((s) => (s.flow.step === "ready" ? s.flow : undefined));
+  const dispatch = useAddRepo((s) => s.dispatch);
+  return flow ? (
+    <section className="ready" data-testid="ready">
+      <h2>Ready</h2>
+      <p>
+        {flow.commit
+          ? `Committed as ${shortSha(flow.commit)}.`
+          : flow.uncommitted
+            ? `The ${flow.uncommitted === 1 ? "file is" : `${flow.uncommitted} files are`} not committed. Commit when you want.`
+            : "MetatorAI is set up here."}
+      </p>
+      {flow.error ? <p className="refusal">The app could not open it: {flow.error}</p> : null}
+      <div className="actions">
+        <Button variant="primary" onClick={() => dispatch({ type: "open" })}>
+          Open
+        </Button>
+      </div>
+    </section>
+  ) : null;
+}
+
+function Opening() {
+  const on = useAddRepo((s) => s.flow.step === "opening" || s.flow.step === "open");
+  const inContainerNow = useAddRepo((s) => s.place !== undefined);
+  return on ? (
+    <p className="busy">
+      {inContainerNow ? "Starting its daemon in the container…" : "Starting its daemon…"}
+    </p>
+  ) : null;
+}

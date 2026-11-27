@@ -11,31 +11,27 @@
  * (`firstLevel`); no ids, hosts or ages. Finished tasks are hidden behind "Show finished (N)" in
  * each group. The places are at the bottom: Board, Terminals, Backlog, Reviews (round 18: used
  * daily), and Settings, which holds the System; then "+ New chat" and the form.
+ *
+ * It only lays its parts out (ADR-0113): `SideFeed` works the tree out of the daemon's state and
+ * publishes it (`state.ts`), and each row reads its own entry, so a run's change draws its row.
  */
 
-import { useState } from "react";
-import { useOpenRun } from "../../features/runs/open-run.ts";
+import { useLayoutEffect } from "react";
+import { useNeeds } from "../../features/inbox/use-needs.ts";
 import { useNewChat, useThreadAct } from "../../features/threads/chat-actions.ts";
-import type { ThreadView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
-import { type BoardCard, boardCards } from "../../shared/model/board.ts";
+import { useDaemon, useDaemonStore } from "../../shared/daemon/daemon.tsx";
 import { plural } from "../../shared/model/format.ts";
-import { type FirstLevel, firstLevel } from "../../shared/model/look.ts";
-import { decisionKey, type NeedRow, paneNeedsYou } from "../../shared/model/needs.ts";
-import { paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
-import { sameRepo } from "../../shared/model/places.ts";
 import { type Route, routeHash } from "../../shared/model/route.ts";
-import { isFinished, type Run, runWithPanes } from "../../shared/model/runs.ts";
-import { byAttentionFirst, taskState, type WorkTask, workTasks } from "../../shared/model/tasks.ts";
-import { heldThread, threadPane, threadTree } from "../../shared/model/threads.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { openNewRun } from "../../shared/overlays.ts";
 import { Button } from "../../ui/button.tsx";
 import { ContextMenu } from "../../ui/context-menu.tsx";
 import { moveInList } from "../../ui/list-keys.ts";
-import type { SidebarCtx } from "./model.ts";
-import { GroupTasks, ThreadRows } from "./rows.tsx";
+import { useRouteOf } from "../use-route.ts";
+import { GroupTasks, Icon, TaskIcon, ThreadIcon, ThreadRows } from "./rows.tsx";
+import { closeMenu, publishTree, toggleClosed, useSidebar } from "./state.ts";
+import { sideTree, threadById } from "./tree.ts";
 
 /** The places that are not a run, in the order of the sidebar's bottom. */
 const PLACES: readonly {
@@ -52,108 +48,53 @@ const PLACES: readonly {
   { route: { screen: "settings" }, label: "Settings", glyph: "⚙", holds: ["settings", "overview"] },
 ];
 
+const onInbox = () => navigate({ screen: "inbox" });
+
 export function Sidebar({
-  route,
-  needs,
   narrow = false,
   onNarrow,
 }: {
   /** Folded to its narrow version (round 22): a column of glyphs, each named on hover. */
   readonly narrow?: boolean | undefined;
   onNarrow?: ((narrow: boolean) => void) | undefined;
-  readonly route: Route;
-  /** Everything that needs the person (model.ts `needsQueue`). */
-  readonly needs: readonly NeedRow[];
 }) {
-  const openRun = useOpenRun();
-  // An escalated run's card is on Home; any other run opens its page.
-  const onRun = (r: Run, pane?: string) =>
-    r.status === "escalated"
-      ? navigate({ screen: "inbox", pick: `escalated:${r.repo ?? ""}:${r.runId}` })
-      : openRun(r.runId, false, pane);
-  const onInbox = () => navigate({ screen: "inbox" });
-  const newChat = useNewChat();
-  const onNew = () => void newChat();
-  const onForm = openNewRun;
-  const onThread = (t: ThreadView) => navigate({ screen: "thread", id: t.id });
-  const threadAct = useThreadAct();
-  const onCloseThread = (t: ThreadView) => void threadAct(t, "close");
-  const onReopenThread = (t: ThreadView) => void threadAct(t, "reopen");
-  const { runs, panes, panesOf, down, unreadable, systemPlans, inbox, threads, paneAsks } = useDaemon(
+  const fold = onNarrow ? <FoldButton narrow={narrow} onNarrow={onNarrow} /> : null;
+  return (
+    <>
+      <SideFeed />
+      {narrow ? <NarrowSidebar fold={fold} /> : <WideSidebar fold={fold} />}
+    </>
+  );
+}
+
+/** Works the tree out of the daemon's state and the place shown, and publishes it; draws nothing. */
+function SideFeed() {
+  const { runs, panes, panesOf, systemPlans, threads, paneAsks } = useDaemon(
     "runs",
     "panes",
     "panesOf",
-    "down",
-    "unreadable",
     "systemPlans",
-    "inbox",
     "threads",
     "paneAsks",
   );
-  // A run that asks on a card opens that decision on Home, exactly that one.
-  const decisionOf = (r: Run) => inbox.find((i) => i.runId === r.runId && sameRepo(i.repo, r.repo));
-  const openDecisionOr = (r: Run, pane?: string) => {
-    const d = decisionOf(r);
-    if (d) navigate({ screen: "inbox", pick: decisionKey(d) });
-    else onRun(r, pane);
-  };
-  // What is folded or unfolded by hand, by key: a task, a thread, a group's finished tasks.
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [showClosed, setShowClosed] = useState(false);
-  const [menu, setMenu] = useState<{ thread: ThreadView; x: number; y: number }>();
-  const current = route.screen === "run" ? route.runId : undefined;
-  const stateOf = (r: Run) =>
-    runWithPanes(
-      r,
-      panesOfRun(panesOf(r.repo), r.runId).map((p) => paneStateOf(p)),
-    );
-  // The work as parent tasks (tasks.ts), from the same cards the Board shows.
-  const tasks = byAttentionFirst(
-    workTasks(boardCards({ runs, issues: [], plans: systemPlans, now: Date.now() }), systemPlans),
-  );
-  const runOf = (c: BoardCard) =>
-    c.runId ? runs.find((r) => r.runId === c.runId && sameRepo(r.repo, c.repo)) : undefined;
-  /** A task's word as its row says it: a run of its own reads its panes too (a conductor at work is working). */
-  const wordOf = (t: WorkTask): FirstLevel => {
-    const headRun = t.head ? runOf(t.head) : undefined;
-    return t.kind === "run" && headRun && !isFinished(headRun) ? firstLevel(stateOf(headRun)) : taskState(t);
-  };
-  const chatOf = (th: ThreadView) => threadPane(th, panes);
-  const tree = threadTree({
-    threads,
-    tasks,
-    wordOf,
-    chatAsks: (th) => {
-      const p = chatOf(th);
-      return p !== undefined && (paneNeedsYou(p, paneAsks) || paneStateOf(p) === "asks");
-    },
-  });
-  // The thread that holds what is shown is unfolded, whatever was folded before.
-  const shownThread = heldThread(threads, tasks, {
-    thread: route.screen === "thread" ? route.id : undefined,
-    runId: current,
-  });
-  const holds = (t: WorkTask) =>
-    current !== undefined && (t.head?.runId === current || t.subtasks.some((c) => c.runId === current));
-  const expandedNow = (t: WorkTask) => expanded[t.key] ?? holds(t);
-  const ctx: SidebarCtx = {
-    route,
-    current,
-    expanded,
-    fold: (key, open) => setExpanded({ ...expanded, [key]: open }),
-    expandedNow,
-    runOf,
-    wordOf,
-    stateOf,
+  const thread = useRouteOf((r) => (r.screen === "thread" ? r.id : undefined));
+  const runId = useRouteOf((r) => (r.screen === "run" ? r.runId : undefined));
+  const tree = sideTree({
+    runs,
+    panes,
     panesOf,
-    openDecisionOr,
-    onRun,
-    onThread,
-    showMenu: (thread, x, y) => setMenu({ thread, x, y }),
-    shownThread,
-  };
-  const openCount = tree.threads.length;
-  const fold = onNarrow ? (
+    systemPlans,
+    threads,
+    paneAsks,
+    shown: { thread, runId },
+    now: Date.now(),
+  });
+  useLayoutEffect(() => publishTree(tree));
+  return null;
+}
+
+function FoldButton({ narrow, onNarrow }: { readonly narrow: boolean; onNarrow(narrow: boolean): void }) {
+  return (
     <Button
       variant="ghost"
       className="side-fold"
@@ -165,100 +106,57 @@ export function Sidebar({
     >
       {narrow ? "»" : "«"}
     </Button>
-  ) : null;
-  if (narrow) {
-    // The narrow version: what needs you, a glyph per open chat and per task without one, the
-    // places, a new chat; each named in full on hover.
-    const icon = (
-      key: string,
-      glyph: React.ReactNode,
-      title: string,
-      onClick: () => void,
-      current = false,
-    ) => (
-      <Button
-        key={key}
-        className="nicon"
-        title={title}
-        aria-label={title}
-        aria-current={current ? "true" : undefined}
-        onClick={onClick}
-      >
-        {glyph}
-      </Button>
-    );
-    const loose = tree.without?.open ?? [];
-    return (
-      <aside className="sessions narrow" aria-label="runs" data-testid="sidebar-narrow">
-        {fold}
-        <div className="list">
-          {down
-            ? null
-            : [
-                icon(
-                  "needs",
-                  <>
-                    <Glyph kind="first" state={needs.length > 0 ? "needs you" : undefined} />
-                    {needs.length > 0 ? <span className="ncount">{needs.length}</span> : null}
-                  </>,
-                  `Needs you · ${needs.length}`,
-                  onInbox,
-                ),
-                <hr key="sep1" />,
-                ...tree.threads.map((g) => {
-                  const th = g.thread;
-                  if (!th) return null;
-                  const kind = g.word === "chat" ? "chat" : "first";
-                  return icon(
-                    g.key,
-                    <Glyph kind={kind} state={g.word} />,
-                    `${th.title} · ${g.word}`,
-                    () => onThread(th),
-                    route.screen === "thread" && route.id === th.id,
-                  );
-                }),
-                ...loose.map((t) =>
-                  icon(
-                    t.key,
-                    <Glyph kind="first" state={wordOf(t)} />,
-                    `${t.title} · ${wordOf(t)}`,
-                    () => {
-                      const headRun = t.head ? runOf(t.head) : undefined;
-                      if (headRun) openDecisionOr(headRun);
-                    },
-                    holds(t),
-                  ),
-                ),
-              ]}
-        </div>
-        <nav className="places" aria-label="places">
-          {PLACES.map((p) => (
-            <a
-              key={p.label}
-              className="nicon place"
-              href={routeHash(p.route)}
-              title={p.label}
-              aria-label={p.label}
-              aria-current={p.holds.includes(route.screen) ? "page" : undefined}
-            >
-              {p.glyph}
-            </a>
-          ))}
-        </nav>
-        <div className="new-run">
-          <Button
-            variant="primary"
-            title="A new chat (key n)"
-            aria-label="New chat"
-            disabled={down}
-            onClick={onNew}
-          >
-            +
-          </Button>
-        </div>
-      </aside>
-    );
-  }
+  );
+}
+
+/** The narrow version: what needs you, a glyph per open chat and per task without one, the places, a new chat. */
+function NarrowSidebar({ fold }: { readonly fold: React.ReactNode }) {
+  const { down } = useDaemon("down");
+  const threads = useSidebar((s) => s.tree.threads);
+  const loose = useSidebar((s) => (s.tree.without ? s.tree.groups[s.tree.without]?.open : undefined));
+  return (
+    <aside className="sessions narrow" aria-label="runs" data-testid="sidebar-narrow">
+      {fold}
+      <div className="list">
+        {down
+          ? null
+          : [
+              <NeedsIcon key="needs" />,
+              <hr key="sep1" />,
+              ...threads.map((key) => <ThreadIcon key={key} groupKey={key} />),
+              ...(loose ?? []).map((key) => <TaskIcon key={key} taskKey={key} />),
+            ]}
+      </div>
+      <nav className="places" aria-label="places">
+        {PLACES.map((p) => (
+          <PlaceLink key={p.label} place={p} narrow />
+        ))}
+      </nav>
+      <div className="new-run">
+        <NewChatButton narrow down={down} />
+      </div>
+    </aside>
+  );
+}
+
+function NeedsIcon() {
+  const needs = useNeeds().length;
+  return (
+    <Icon
+      glyph={
+        <>
+          <Glyph kind="first" state={needs > 0 ? "needs you" : undefined} />
+          {needs > 0 ? <span className="ncount">{needs}</span> : null}
+        </>
+      }
+      title={`Needs you · ${needs}`}
+      onClick={onInbox}
+    />
+  );
+}
+
+function WideSidebar({ fold }: { readonly fold: React.ReactNode }) {
+  const { down } = useDaemon("down");
   return (
     <aside className="sessions" aria-label="runs" onKeyDown={(e) => moveInList(e, ".row")}>
       <div className="list">
@@ -267,107 +165,188 @@ export function Sidebar({
         ) : (
           <>
             <div className="side-head">
-              <Button className="section needs-head" data-testid="needs-count" onClick={onInbox}>
-                <Glyph kind="first" state={needs.length > 0 ? "needs you" : undefined} />
-                Needs you · {needs.length}
-              </Button>
+              <NeedsHead />
               {fold}
             </div>
-            <section className="threads" aria-label="chats">
-              {tree.threads.map((g) => (
-                <ThreadRows key={g.key} g={g} ctx={ctx} />
-              ))}
-              {openCount === 0 && !tree.without ? (
-                <div className="quiet">{tree.closed.length > 0 ? "No open chat." : "No chat yet."}</div>
-              ) : null}
-            </section>
-            {tree.without ? (
-              <section className="tasks without-chat" aria-label="without a chat" data-testid="without-chat">
-                <div className="section">Without a chat · {tree.without.open.length}</div>
-                <GroupTasks g={tree.without} ctx={ctx} />
-              </section>
-            ) : null}
-            {tree.closed.length > 0 ? (
-              <section className="threads closed-threads" aria-label="closed chats">
-                <Button
-                  className="section"
-                  aria-expanded={showClosed}
-                  data-testid="show-closed"
-                  onClick={() => setShowClosed(!showClosed)}
-                >
-                  <span className="g faint" aria-hidden="true">
-                    {showClosed ? "▾" : "▸"}
-                  </span>
-                  Closed ({tree.closed.length})
-                </Button>
-                {showClosed ? tree.closed.map((g) => <ThreadRows key={g.key} g={g} ctx={ctx} />) : null}
-              </section>
-            ) : null}
+            <OpenThreads />
+            <WithoutChat />
+            <ClosedThreads />
           </>
         )}
       </div>
-      {menu ? (
-        <ContextMenu
-          at={{ x: menu.x, y: menu.y }}
-          label={`chat ${menu.thread.title}`}
-          onClose={() => setMenu(undefined)}
-          items={[
-            { label: "Open chat", onSelect: () => onThread(menu.thread) },
-            menu.thread.state === "open"
-              ? { label: "Close chat", separator: true, onSelect: () => onCloseThread(menu.thread) }
-              : { label: "Reopen chat", separator: true, onSelect: () => onReopenThread(menu.thread) },
-          ]}
-        />
-      ) : null}
-      {unreadable.length > 0 ? (
-        <details className="unreadable" data-testid="unreadable">
-          <summary className="amber">{plural(unreadable.length, "run")} cannot be read</summary>
-          <ul>
-            {unreadable.map((u) => (
-              <li key={`${u.repo ?? ""}:${u.runId}`}>
-                <span className="mono">{u.runId}</span>
-                {u.repo ? ` · ${u.repo}` : ""}: {u.message}. Restore <code>{u.file}</code>, or delete the
-                run's directory.
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      <ThreadMenu />
+      <Unreadable />
       <nav className="places" aria-label="places">
         {PLACES.map((p) => (
-          <a
-            key={p.label}
-            className="row place"
-            href={routeHash(p.route)}
-            aria-current={p.holds.includes(route.screen) ? "page" : undefined}
-          >
-            <span className="g faint" aria-hidden="true">
-              {p.glyph}
-            </span>
-            <span className="text">
-              <span className="title">{p.label}</span>
-            </span>
-          </a>
+          <PlaceLink key={p.label} place={p} narrow={false} />
         ))}
       </nav>
       <div className="new-run">
-        <Button
-          variant="primary"
-          title="A new chat: one topic with the conversation agent; it starts the runs (key n)"
-          disabled={down}
-          onClick={onNew}
-        >
-          + New chat
-        </Button>
+        <NewChatButton narrow={false} down={down} />
         <Button
           aria-label="New run from the form"
           title="The form: workflow, autonomy, host, worktree"
           disabled={down}
-          onClick={onForm}
+          onClick={openNewRun}
         >
           Form…
         </Button>
       </div>
     </aside>
+  );
+}
+
+function NeedsHead() {
+  const needs = useNeeds().length;
+  return (
+    <Button className="section needs-head" data-testid="needs-count" onClick={onInbox}>
+      <Glyph kind="first" state={needs > 0 ? "needs you" : undefined} />
+      Needs you · {needs}
+    </Button>
+  );
+}
+
+function OpenThreads() {
+  const threads = useSidebar((s) => s.tree.threads);
+  const quiet = useSidebar((s) =>
+    s.tree.threads.length === 0 && !s.tree.without
+      ? s.tree.closed.length > 0
+        ? "No open chat."
+        : "No chat yet."
+      : undefined,
+  );
+  return (
+    <section className="threads" aria-label="chats">
+      {threads.map((key) => (
+        <ThreadRows key={key} groupKey={key} />
+      ))}
+      {quiet ? <div className="quiet">{quiet}</div> : null}
+    </section>
+  );
+}
+
+function WithoutChat() {
+  const without = useSidebar((s) => s.tree.without);
+  const count = useSidebar((s) => (s.tree.without ? (s.tree.groups[s.tree.without]?.open.length ?? 0) : 0));
+  return without ? (
+    <section className="tasks without-chat" aria-label="without a chat" data-testid="without-chat">
+      <div className="section">Without a chat · {count}</div>
+      <GroupTasks groupKey={without} />
+    </section>
+  ) : null;
+}
+
+function ClosedThreads() {
+  const closed = useSidebar((s) => s.tree.closed);
+  const showClosed = useSidebar((s) => s.showClosed);
+  return closed.length > 0 ? (
+    <section className="threads closed-threads" aria-label="closed chats">
+      <Button className="section" aria-expanded={showClosed} data-testid="show-closed" onClick={toggleClosed}>
+        <span className="g faint" aria-hidden="true">
+          {showClosed ? "▾" : "▸"}
+        </span>
+        Closed ({closed.length})
+      </Button>
+      {showClosed ? closed.map((key) => <ThreadRows key={key} groupKey={key} />) : null}
+    </section>
+  ) : null;
+}
+
+/** A chat's ⋯ menu: open it, close or reopen it. */
+function ThreadMenu() {
+  const menu = useSidebar((s) => s.menu);
+  const daemon = useDaemonStore();
+  const threadAct = useThreadAct();
+  if (!menu) return null;
+  const act = (how: "close" | "reopen") => {
+    const thread = threadById(daemon.getState().threads, menu.threadId);
+    if (thread) void threadAct(thread, how);
+  };
+  return (
+    <ContextMenu
+      at={{ x: menu.x, y: menu.y }}
+      label={`chat ${menu.title}`}
+      onClose={closeMenu}
+      items={[
+        { label: "Open chat", onSelect: () => navigate({ screen: "thread", id: menu.threadId }) },
+        menu.open
+          ? { label: "Close chat", separator: true, onSelect: () => act("close") }
+          : { label: "Reopen chat", separator: true, onSelect: () => act("reopen") },
+      ]}
+    />
+  );
+}
+
+/** Runs whose record cannot be read: they are in no list, so the panel says where they are. */
+function Unreadable() {
+  const { unreadable } = useDaemon("unreadable");
+  return unreadable.length > 0 ? (
+    <details className="unreadable" data-testid="unreadable">
+      <summary className="amber">{plural(unreadable.length, "run")} cannot be read</summary>
+      <ul>
+        {unreadable.map((u) => (
+          <li key={`${u.repo ?? ""}:${u.runId}`}>
+            <span className="mono">{u.runId}</span>
+            {u.repo ? ` · ${u.repo}` : ""}: {u.message}. Restore <code>{u.file}</code>, or delete the run's
+            directory.
+          </li>
+        ))}
+      </ul>
+    </details>
+  ) : null;
+}
+
+function PlaceLink({
+  place: p,
+  narrow,
+}: {
+  readonly place: (typeof PLACES)[number];
+  readonly narrow: boolean;
+}) {
+  const here = useRouteOf((r) => p.holds.includes(r.screen));
+  return narrow ? (
+    <a
+      className="nicon place"
+      href={routeHash(p.route)}
+      title={p.label}
+      aria-label={p.label}
+      aria-current={here ? "page" : undefined}
+    >
+      {p.glyph}
+    </a>
+  ) : (
+    <a className="row place" href={routeHash(p.route)} aria-current={here ? "page" : undefined}>
+      <span className="g faint" aria-hidden="true">
+        {p.glyph}
+      </span>
+      <span className="text">
+        <span className="title">{p.label}</span>
+      </span>
+    </a>
+  );
+}
+
+function NewChatButton({ narrow, down }: { readonly narrow: boolean; readonly down: boolean }) {
+  const newChat = useNewChat();
+  const onNew = () => void newChat();
+  return narrow ? (
+    <Button
+      variant="primary"
+      title="A new chat (key n)"
+      aria-label="New chat"
+      disabled={down}
+      onClick={onNew}
+    >
+      +
+    </Button>
+  ) : (
+    <Button
+      variant="primary"
+      title="A new chat: one topic with the conversation agent; it starts the runs (key n)"
+      disabled={down}
+      onClick={onNew}
+    >
+      + New chat
+    </Button>
   );
 }

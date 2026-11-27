@@ -2,199 +2,228 @@
  * Settings (S1, design/13 §1): every option of the registry in its group, with its effective
  * value, where it comes from (default, user, repo, run) and a way to change it or go back to the
  * default. The app draws; the daemon validates and writes the scope's file.
+ *
+ * The screen only lays its parts out (ADR-0113): what it keeps is the Settings store (`state.ts`);
+ * a row reads only its own option, so a change draws that row again, not the list.
  */
 
-import { type KeyboardEvent, useMemo, useState } from "react";
-import type { OptionDiagnostic, OptionScope, ResolvedOption } from "../../shared/api/api.ts";
+import type { KeyboardEvent } from "react";
+import { useShallow } from "zustand/react/shallow";
+import type { OptionDiagnostic, ResolvedOption } from "../../shared/api/api.ts";
 import { RepoSelect } from "../../shared/components/repo-select.tsx";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
-import { useAction } from "../../shared/hooks.ts";
-import { refusalText } from "../../shared/model/format.ts";
+import { useDaemon, useDaemonStore } from "../../shared/daemon/daemon.tsx";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { moveInList } from "../../ui/list-keys.ts";
 import { Notice } from "../../ui/notice.tsx";
-import { fieldValue, keyConflicts, optionMatches } from "./model.ts";
+import { fieldValue } from "./model.ts";
+import { conflictsOf, shownKeys } from "./shown.ts";
+import { Settings, useSettings, useSettingsApi, useSettingsDaemon } from "./state.ts";
 
 export function SettingsScreen() {
-  const {
-    client,
-    repo,
-    url,
-    me,
-    setMe,
-    setUrl,
-    optionsView: view,
-    optionsError,
-    reloadOptions,
-  } = useDaemon(
-    "client",
-    "repo",
-    "url",
-    "me",
-    "setMe",
-    "setUrl",
-    "optionsView",
-    "optionsError",
-    "reloadOptions",
-  );
-  // What a change answered stays until closed: the refresh never clears a refusal (D5).
-  const action = useAction(reloadOptions);
-  const [section, setSection] = useState<string>("ui");
-  const [query, setQuery] = useState("");
-  // Counts refusals: a field whose value was refused is drawn again with the value that holds.
-  const [refused, setRefused] = useState(0);
-  // The sections are the daemon's groups: one per option group, in the registry's order.
-  const sections = view?.groups ?? [];
-  const shown = useMemo(() => {
-    const all = view?.options ?? [];
-    return query.trim() !== ""
-      ? all.filter((o) => optionMatches(o, query))
-      : all.filter((o) => o.key.startsWith(`${section}.`));
-  }, [view, section, query]);
-  const diagnosticsOf = (key: string): OptionDiagnostic[] =>
-    (view?.diagnostics ?? []).filter((d) => d.key === key);
-  // A key bound to two actions is said on both rows; the daemon accepts each on its own.
-  const conflicts = useMemo(() => keyConflicts(view?.options ?? []), [view]);
-  const change = async (o: ResolvedOption, value: unknown, reset = false) => {
-    const scope: OptionScope = o.definition.scope === "user" ? "user" : "repo";
-    // The options are read again either way: a refused value must not stay in the field (D6).
-    const ok = await action.run(async () => {
-      const r = await client.setOption(o.key, reset ? { scope, reset: true } : { scope, value }, repo);
-      return r.ok
-        ? r
-        : {
-            ok: false,
-            error: {
-              code: r.error?.code ?? "REFUSED",
-              message: `${o.key} was not changed: ${refusalText(r.error)}`,
-            },
-          };
-    });
-    if (!ok) setRefused((n) => n + 1);
-  };
+  const daemon = useDaemonStore();
   return (
-    <div className="settings-screen">
-      <aside className="sections" onKeyDown={(e) => moveInList(e, "button.section", true)}>
-        <div className="pick">
-          <RepoSelect />
-          <label htmlFor="settings-q" className="dim">
-            search
-          </label>
-          <input
-            id="settings-q"
-            placeholder="pane, prefix, notify…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-        {sections.map((s) => (
-          <Button
-            key={s.id}
-            className="section"
-            aria-current={query === "" && s.id === section ? "true" : undefined}
-            onClick={() => {
-              setQuery("");
-              setSection(s.id);
-            }}
-          >
-            <span>{s.id}</span>
-            <span className="dim">
-              {s.changed > 0 ? <span className="amber">{s.changed} · </span> : null}
-              {s.count}
-            </span>
-          </Button>
-        ))}
-        <Button
-          className="section"
-          aria-current={query === "" && section === "app" ? "true" : undefined}
-          onClick={() => {
-            setQuery("");
-            setSection("app");
-          }}
-        >
-          <span>app</span>
-          <span className="dim">2</span>
-        </Button>
-        <div className="spacer" />
-        <div className="dim files">
-          user: {view?.files.user ?? "options.yml"} · repo: {view?.files.repo ?? "metator.config.yml"}
-        </div>
-      </aside>
-      <section className="options-list">
-        <Notice {...action.notice} />
-        {optionsError && !view ? <div className="banner">{optionsError}</div> : null}
-        {section === "app" && query === "" ? (
-          <>
-            <div className="dim lead">app · this window only: where the daemon is and who you are</div>
-            <div className="opt">
-              <div className="k">
-                daemon url<div className="d dim">The address of `metator serve` this app talks to.</div>
-              </div>
-              <input
-                key={url}
-                aria-label="daemon url"
-                defaultValue={url}
-                onKeyDown={commitOnEnter}
-                onBlur={(e) => {
-                  if (e.target.value.trim() !== "" && e.target.value !== url) setUrl(e.target.value);
-                }}
-              />
-              <span className="src dim">this window</span>
-              <span />
-            </div>
-            <div className="opt">
-              <div className="k">
-                your name<div className="d dim">Who attaches, answers and approves from this app.</div>
-              </div>
-              <input
-                key={me}
-                aria-label="your name"
-                defaultValue={me}
-                onKeyDown={commitOnEnter}
-                onBlur={(e) => setMe(e.target.value.trim())}
-              />
-              <span className="src dim">this window</span>
-              <span />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="dim lead">
-              {query
-                ? `${shown.length} matching options`
-                : `${section} · a change applies at once; "restart" marks the ones the daemon reads at start`}
-            </div>
-            {shown.map((o) => (
-              <OptionRow
-                // The row is the option at its value: a reset or a refused change draws the field
-                // again with what holds, instead of leaving what was typed (D6).
-                key={`${o.key}:${JSON.stringify(o.value)}:${String(refused)}`}
-                option={o}
-                diagnostics={diagnosticsOf(o.key)}
-                conflicts={conflicts[o.key] ?? []}
-                onChange={change}
-              />
-            ))}
-            {shown.length === 0 ? <div className="empty">No option matches.</div> : null}
-          </>
-        )}
-      </section>
+    <ScopeProvider store={Settings} init={{ daemon }}>
+      <div className="settings-screen">
+        <aside className="sections" onKeyDown={(e) => moveInList(e, "button.section", true)}>
+          <div className="pick">
+            <RepoSelect />
+            <label htmlFor="settings-q" className="dim">
+              search
+            </label>
+            <SearchField />
+          </div>
+          <SectionButtons />
+          <SectionButton id="app" changed={0} count={2} />
+          <div className="spacer" />
+          <ScopeFiles />
+        </aside>
+        <section className="options-list">
+          <SettingsNotice />
+          <OptionsError />
+          <SettingsBody />
+        </section>
+      </div>
+    </ScopeProvider>
+  );
+}
+
+function SearchField() {
+  const query = useSettings((s) => s.query);
+  const search = useSettings((s) => s.search);
+  return (
+    <input
+      id="settings-q"
+      placeholder="pane, prefix, notify…"
+      value={query}
+      onChange={(e) => search(e.target.value)}
+    />
+  );
+}
+
+const NO_GROUPS: readonly { readonly id: string; readonly count: number; readonly changed: number }[] = [];
+
+/** The sections are the daemon's groups: one per option group, in the registry's order. */
+function SectionButtons() {
+  const groups = useSettingsDaemon((d) => d.optionsView?.groups ?? NO_GROUPS);
+  return groups.map((g) => <SectionButton key={g.id} id={g.id} changed={g.changed} count={g.count} />);
+}
+
+/** One section: it hears only whether it is the one shown. */
+function SectionButton({
+  id,
+  changed,
+  count,
+}: {
+  readonly id: string;
+  readonly changed: number;
+  readonly count: number;
+}) {
+  const current = useSettings((s) => s.query === "" && s.section === id);
+  const open = useSettings((s) => s.open);
+  return (
+    <Button className="section" aria-current={current ? "true" : undefined} onClick={() => open(id)}>
+      <span>{id}</span>
+      <span className="dim">
+        {changed > 0 ? <span className="amber">{changed} · </span> : null}
+        {count}
+      </span>
+    </Button>
+  );
+}
+
+function ScopeFiles() {
+  const user = useSettingsDaemon((d) => d.optionsView?.files.user);
+  const repo = useSettingsDaemon((d) => d.optionsView?.files.repo);
+  return (
+    <div className="dim files">
+      user: {user ?? "options.yml"} · repo: {repo ?? "metator.config.yml"}
     </div>
   );
 }
 
-function OptionRow({
-  option: o,
-  diagnostics,
-  conflicts,
-  onChange,
-}: {
-  readonly option: ResolvedOption;
-  readonly diagnostics: readonly OptionDiagnostic[];
-  /** The other actions bound to one of its keys. */
-  readonly conflicts: readonly string[];
-  onChange(option: ResolvedOption, value: unknown, reset?: boolean): Promise<void>;
-}) {
+/** What a change answered stays until closed: the refresh never clears a refusal (D5). */
+function SettingsNotice() {
+  const notice = useSettings((s) => s.notice);
+  const closeNotice = useSettings((s) => s.closeNotice);
+  return <Notice text={notice?.text} tone={notice?.tone ?? "error"} onClose={closeNotice} />;
+}
+
+function OptionsError() {
+  const error = useSettingsDaemon((d) => (d.optionsView ? undefined : d.optionsError));
+  return error ? <div className="banner">{error}</div> : null;
+}
+
+function SettingsBody() {
+  const app = useSettings((s) => s.section === "app" && s.query === "");
+  return app ? <AppSection /> : <OptionList />;
+}
+
+/** The app section: this window's own fields. */
+function AppSection() {
+  return (
+    <>
+      <div className="dim lead">app · this window only: where the daemon is and who you are</div>
+      <UrlField />
+      <NameField />
+    </>
+  );
+}
+
+function UrlField() {
+  const { url, setUrl } = useDaemon("url", "setUrl");
+  return (
+    <div className="opt">
+      <div className="k">
+        daemon url<div className="d dim">The address of `metator serve` this app talks to.</div>
+      </div>
+      <input
+        key={url}
+        aria-label="daemon url"
+        defaultValue={url}
+        onKeyDown={commitOnEnter}
+        onBlur={(e) => {
+          if (e.target.value.trim() !== "" && e.target.value !== url) setUrl(e.target.value);
+        }}
+      />
+      <span className="src dim">this window</span>
+      <span />
+    </div>
+  );
+}
+
+function NameField() {
+  const { me, setMe } = useDaemon("me", "setMe");
+  return (
+    <div className="opt">
+      <div className="k">
+        your name<div className="d dim">Who attaches, answers and approves from this app.</div>
+      </div>
+      <input
+        key={me}
+        aria-label="your name"
+        defaultValue={me}
+        onKeyDown={commitOnEnter}
+        onBlur={(e) => setMe(e.target.value.trim())}
+      />
+      <span className="src dim">this window</span>
+      <span />
+    </div>
+  );
+}
+
+const NO_OPTIONS: readonly ResolvedOption[] = [];
+
+/** The keys of the options shown: the section's, or the search's matches. */
+function useShownKeys(): readonly string[] {
+  const section = useSettings((s) => s.section);
+  const query = useSettings((s) => s.query);
+  return useSettingsDaemon(
+    useShallow((d) => shownKeys(d.optionsView?.options ?? NO_OPTIONS, section, query)),
+  );
+}
+
+function OptionList() {
+  const keys = useShownKeys();
+  return (
+    <>
+      <OptionsLead count={keys.length} />
+      {keys.map((key) => (
+        <OptionRow key={key} optionKey={key} />
+      ))}
+      {keys.length === 0 ? <div className="empty">No option matches.</div> : null}
+    </>
+  );
+}
+
+function OptionsLead({ count }: { readonly count: number }) {
+  const section = useSettings((s) => s.section);
+  const query = useSettings((s) => s.query);
+  return (
+    <div className="dim lead">
+      {query
+        ? `${count} matching options`
+        : `${section} · a change applies at once; "restart" marks the ones the daemon reads at start`}
+    </div>
+  );
+}
+
+const NO_DIAGNOSTICS: readonly OptionDiagnostic[] = [];
+const NO_CONFLICTS: readonly string[] = [];
+
+/** One option: it reads only its own option, its diagnostics, its key conflicts and its refusals. */
+export function OptionRow({ optionKey }: { readonly optionKey: string }) {
+  const o = useSettingsDaemon((d) => d.optionsView?.options.find((x) => x.key === optionKey));
+  const diagnostics = useSettingsDaemon(
+    useShallow((d) => (d.optionsView?.diagnostics ?? NO_DIAGNOSTICS).filter((x) => x.key === optionKey)),
+  );
+  // A key bound to two actions is said on both rows; the daemon accepts each on its own.
+  const conflicts = useSettingsDaemon(
+    (d) => conflictsOf(d.optionsView?.options ?? NO_OPTIONS)[optionKey] ?? NO_CONFLICTS,
+  );
+  const refused = useSettings((s) => s.refusals[optionKey] ?? 0);
+  const api = useSettingsApi();
+  if (!o) return null;
   const d = o.definition;
   const name = o.key.slice(o.key.indexOf(".") + 1);
   return (
@@ -215,10 +244,16 @@ function OptionRow({
           </div>
         ))}
       </div>
-      <OptionInput option={o} onChange={(v) => onChange(o, v)} />
+      <OptionInput
+        // The field is the option at its value: a reset or a refused change draws it again with
+        // what holds, instead of leaving what was typed (D6).
+        key={`${JSON.stringify(o.value)}:${String(refused)}`}
+        option={o}
+        onChange={(v) => void api.getState().change(o, v)}
+      />
       <span className={`src ${o.source}`}>{o.source}</span>
       {o.source !== "default" && !d.fixed ? (
-        <Button variant="ghost" onClick={() => onChange(o, undefined, true)}>
+        <Button variant="ghost" onClick={() => void api.getState().change(o, undefined, true)}>
           default
         </Button>
       ) : (

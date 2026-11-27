@@ -1,37 +1,42 @@
 /**
- * The rows of the sidebar's tree, each a component of its own so React Compiler draws again only
- * the rows whose task, thread or fold changed: a task with its panes or its steps by repository,
- * a group's open and finished tasks, a thread with its tasks.
+ * The rows of the sidebar's tree, each a component of its own that takes a key and reads its own
+ * entry of the tree (`state.ts`), whether it is current (the route) and whether it is folded: a
+ * run's state changing draws only its row, a move draws only the rows that were or become current.
+ * A task with its panes or its steps by repository, a group's open and finished tasks, a thread
+ * with its tasks, and the narrow version's glyphs.
  */
 
-import type { ThreadView } from "../../shared/api/api.ts";
 import { Glyph } from "../../shared/components/glyph.tsx";
-import { firstLevel, lookOf } from "../../shared/model/look.ts";
-import { paneLabel, paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
-import { finishedText, isFinished, runLine } from "../../shared/model/runs.ts";
-import { subtasksByRepo, taskLine, type WorkTask } from "../../shared/model/tasks.ts";
-import { type ThreadGroup, threadLine } from "../../shared/model/threads.ts";
+import { lookOf } from "../../shared/model/look.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { Button } from "../../ui/button.tsx";
-import type { SidebarCtx } from "./model.ts";
+import { useRouteOf } from "../use-route.ts";
+import { openThread, useSideActs } from "./acts.ts";
 import { Row } from "./row.tsx";
+import { fold, showMenu, useSidebar } from "./state.ts";
+import type { PaneRow, StepRow, TaskRow } from "./tree.ts";
+
+/** The run whose page is shown, when it is one of `holds` (so other rows hear nothing of a move). */
+const useShownOf = (holds: readonly string[]): string | undefined =>
+  useRouteOf((r) => (r.screen === "run" && holds.includes(r.runId) ? r.runId : undefined));
 
 /** A task: its row, and while unfolded its panes (a run of its own) or its steps by repository. */
-function TaskRows({ t, ctx }: { readonly t: WorkTask; readonly ctx: SidebarCtx }) {
-  const { route, current, fold, expandedNow, runOf, wordOf, stateOf, panesOf, openDecisionOr, onRun } = ctx;
-  const headRun = t.head ? runOf(t.head) : undefined;
-  const word = wordOf(t);
-  const look = lookOf("first", word);
-  const open = expandedNow(t);
-  const kids =
-    t.kind === "run" && headRun && !isFinished(headRun)
-      ? panesOfRun(panesOf(headRun.repo), headRun.runId)
-      : [];
-  const canOpen = t.subtasks.length > 0 || kids.length > 0;
+export function TaskRows({ taskKey }: { readonly taskKey: string }) {
+  const t = useSidebar((s) => s.tree.tasks[taskKey]);
+  return t ? <TaskBody t={t} /> : null;
+}
+
+function TaskBody({ t }: { readonly t: TaskRow }) {
+  const acts = useSideActs();
+  const shown = useShownOf(t.holds);
+  const byHand = useSidebar((s) => s.expanded[t.key]);
+  // Unfolded by hand, or because it holds what is shown.
+  const open = byHand ?? shown !== undefined;
+  const look = lookOf("first", t.word);
   return (
     <div className="task" data-testid={`side-task-${t.key}`}>
       <div className="task-row">
-        {canOpen ? (
+        {t.canOpen ? (
           <Button
             variant="ghost"
             className="expander"
@@ -45,84 +50,28 @@ function TaskRows({ t, ctx }: { readonly t: WorkTask; readonly ctx: SidebarCtx }
           <span className="expander" />
         )}
         <Row
-          glyph={<Glyph kind="first" state={word} />}
+          glyph={<Glyph kind="first" state={t.word} />}
           name={t.title}
-          sub={t.kind === "run" && headRun ? runLine(headRun) : taskLine(t)}
-          word={word}
+          sub={t.sub}
+          word={t.word}
           tone={look.tone}
-          current={t.head?.runId !== undefined && t.head.runId === current}
-          title={headRun && isFinished(headRun) ? `${t.title}\n${finishedText(headRun)}` : t.title}
+          current={t.cardRunId !== undefined && t.cardRunId === shown}
+          title={t.hover}
           onClick={() => {
-            if (headRun && t.kind === "run") openDecisionOr(headRun, headRun.terminalAsk);
-            else if (headRun) onRun(headRun, headRun.terminalAsk);
+            if (t.runId && t.kind === "run") acts.openDecisionOr(t.runId, t.repo, t.terminalAsk);
+            else if (t.runId) acts.onRun(t.runId, t.repo, t.terminalAsk);
             else if (t.kind === "system" || t.kind === "parent") navigate({ screen: "board", task: t.key });
           }}
         />
       </div>
-      {open && t.kind === "run"
-        ? kids.map((p) => {
-            // A pane on the first level: it asks (needs you), it works, or nothing (its finer
-            // word, idle or exited, is in the run's terminal).
-            const st = paneStateOf(p);
-            const pw = st === "asks" ? "needs you" : st === "working" ? "working" : undefined;
-            return (
-              <Row
-                key={p.id}
-                className="pane-row"
-                nested
-                glyph={<Glyph kind="first" state={pw} />}
-                name={paneLabel(p)}
-                word={pw}
-                tone={pw ? lookOf("first", pw).tone : "faint"}
-                current={headRun?.runId === current && route.screen === "run" && route.pane === p.id}
-                title={`${p.id} · ${p.state?.reason ?? ""}`}
-                onClick={() => headRun && onRun(headRun, p.id)}
-              />
-            );
-          })
-        : null}
+      {open && t.kind === "run" ? t.panes.map((p) => <PaneRowOf key={p.id} p={p} t={t} />) : null}
       {open && t.kind !== "run"
-        ? subtasksByRepo(t).map((g) => (
+        ? t.steps.map((g) => (
             <div key={g.repo || "."} className="task-repo">
               <div className="repo-name">{g.repo || "this repository"}</div>
-              {g.cards.map((c) => {
-                const r = runOf(c);
-                const st = r ? firstLevel(stateOf(r)) : firstLevel(c.state);
-                return (
-                  <Row
-                    key={c.key}
-                    nested
-                    className={c.kind === "step" ? "pending-step" : ""}
-                    glyph={<Glyph kind="first" state={st} />}
-                    name={c.title}
-                    sub={
-                      r
-                        ? [
-                            c.step ? `step ${c.step.at} of ${c.step.of}` : undefined,
-                            isFinished(r) ? undefined : r.stage,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")
-                        : c.waitsFor && c.waitsFor.length > 0
-                          ? `not started · waits for ${c.waitsFor.join(", ")}`
-                          : "not started · can start"
-                    }
-                    word={st}
-                    tone={lookOf("first", st).tone}
-                    current={r !== undefined && r.runId === current}
-                    title={c.title}
-                    onClick={() => {
-                      if (r) openDecisionOr(r, r.terminalAsk);
-                      else if (c.systemRunId)
-                        navigate({
-                          screen: "run",
-                          runId: c.systemRunId,
-                          tab: "overview",
-                        });
-                    }}
-                  />
-                );
-              })}
+              {g.rows.map((c) => (
+                <StepRowOf key={c.key} c={c} current={c.runId !== undefined && c.runId === shown} />
+              ))}
             </div>
           ))
         : null}
@@ -130,59 +79,116 @@ function TaskRows({ t, ctx }: { readonly t: WorkTask; readonly ctx: SidebarCtx }
   );
 }
 
+/** A pane on the first level: it asks (needs you), it works, or nothing. */
+function PaneRowOf({ p, t }: { readonly p: PaneRow; readonly t: TaskRow }) {
+  const acts = useSideActs();
+  const current = useRouteOf(
+    (r) => r.screen === "run" && t.runId !== undefined && r.runId === t.runId && r.pane === p.id,
+  );
+  return (
+    <Row
+      className="pane-row"
+      nested
+      glyph={<Glyph kind="first" state={p.word} />}
+      name={p.label}
+      word={p.word}
+      tone={p.word ? lookOf("first", p.word).tone : "faint"}
+      current={current}
+      title={p.title}
+      onClick={() => {
+        if (t.runId) acts.onRun(t.runId, t.repo, p.id);
+      }}
+    />
+  );
+}
+
+function StepRowOf({ c, current }: { readonly c: StepRow; readonly current: boolean }) {
+  const acts = useSideActs();
+  return (
+    <Row
+      nested
+      className={c.pending ? "pending-step" : ""}
+      glyph={<Glyph kind="first" state={c.word} />}
+      name={c.title}
+      sub={c.sub}
+      word={c.word}
+      tone={lookOf("first", c.word).tone}
+      current={current}
+      title={c.title}
+      onClick={() => {
+        if (c.runId) acts.openDecisionOr(c.runId, c.repo, c.terminalAsk);
+        else if (c.systemRunId)
+          navigate({
+            screen: "run",
+            runId: c.systemRunId,
+            tab: "overview",
+          });
+      }}
+    />
+  );
+}
+
 /** A group's tasks: the open ones, then its finished ones behind "Show finished (N)". */
-export function GroupTasks({ g, ctx }: { readonly g: ThreadGroup<ThreadView>; readonly ctx: SidebarCtx }) {
-  const { expanded, fold } = ctx;
-  const finishedKey = `finished:${g.key}`;
-  const showFinished = expanded[finishedKey] ?? false;
+export function GroupTasks({ groupKey }: { readonly groupKey: string }) {
+  const open = useSidebar((s) => s.tree.groups[groupKey]?.open);
   return (
     <>
-      {g.open.map((t) => (
-        <TaskRows key={t.key} t={t} ctx={ctx} />
+      {open?.map((key) => (
+        <TaskRows key={key} taskKey={key} />
       ))}
-      {g.finished.length > 0 ? (
-        <>
-          <Button
-            className="section finished-toggle"
-            aria-expanded={showFinished}
-            data-testid="show-finished"
-            onClick={() => fold(finishedKey, !showFinished)}
-          >
-            <Glyph kind="first" state="done" />
-            {showFinished ? `Hide finished (${g.finished.length})` : `Show finished (${g.finished.length})`}
-          </Button>
-          {showFinished ? g.finished.map((t) => <TaskRows key={t.key} t={t} ctx={ctx} />) : null}
-        </>
-      ) : null}
+      <FinishedTasks groupKey={groupKey} />
+    </>
+  );
+}
+
+function FinishedTasks({ groupKey }: { readonly groupKey: string }) {
+  const finished = useSidebar((s) => s.tree.groups[groupKey]?.finished);
+  const finishedKey = `finished:${groupKey}`;
+  const showFinished = useSidebar((s) => s.expanded[finishedKey] ?? false);
+  if (!finished || finished.length === 0) return null;
+  return (
+    <>
+      <Button
+        className="section finished-toggle"
+        aria-expanded={showFinished}
+        data-testid="show-finished"
+        onClick={() => fold(finishedKey, !showFinished)}
+      >
+        <Glyph kind="first" state="done" />
+        {showFinished ? `Hide finished (${finished.length})` : `Show finished (${finished.length})`}
+      </Button>
+      {showFinished ? finished.map((key) => <TaskRows key={key} taskKey={key} />) : null}
     </>
   );
 }
 
 /** A thread: its row (a click opens its chat), and its tasks under it while unfolded. */
-export function ThreadRows({ g, ctx }: { readonly g: ThreadGroup<ThreadView>; readonly ctx: SidebarCtx }) {
-  const { route, expanded, fold, onThread, showMenu, shownThread } = ctx;
-  const th = g.thread;
-  if (!th) return null;
-  const closed = th.state === "closed";
+export function ThreadRows({ groupKey }: { readonly groupKey: string }) {
+  const g = useSidebar((s) => s.tree.groups[groupKey]);
+  const shownHere = useSidebar((s) => g?.threadId !== undefined && s.tree.shownThread === g.threadId);
+  const byHand = useSidebar((s) => s.expanded[groupKey]);
+  const current = useRouteOf(
+    (r) => r.screen === "thread" && g?.threadId !== undefined && r.id === g.threadId,
+  );
+  const threadId = g?.threadId;
+  if (!g || threadId === undefined) return null;
+  const closed = g.closed;
   // Open threads are unfolded and closed ones folded, until folded or unfolded by hand.
-  const open = expanded[g.key] ?? (shownThread?.id === th.id || !closed);
+  const open = byHand ?? (shownHere || !closed);
   const hasTasks = g.open.length + g.finished.length > 0;
   // A closed thread and one without a task have their own look; the rest the first level's.
   const shown = closed ? "closed" : g.word;
   const kind = closed || g.word === "chat" ? "chat" : "first";
-  const openMenu = (e: React.MouseEvent) => {
-    showMenu(th, e.clientX, e.clientY);
-  };
   return (
-    <div className={`thread${closed ? " closed" : ""}`} data-testid={`side-thread-${th.id}`}>
+    <div className={`thread${closed ? " closed" : ""}`} data-testid={`side-thread-${threadId}`}>
       <div className="task-row thread-row">
         {hasTasks ? (
           <Button
             variant="ghost"
             className="expander"
             aria-expanded={open}
-            aria-label={`${open ? "fold" : "unfold"} ${th.title}`}
-            onClick={() => fold(g.key, !open)}
+            aria-label={`${open ? "fold" : "unfold"} ${g.title}`}
+            onClick={() => fold(groupKey, !open)}
           >
             {open ? "▾" : "▸"}
           </Button>
@@ -192,25 +198,89 @@ export function ThreadRows({ g, ctx }: { readonly g: ThreadGroup<ThreadView>; re
         <Row
           className="thread-head"
           glyph={<Glyph kind={kind} state={shown} />}
-          name={th.title}
-          sub={threadLine(g) || undefined}
+          name={g.title}
+          sub={g.line || undefined}
           word={shown}
           tone={lookOf(kind, shown).tone}
-          current={route.screen === "thread" && route.id === th.id}
-          title={th.title}
-          onClick={() => onThread(th)}
+          current={current}
+          title={g.title}
+          onClick={() => openThread(threadId)}
         />
         <Button
           variant="ghost"
           className="thread-more"
-          aria-label={`more for ${th.title}`}
+          aria-label={`more for ${g.title}`}
           title="Close or reopen this chat"
-          onClick={openMenu}
+          onClick={(e) => showMenu({ threadId, title: g.title, open: !closed, x: e.clientX, y: e.clientY })}
         >
           ⋯
         </Button>
       </div>
-      {open && hasTasks ? <div className="thread-tasks">{<GroupTasks g={g} ctx={ctx} />}</div> : null}
+      {open && hasTasks ? <div className="thread-tasks">{<GroupTasks groupKey={groupKey} />}</div> : null}
     </div>
+  );
+}
+
+/** The narrow version's glyph of an open thread, named in full on hover. */
+export function ThreadIcon({ groupKey }: { readonly groupKey: string }) {
+  const g = useSidebar((s) => s.tree.groups[groupKey]);
+  const current = useRouteOf(
+    (r) => r.screen === "thread" && g?.threadId !== undefined && r.id === g.threadId,
+  );
+  const threadId = g?.threadId;
+  if (!g || threadId === undefined) return null;
+  const kind = g.word === "chat" ? "chat" : "first";
+  return (
+    <Icon
+      glyph={<Glyph kind={kind} state={g.word} />}
+      title={`${g.title} · ${g.word}`}
+      onClick={() => openThread(threadId)}
+      current={current}
+    />
+  );
+}
+
+/** The narrow version's glyph of a task without a chat. */
+export function TaskIcon({ taskKey }: { readonly taskKey: string }) {
+  const t = useSidebar((s) => s.tree.tasks[taskKey]);
+  const shown = useShownOf(t?.holds ?? NO_RUNS);
+  const acts = useSideActs();
+  if (!t) return null;
+  return (
+    <Icon
+      glyph={<Glyph kind="first" state={t.word} />}
+      title={`${t.title} · ${t.word}`}
+      onClick={() => {
+        if (t.runId) acts.openDecisionOr(t.runId, t.repo);
+      }}
+      current={shown !== undefined}
+    />
+  );
+}
+
+const NO_RUNS: readonly string[] = [];
+
+/** One glyph of the narrow version, named on hover. */
+export function Icon({
+  glyph,
+  title,
+  onClick,
+  current = false,
+}: {
+  readonly glyph: React.ReactNode;
+  readonly title: string;
+  onClick(): void;
+  readonly current?: boolean;
+}) {
+  return (
+    <Button
+      className="nicon"
+      title={title}
+      aria-label={title}
+      aria-current={current ? "true" : undefined}
+      onClick={onClick}
+    >
+      {glyph}
+    </Button>
   );
 }

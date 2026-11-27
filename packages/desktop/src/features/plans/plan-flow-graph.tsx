@@ -4,7 +4,7 @@
  * critical path drawn heavier. A click opens the step's detail (round 17): what it has, its own
  * plan on demand, and its run once it has one.
  */
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useRef, useSyncExternalStore } from "react";
 import { lookOf, type Tone } from "../../shared/model/look.ts";
 import {
   criticalPath,
@@ -29,6 +29,24 @@ const toneOf = (n: Pick<FlowNode, "state">) =>
   n.state === "pending" ? "faint" : (lookOf("run", n.state).tone ?? "faint");
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+/**
+ * The width of the element `box` holds, as the DOM says it (no copy of it kept in React state):
+ * read again when the element is resized; undefined before it is drawn or without `ResizeObserver`.
+ */
+function useWidth(box: RefObject<HTMLElement | null>): number | undefined {
+  return useSyncExternalStore(
+    (changed) => {
+      const el = box.current;
+      if (!el || typeof ResizeObserver === "undefined") return () => {};
+      const seen = new ResizeObserver(changed);
+      seen.observe(el);
+      return () => seen.disconnect();
+    },
+    () => box.current?.clientWidth || undefined,
+    () => undefined,
+  );
+}
+
 export function PlanFlowGraph({
   view,
   runs,
@@ -46,15 +64,7 @@ export function PlanFlowGraph({
 }) {
   // The box's width: the nodes narrow to fit it; past their narrowest, the box scrolls.
   const box = useRef<HTMLDivElement>(null);
-  const [fit, setFit] = useState<number>();
-  useEffect(() => {
-    const el = box.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const seen = new ResizeObserver(() => setFit(el.clientWidth || undefined));
-    seen.observe(el);
-    setFit(el.clientWidth || undefined);
-    return () => seen.disconnect();
-  }, []);
+  const fit = useWidth(box);
   const flow: PlanFlowLayout = planFlow(view, runs, fit);
   const scrolls = fit !== undefined && flow.width > fit + 1;
   const chars = (w: number) => Math.max(10, Math.floor((w - 22) / 7));

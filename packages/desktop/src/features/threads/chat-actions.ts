@@ -8,7 +8,7 @@
  * chat terminal, never its runs.
  */
 import type { ThreadView } from "../../shared/api/api.ts";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
+import { type Daemon, useDaemon } from "../../shared/daemon/daemon.tsx";
 import { hostChoice, noHostText } from "../../shared/model/runs.ts";
 import { chatTitleOf } from "../../shared/model/threads.ts";
 import { navigate } from "../../shared/navigation.ts";
@@ -57,23 +57,30 @@ export function useNewChat(): (words?: string) => Promise<void> {
 
 /** Close or reopen a thread (its ⋯ menu, its bar). */
 export function useThreadAct(): (thread: ThreadView, act: "close" | "reopen") => Promise<void> {
-  const { client, who, reloadThreads } = useDaemon("client", "who", "reloadThreads");
-  return async (thread, act) => {
-    const by = await who();
-    if (!by) return;
-    const r =
-      act === "close"
-        ? await client.closeThread(thread.id, by, thread.repo)
-        : await client.reopenThread(thread.id, by, thread.repo);
-    await reloadThreads();
-    if (!r.ok) {
-      say({
-        text: `The chat was not ${act === "close" ? "closed" : "reopened"}: ${r.error?.message ?? "the daemon refused"}`,
-        tone: "error",
-      });
-      return;
-    }
-    say(undefined);
-    if (act === "reopen") navigate({ screen: "thread", id: thread.id });
-  };
+  const daemon = useDaemon("client", "who", "reloadThreads");
+  return (thread, act) => actOnThread(daemon, thread, act);
+}
+
+/** Closes or reopens a thread with the daemon's state at hand; a refusal is said in the app's notice. */
+export async function actOnThread(
+  { client, who, reloadThreads }: Pick<Daemon, "client" | "who" | "reloadThreads">,
+  thread: ThreadView,
+  act: "close" | "reopen",
+): Promise<void> {
+  const by = await who();
+  if (!by) return;
+  const r =
+    act === "close"
+      ? await client.closeThread(thread.id, by, thread.repo)
+      : await client.reopenThread(thread.id, by, thread.repo);
+  await reloadThreads();
+  if (!r.ok) {
+    say({
+      text: `The chat was not ${act === "close" ? "closed" : "reopened"}: ${r.error?.message ?? "the daemon refused"}`,
+      tone: "error",
+    });
+    return;
+  }
+  say(undefined);
+  if (act === "reopen") navigate({ screen: "thread", id: thread.id });
 }

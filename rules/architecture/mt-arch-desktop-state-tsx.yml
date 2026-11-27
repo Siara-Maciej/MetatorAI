@@ -1,0 +1,16 @@
+id: mt-arch-desktop-state-tsx
+language: Tsx
+severity: error
+message: "ADR-0113: a desktop screen keeps its state in a zustand store, not in useState or useReducer."
+note: "Put the screen's values and actions in its store (scopedStore in features/<name>/state.ts, or a module store for app-wide state) and read one value per small part with a selector. Only shared/state/ and ui/ primitives hold React state."
+files:
+  - packages/desktop/src/app/**
+  - packages/desktop/src/features/**
+  - packages/desktop/src/shared/**
+ignores:
+  - packages/desktop/src/shared/state/**
+rule:
+  kind: call_expression
+  has:
+    field: function
+    regex: '^(React\.)?(useState|useReducer)$'
