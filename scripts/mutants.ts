@@ -11008,4 +11008,23 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "Done and Drop ask first",
   },
+  // The New run form's store (ADR-0113): a store per open form, a field that draws alone.
+  {
+    file: "packages/desktop/src/features/runs/new-run-state.ts",
+    from: "      if (refusedForDirtyTree(r.error)) set({ dirty: { andAttach } });",
+    to: "",
+    why: "a create refused for uncommitted changes offers the same create from the last commit",
+  },
+  {
+    file: "packages/desktop/src/features/runs/new-run-state.ts",
+    from: "        task: task.trim(),",
+    to: "        task,",
+    why: "a new run's task is sent trimmed",
+  },
+  {
+    file: "packages/desktop/src/features/runs/new-session.tsx",
+    from: "  const worktree = useNewRun((s) => s.worktree);",
+    to: "  const { worktree } = useNewRun((s) => s);",
+    why: "a field of the New run form reads only its own value: typing the task draws no other field",
+  },
 ];
