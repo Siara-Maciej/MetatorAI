@@ -11058,4 +11058,29 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "saved roots leave the draft",
   },
+  // The Changes tab's store (ADR-0113): a diff line draws alone when a note opens on it.
+  {
+    file: "packages/desktop/src/features/runs/changes-state.ts",
+    from: "          if (ok) set({ draft: undefined });",
+    to: "",
+    why: "an added note closes its form",
+  },
+  {
+    file: "packages/desktop/src/features/runs/changes-state.ts",
+    from: "side: draft.side ?? \"new\"",
+    to: "side: \"new\"",
+    why: "a note on a removed line names the old side",
+  },
+  {
+    file: "packages/desktop/src/features/runs/changes-state.ts",
+    from: "        writeDraft: (text) => set((s) => (s.draft ? { draft: { ...s.draft, text } } : {})),",
+    to: "        writeDraft: (text) => set((s) => ({ draft: { ...s.draft, text } })),",
+    why: "typing with no note open opens none",
+  },
+  {
+    file: "packages/desktop/src/features/runs/changes-tab.tsx",
+    from: "  const editing = useChanges((s) => s.draft !== undefined && s.draft.line === line && s.draft.side === side);",
+    to: "  const editing = useChanges((s) => s.draft)?.line === line;",
+    why: "a diff line reads only whether a note is written on it: opening a note draws that line alone",
+  },
 ];
