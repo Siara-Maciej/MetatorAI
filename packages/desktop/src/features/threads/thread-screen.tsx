@@ -14,6 +14,7 @@ import { threadsHave } from "../../shared/model/found.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import { paneNeedsYou } from "../../shared/model/needs.ts";
 import { paneStateOf } from "../../shared/model/panes.ts";
+import { chatPlaceLabel } from "../../shared/model/places.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { byAttentionFirst, taskLine, taskState } from "../../shared/model/tasks.ts";
 import { threadLine, threadPane, threadTree } from "../../shared/model/threads.ts";
@@ -24,7 +25,13 @@ import { useThreadAct } from "./chat-actions.ts";
 export function ThreadScreen({ id }: { readonly id: string }) {
   const act = useThreadAct();
   const confirmClose = useConfirmClose();
-  const { panes, paneAsks, threads, client } = useDaemon("panes", "paneAsks", "threads", "client");
+  const { panes, paneAsks, threads, client, repos } = useDaemon(
+    "panes",
+    "paneAsks",
+    "threads",
+    "client",
+    "repos",
+  );
   // Close chat stops its agent: asked first while it lives (ui.confirmClosePane).
   const onClose = (t: ThreadView) => {
     if (confirmClose.thread(t, threadPane(t, panes))) void act(t, "close");
@@ -49,12 +56,19 @@ export function ThreadScreen({ id }: { readonly id: string }) {
   const word = closed ? "closed" : (g?.word ?? "chat");
   const kind = closed || word === "chat" ? "chat" : "first";
   const mine = [...(g?.open ?? []), ...(g?.finished ?? [])];
+  // In a folder: whose chat this is, the folder's or a repository's (ADR-0113).
+  const place = chatPlaceLabel(repos, thread.repo);
   return (
     <div className="thread-screen" data-testid={`thread-${thread.id}`}>
       <header className="thread-bar">
         <Glyph kind={kind} state={word} />
         <h1>{thread.title}</h1>
         <span className={`word ${lookOf(kind, word).tone ?? ""}`}>{word}</span>
+        {place ? (
+          <span className="faint" data-testid="thread-place">
+            · {place}
+          </span>
+        ) : null}
         {g && threadLine(g) ? <span className="faint">· {threadLine(g)}</span> : null}
         <span className="spacer" />
         {closed ? (

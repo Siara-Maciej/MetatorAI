@@ -31,4 +31,6 @@ export interface SidebarCtx {
   showMenu(thread: ThreadView, x: number, y: number): void;
   /** The thread that holds what is shown: unfolded, whatever was folded before. */
   readonly shownThread: ThreadView | undefined;
+  /** In a folder: whose a chat is (`folder`, or its repository), for its row (ADR-0113). */
+  placeOf(thread: ThreadView): string | undefined;
 }

@@ -140,7 +140,7 @@ The daemon serves every repository and worktree of the folder, on one port. Each
 - The top bar shows the folder as **3 repositories**; hovering it lists them, each with its worktrees (`shop · 2 worktrees`).
 - **Home** has one queue for every repository. A card's **Details** names its repository, and a question a chat asks before any run names its repository too.
 - **Terminals**, **Backlog**, **Reviews** and the parts of **Settings** show one repository at a time, chosen with the **repository** select at the top. The select also lists the worktrees in the folder as places to work (`shop (fix-tax)`). The choice is shared by these places and remembered.
-- **+ New chat** opens the chat in the repository the select names, and its thread is kept there. The **Form…** has a **Repository** field.
+- **+ New chat** opens the chat of the folder when it holds more than one repository: its thread is kept in the folder's own `.metator/`, its agent starts in the folder and runs a repository's commands with `-C`. The **▾** beside it opens a chat in one repository, whose thread is kept there. `metator thread` and `metator session` run in the folder too. The **Form…** has a **Repository** field.
 - The sidebar lists every task of every repository; a system task shows its steps under the repositories they work in. The page of a run always uses the run's own repository.
 
 ![Home on a folder of 2 repositories: Approve the plan for Show prices with tax in shop-web, with Approve, Reject and Other](../public/screens/real/real-09-system-plan-card.webp)

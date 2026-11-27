@@ -10,6 +10,32 @@ export const repoChoice = (
   repos: readonly { readonly name: string }[],
   saved: string | null | undefined,
 ): string | undefined => (repos.some((r) => r.name === saved) ? (saved as string) : repos[0]?.name);
+/**
+ * The folder itself where a request names a repository (ADR-0113): the place of the folder's own
+ * chats. No repository has this name.
+ */
+export const FOLDER_PLACE = ".";
+/**
+ * Where "+ New chat" opens (ADR-0113): in a folder of more than one repository the folder itself,
+ * so no repository is picked for the person; else the repository the lists show.
+ */
+export const chatPlace = (repos: readonly Place[], repo: string | undefined): string | undefined =>
+  new Set(repos.map((p) => p.worktreeOf ?? p.name)).size > 1 ? FOLDER_PLACE : repo;
+/** The places a chat can open in, the default first: the folder (when it has its own chat), then each checkout. */
+export function chatPlaces(repos: readonly Place[]): { readonly name: string; readonly label: string }[] {
+  if (chatPlace(repos, undefined) !== FOLDER_PLACE) return [];
+  return [
+    { name: FOLDER_PLACE, label: "the folder" },
+    ...repos.map((p) => ({ name: p.name, label: placeLabel(p) })),
+  ];
+}
+/** Whose a chat is, as its row says it in a folder: `folder`, or its repository; nothing outside a folder. */
+export const chatPlaceLabel = (repos: readonly Place[], repo: string | undefined): string | undefined => {
+  if (repos.length === 0 || repo === undefined) return undefined;
+  if (repo === FOLDER_PLACE) return "folder";
+  const place = repos.find((p) => p.name === repo);
+  return place ? placeLabel(place) : repo;
+};
 /* ---------- counts, repositories, routes: what several screens must agree on ---------- */
 
 /** A run the daemon could not read, with the repository it is in when the daemon serves a folder. */

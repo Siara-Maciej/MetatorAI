@@ -143,6 +143,11 @@ export interface NewThreadInput {
   readonly pane?: boolean;
   /** The chat of a folder of repositories (ADR-0113): its repositories, named to the agent first. */
   readonly folder?: FolderChat;
+  /**
+   * Ids taken in the other places of a folder (its repositories, the folder itself): one app lists
+   * all their threads, so a new thread's id is taken by none of them.
+   */
+  readonly takenElsewhere?: readonly string[];
 }
 
 /**
@@ -193,6 +198,12 @@ export class Threads {
       closed: threads.filter((t) => t.state === "closed").length,
       ...(latest ? { updatedAt: latest } : {}),
     };
+  }
+
+  /** The id of every thread here, open or closed. */
+  async ids(): Promise<readonly string[]> {
+    const all = await this.d.store.list();
+    return all.isOk() ? all.value.map((t) => t.id) : [];
   }
 
   show(id: string): Promise<Result<Thread, MetatorError>> {
@@ -265,7 +276,8 @@ export class Threads {
     const made = await this.d.store.create<PaneView | undefined>(async (taken) => {
       const now = this.d.clock.now();
       const at = now.toISOString();
-      const id = threadId(title, now, taken);
+      const elsewhere = new Set(input.takenElsewhere ?? []);
+      const id = threadId(title, now, (x) => taken(x) || elsewhere.has(x));
       let pane: PaneView | undefined;
       if (input.pane !== false) {
         const opened = await this.openChat(id, input.host, undefined, input.folder);

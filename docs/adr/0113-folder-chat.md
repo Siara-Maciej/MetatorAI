@@ -17,11 +17,11 @@ Stan dzisiejszy:
 ## Decyzja
 1. **Folder repozytoriów ma własny czat.** W aplikacji otwartej na folderze „+ New chat” (przycisk, klawisz `n`, „Describe a task” na Home) otwiera czat folderu. Czat jednego repozytorium zostaje dostępny z menu przy przycisku, z nazwą repozytorium. Aplikacja otwarta na jednym repozytorium działa jak dotąd.
 2. **Folder dostaje minimalny własny zapis, tylko dla rozmowy.** `<folder>/.metator/` trzyma wątki czatu folderu i układ jego paneli. Folder nadal nie ma reguł, workflowów, bramek, indeksu ani runów: te zostają w repozytoriach. To zawęża zdanie ADR-0057 „folder niczego nie konfiguruje” do „folder nie konfiguruje pracy nad kodem”.
-3. **Pliki hosta dla folderu.** Dodanie folderu w aplikacji (i `metator repos setup` w terminalu) zapisuje w folderze agenta rozmowy i jego ustawienia dla wybranych hostów (`.claude/agents/mt-chat.md`, `.claude/settings.json`, odpowiedniki Copilota). Są generowane z tego samego źródła co pliki repozytoriów (`metator/agents`), z sekcją folderu zamiast sekcji repozytorium. Folder nie musi być repozytorium git, więc tych plików nikt nie commituje.
-4. **Agent w folderze pracuje przez `-C`.** Startuje w korzeniu folderu, na starcie dostaje listę repozytoriów (`metator repos list`) i każdą komendę jednego repozytorium uruchamia jako `metator -C <repozytorium> …`. Run, szybka zmiana i pytanie (`ask`) zawsze należą do jednego repozytorium, które agent nazywa przed startem; gdy kod nie rozstrzyga, pyta osobę. Zmiana, która sięga kilku repozytoriów, to `mt-system-change`. Nic nie zgaduje repozytorium za człowieka (ADR-0057 w tej części bez zmian).
-5. **Komendy rozmowy działają w folderze.** `thread *` oraz komendy panelu, z których korzysta czat, dochodzą do `FOLDER_COMMANDS` i pracują na zapisie folderu, gdy wywołuje je panel czatu folderu.
-6. **Demon.** Demon folderu obsługuje wątki i panele folderu obok tych z repozytoriów. Wątek folderu nie ma pola `repo`; jego zadania to runy z dowolnego repozytorium folderu, każdy ze swoim `repo`. Drzewo `/threads` łączy wątki folderu i repozytoriów jak dotąd.
-7. **Piaskownica i odmowy.** Sesja czatu folderu jest opakowana jak każda sesja hosta (ADR-0104), z zapisem ograniczonym do folderu; lista komend, które nigdy nie działają (ADR-0100), jest sumą list repozytoriów.
+3. **Agent rozmowy w folderze jest kopią z repozytoriów.** Przy otwarciu czatu folderu demon kopiuje do folderu pliki hosta agenta rozmowy (`.claude/agents/mt-chat.md` i odpowiedniki innych hostów) z pierwszego repozytorium, które je ma, i nadpisuje kopię, gdy się różni (`adoptChatAgent`). Folder nie ma własnego setupu ani własnych hooków; nie musi być repozytorium git, więc tych plików nikt nie commituje.
+4. **Agent w folderze pracuje przez `-C`.** Startuje w korzeniu folderu, a pierwszy prompt (`folderChatPrompt`) mówi mu, w jakim folderze jest, jakie ma repozytoria i że każdą komendę jednego repozytorium uruchamia jako `metator -C <repozytorium> …`. Run, szybka zmiana i edycja zawsze należą do jednego repozytorium, które agent nazywa przed startem; gdy kod nie rozstrzyga, pyta osobę. Czat folderu sam nie edytuje plików. Zmiana, która sięga kilku repozytoriów, to `mt-system-change`. Nic nie zgaduje repozytorium za człowieka (ADR-0057 w tej części bez zmian).
+5. **Komendy rozmowy działają w folderze.** `thread *` i `session *` dochodzą do komend folderu i pracują na zapisie folderu.
+6. **Demon.** Demon folderu obsługuje sam folder jako miejsce o nazwie `.` (`FOLDER_PLACE`; żadne repozytorium nie może się tak nazywać): `?repo=.` w trasach wątków, układu i paneli. Folder ma wątki i panele, nie ma runów. Wątek folderu wymienia runy dowolnego repozytorium; fakty o ich końcu i powiadomienia czatu demon czyta z repozytorium, które trzyma run. Identyfikator nowego wątku jest unikalny w całym folderze, bo aplikacja pokazuje wątki wszystkich miejsc na jednej liście.
+7. **Czat folderu jest domyślny, gdy folder ma więcej niż jedno repozytorium.** Folder z jednym repozytorium (także z jego worktree) otwiera czat w repozytorium, jak dotąd.
 
 ## Konsekwencje
 ### Pozytywne
@@ -30,10 +30,9 @@ Stan dzisiejszy:
 - Pytanie otwarte ADR-0095 o zasięg wątku ma odpowiedź: wątek jest repozytorium albo folderu, a zapis leży tam, gdzie wątek.
 
 ### Negatywne
-- Folder przestaje być samym zbiorem: ma `.metator/` i pliki hosta, które trzeba generować, aktualizować (`metator update`) i sprzątać przy usunięciu folderu z aplikacji.
+- Folder przestaje być samym zbiorem: ma `.metator/` i kopię agenta rozmowy, których nikt nie sprząta przy usunięciu folderu z aplikacji.
 - Dwa rodzaje czatu (folderu i repozytorium) w jednym pasku bocznym; wiersz wątku musi mówić, czyj jest.
 - Agent w folderze nie ma hooków, reguł i indeksu repozytorium, dopóki nie wejdzie w repozytorium przez `-C`; czyta kod kilku repozytoriów bez ich kart modułów w kontekście startowym.
-- Nowy wersjonowany zapis (wątek bez `repo` w zapisie folderu) i nowy cel generatora.
 
 ## Alternatywy odrzucone
 | Alternatywa | Dlaczego odrzucona |
@@ -43,10 +42,14 @@ Stan dzisiejszy:
 | Pełny Metator folderu (wspólne reguły, workflowy, runy) | odrzucone już w ADR-0057: repozytoria mają różne reguły i hosty; run zmieniający kod musi należeć do jednego repozytorium |
 | Zapis wątków folderu w jednym z repozytoriów | wątek folderu trafiłby do historii git repozytorium, które go nie dotyczy, i znikał z folderu po jego usunięciu |
 
+## Odpowiedzi właściciela (2026-11-27)
+- Folder może mieć pliki MetatorAI (`.metator/`, kopia agenta w `.claude/`).
+- Czat folderu nie edytuje plików; każda zmiana kodu idzie przez run albo szybką zmianę w repozytorium.
+- Czat folderu jest domyślny tylko przy więcej niż jednym repozytorium.
+
 ## Pytania otwarte
-- Czy czat folderu jest domyślny zawsze, czy tylko gdy folder ma więcej niż jedno repozytorium?
-- Co z folderem tylko do odczytu albo takim, w którym osoba nie chce plików MetatorAI: czat jednego repozytorium jako jedyny, czy pliki hosta przekazane hostowi poza folderem?
-- Czy czat folderu może sam edytować pliki (tryb `direct` agenta rozmowy), czy każda zmiana kodu idzie przez run albo szybką zmianę w repozytorium?
+- Hooki hosta w folderze (`guard *`): czat folderu działa dziś bez nich; zgody na commit i push pilnują hooki repozytorium, w którym pracuje run.
+- Piaskownica sesji czatu folderu (ADR-0104): dziś jak dla katalogu bez konfiguracji; zakres zapisu ograniczony do folderu wymaga osobnej decyzji.
 - Kontenery deweloperskie (ADR-0106): folder po stronie kontenera czy maszyny?
 
 ## Zastępuje i rozszerza
@@ -54,10 +57,8 @@ Stan dzisiejszy:
 - Rozszerza ADR-0095 (zasięg wątku) i ADR-0093 (agent rozmowy w folderze).
 
 ## Implikacje dla kodu
-Decyzję będą egzekwować MT-CODE-002 i MT-CODE-003 (zapis wątku folderu to wersjonowany dokument), MT-TEST-001 (e2e: czat folderu startuje w folderze i uruchamia run w repozytorium) i MT-TEST-003. Kod zmienia się dopiero po akceptacji tej decyzji; dotknie ona:
+ADR-0113 egzekwują reguły kanonu MT-TEST-001 (e2e `e2e/folder-chat.e2e.test.ts`, `e2e/desktop-folder-chat.e2e.test.ts`) i MT-TEST-003 (mutanty w `scripts/mutants.ts`). Kod:
 
-- `packages/core/src/application/threads.ts`, `panes.ts`: wątek i panel bez repozytorium, katalog pracy panelu w folderze.
-- `packages/cli/src/serve/server.ts`, `serve/routes/threads.ts`, `serve/routes/panes.ts`: wątki i panele folderu; `FOLDER_COMMANDS`.
-- Generator plików hosta (`metator/agents/mt-chat.md` z sekcją folderu), `metator repos setup`, `metator update`.
-- `packages/desktop/src/features/threads/chat-actions.ts`, `app/sidebar/sidebar.tsx`: „+ New chat” w folderze, menu z repozytoriami, oznaczenie wiersza wątku.
-- `site/guide/many.md`, `site/many/index.md`.
+- `packages/core/src/domain/repo-set.ts` (`FOLDER_PLACE`), `domain/thread.ts` (`threadTree`), `application/threads.ts`, `application/panes.ts` (`folderChatPrompt`), `application/host-descriptors.ts` (`adoptChatAgent`), `application/chat-notices.ts`.
+- `packages/cli/src/serve/server.ts`, `serve/routes/threads.ts`, `serve/routes/sessions.ts`, `serve/timers.ts`; `commands/thread.ts`, `commands/session.ts`.
+- `packages/desktop/src/shared/model/places.ts`, `features/threads/chat-actions.ts`, `app/sidebar/sidebar.tsx`.

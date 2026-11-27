@@ -173,6 +173,8 @@ export function ThreadRows({ g, ctx }: { readonly g: ThreadGroup<ThreadView>; re
   const openMenu = (e: React.MouseEvent) => {
     showMenu(th, e.clientX, e.clientY);
   };
+  // In a folder a chat says whose it is: the folder's, or a repository's (ADR-0113).
+  const line = [ctx.placeOf(th), threadLine(g)].filter(Boolean).join(" · ");
   return (
     <div className={`thread${closed ? " closed" : ""}`} data-testid={`side-thread-${th.id}`}>
       <div className="task-row thread-row">
@@ -193,7 +195,7 @@ export function ThreadRows({ g, ctx }: { readonly g: ThreadGroup<ThreadView>; re
           className="thread-head"
           glyph={<Glyph kind={kind} state={shown} />}
           name={th.title}
-          sub={threadLine(g) || undefined}
+          sub={line || undefined}
           word={shown}
           tone={lookOf(kind, shown).tone}
           current={route.screen === "thread" && route.id === th.id}

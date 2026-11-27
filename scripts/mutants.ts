@@ -11008,4 +11008,22 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "a folder's chat is told of a run kept in one of its repositories",
   },
+  {
+    file: "packages/desktop/src/shared/model/places.ts",
+    from: "new Set(repos.map((p) => p.worktreeOf ?? p.name)).size > 1 ? FOLDER_PLACE : repo;",
+    to: "repos.length > 1 ? FOLDER_PLACE : repo;",
+    why: "a worktree is not one more repository: one repository's new chat stays in it",
+  },
+  {
+    file: "packages/desktop/src/shared/model/places.ts",
+    from: 'if (repo === FOLDER_PLACE) return "folder";',
+    to: "",
+    why: "the folder's own chat says it is the folder's",
+  },
+  {
+    file: "packages/core/src/application/threads.ts",
+    from: "(x) => taken(x) || elsewhere.has(x)",
+    to: "taken",
+    why: "in a folder a new thread's id is taken by no other place's thread",
+  },
 ];

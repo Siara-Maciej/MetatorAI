@@ -121,6 +121,10 @@ export const THREAD_ROUTES: readonly Route[] = [
       const repo = nameOf(daemon, c);
       const folder = await folderChat(daemon, c);
       if (folder.isErr()) return folder;
+      // In a folder one app lists every place's threads: the new id is taken in none of them.
+      const taken: string[] = [];
+      for (const r of daemon.folder ? daemon.places() : [])
+        if (r.c !== c) taken.push(...(await r.c.resolve("threads").ids()));
       const from = {
         ...(b.from?.issue ? { issue: b.from.issue } : {}),
         ...(b.from?.thread ? { thread: b.from.thread } : {}),
@@ -134,6 +138,7 @@ export const THREAD_ROUTES: readonly Route[] = [
         ...(caller ? { caller } : {}),
         ...(repo ? { repo } : {}),
         ...(folder.value ? { folder: folder.value } : {}),
+        ...(taken.length > 0 ? { takenElsewhere: taken } : {}),
       });
     },
   }),

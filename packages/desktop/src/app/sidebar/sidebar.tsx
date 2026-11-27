@@ -24,7 +24,7 @@ import { plural } from "../../shared/model/format.ts";
 import { type FirstLevel, firstLevel } from "../../shared/model/look.ts";
 import { decisionKey, type NeedRow, paneNeedsYou } from "../../shared/model/needs.ts";
 import { paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
-import { sameRepo } from "../../shared/model/places.ts";
+import { chatPlaceLabel, chatPlaces, sameRepo } from "../../shared/model/places.ts";
 import { type Route, routeHash } from "../../shared/model/route.ts";
 import { isFinished, type Run, runWithPanes } from "../../shared/model/runs.ts";
 import { byAttentionFirst, taskState, type WorkTask, workTasks } from "../../shared/model/tasks.ts";
@@ -79,7 +79,8 @@ export function Sidebar({
   const threadAct = useThreadAct();
   const onCloseThread = (t: ThreadView) => void threadAct(t, "close");
   const onReopenThread = (t: ThreadView) => void threadAct(t, "reopen");
-  const { runs, panes, panesOf, down, unreadable, systemPlans, inbox, threads, paneAsks } = useDaemon(
+  const { runs, panes, panesOf, down, unreadable, systemPlans, inbox, threads, paneAsks, repos } = useDaemon(
+    "repos",
     "runs",
     "panes",
     "panesOf",
@@ -101,6 +102,9 @@ export function Sidebar({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showClosed, setShowClosed] = useState(false);
   const [menu, setMenu] = useState<{ thread: ThreadView; x: number; y: number }>();
+  // In a folder: where a new chat opens, the folder first (ADR-0113).
+  const places = chatPlaces(repos);
+  const [placeMenu, setPlaceMenu] = useState<{ x: number; y: number }>();
   const current = route.screen === "run" ? route.runId : undefined;
   const stateOf = (r: Run) =>
     runWithPanes(
@@ -151,6 +155,7 @@ export function Sidebar({
     onThread,
     showMenu: (thread, x, y) => setMenu({ thread, x, y }),
     shownThread,
+    placeOf: (t) => chatPlaceLabel(repos, t.repo),
   };
   const openCount = tree.threads.length;
   const fold = onNarrow ? (
@@ -319,6 +324,18 @@ export function Sidebar({
           ]}
         />
       ) : null}
+      {placeMenu ? (
+        <ContextMenu
+          at={placeMenu}
+          label="where the new chat opens"
+          onClose={() => setPlaceMenu(undefined)}
+          items={places.map((p, i) => ({
+            label: `New chat in ${p.label}`,
+            separator: i === 1,
+            onSelect: () => void newChat(undefined, p.name),
+          }))}
+        />
+      ) : null}
       {unreadable.length > 0 ? (
         <details className="unreadable" data-testid="unreadable">
           <summary className="amber">{plural(unreadable.length, "run")} cannot be read</summary>
@@ -359,6 +376,20 @@ export function Sidebar({
         >
           + New chat
         </Button>
+        {places.length > 0 ? (
+          <Button
+            aria-label="New chat in a repository"
+            title="Where the new chat opens: the folder, or one repository"
+            data-testid="new-chat-where"
+            disabled={down}
+            onClick={(e) => {
+              const at = e.currentTarget.getBoundingClientRect();
+              setPlaceMenu({ x: at.left, y: at.top });
+            }}
+          >
+            ▾
+          </Button>
+        ) : null}
         <Button
           aria-label="New run from the form"
           title="The form: workflow, autonomy, host, worktree"

@@ -102,6 +102,20 @@ describe("Threads: one per topic, with its chat terminal", () => {
     // The same title the same day is another thread.
     const again = (await w.threads.create({ title: "Price rounding", by: "ann" }))._unsafeUnwrap();
     expect(again.thread.id).toBe("20261122-price-rounding-2");
+    // In a folder the id is taken by no other place's thread either: one app lists them all.
+    const third = (
+      await w.threads.create({
+        title: "Price rounding",
+        by: "ann",
+        takenElsewhere: ["20261122-price-rounding-3", "20261122-other"],
+      })
+    )._unsafeUnwrap();
+    expect(third.thread.id).toBe("20261122-price-rounding-4");
+    expect([...(await w.threads.ids())].sort()).toEqual([
+      "20261122-price-rounding",
+      "20261122-price-rounding-2",
+      "20261122-price-rounding-4",
+    ]);
     // "+ New chat" before the topic is known; a repository without mt-chat opens the orchestrator.
     const plain = world(null);
     const untitled = (await plain.threads.create({ by: "ann" }))._unsafeUnwrap();
@@ -113,7 +127,9 @@ describe("Threads: one per topic, with its chat terminal", () => {
     const w = world();
     const folder = { repos: ["shop", "web"] };
     const made = (await w.threads.create({ by: "ann", repo: ".", folder }))._unsafeUnwrap();
-    expect(made.thread.panes).toEqual([{ repo: ".", paneId: made.pane?.id as string, at: "2026-11-22T10:00:00.000Z" }]);
+    expect(made.thread.panes).toEqual([
+      { repo: ".", paneId: made.pane?.id as string, at: "2026-11-22T10:00:00.000Z" },
+    ]);
     const first = w.claude.started[0]?.task.prompt as string;
     expect(first).toBe(folderChatPrompt(["shop", "web"]));
     expect(first).toContain("a folder of 2 repositories, not in one of them: shop, web");
