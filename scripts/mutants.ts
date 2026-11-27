@@ -11089,4 +11089,53 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const filter = useBoard((s) => s.filter);\n  const pressed = filter.repos.includes(repo);",
     why: "a chip draws again only when it is pressed or let go",
   },
+  // ADR-0113: Home's cards on stores of their own; a field draws alone.
+  {
+    file: "packages/desktop/src/features/inbox/answer-state.ts",
+    from: "if (get().busy || !canAnswer(picked, said)) return;",
+    to: "if (get().busy) return;",
+    why: "an answer that promises a reason waits for it",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/answer-state.ts",
+    from: "        if (!by) return;",
+    to: "",
+    why: "a cancelled name dialog sends no answer",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/state.ts",
+    from: "{ ...(to === run.stage ? {} : { to }), note }",
+    to: "{ to, note }",
+    why: "a resume at the stage it stopped at names no stage",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/state.ts",
+    from: "        if (notice) sayIn(api, notice);\n        else onDone?.();",
+    to: "        onDone?.();",
+    why: "a run resumed with nothing to drive it keeps its card and says so",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/state.ts",
+    from: 'if (get().busy || reason === "") return;',
+    to: "if (get().busy) return;",
+    why: "Close needs a reason",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/state.ts",
+    from: "        if (choice === ATTACH) onOpenPane(ask);",
+    to: "",
+    why: "Attach opens the pane",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/decision-card.tsx",
+    from: "  const pressed = useAnswer((s) => s.choices.includes(label));",
+    to: "  const { choices } = useAnswer((s) => s);\n  const pressed = choices.includes(label);",
+    why: "typing the reason draws the field, not the options",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/escalated-card.tsx",
+    from: "export function ResumePlanLine({ stage }: { readonly stage: string }) {\n  const to = useEscalated((s) => s.to);",
+    to: "export function ResumePlanLine({ stage }: { readonly stage: string }) {\n  const { to } = useEscalated((s) => s);",
+    why: "typing the note draws the note field, not the resume line",
+  },
 ];

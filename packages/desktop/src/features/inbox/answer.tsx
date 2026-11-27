@@ -1,94 +1,59 @@
 /**
  * Answering a question (D8), the same everywhere it can be answered: which options are chosen
  * (several for a multi-select question), the person's own words where Reject or Other promise
- * them, and the request. The decision card draws its own layout over `useAnswer`; a step's
+ * them, and the request. What is chosen and written is the Answer store (`answer-state.ts`), made
+ * for one question by `AnswerScope`; the decision card draws its own layout over it, and a step's
  * Overview and the Terminal tab's side box use `QuickAnswer`, in the same pattern.
  */
 
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { Question } from "../../shared/api/api.ts";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
-import { opensDiff } from "../../shared/model/stage1.ts";
-import { navigate } from "../../shared/navigation.ts";
+import { useDaemonStore } from "../../shared/daemon/daemon.tsx";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
-import { canAnswer, needsReason, toggleChoice } from "./model.ts";
+import { Answer, chosenOf, readyOf, reasonOf, useAnswer, useAnswerApi } from "./answer-state.ts";
+import { needsReason } from "./model.ts";
 
-export function useAnswer(
-  q: Question,
-  repo: string | undefined,
-  options: {
-    /** What is chosen before the person touches anything (the card: the recommended option). */
-    readonly initial?: readonly string[];
-    /** From the decision card, without opening the session: what the daemon counts. */
-    readonly origin?: "inbox";
-    /** The answer went through, with what was chosen. */
-    onDone(choices: readonly string[]): void;
-    /** The answer was refused: what the daemon said (the card may close before it is read). */
-    onRefused?(message: string): void;
-  },
-) {
-  const { client, who } = useDaemon("client", "who");
-  const initial = (options.initial ?? []).join("\n");
-  const [choices, setChoices] = useState<readonly string[]>(options.initial ?? []);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  // Another question in the same place starts clean.
-  const id = `${q.runId}/${q.id}`;
-  useEffect(() => {
-    void id;
-    setChoices(initial === "" ? [] : initial.split("\n"));
-    setText("");
-    setError(undefined);
-  }, [id, initial]);
-  /** `words`: the reason given elsewhere on the card (Ask for changes), instead of the note field. */
-  const send = async (picked: readonly string[] = choices, words?: string) => {
-    // "Open diff" on a quick change's card is no answer: the run's change opens, the card stays.
-    if (opensDiff(picked)) {
-      navigate({ screen: "run", runId: q.runId, tab: "changes" });
-      return;
-    }
-    const said = words ?? text;
-    if (busy || !canAnswer(picked, said)) return;
-    const by = await who();
-    if (!by) return;
-    setBusy(true);
-    const r = await client.answer(
-      {
-        runId: q.runId,
-        question: q.id,
-        choices: picked,
-        by,
-        text: said.trim() || undefined,
-        origin: options.origin,
-      },
-      repo,
-    );
-    setBusy(false);
-    if (!r.ok) {
-      const said = r.error?.message ?? "the answer was refused";
-      setError(said);
-      options.onRefused?.(said);
-    } else {
-      setError(undefined);
-      options.onDone(picked);
-    }
-  };
-  return {
-    choices,
-    toggle: (label: string) => setChoices((c) => toggleChoice(c, label, q.multiSelect)),
-    text,
-    setText,
-    busy,
-    error,
-    clearError: () => setError(undefined),
-    /** The chosen options promise the person's own words. */
-    reason: needsReason(choices),
-    ready: canAnswer(choices, text) && !busy,
-    send,
-  };
+/**
+ * The answer's store for one question: another question (or another first choice, when a plan's
+ * lint closes the recommended option) in the same place starts clean.
+ */
+export function AnswerScope({
+  question,
+  repo,
+  initial,
+  origin,
+  children,
+}: {
+  readonly question: Question;
+  readonly repo: string | undefined;
+  readonly initial: readonly string[];
+  readonly origin?: "inbox" | undefined;
+  readonly children: ReactNode;
+}) {
+  const daemon = useDaemonStore();
+  return (
+    <ScopeProvider
+      key={`${question.runId}/${question.id}/${initial.join("\n")}`}
+      store={Answer}
+      init={{ daemon, question, repo, initial, origin }}
+    >
+      {children}
+    </ScopeProvider>
+  );
 }
+
+/** What the daemon said of a refused answer, until closed. */
+export function AnswerError() {
+  const error = useAnswer((s) => s.error);
+  const clearError = useAnswer((s) => s.clearError);
+  return <Notice text={error} onClose={clearError} />;
+}
+
+/** "Reject" or "Other": the chosen option the person's words are the reason for. */
+export const reasonFor = (s: { readonly choices: readonly string[] }): string =>
+  s.choices.find((c) => needsReason([c])) ?? "this answer";
 
 /**
  * A question answered in a small place (a step's Overview, the Terminal tab's side box), the way
@@ -109,50 +74,98 @@ export function QuickAnswer({
   onDone(choices: readonly string[]): void;
 }) {
   const recommended = q.card?.recommended;
-  const a = useAnswer(q, repo, {
-    initial: !q.multiSelect && recommended ? [recommended] : [],
-    onDone,
-  });
+  return (
+    <AnswerScope question={q} repo={repo} initial={!q.multiSelect && recommended ? [recommended] : []}>
+      <QuickAnswerForm question={q} max={max} onDone={onDone} />
+    </AnswerScope>
+  );
+}
+
+function QuickAnswerForm({
+  question: q,
+  max,
+  onDone,
+}: {
+  readonly question: Question;
+  readonly max?: number | undefined;
+  onDone(choices: readonly string[]): void;
+}) {
+  const api = useAnswerApi();
   return (
     <form
       className="quick-answer"
       data-testid="quick-answer"
       onSubmit={(e) => {
         e.preventDefault();
-        void a.send();
+        void api.getState().send({ onDone });
       }}
     >
       <div className="chips">
         {q.options.slice(0, max ?? q.options.length).map((o) => (
-          <Button
-            key={o.label}
-            className="option-chip"
-            aria-pressed={a.choices.includes(o.label)}
-            title={o.description}
-            disabled={a.busy}
-            onClick={() => a.toggle(o.label)}
-          >
-            {o.label}
-          </Button>
+          <QuickChip key={o.label} label={o.label} description={o.description} />
         ))}
       </div>
-      {a.reason ? (
-        <input
-          // biome-ignore lint/a11y/noAutofocus: the field appears because the chosen option needs it
-          autoFocus
-          className="reason"
-          aria-label="reason (required)"
-          placeholder={`Reason for ${a.choices.find((c) => needsReason([c])) ?? "this answer"} (required)`}
-          value={a.text}
-          onChange={(e) => a.setText(e.target.value)}
-        />
-      ) : q.multiSelect && a.choices.length === 0 ? (
-        <span className="dim">choose one or more</span>
-      ) : null}
-      <Button type="submit" variant="primary" disabled={!a.ready}>
-        {a.choices.length > 0 ? a.choices.join(", ") : "Choose"} ⏎
-      </Button>
-      <Notice text={a.error} onClose={a.clearError} />
+      <QuickReason multiSelect={q.multiSelect} />
+      <SendChosen />
+      <AnswerError />
     </form>
+  );
+}
+
+function QuickChip({
+  label,
+  description,
+}: {
+  readonly label: string;
+  readonly description?: string | undefined;
+}) {
+  const pressed = useAnswer((s) => s.choices.includes(label));
+  const busy = useAnswer((s) => s.busy);
+  const toggle = useAnswer((s) => s.toggle);
+  return (
+    <Button
+      className="option-chip"
+      aria-pressed={pressed}
+      title={description}
+      disabled={busy}
+      onClick={() => toggle(label)}
+    >
+      {label}
+    </Button>
+  );
+}
+
+function QuickReason({ multiSelect }: { readonly multiSelect: boolean }) {
+  const reason = useAnswer(reasonOf);
+  const none = useAnswer((s) => s.choices.length === 0);
+  if (reason) return <QuickReasonField />;
+  return multiSelect && none ? <span className="dim">choose one or more</span> : null;
+}
+
+function QuickReasonField() {
+  const text = useAnswer((s) => s.text);
+  const setText = useAnswer((s) => s.setText);
+  const forWhat = useAnswer(reasonFor);
+  return (
+    <input
+      // biome-ignore lint/a11y/noAutofocus: the field appears because the chosen option needs it
+      autoFocus
+      className="reason"
+      aria-label="reason (required)"
+      placeholder={`Reason for ${forWhat} (required)`}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+    />
+  );
+}
+
+/** The button that sends what is chosen: it draws again when the choice or the readiness changes. */
+function SendChosen() {
+  const ready = useAnswer(readyOf);
+  const chosen = useAnswer(chosenOf);
+  return (
+    <Button type="submit" variant="primary" disabled={!ready}>
+      {chosen !== "" ? chosen : "Choose"} ⏎
+    </Button>
   );
 }
