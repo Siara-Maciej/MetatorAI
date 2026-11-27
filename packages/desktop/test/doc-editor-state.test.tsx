@@ -13,6 +13,7 @@ import {
 } from "../src/features/plans/doc-editor-state.ts";
 import { AppRow, SystemNameField } from "../src/features/system/system-map-editor.tsx";
 import { SystemMapScreen } from "../src/features/system/system-map-state.ts";
+import { LinksAction, SystemChoice } from "../src/features/system/system-state.ts";
 import { ScopeProvider, useScopedApi } from "../src/shared/state/scoped-store.ts";
 import { counted, fakeDaemon, made } from "./screen-fakes.tsx";
 
@@ -261,5 +262,15 @@ describe("the System map screen's state", () => {
     expect([s.getState().rootsDraft, s.getState().notice?.text]).toEqual([["x"], "no"]);
     s.getState().cancelRoots();
     expect(s.getState().rootsDraft).toBeUndefined();
+  });
+
+  test("the System part's choice, and the Dependencies panel's notice until closed", () => {
+    const choice = made(SystemChoice.create(undefined));
+    choice.getState().choose("map");
+    expect(choice.getState().chosen).toBe("map");
+    const links = made(LinksAction.create(undefined));
+    links.setState({ notice: { text: "both runs were told", tone: "info" } });
+    links.getState().closeNotice();
+    expect(links.getState().notice).toBeUndefined();
   });
 });

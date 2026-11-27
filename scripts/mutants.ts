@@ -11140,4 +11140,17 @@ export const MUTANTS: readonly Mutant[] = [
     to: "options",
     why: "a screen store's action reads the screen's data again after it",
   },
+  // The Overview's System and Dependencies stores (ADR-0113).
+  {
+    file: "packages/desktop/src/features/system/system-state.ts",
+    from: "  choose: (id) => set({ chosen: id }),",
+    to: "  choose: () => {},",
+    why: "a row chosen in the System part is the one shown",
+  },
+  {
+    file: "packages/desktop/src/features/system/system-state.ts",
+    from: "  closeNotice: () => set({ notice: undefined }),",
+    to: "  closeNotice: () => {},",
+    why: "the Dependencies panel's notice closes",
+  },
 ];
