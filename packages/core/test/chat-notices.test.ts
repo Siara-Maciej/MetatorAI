@@ -98,7 +98,7 @@ describe("ChatNotices: the chat where the task was given learns what became of i
     expect(w.typed).toEqual([]);
   });
 
-  test("a folder's chat is told of a run kept in one of the folder's repositories (ADR-0113)", async () => {
+  test("a folder's chat is told of a run kept in one of the folder's repositories (ADR-0114)", async () => {
     const shop = world();
     shop.run.state.status = "done";
     const typed: string[] = [];

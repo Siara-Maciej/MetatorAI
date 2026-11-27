@@ -189,7 +189,7 @@ export async function chatAgentIn(
 }
 
 /**
- * The folder's own copy of the conversation agent (ADR-0113): a host started in the folder reads
+ * The folder's own copy of the conversation agent (ADR-0114): a host started in the folder reads
  * its agents there, not in a repository below it. Each host file of the agent is taken from the
  * first repository that holds it and written when the folder's differs, so the copy follows the
  * repositories' version. The paths written.

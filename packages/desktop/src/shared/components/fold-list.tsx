@@ -1,24 +1,31 @@
-import { useState } from "react";
 import { Button } from "../../ui/button.tsx";
+import { Disclosure } from "../../ui/disclosure.tsx";
 import { compactLines } from "../model/format.ts";
+
+interface FoldProps {
+  readonly lines: readonly string[];
+  readonly keep?: number;
+  readonly label: string;
+  readonly className?: string;
+}
 
 /**
  * A list that may be long, kept short: a line repeated is one line with `×N`, the newest `keep`
  * are shown, and "N more" opens the rest. A card's "Since you left" never pushes its options off
  * the screen.
  */
-export function FoldList({
+export function FoldList(props: FoldProps) {
+  return <Disclosure>{(open, setOpen) => <Folded {...props} open={open} setOpen={setOpen} />}</Disclosure>;
+}
+
+function Folded({
   lines,
   keep = 4,
   label,
   className,
-}: {
-  readonly lines: readonly string[];
-  readonly keep?: number;
-  readonly label: string;
-  readonly className?: string;
-}) {
-  const [open, setOpen] = useState(false);
+  open,
+  setOpen,
+}: FoldProps & { readonly open: boolean; setOpen(open: boolean): void }) {
   const { shown, hidden } = compactLines(lines, open ? Number.POSITIVE_INFINITY : keep);
   return (
     <div className={`fold-list ${className ?? ""}`}>

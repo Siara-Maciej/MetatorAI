@@ -2,14 +2,14 @@
  * The chats' acts (round 16), from the sidebar, Home, the Terminals and the keys alike.
  * "+ New chat": a thread and its chat terminal (the repository's conversation agent in a pane of its
  * own, `POST /threads`); the app goes to it. In a folder of more than one repository the chat is the
- * folder's own (ADR-0113), unless a repository is named (the menu beside the button). Home's "Describe a task" starts one named after the
+ * folder's own (ADR-0114), unless a repository is named (the menu beside the button). Home's "Describe a task" starts one named after the
  * person's words, which are typed to the agent as its first line. The host is the first of the
  * repository's `hostOrder` that is installed (D1); with none, or when the daemon refuses, the app
  * says so instead of opening a chat that cannot work. Close and Reopen end or bring back a thread's
  * chat terminal, never its runs.
  */
 import type { ThreadView } from "../../shared/api/api.ts";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
+import { type Daemon, useDaemon } from "../../shared/daemon/daemon.tsx";
 import { chatPlace, FOLDER_PLACE } from "../../shared/model/places.ts";
 import { hostChoice, noHostText } from "../../shared/model/runs.ts";
 import { chatTitleOf } from "../../shared/model/threads.ts";
@@ -62,23 +62,30 @@ export function useNewChat(): (words?: string, where?: string) => Promise<void> 
 
 /** Close or reopen a thread (its ⋯ menu, its bar). */
 export function useThreadAct(): (thread: ThreadView, act: "close" | "reopen") => Promise<void> {
-  const { client, who, reloadThreads } = useDaemon("client", "who", "reloadThreads");
-  return async (thread, act) => {
-    const by = await who();
-    if (!by) return;
-    const r =
-      act === "close"
-        ? await client.closeThread(thread.id, by, thread.repo)
-        : await client.reopenThread(thread.id, by, thread.repo);
-    await reloadThreads();
-    if (!r.ok) {
-      say({
-        text: `The chat was not ${act === "close" ? "closed" : "reopened"}: ${r.error?.message ?? "the daemon refused"}`,
-        tone: "error",
-      });
-      return;
-    }
-    say(undefined);
-    if (act === "reopen") navigate({ screen: "thread", id: thread.id });
-  };
+  const daemon = useDaemon("client", "who", "reloadThreads");
+  return (thread, act) => actOnThread(daemon, thread, act);
+}
+
+/** Closes or reopens a thread with the daemon's state at hand; a refusal is said in the app's notice. */
+export async function actOnThread(
+  { client, who, reloadThreads }: Pick<Daemon, "client" | "who" | "reloadThreads">,
+  thread: ThreadView,
+  act: "close" | "reopen",
+): Promise<void> {
+  const by = await who();
+  if (!by) return;
+  const r =
+    act === "close"
+      ? await client.closeThread(thread.id, by, thread.repo)
+      : await client.reopenThread(thread.id, by, thread.repo);
+  await reloadThreads();
+  if (!r.ok) {
+    say({
+      text: `The chat was not ${act === "close" ? "closed" : "reopened"}: ${r.error?.message ?? "the daemon refused"}`,
+      tone: "error",
+    });
+    return;
+  }
+  say(undefined);
+  if (act === "reopen") navigate({ screen: "thread", id: thread.id });
 }

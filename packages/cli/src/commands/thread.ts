@@ -17,7 +17,7 @@ const NO_PANE =
  * serves the repository (it owns the panes), else on the files. The agent of a thread's chat
  * reads it first (`thread show`) and keeps its summary (`thread summary`); `--thread` defaults to
  * the thread whose chat runs the command (`$METATOR_PANE_ID`). In a folder of repositories the
- * threads are the folder's own (ADR-0113).
+ * threads are the folder's own (ADR-0114).
  */
 export function registerThreadCommands(program: Command, ctx: CommandContext): void {
   const { action, container } = ctx;

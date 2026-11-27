@@ -125,3 +125,30 @@ export function usePolledAt<T>(
     reload,
   };
 }
+
+/**
+ * One part of a polled answer (ADR-0113): `select` takes what a small part draws from the answer,
+ * and the part draws again only when that changed (the selected value is shared with the last one
+ * as the answer is). Every part with the same `key` shares one request.
+ */
+export function usePolledSelectAt<T, R>(
+  scope: string,
+  key: string,
+  fn: () => Promise<Envelope<T>>,
+  ms: number,
+  select: (data: T | undefined) => R,
+): R {
+  const live = useStore(pushStore, (p) => p.live);
+  // TanStack Query runs `select` on each answer and keeps the last result when it is equal; `data`
+  // is the only field read, so a failure or an answer that changes another part draws nothing.
+  const { data } = useQuery({
+    ...polledOptions(scope, key, fn, ms, live),
+    select: (d: T) => ({ value: select(d) }),
+  });
+  return data === undefined ? select(undefined) : data.value;
+}
+
+/** Reads one polled request of the daemon at `scope` again now (after an action changed it). */
+export function readPolledAgain(client: QueryClient, scope: string, key: string): Promise<void> {
+  return client.refetchQueries({ queryKey: ["polled", scope, topicOfKey(key), key], exact: true });
+}

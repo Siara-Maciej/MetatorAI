@@ -6,11 +6,9 @@
  */
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import { Button } from "../../ui/button.tsx";
-import { Modal } from "../../ui/modal.tsx";
 import {
   DaemonClient,
   type Envelope,
@@ -26,7 +24,7 @@ import {
   type WorkspaceView,
   wsUrl,
 } from "../api/api.ts";
-import { type Polled, queryClient, shared, usePolledAt } from "../api/query.ts";
+import { type Polled, queryClient, readPolledAgain, usePolledAt, usePolledSelectAt } from "../api/query.ts";
 import {
   FOLDER_PLACE,
   flattenState,
@@ -46,10 +44,12 @@ import {
   systemPlanOf,
 } from "../model/system-plans.ts";
 import { threadsStamp } from "../model/threads.ts";
+import { ScopeProvider, scopedStore, useScopedApi } from "../state/scoped-store.ts";
 import { useLatest } from "../use-latest.ts";
-import { createStateStore, publish, type Store, useFields } from "./daemon-store.ts";
+import { publish, type Store, useFields } from "./daemon-store.ts";
 import { useDaemonEvents } from "./events.ts";
 import { usePulse } from "./heartbeat.ts";
+import { NameDialog } from "./name-dialog.tsx";
 import {
   changeName,
   daemonAnswered,
@@ -65,6 +65,18 @@ import {
   start,
   who,
 } from "./session.ts";
+import {
+  failed,
+  inboxRead,
+  NO_INBOX,
+  NO_PANE_ASKS,
+  NO_REVIEW_CARDS,
+  retry,
+  stateRead,
+  stateSocket,
+  type Wire,
+  wireStore,
+} from "./wire.ts";
 
 export interface Daemon {
   readonly client: DaemonClient;
@@ -162,7 +174,11 @@ export interface Daemon {
   changeName(): void;
 }
 
-const Ctx = createContext<Store<Daemon> | undefined>(undefined);
+/**
+ * The daemon's state as a store, made once by `<DaemonProvider>` from its first value and published
+ * on every render after (ADR-0108): what the sockets wrote (`wire.ts`) and what the app read.
+ */
+export const DaemonScope = scopedStore<Daemon, Daemon>("Daemon", (initial) => () => initial);
 
 /**
  * The fields of the daemon's state this part of the app reads: it draws again only when one of
@@ -174,7 +190,7 @@ export function useDaemon<K extends keyof Daemon>(...keys: readonly [K, ...K[]])
 
 /** The daemon's state to read when an act needs it (a click), without drawing again on its changes. */
 export function useDaemonStore(): Store<Daemon> {
-  const store = useContext(Ctx);
+  const store = useContext(DaemonScope.context);
   if (!store) throw new Error("useDaemon outside <DaemonProvider>");
   return store;
 }
@@ -201,15 +217,35 @@ export function usePolled<T>(
   return usePolledAt(url, key, fn, ms, enabled);
 }
 
-/** A socket that is opened again after it drops, with a fetch meanwhile. */
+/**
+ * One part of a polled answer (ADR-0113): the part draws again only when what `select` takes from
+ * the answer changed. Parts with the same `key` share one request; `select` gets `undefined` before
+ * the first answer.
+ */
+export function usePolledSelect<T, R>(
+  key: string,
+  fn: () => Promise<Envelope<T>>,
+  ms: number,
+  select: (data: T | undefined) => R,
+): R {
+  const { url } = useDaemon("url");
+  return usePolledSelectAt(url, key, fn, ms, select);
+}
+
+/** Reads a polled request of this window's daemon again now: an action's answer changed it. */
+export const readAgainNow = (url: string, key: string): Promise<void> =>
+  readPolledAgain(queryClient, url, key);
+
+/** A socket that is opened again after it drops, with a fetch meanwhile; `onUp` hears it open and close. */
 function useStream<T>(
   url: string,
   path: string,
   attempt: number,
   fetchOnce: () => Promise<T | undefined>,
   onData: (d: T) => void,
+  onUp: (up: boolean) => void = () => undefined,
 ) {
-  const [up, setUp] = useState(false);
+  const upTo = useLatest(onUp);
   const handler = useLatest(onData);
   const fetcher = useLatest(fetchOnce);
   useEffect(() => {
@@ -229,10 +265,10 @@ function useStream<T>(
         timer = setTimeout(open, 2000);
         return;
       }
-      ws.onopen = () => setUp(true);
+      ws.onopen = () => upTo.current(true);
       ws.onmessage = (m) => handler.current(JSON.parse(String(m.data)) as T);
       ws.onclose = () => {
-        setUp(false);
+        upTo.current(false);
         void poll();
         timer = setTimeout(open, 2000);
       };
@@ -248,7 +284,6 @@ function useStream<T>(
     // The socket is the URL's: the fetch and the handler are read through refs, never re-open it.
     // A new attempt (Retry) opens it again now.
   }, [url, path, attempt]);
-  return up;
 }
 
 export const DaemonProvider = ({ children }: { readonly children: React.ReactNode }) => (
@@ -263,15 +298,14 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     useShallow((s: Session) => s),
   );
   const client = useMemo(() => new DaemonClient(url), [url]);
-  const [state, setState] = useState<StateData>();
-  const [inbox, setInbox] = useState<readonly InboxItem[]>([]);
-  const [paneAsks, setPaneAsks] = useState<readonly PaneAsk[]>([]);
-  const [reviewCards, setReviewCards] = useState<readonly ReviewCardView[]>([]);
+  // What the sockets wrote (`wire.ts`): the state, the inbox, the last refusal, the attempt.
+  const { state, inbox, paneAsks, reviewCards, failure, attempt, stateUp } = useStore(
+    wireStore,
+    useShallow((w: Wire) => w),
+  );
   // What the daemon at this address last refused: another address starts with nothing.
-  const [failure, setFailure] = useState<{ readonly url: string; readonly message: string }>();
   const error = failure?.url === url ? failure.message : undefined;
-  const setError = (message: string | undefined) =>
-    setFailure(message === undefined ? undefined : { url, message });
+  const setError = (message: string | undefined) => failed(url, message);
   // Read through the sockets' latest handlers: a new client never re-opens a socket by itself.
   const fetchState = async () => {
     const r = await client.state();
@@ -282,10 +316,9 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     const r = await client.inbox();
     return r.ok ? r.data : undefined;
   };
-  const [attempt, setAttempt] = useState(0);
   // The daemon says which topics changed: their queries are read again, polling is the fallback.
   useDaemonEvents(url);
-  const stateUp = useStream<{ ok: boolean; data?: StateData; error?: { message: string } }>(
+  useStream<{ ok: boolean; data?: StateData; error?: { message: string } }>(
     url,
     "/ws/state",
     attempt,
@@ -295,11 +328,11 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     },
     (env) => {
       if (env.ok && env.data) {
-        const next = env.data;
-        setState((before) => shared(before, next));
+        stateRead(env.data);
         setError(undefined);
       } else if (env.error) setError(env.error.message);
     },
+    stateSocket,
   );
   useStream<{ ok: boolean; data?: InboxData }>(
     url,
@@ -310,12 +343,7 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
       return d ? { ok: true, data: d } : undefined;
     },
     (env) => {
-      if (env.ok && env.data) {
-        const next = env.data;
-        setInbox((before) => shared(before, next.decisions));
-        setPaneAsks((before) => shared(before, next.panes ?? NO_PANE_ASKS));
-        setReviewCards((before) => shared(before, next.reviews ?? NO_REVIEW_CARDS));
-      }
+      if (env.ok && env.data) inboxRead(env.data);
     },
   );
   const { runs: stateRuns, repos, unreadable } = useMemo(() => flattenState(state), [state]);
@@ -326,7 +354,7 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     `layout:${names}`,
     async () => {
       const all = await Promise.all(
-        // In a folder the folder itself has panes too: its own chats (ADR-0113).
+        // In a folder the folder itself has panes too: its own chats (ADR-0114).
         (repos.length > 0 ? [...repos.map((r) => r.name), FOLDER_PLACE] : [undefined]).map(async (repo) => {
           const r = await client.layout(repo);
           return r.ok && r.data
@@ -435,7 +463,6 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     (of) => (down ? [] : scratchRepos(state, of)),
     [down, state],
   );
-  const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const value: Daemon = {
     client,
     url,
@@ -483,61 +510,26 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     who,
   };
   // The store holds what this render made; whoever reads a field hears only of that field's change.
-  const [store] = useState(() => createStateStore(value));
-  useLayoutEffect(() => publish(store, value));
   return (
-    <Ctx.Provider value={store}>
+    <ScopeProvider store={DaemonScope} init={value}>
       {children}
       {asking ? <NameDialog initial={me} onDone={settleName} /> : null}
-    </Ctx.Provider>
+      <Publish value={value} />
+    </ScopeProvider>
   );
 }
 
+/** Publishes what the provider's render made, after its parts drew (its last child). */
+function Publish({ value }: { readonly value: Daemon }) {
+  const store = useScopedApi(DaemonScope);
+  useLayoutEffect(() => publish(store, value));
+  return null;
+}
+
 const NO_RUNS: readonly Run[] = [];
-const NO_INBOX: readonly InboxItem[] = [];
-const NO_REVIEW_CARDS: readonly ReviewCardView[] = [];
-const NO_PANE_ASKS: readonly PaneAsk[] = [];
 const NO_PANES: Daemon["panes"] = [];
 const NO_WORKSPACES: Daemon["workspaces"] = [];
 const NO_UNREADABLE: readonly Unreadable[] = [];
 const NO_OPTIONS: readonly ResolvedOption[] = [];
 const NO_PLANS: readonly RepoSystemPlan[] = [];
 const NO_THREADS: readonly ThreadView[] = [];
-
-/** The one place the app asks who the person is: their name goes next to every answer they give. */
-function NameDialog({ initial, onDone }: { readonly initial: string; onDone(name: string): void }) {
-  const [name, setName] = useState(initial);
-  return (
-    <Modal label="your name" className="dialog name-dialog" onClose={() => onDone("")}>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim()) onDone(name.trim());
-        }}
-      >
-        <h2>Who are you?</h2>
-        <p className="muted">
-          Your name is written next to every answer, approval and note you give from this app. It is kept in
-          this window; change it any time from the top bar.
-        </p>
-        <label className="field">
-          <span>Your name</span>
-          <input
-            // biome-ignore lint/a11y/noAutofocus: the dialog opens because an action needs the name
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="for example: alice"
-          />
-        </label>
-        <div className="foot">
-          <span className="spacer" />
-          <Button onClick={() => onDone("")}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={name.trim() === ""}>
-            Save
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}

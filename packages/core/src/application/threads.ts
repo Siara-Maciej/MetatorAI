@@ -141,7 +141,7 @@ export interface NewThreadInput {
   readonly repo?: string;
   /** false: no daemon serves the repository, so the thread is made without its chat terminal. */
   readonly pane?: boolean;
-  /** The chat of a folder of repositories (ADR-0113): its repositories, named to the agent first. */
+  /** The chat of a folder of repositories (ADR-0114): its repositories, named to the agent first. */
   readonly folder?: FolderChat;
   /**
    * Ids taken in the other places of a folder (its repositories, the folder itself): one app lists
@@ -151,7 +151,7 @@ export interface NewThreadInput {
 }
 
 /**
- * Where a run of another repository is read and marked: a thread of a folder (ADR-0113) lists
+ * Where a run of another repository is read and marked: a thread of a folder (ADR-0114) lists
  * runs of the folder's repositories, each of which keeps its own runs.
  */
 export interface ThreadRunsElsewhere {

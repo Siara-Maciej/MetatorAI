@@ -134,7 +134,7 @@ export function threadTree<T extends Thread & { readonly repo?: string }>(
   const nodes = threads.map((t): ThreadNode<T> => {
     const tasks = byAttention(
       t.runs.flatMap((id) => {
-        // A thread of the folder itself (ADR-0113) lists runs of any of its repositories.
+        // A thread of the folder itself (ADR-0114) lists runs of any of its repositories.
         const r =
           t.repo === FOLDER_PLACE
             ? top.find((x) => x.runId === id && !listed.has(key(x.repo, x.runId)))

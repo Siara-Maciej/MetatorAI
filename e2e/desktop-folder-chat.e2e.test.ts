@@ -1,5 +1,5 @@
 /**
- * The chat of a folder in the app (ADR-0113; real daemon on a folder of two repositories, real
+ * The chat of a folder in the app (ADR-0114; real daemon on a folder of two repositories, real
  * Chromium, the scenario host only, never a real AI host). "+ New chat" opens the folder's own
  * chat, started in the folder, and says so on its page and in its sidebar row; the menu beside
  * the button opens a chat in one repository instead. No browser fixture: what the app shows comes
@@ -192,7 +192,7 @@ async function chatSays(thread: Thread, words: string) {
 }
 const sidebar = () => page.getByRole("complementary", { name: "runs" });
 
-describe("the chat of a folder in the app (ADR-0113)", () => {
+describe("the chat of a folder in the app (ADR-0114)", () => {
   test('"+ New chat" on a folder of two repositories opens the folder\'s own chat, started in the folder', async () => {
     await page.goto(app("inbox"));
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });

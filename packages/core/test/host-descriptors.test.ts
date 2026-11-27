@@ -127,7 +127,7 @@ describe("chatAgentIn: the agent the chat a person opens starts with (ADR-0093)"
   });
 });
 
-describe("adoptChatAgent: a folder's own copy of the conversation agent (ADR-0113)", () => {
+describe("adoptChatAgent: a folder's own copy of the conversation agent (ADR-0114)", () => {
   const hosts = [sessionOnly, viaProgram, played, viaSdk];
   test("each host file comes from the first repository that holds it; nothing else is copied", async () => {
     const folder = new InMemoryFileSystem({});

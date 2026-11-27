@@ -5,40 +5,28 @@
  * `containerDown` (devcontainers.ts).
  */
 
-import { useState } from "react";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
+import { useDaemon, useDaemonStore } from "../../shared/daemon/daemon.tsx";
+import type { KnownRepo } from "../../shared/platform/tauri-commands.ts";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { containerDown } from "./devcontainers.ts";
 import { useRepos } from "./repos-context.tsx";
+import { ContainerPanel, useContainerPanel } from "./state.ts";
 
 export function ContainerDown() {
-  const repos = useRepos();
-  const d = useDaemon("start", "startError");
-  const [busy, setBusy] = useState<"start" | "reconnect">();
-  const [why, setWhy] = useState<string>();
-  const current = repos.current;
+  const daemon = useDaemonStore();
+  return (
+    <ScopeProvider store={ContainerPanel} init={{ startDaemon: (folder) => daemon.getState().start(folder) }}>
+      <ContainerDownPanel />
+    </ScopeProvider>
+  );
+}
+
+function ContainerDownPanel() {
+  const { current, states } = useRepos();
   if (!current?.devcontainer) return null;
-  const panel = containerDown(current, repos.states);
+  const panel = containerDown(current, states);
   const local = current.devcontainer.localFolder;
-  const reconnect = async () => {
-    setBusy("reconnect");
-    setWhy(undefined);
-    const failed = await d.start(current.path);
-    await repos.refreshContainers();
-    setBusy(undefined);
-    if (failed) setWhy(failed);
-  };
-  const start = async () => {
-    setBusy("start");
-    setWhy(undefined);
-    const failed = await repos.startContainer(local);
-    if (failed) {
-      setBusy(undefined);
-      setWhy(failed);
-      return;
-    }
-    await reconnect();
-  };
   return (
     <div className="no-daemon container-down" data-testid="container-down">
       <div className="panel">
@@ -49,35 +37,55 @@ export function ContainerDown() {
         <p className="dim">
           <code>{current.devcontainer.workspaceFolder}</code> in the container of <code>{local}</code>
         </p>
-        {why ? (
-          <p className="refusal" role="alert">
-            {why}
-          </p>
-        ) : d.startError && !busy ? (
-          <p className="dim" data-testid="start-error">
-            {d.startError}
-          </p>
-        ) : null}
+        <WhyNot />
         <div className="actions">
-          {panel.start ? (
-            <Button variant="primary" disabled={busy !== undefined} onClick={() => void start()}>
-              {busy === "start" ? "Starting…" : "Start"}
-            </Button>
-          ) : null}
-          {panel.reconnect ? (
-            <Button
-              className={panel.start ? "" : "primary"}
-              disabled={busy !== undefined}
-              onClick={() => void reconnect()}
-            >
-              {busy === "reconnect" ? "Reconnecting…" : "Reconnect"}
-            </Button>
-          ) : null}
+          {panel.start ? <StartButton current={current} local={local} /> : null}
+          {panel.reconnect ? <ReconnectButton current={current} primary={!panel.start} /> : null}
           <a className="button-link" href="#/add">
             Add repository…
           </a>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Why the last start did not work: the panel's own, else the daemon's while nothing runs. */
+function WhyNot() {
+  const why = useContainerPanel((s) => s.why);
+  const busy = useContainerPanel((s) => s.busy);
+  const { startError } = useDaemon("startError");
+  return why ? (
+    <p className="refusal" role="alert">
+      {why}
+    </p>
+  ) : startError && !busy ? (
+    <p className="dim" data-testid="start-error">
+      {startError}
+    </p>
+  ) : null;
+}
+
+function StartButton({ current, local }: { readonly current: KnownRepo; readonly local: string }) {
+  const busy = useContainerPanel((s) => s.busy);
+  const start = useContainerPanel((s) => s.start);
+  return (
+    <Button variant="primary" disabled={busy !== undefined} onClick={() => void start(local, current.path)}>
+      {busy === "start" ? "Starting…" : "Start"}
+    </Button>
+  );
+}
+
+function ReconnectButton({ current, primary }: { readonly current: KnownRepo; readonly primary: boolean }) {
+  const busy = useContainerPanel((s) => s.busy);
+  const reconnect = useContainerPanel((s) => s.reconnect);
+  return (
+    <Button
+      className={primary ? "primary" : ""}
+      disabled={busy !== undefined}
+      onClick={() => void reconnect(current.path)}
+    >
+      {busy === "reconnect" ? "Reconnecting…" : "Reconnect"}
+    </Button>
   );
 }

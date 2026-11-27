@@ -1,8 +1,11 @@
-/** Screen 3: lanes per repository, sessions as cards, parent → child arrows, dashed links for messages and shared files. */
+/**
+ * Screen 3: lanes per repository, sessions as cards, parent → child arrows, dashed links for messages and shared files.
+ *
+ * Its action ("Notify both") is the LinksAction store's (ADR-0113): busy and what it answered draw only its notice.
+ */
 
 import type { Conflict, RunMessage } from "../../shared/api/api.ts";
-import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
-import { useAction } from "../../shared/hooks.ts";
+import { readAgainNow, useDaemon, useDaemonStore, usePolledSelect } from "../../shared/daemon/daemon.tsx";
 import { systemRunOf } from "../../shared/model/board.ts";
 import { lookOf, type Tone } from "../../shared/model/look.ts";
 import { sameRepo } from "../../shared/model/places.ts";
@@ -15,9 +18,12 @@ import {
   runStateOf,
   runTabFor,
 } from "../../shared/model/runs.ts";
+import { runAction } from "../../shared/state/action.ts";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { drawnLanes, GRAPH, graphLayout, linkPath } from "./model.ts";
+import { LinksAction, useLinksAction, useLinksActionApi } from "./system-state.ts";
 
 /** The custom property of a tone, for an SVG stroke. */
 const TONE_VAR: Record<Tone, string> = {
@@ -31,12 +37,48 @@ const TONE_VAR: Record<Tone, string> = {
 };
 
 export function DependenciesPanel(_props: { onOpenRun?: ((runId: string) => void) | undefined } = {}) {
-  const { runs, repos, client, systemPlans } = useDaemon("runs", "repos", "client", "systemPlans");
+  return (
+    <ScopeProvider store={LinksAction} init={undefined}>
+      <div className="graph">
+        <div className="canvas">
+          <PlanLines />
+          <RunsGraph />
+        </div>
+        <aside className="side">
+          <LinksBox />
+          <div className="box">
+            <h3>How to read it</h3>
+            <div className="muted">
+              A task split by a system plan is one line here; its flow (waves, repositories, what waits for
+              what) is on its own page. Below, an arrow runs from a run to the runs it started; a dashed amber
+              line is data between two runs, never an instruction. Finished work of the last day stays,
+              dimmed.
+            </div>
+          </div>
+          <LinksNotice />
+        </aside>
+      </div>
+    </ScopeProvider>
+  );
+}
+
+type Shared = Conflict & { repo?: string };
+interface Links {
+  readonly conflicts: readonly Shared[];
+  readonly messages: readonly RunMessage[];
+}
+const NO_LINKS: Links = { conflicts: [], messages: [] };
+
+/**
+ * The messages and shared files between the open runs: asked again when the set of runs changes,
+ * not on every refresh of the state.
+ */
+function useLinkData(): { readonly key: string; readonly links: Links } {
+  const { runs, repos, client } = useDaemon("runs", "repos", "client");
   // Every run that is not finished, escalated ones included: what the panel and the top bar count.
   const active = openRuns(runs);
-  // Asked again when the set of runs changes, not on every refresh of the state.
   const key = `graph:${repos.map((r) => r.name).join(",")}:${active.map((r) => `${r.repo ?? ""}/${r.runId}`).join(",")}`;
-  const links0 = usePolled(
+  const links = usePolledSelect(
     key,
     async () => {
       const names = repos.length > 0 ? repos.map((r) => r.name) : [undefined];
@@ -52,10 +94,14 @@ export function DependenciesPanel(_props: { onOpenRun?: ((runId: string) => void
       return { ok: true, data: { conflicts: conflicts.flat(), messages: messages.flat() } };
     },
     5000,
+    (d) => d ?? NO_LINKS,
   );
-  const conflicts: readonly (Conflict & { repo?: string })[] = links0.data?.conflicts ?? [];
-  const messages: readonly RunMessage[] = links0.data?.messages ?? [];
-  const action = useAction(links0.reload);
+  return { key, links };
+}
+
+/** The runs of no plan, laid out in the lanes that have one to draw. */
+function useGraph() {
+  const { runs, repos, systemPlans } = useDaemon("runs", "repos", "systemPlans");
   const lanes = repos.length > 0 ? repos.map((r) => r.name) : [""];
   // A decomposed task is drawn as its plan's flow; the runs graph keeps the runs of no plan.
   const inPlans = new Set(
@@ -69,24 +115,173 @@ export function DependenciesPanel(_props: { onOpenRun?: ((runId: string) => void
   // Only the repositories that have a run to draw get a lane: never an empty box.
   const drawn = drawnLanes(lanes, graphLayout(loose, lanes).nodes);
   const graph = graphLayout(loose, drawn);
+  return { drawn, graph };
+}
+
+/** The links between the runs drawn: shared files, and messages between two runs on the graph. */
+function useLinks() {
+  const { links: data } = useLinkData();
+  const { graph } = useGraph();
   const at = new Map(graph.nodes.map((n) => [n.run.runId, n]));
   const links = [
-    ...conflicts.map((c) => ({
+    ...data.conflicts.map((c) => ({
       from: c.runs[0],
       to: c.runs[1],
       label: `shares ${c.files[0]}`,
       kind: "conflict" as const,
       data: c,
     })),
-    ...messages
+    ...data.messages
       .filter((m) => m.fromRun !== m.toRun && at.has(m.fromRun) && at.has(m.toRun))
       .map((m) => ({ from: m.fromRun, to: m.toRun, label: m.topic, kind: "message" as const, data: m })),
   ];
+  return { links, at };
+}
+
+/** A task split by a system plan: one line to its own page. */
+function PlanLines() {
+  const { runs, systemPlans } = useDaemon("runs", "systemPlans");
+  const { graph } = useGraph();
+  return (
+    <>
+      {systemPlans.length > 0 ? (
+        <section className="plan-flows" aria-label="tasks split into steps">
+          {systemPlans.map((p) => {
+            const head = systemRunOf(p, runs);
+            const done = p.steps.filter((x) => x.status === "done").length;
+            // A task split by a system plan is drawn on its own page: here it is one line to it.
+            return (
+              <a
+                key={`${p.repo ?? ""}/${p.plan.id}`}
+                className={`task-line${p.status === "done" || (head !== undefined && isFinished(head)) ? " finished" : ""}`}
+                data-testid={`task-line-${p.plan.id}`}
+                href={
+                  head
+                    ? routeHash({ screen: "run", runId: head.runId, tab: "overview" })
+                    : routeHash({ screen: "overview", tab: "system" })
+                }
+              >
+                <strong>{p.plan.task}</strong>{" "}
+                <span className="faint">
+                  · {p.status} · {done} of {p.steps.length} steps done · its flow is on its page ›
+                </span>
+              </a>
+            );
+          })}
+          <h3 className="runs-title">
+            Other runs
+            {graph.nodes.length === 0 ? (
+              <span className="faint"> · none: every run is a step of a task above</span>
+            ) : null}
+          </h3>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+function RunsGraph() {
+  const { systemPlans } = useDaemon("systemPlans");
+  const { drawn, graph } = useGraph();
+  const { links, at } = useLinks();
   const { W, H } = GRAPH;
   const width = graph.width;
   const height = graph.height;
-  const notify = (c: Conflict & { repo?: string }) =>
-    action.run(
+  return (
+    <>
+      {graph.nodes.length === 0 ? (
+        systemPlans.length > 0 ? null : (
+          <div className="empty-line faint" data-testid="runs-graph-empty">
+            No run to draw: open runs and the ones finished in the last day appear here.
+          </div>
+        )
+      ) : (
+        <svg
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label="runs graph"
+        >
+          <defs>
+            <marker
+              id="arrow"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--teal)" />
+            </marker>
+          </defs>
+          {drawn.map((lane, li) => (
+            <g key={lane || "."}>
+              <rect
+                className="lane"
+                x={8}
+                y={GRAPH.TOP - 20 + li * GRAPH.LANE}
+                width={width - 16}
+                height={GRAPH.LANE - 12}
+                rx={8}
+              />
+              <text className="lanename" x={16} y={GRAPH.TOP - 4 + li * GRAPH.LANE}>
+                {lane || "this repository"} · {graph.nodes.filter((n) => sameRepo(n.run.repo, lane)).length}
+              </text>
+            </g>
+          ))}
+          {graph.edges.map((e) => (
+            <path key={`${e.from}>${e.to}`} className="edge" d={e.d} markerEnd="url(#arrow)" />
+          ))}
+          {links.map((l, i) => {
+            const d = linkPath(at.get(l.from), at.get(l.to));
+            return d ? <path key={`${l.from}~${l.to}-${String(i)}`} className="edge msg" d={d} /> : null;
+          })}
+          {graph.nodes.map(({ run: r, x, y, finished }) => {
+            const state = runStateOf(r);
+            return (
+              <a
+                key={`${r.repo ?? ""}/${r.runId}`}
+                href={routeHash({ screen: "run", runId: r.runId, tab: runTabFor(r) })}
+                aria-label={`${r.task} · ${state}`}
+                className={finished ? "finished" : undefined}
+              >
+                <rect
+                  className="node"
+                  x={x}
+                  y={y}
+                  width={W}
+                  height={H}
+                  rx={8}
+                  stroke={`var(--${TONE_VAR[lookOf("run", state).tone ?? "faint"]})`}
+                />
+                <text x={x + 10} y={y + 20} fontWeight={600}>
+                  {r.task.length > 28 ? `${r.task.slice(0, 27)}…` : r.task}
+                </text>
+                <text x={x + 10} y={y + 38} className="sub">
+                  {finished ? state : `${state} · ${r.stage}`} · {r.host ?? "no host"}
+                </text>
+                {finished ? <title>{finishedText(r)}</title> : null}
+              </a>
+            );
+          })}
+        </svg>
+      )}
+    </>
+  );
+}
+
+function LinksBox() {
+  const { client } = useDaemon("client");
+  const daemon = useDaemonStore();
+  const api = useLinksActionApi();
+  const { key } = useLinkData();
+  const { links } = useLinks();
+  const notify = (c: Shared) =>
+    runAction(
+      api,
+      daemon,
       async (by) => {
         const text = `both runs changed ${c.files.join(", ")}; merge ${c.mergeFirst} first, the other rebases on it`;
         const sent = await Promise.all(
@@ -96,158 +291,36 @@ export function DependenciesPanel(_props: { onOpenRun?: ((runId: string) => void
         );
         return sent.find((r) => !r.ok) ?? { ok: true };
       },
-      { who: true, done: "both runs were told" },
+      { who: true, done: "both runs were told", reload: () => readAgainNow(daemon.getState().url, key) },
     );
   return (
-    <div className="graph">
-      <div className="canvas">
-        {systemPlans.length > 0 ? (
-          <section className="plan-flows" aria-label="tasks split into steps">
-            {systemPlans.map((p) => {
-              const head = systemRunOf(p, runs);
-              const done = p.steps.filter((x) => x.status === "done").length;
-              // A task split by a system plan is drawn on its own page: here it is one line to it.
-              return (
-                <a
-                  key={`${p.repo ?? ""}/${p.plan.id}`}
-                  className={`task-line${p.status === "done" || (head !== undefined && isFinished(head)) ? " finished" : ""}`}
-                  data-testid={`task-line-${p.plan.id}`}
-                  href={
-                    head
-                      ? routeHash({ screen: "run", runId: head.runId, tab: "overview" })
-                      : routeHash({ screen: "overview", tab: "system" })
-                  }
-                >
-                  <strong>{p.plan.task}</strong>{" "}
-                  <span className="faint">
-                    · {p.status} · {done} of {p.steps.length} steps done · its flow is on its page ›
-                  </span>
-                </a>
-              );
-            })}
-            <h3 className="runs-title">
-              Other runs
-              {graph.nodes.length === 0 ? (
-                <span className="faint"> · none: every run is a step of a task above</span>
-              ) : null}
-            </h3>
-          </section>
-        ) : null}
-        {graph.nodes.length === 0 ? (
-          systemPlans.length > 0 ? null : (
-            <div className="empty-line faint" data-testid="runs-graph-empty">
-              No run to draw: open runs and the ones finished in the last day appear here.
-            </div>
-          )
-        ) : (
-          <svg
-            width={width}
-            height={height}
-            viewBox={`0 0 ${width} ${height}`}
-            role="img"
-            aria-label="runs graph"
-          >
-            <defs>
-              <marker
-                id="arrow"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="7"
-                markerHeight="7"
-                orient="auto-start-reverse"
-              >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--teal)" />
-              </marker>
-            </defs>
-            {drawn.map((lane, li) => (
-              <g key={lane || "."}>
-                <rect
-                  className="lane"
-                  x={8}
-                  y={GRAPH.TOP - 20 + li * GRAPH.LANE}
-                  width={width - 16}
-                  height={GRAPH.LANE - 12}
-                  rx={8}
-                />
-                <text className="lanename" x={16} y={GRAPH.TOP - 4 + li * GRAPH.LANE}>
-                  {lane || "this repository"} · {graph.nodes.filter((n) => sameRepo(n.run.repo, lane)).length}
-                </text>
-              </g>
-            ))}
-            {graph.edges.map((e) => (
-              <path key={`${e.from}>${e.to}`} className="edge" d={e.d} markerEnd="url(#arrow)" />
-            ))}
-            {links.map((l, i) => {
-              const d = linkPath(at.get(l.from), at.get(l.to));
-              return d ? <path key={`${l.from}~${l.to}-${String(i)}`} className="edge msg" d={d} /> : null;
-            })}
-            {graph.nodes.map(({ run: r, x, y, finished }) => {
-              const state = runStateOf(r);
-              return (
-                <a
-                  key={`${r.repo ?? ""}/${r.runId}`}
-                  href={routeHash({ screen: "run", runId: r.runId, tab: runTabFor(r) })}
-                  aria-label={`${r.task} · ${state}`}
-                  className={finished ? "finished" : undefined}
-                >
-                  <rect
-                    className="node"
-                    x={x}
-                    y={y}
-                    width={W}
-                    height={H}
-                    rx={8}
-                    stroke={`var(--${TONE_VAR[lookOf("run", state).tone ?? "faint"]})`}
-                  />
-                  <text x={x + 10} y={y + 20} fontWeight={600}>
-                    {r.task.length > 28 ? `${r.task.slice(0, 27)}…` : r.task}
-                  </text>
-                  <text x={x + 10} y={y + 38} className="sub">
-                    {finished ? state : `${state} · ${r.stage}`} · {r.host ?? "no host"}
-                  </text>
-                  {finished ? <title>{finishedText(r)}</title> : null}
-                </a>
-              );
-            })}
-          </svg>
-        )}
-      </div>
-      <aside className="side">
-        <div className="box">
-          <h3>Links</h3>
-          {links.length === 0 ? (
-            <div className="muted">No messages or shared files between the runs shown.</div>
-          ) : null}
-          <ul>
-            {links.map((l, i) => (
-              <li key={`${l.from}-${l.to}-${String(i)}`}>
-                <span className="dim">
-                  {l.kind === "conflict" ? "shared file" : `message · ${l.label}`}:{" "}
-                </span>
-                <code>{l.from}</code> ↔ <code>{l.to}</code>
-                {l.kind === "conflict" ? (
-                  <div className="chips gap-top">
-                    <span className="chip amber">merge {l.data.mergeFirst} first</span>
-                    <Button onClick={() => void notify(l.data)}>Notify both</Button>
-                  </div>
-                ) : (
-                  <div className="dim">{l.data.text}</div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="box">
-          <h3>How to read it</h3>
-          <div className="muted">
-            A task split by a system plan is one line here; its flow (waves, repositories, what waits for
-            what) is on its own page. Below, an arrow runs from a run to the runs it started; a dashed amber
-            line is data between two runs, never an instruction. Finished work of the last day stays, dimmed.
-          </div>
-        </div>
-        <Notice {...action.notice} />
-      </aside>
+    <div className="box">
+      <h3>Links</h3>
+      {links.length === 0 ? (
+        <div className="muted">No messages or shared files between the runs shown.</div>
+      ) : null}
+      <ul>
+        {links.map((l, i) => (
+          <li key={`${l.from}-${l.to}-${String(i)}`}>
+            <span className="dim">{l.kind === "conflict" ? "shared file" : `message · ${l.label}`}: </span>
+            <code>{l.from}</code> ↔ <code>{l.to}</code>
+            {l.kind === "conflict" ? (
+              <div className="chips gap-top">
+                <span className="chip amber">merge {l.data.mergeFirst} first</span>
+                <Button onClick={() => void notify(l.data)}>Notify both</Button>
+              </div>
+            ) : (
+              <div className="dim">{l.data.text}</div>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
+}
+
+function LinksNotice() {
+  const notice = useLinksAction((s) => s.notice);
+  const closeNotice = useLinksAction((s) => s.closeNotice);
+  return <Notice text={notice?.text} tone={notice?.tone ?? "error"} onClose={closeNotice} />;
 }

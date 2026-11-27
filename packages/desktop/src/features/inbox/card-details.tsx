@@ -2,14 +2,14 @@
  * The Details part of a decision card (DecisionCard): folded under the card's face.
  */
 
+import { useStore } from "zustand";
 import type { InboxItem } from "../../shared/api/api.ts";
 import { Chip } from "../../shared/components/chips.tsx";
 import { FoldList } from "../../shared/components/fold-list.tsx";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { duration } from "../../shared/model/format.ts";
 import { type hostPromptOf, type paneOfQuestion, questionKind } from "../../shared/model/needs.ts";
 import { Button } from "../../ui/button.tsx";
-import type { useAnswer } from "./answer.tsx";
+import { readyOf, reasonOf, type SendOptions, useAnswer, useAnswerApi } from "./answer-state.ts";
 import { answerCommand, goalShown } from "./model.ts";
 
 /**
@@ -21,8 +21,7 @@ export function CardDetails({
   askPane,
   host,
   groupText,
-  onView,
-  answer: a,
+  done,
   onOpenChanges,
   onOpenSession,
 }: {
@@ -33,13 +32,12 @@ export function CardDetails({
   readonly host: ReturnType<typeof hostPromptOf>;
   /** "step N of M" of a run that is a step of a system plan. */
   groupText(g: { readonly parent: string; readonly step: number; readonly of: number }): string;
-  /** Opens an artifact of the run. */
-  onView(name: string): void;
-  readonly answer: ReturnType<typeof useAnswer>;
+  /** What a send does after the daemon answered (the card's callbacks). */
+  readonly done: Pick<SendOptions, "onDone" | "onRefused">;
   onOpenChanges(runId: string): void;
   onOpenSession(runId: string): void;
 }) {
-  const { me } = useDaemon("me");
+  const view = useAnswer((s) => s.view);
   const q = item.question;
   const card = q.card;
   return (
@@ -99,7 +97,7 @@ export function CardDetails({
                   <Button
                     variant="ghost"
                     className="link mono"
-                    onClick={() => onView(name)}
+                    onClick={() => view(name)}
                     title={`read ${name}`}
                   >
                     {name}
@@ -125,25 +123,49 @@ export function CardDetails({
           ))}
         </ul>
       </section>
-      {a.reason ? null : (
-        <label className="reason">
-          <span className="dim">Note (optional)</span>
-          <input
-            aria-label="note"
-            placeholder="a note for the log"
-            value={a.text}
-            onChange={(e) => a.setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && a.ready) void a.send();
-            }}
-          />
-        </label>
-      )}
+      <NoteField done={done} />
       <div className="actions">
         <Button onClick={() => onOpenChanges(q.runId)}>Changes</Button>
         <Button onClick={() => onOpenSession(q.runId)}>Open run · o</Button>
       </div>
-      <div className="footer-cmd mono">writes: {answerCommand(q, a.choices, me, a.text)}</div>
+      <WritesCommand question={q} />
     </details>
   );
+}
+
+/** The optional note, when the chosen options promise no reason: typing draws only this field. */
+export function NoteField({ done }: { readonly done: Pick<SendOptions, "onDone" | "onRefused"> }) {
+  const reason = useAnswer(reasonOf);
+  return reason ? null : <NoteInput done={done} />;
+}
+
+function NoteInput({ done }: { readonly done: Pick<SendOptions, "onDone" | "onRefused"> }) {
+  const text = useAnswer((s) => s.text);
+  const setText = useAnswer((s) => s.setText);
+  const api = useAnswerApi();
+  return (
+    <label className="reason">
+      <span className="dim">Note (optional)</span>
+      <input
+        aria-label="note"
+        placeholder="a note for the log"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && readyOf(api.getState())) void api.getState().send(done);
+        }}
+      />
+    </label>
+  );
+}
+
+/** The command that answers the same way: it follows what is chosen and written. */
+export function WritesCommand({ question }: { readonly question: InboxItem["question"] }) {
+  const choices = useAnswer((s) => s.choices);
+  const text = useAnswer((s) => s.text);
+  const me = useStore(
+    useAnswer((s) => s.daemon),
+    (d) => d.me,
+  );
+  return <div className="footer-cmd mono">writes: {answerCommand(question, choices, me, text)}</div>;
 }

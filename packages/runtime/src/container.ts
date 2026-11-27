@@ -477,7 +477,7 @@ interface Cradle {
   scratch: Scratch;
   /** The agent a new chat opens with; undefined: the agent that started runs before. */
   chatAgent: () => Promise<string | undefined>;
-  /** Copies the conversation agent's host files from these repositories here (a folder's own copy, ADR-0113). */
+  /** Copies the conversation agent's host files from these repositories here (a folder's own copy, ADR-0114). */
   adoptChatAgent: (
     repositories: readonly Pick<ReadonlyFileSystem, "read">[],
   ) => Promise<Result<readonly string[], MetatorError>>;

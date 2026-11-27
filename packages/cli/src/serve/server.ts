@@ -97,7 +97,7 @@ export interface Served {
  */
 export function servedRoots(ctx: CommandContext): string[] {
   const folder = ctx.folder();
-  // The folder itself is served too: its own chats live there (ADR-0113).
+  // The folder itself is served too: its own chats live there (ADR-0114).
   return folder ? [...folder.checkouts.map((r) => r.root), folder.root] : [ctx.container().resolve("root")];
 }
 
@@ -169,7 +169,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     repo: string | undefined,
   ): Result<MetatorContainer, { code: string; message: string }> => {
     if (!folder) return ok(cached(".", () => ctx.container()));
-    // The folder itself: the place of its own chats (ADR-0113).
+    // The folder itself: the place of its own chats (ADR-0114).
     if (repo === FOLDER_PLACE || repo === folder.root)
       return ok(cached(folder.root, () => ctx.containerAt(folder.root)));
     // A checkout by its name in the folder, or by its root (what a command run inside it knows).
@@ -210,7 +210,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
             : {}),
         }))
       : [{ name: "", path: ".", key: ".", c: cached(".", () => ctx.container()) }];
-  /** Every place with panes and threads: the repositories, and in a folder the folder itself (ADR-0113). */
+  /** Every place with panes and threads: the repositories, and in a folder the folder itself (ADR-0114). */
   const placeViews = (): { name: string; key: string; c: MetatorContainer }[] => [
     ...repoViews(),
     ...(folder

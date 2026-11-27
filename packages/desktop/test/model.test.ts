@@ -652,7 +652,7 @@ describe("hosts, workflows and repositories (D1, D5, D10)", () => {
     expect(repoChoice([], "fe")).toBeUndefined();
   });
 
-  test("a new chat opens in the folder when it holds more than one repository (ADR-0113)", () => {
+  test("a new chat opens in the folder when it holds more than one repository (ADR-0114)", () => {
     const shop = { name: "shop", path: "shop" };
     const fix = { name: "shop-fix", path: "shop-fix", worktreeOf: "shop", branch: "fix-tax" };
     const web = { name: "web", path: "web" };

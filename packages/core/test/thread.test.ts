@@ -87,7 +87,7 @@ describe("threadTree: one hierarchy for the sidebar", () => {
     expect(tree.closed).toEqual([]);
   });
 
-  test("a thread of the folder itself lists runs of any repository, each once (ADR-0113)", () => {
+  test("a thread of the folder itself lists runs of any repository, each once (ADR-0114)", () => {
     const tree = threadTree(
       [
         { ...thread({ id: "20261122-shop", runs: ["r1"] }), repo: "shop" },

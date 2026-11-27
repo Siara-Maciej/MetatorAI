@@ -212,7 +212,7 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
               for (const x of r.value) say("panes", key)({ ended: x.ended, finished: x.runId });
               publish(repo, r.value.length > 0 ? ["layout", "state"] : []);
               // The chat a task was given in learns what became of it.
-              // The folder's own chats (ADR-0113) follow runs kept in the folder's repositories.
+              // The folder's own chats (ADR-0114) follow runs kept in the folder's repositories.
               const others = repo === FOLDER_PLACE ? elsewhere() : [];
               const told = await c
                 .resolve("chatNotices")

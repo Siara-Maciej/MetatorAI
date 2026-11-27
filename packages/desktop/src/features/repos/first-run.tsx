@@ -4,29 +4,35 @@
  * missing tool has its install link and Retry; the app installs none of them.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { errorText, type HostFix } from "../../shared/platform/tauri-commands.ts";
+import { useEffect } from "react";
+import type { HostFix } from "../../shared/platform/tauri-commands.ts";
+import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
-import { type Requirement, ready, requirements } from "./repos.ts";
-import { useRepos } from "./repos-context.tsx";
+import { CopyButton } from "../../ui/copy-button.tsx";
+import { type Requirement, ready } from "./repos.ts";
+import { useReposOf } from "./repos-context.tsx";
+import { FirstRunCheck, useFirstRun } from "./state.ts";
 
 export function FirstRun() {
-  const { commands } = useRepos();
-  const [needs, setNeeds] = useState<readonly Requirement[]>();
-  const [error, setError] = useState<string>();
-  const check = useCallback(async () => {
-    if (!commands) return;
-    setError(undefined);
-    try {
-      // Any folder tells which tools this computer has: the one the app runs in.
-      setNeeds(requirements(await commands.inspectFolder(".")));
-    } catch (e) {
-      setError(errorText(e));
-    }
-  }, [commands]);
+  const commands = useReposOf((r) => r.commands);
+  return (
+    <ScopeProvider store={FirstRunCheck} init={{ commands }}>
+      <CheckOnOpen />
+      <FirstRunPanel />
+    </ScopeProvider>
+  );
+}
+
+/** The tools are checked when the screen opens. */
+function CheckOnOpen() {
+  const check = useFirstRun((s) => s.check);
   useEffect(() => {
     void check();
   }, [check]);
+  return null;
+}
+
+function FirstRunPanel() {
   return (
     <div className="setup-page" data-testid="first-run">
       <div className="panel">
@@ -37,11 +43,22 @@ export function FirstRun() {
         </a>
         <h3>What MetatorAI needs</h3>
         <p className="dim">git, and Claude Code or GitHub Copilot CLI, installed and logged in.</p>
-        {needs ? <RequirementList items={needs} onRetry={() => void check()} /> : null}
-        {error ? <p className="dim">The app could not check: {error}</p> : null}
+        <Needs />
+        <CheckError />
       </div>
     </div>
   );
+}
+
+function Needs() {
+  const needs = useFirstRun((s) => s.needs);
+  const check = useFirstRun((s) => s.check);
+  return needs ? <RequirementList items={needs} onRetry={() => void check()} /> : null;
+}
+
+function CheckError() {
+  const error = useFirstRun((s) => s.error);
+  return error ? <p className="dim">The app could not check: {error}</p> : null;
 }
 
 /** Each tool with ✓ or what is missing; a missing one links to its install page. Retry checks again. */
@@ -111,21 +128,10 @@ function FixHint({ fix }: { readonly fix: HostFix }) {
 }
 
 function Copyable({ text }: { readonly text: string }) {
-  const [copied, setCopied] = useState(false);
   return (
     <span className="copyable">
       <code>{text}</code>
-      <Button
-        variant="ghost"
-        onClick={() =>
-          void navigator.clipboard
-            ?.writeText(text)
-            .then(() => setCopied(true))
-            .catch(() => undefined)
-        }
-      >
-        {copied ? "copied" : "copy"}
-      </Button>
+      <CopyButton text={text} />
     </span>
   );
 }

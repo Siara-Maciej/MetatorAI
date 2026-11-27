@@ -123,7 +123,7 @@ describe("Threads: one per topic, with its chat terminal", () => {
     expect(plain.claude.started[0]?.task.agent).toBe("mt-orchestrator");
   });
 
-  test("a chat of a folder is told its repositories first, also when it is reopened in a new session (ADR-0113)", async () => {
+  test("a chat of a folder is told its repositories first, also when it is reopened in a new session (ADR-0114)", async () => {
     const w = world();
     const folder = { repos: ["shop", "web"] };
     const made = (await w.threads.create({ by: "ann", repo: ".", folder }))._unsafeUnwrap();
@@ -149,7 +149,7 @@ describe("Threads: one per topic, with its chat terminal", () => {
     expect(fallback.pane?.process).toMatchObject({ agent: "mt-orchestrator", prompt: INTAKE_PROMPT });
   });
 
-  test("a folder's thread notes what became of a run kept in one of its repositories (ADR-0113)", async () => {
+  test("a folder's thread notes what became of a run kept in one of its repositories (ADR-0114)", async () => {
     const folder = world();
     const shop = world();
     const made = (

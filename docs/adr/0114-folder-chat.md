@@ -1,4 +1,4 @@
-# ADR-0113: Czat folderu: rozmowa w folderze repozytoriów, a nie w jednym z nich
+# ADR-0114: Czat folderu: rozmowa w folderze repozytoriów, a nie w jednym z nich
 
 - Status: Proposed
 - Data: 2026-11-27
@@ -57,7 +57,7 @@ Stan dzisiejszy:
 - Rozszerza ADR-0095 (zasięg wątku) i ADR-0093 (agent rozmowy w folderze).
 
 ## Implikacje dla kodu
-ADR-0113 egzekwują reguły kanonu MT-TEST-001 (e2e `e2e/folder-chat.e2e.test.ts`, `e2e/desktop-folder-chat.e2e.test.ts`) i MT-TEST-003 (mutanty w `scripts/mutants.ts`). Kod:
+ADR-0114 egzekwują reguły kanonu MT-TEST-001 (e2e `e2e/folder-chat.e2e.test.ts`, `e2e/desktop-folder-chat.e2e.test.ts`) i MT-TEST-003 (mutanty w `scripts/mutants.ts`). Kod:
 
 - `packages/core/src/domain/repo-set.ts` (`FOLDER_PLACE`), `domain/thread.ts` (`threadTree`), `application/threads.ts`, `application/panes.ts` (`folderChatPrompt`), `application/host-descriptors.ts` (`adoptChatAgent`), `application/chat-notices.ts`.
 - `packages/cli/src/serve/server.ts`, `serve/routes/threads.ts`, `serve/routes/sessions.ts`, `serve/timers.ts`; `commands/thread.ts`, `commands/session.ts`.

@@ -7,34 +7,41 @@
  */
 
 import type { SystemPlanView } from "../../shared/api/api.ts";
-import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
-import { useAction } from "../../shared/hooks.ts";
+import { useDaemon, usePolledSelect } from "../../shared/daemon/daemon.tsx";
 import { routeHash } from "../../shared/model/route.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { Button } from "../../ui/button.tsx";
 import { Modal } from "../../ui/modal.tsx";
-import { Notice } from "../../ui/notice.tsx";
 import { FILES_UNKNOWN, itemOfStep, shownRoute, stepDetail, stepsOfView } from "../backlog/model.ts";
+import { PlanActionNotice, PlanActionScope, usePlanStoreAction } from "./plan-action.tsx";
 
-export function StepDetailDialog({
-  view,
-  stepId,
-  repo,
-  onClose,
-}: {
+interface DetailProps {
   readonly view: SystemPlanView;
   readonly stepId: string;
   /** The repository whose daemon keeps the system plan. */
   readonly repo: string | undefined;
   onClose(): void;
-}) {
+}
+
+/** Its action is the PlanAction store's (ADR-0113); its Backlog part is read as that one item. */
+export const StepDetailDialog = (props: DetailProps) => (
+  <PlanActionScope>
+    <StepDetail {...props} />
+  </PlanActionScope>
+);
+
+function StepDetail({ view, stepId, repo, onClose }: DetailProps) {
   const { client } = useDaemon("client");
-  const action = useAction();
+  const action = usePlanStoreAction();
   // The plan's view is polled by its page: the step's plan run and its plan come with it.
   const d = stepDetail({ steps: stepsOfView(view) }, stepId);
   // Its Backlog part, when the plan was put in the Backlog.
-  const items = usePolled(`step-items:${repo ?? ""}`, () => client.issues(repo), 5000);
-  const part = itemOfStep(items.data?.issues ?? [], view.plan.id, stepId);
+  const part = usePolledSelect(
+    `step-items:${repo ?? ""}`,
+    () => client.issues(repo),
+    5000,
+    (items) => itemOfStep(items?.issues ?? [], view.plan.id, stepId),
+  );
   if (!d) return null;
   const planRun = d.planRunId;
   const go = (route: ReturnType<typeof shownRoute>) => {
@@ -101,7 +108,7 @@ export function StepDetailDialog({
             )}
           </section>
         ) : null}
-        <Notice {...action.notice} />
+        <PlanActionNotice />
         <div className="actions">
           {d.button ? (
             <Button
@@ -150,10 +157,14 @@ export function StepDetailOf({
   onClose(): void;
 }) {
   const { client } = useDaemon("client");
-  const view = usePolled(`system-plan:${repo ?? ""}:${planId}`, () => client.systemPlan(planId, repo), 3000);
-  return view.data ? (
-    <StepDetailDialog view={view.data} stepId={stepId} repo={repo} onClose={onClose} />
-  ) : null;
+  // The whole plan, as the dialog shows the step from it.
+  const view = usePolledSelect(
+    `system-plan:${repo ?? ""}:${planId}`,
+    () => client.systemPlan(planId, repo),
+    3000,
+    (v) => v,
+  );
+  return view ? <StepDetailDialog view={view} stepId={stepId} repo={repo} onClose={onClose} /> : null;
 }
 
 const WORD_TONE: Readonly<Record<NonNullable<ReturnType<typeof stepDetail>>["word"], string>> = {

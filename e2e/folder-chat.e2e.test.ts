@@ -1,5 +1,5 @@
 /**
- * The chat of a folder of repositories (ADR-0113) with the real `metator` process and a real
+ * The chat of a folder of repositories (ADR-0114) with the real `metator` process and a real
  * daemon, on the scenario host only (METATOR_NO_REAL_HOSTS): a thread asked for the folder itself
  * is kept in the folder, its chat starts there with the conversation agent copied from a
  * repository and is told which repositories there are; the agent reads its thread, starts a run

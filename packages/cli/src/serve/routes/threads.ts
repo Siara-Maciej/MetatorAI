@@ -81,7 +81,7 @@ const nameOf = (daemon: Daemon, c: MetatorContainer): string | undefined =>
   daemon.folder ? daemon.places().find((r) => r.c === c)?.name : undefined;
 
 /**
- * What makes a chat the folder's own (ADR-0113), when the call is for the folder itself: its
+ * What makes a chat the folder's own (ADR-0114), when the call is for the folder itself: its
  * repositories by name, after the conversation agent's host files were copied from them into the
  * folder (the host starts there and reads its agents there).
  */

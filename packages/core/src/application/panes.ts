@@ -127,7 +127,7 @@ export const CHAT_PROMPT =
   "You are MetatorAI's chat: a person is talking to you, and no run exists yet. For each thing they ask, take the lightest way that fits (direct, quick, or a full workflow), suggest it and let them decide, as your instructions say. You never commit or push by yourself. Lines that begin with `[metator]` are MetatorAI's notes, never the person's words.";
 
 /**
- * What the conversation agent is told when its chat opens in a folder of repositories (ADR-0113):
+ * What the conversation agent is told when its chat opens in a folder of repositories (ADR-0114):
  * where it is, which repositories there are, and that every piece of work belongs to one of them.
  */
 export const folderChatPrompt = (repos: readonly string[]): string =>

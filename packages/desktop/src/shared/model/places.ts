@@ -11,12 +11,12 @@ export const repoChoice = (
   saved: string | null | undefined,
 ): string | undefined => (repos.some((r) => r.name === saved) ? (saved as string) : repos[0]?.name);
 /**
- * The folder itself where a request names a repository (ADR-0113): the place of the folder's own
+ * The folder itself where a request names a repository (ADR-0114): the place of the folder's own
  * chats. No repository has this name.
  */
 export const FOLDER_PLACE = ".";
 /**
- * Where "+ New chat" opens (ADR-0113): in a folder of more than one repository the folder itself,
+ * Where "+ New chat" opens (ADR-0114): in a folder of more than one repository the folder itself,
  * so no repository is picked for the person; else the repository the lists show.
  */
 export const chatPlace = (repos: readonly Place[], repo: string | undefined): string | undefined =>

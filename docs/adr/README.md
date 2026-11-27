@@ -115,5 +115,6 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0110](0110-daemon-event-channel.md) | Kanał zdarzeń demona: `/ws/events` mówi, które tematy się zmieniły | Proposed |
 | [0111](0111-desktop-design-system.md) | System projektowy aplikacji desktopowej: Tailwind i komponenty w stylu shadcn/ui w `ui/` | Proposed |
 | [0112](0112-knip-dead-code.md) | Martwy kod tego repozytorium: knip w `bun run check` | Accepted |
-| [0113](0113-folder-chat.md) | Czat folderu: rozmowa w folderze repozytoriów, a nie w jednym z nich | Proposed |
+| [0113](0113-desktop-screen-state.md) | Stan ekranów aplikacji desktopowej: store zustand na ekran, subskrypcje w małych komponentach | Proposed |
+| [0114](0114-folder-chat.md) | Czat folderu: rozmowa w folderze repozytoriów, a nie w jednym z nich | Proposed |
 | 0009 | *zarezerwowany: platforma hostów (spike F0)* | – |

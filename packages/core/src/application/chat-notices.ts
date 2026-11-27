@@ -16,7 +16,7 @@ export interface ChatNoticesDependencies {
 }
 
 /**
- * Where a run of another repository is read and noted: the chat of a folder (ADR-0113) starts
+ * Where a run of another repository is read and noted: the chat of a folder (ADR-0114) starts
  * runs in the folder's repositories, each of which keeps its own runs.
  */
 export interface RunsElsewhere {

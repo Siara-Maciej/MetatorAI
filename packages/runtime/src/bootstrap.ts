@@ -855,7 +855,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         () =>
           chatAgentIn(fileSystem, HOSTS),
     ).singleton(),
-    // A folder's own copy of the conversation agent, from its repositories (ADR-0113).
+    // A folder's own copy of the conversation agent, from its repositories (ADR-0114).
     adoptChatAgent: asFunction(
       ({ fileSystem }) =>
         (repositories: readonly Pick<ReadonlyFileSystem, "read">[]) =>
