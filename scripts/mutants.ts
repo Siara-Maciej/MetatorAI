@@ -11008,4 +11008,35 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "Done and Drop ask first",
   },
+  // ADR-0113: Settings on a store of its own; a row reads only its option.
+  {
+    file: "packages/desktop/src/features/settings/state.ts",
+    from: "        if (!ok) set((s) => ({ refusals: { ...s.refusals, [o.key]: (s.refusals[o.key] ?? 0) + 1 } }));",
+    to: "",
+    why: "a refused option's field is drawn again with the value that holds",
+  },
+  {
+    file: "packages/desktop/src/features/settings/state.ts",
+    from: 'open: (section) => set({ query: "", section }),',
+    to: "open: (section) => set({ section }),",
+    why: "choosing a section clears the search",
+  },
+  {
+    file: "packages/desktop/src/features/settings/state.ts",
+    from: 'set(info.source === "custom" ? { info, custom: info.path } : { info });',
+    to: "set({ info });",
+    why: "a custom metator fills the path field",
+  },
+  {
+    file: "packages/desktop/src/features/settings/settings-screen.tsx",
+    from: "String(refused)",
+    to: '"0"',
+    why: "a refused field shows what holds, not what was typed",
+  },
+  {
+    file: "packages/desktop/src/features/settings/settings-screen.tsx",
+    from: "const o = useSettingsDaemon((d) => d.optionsView?.options.find((x) => x.key === optionKey));",
+    to: "const all = useSettingsDaemon((d) => d.optionsView);\n  const o = all?.options.find((x) => x.key === optionKey);",
+    why: "a row draws again only when its own option changed",
+  },
 ];
