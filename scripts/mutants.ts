@@ -11027,4 +11027,35 @@ export const MUTANTS: readonly Mutant[] = [
     to: "  const { worktree } = useNewRun((s) => s);",
     why: "a field of the New run form reads only its own value: typing the task draws no other field",
   },
+  // The document editor's store and the System map's (ADR-0113): a row of the form draws alone.
+  {
+    file: "packages/desktop/src/features/plans/doc-editor-state.ts",
+    from: "              set({ checked: [parsed.problem] });\n              return;",
+    to: "              set({ checked: [parsed.problem] });",
+    why: "a text that does not parse stays as text, with why",
+  },
+  {
+    file: "packages/desktop/src/features/plans/doc-editor-state.ts",
+    from: "          if (conflict) set({ base: { doc: source.docOf(conflict), digest: source.digestOf(conflict) } });",
+    to: "",
+    why: "Keep my edits saves over the version that is there now",
+  },
+  {
+    file: "packages/desktop/src/features/plans/doc-editor-state.ts",
+    from: "          const theirs = conflictCurrent<unknown>(r.error);",
+    to: "          const theirs = undefined;",
+    why: "a save on an old version shows what is there now",
+  },
+  {
+    file: "packages/desktop/src/features/system/system-map-editor.tsx",
+    from: "  const a = useDraft((m) => m.applications[i]);",
+    to: "  const a = useDraft((m) => ({ ...m.applications[i] }));",
+    why: "a row of the system map's form reads only its own application: typing draws no other row",
+  },
+  {
+    file: "packages/desktop/src/features/system/system-map-state.ts",
+    from: "          if (ok) set({ rootsDraft: undefined });",
+    to: "",
+    why: "saved roots leave the draft",
+  },
 ];
