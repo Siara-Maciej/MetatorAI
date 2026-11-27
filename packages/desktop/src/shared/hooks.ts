@@ -2,6 +2,8 @@
  * The hooks the screens share (D11): the work as tasks, one option of the shown repository, an action with what it answered.
  */
 import { useMemo, useState } from "react";
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 import type { Envelope } from "./api/api.ts";
 import { useDaemon, usePolled } from "./daemon/daemon.tsx";
 import { boardCards } from "./model/board.ts";
@@ -21,9 +23,9 @@ export function useFound<T>(
   ask: () => Promise<Envelope<T>>,
   has: (data: T) => boolean,
 ): Found {
-  const [opened, setOpened] = useState(() => ({ key, at: Date.now() }));
-  // Another key in the same screen (one missing run, then another): its own opening time.
-  if (opened.key !== key) setOpened({ key, at: Date.now() });
+  // When the screen opened for this key; another key in the same screen (one missing run, then
+  // another) has its own opening time.
+  const openedAt = useMemo(() => openingTime(key), [key]);
   const check = usePolled(
     `exists:${key}`,
     async (): Promise<Envelope<boolean>> => {
@@ -35,8 +37,11 @@ export function useFound<T>(
     3000,
     !present,
   );
-  return found(present, check, opened.key === key ? opened.at : Number.POSITIVE_INFINITY);
+  return found(present, check, openedAt);
 }
+
+/** The time a screen opened for `key` (the key names which opening it is). */
+const openingTime = (_key: string): number => Date.now();
 
 /** The work as parent tasks (tasks.ts), from the runs and system plans: the sidebar's, Home's and a page's. */
 export function useTasks(): WorkTask[] {
@@ -51,18 +56,33 @@ export function useOption<T>(key: string, fallback: T): T {
   const { options } = useDaemon("options");
   return (options.find((o) => o.key === key)?.value as T | undefined) ?? fallback;
 }
+/** The yes/nos the window keeps, by key (app-wide, ADR-0113): what was set in this window. */
+const keptFlags = createStore<Readonly<Record<string, boolean>>>(() => ({}));
+/** What each key's storage said when it was first read: read once. */
+const firstRead = new Map<string, boolean>();
+
 /**
  * A yes/no the window keeps (round 22: a sidebar folded to its narrow version): read once from the
  * window's storage, written on each change; both under try/catch, so a window without storage
- * keeps it until it closes.
+ * keeps it until it closes. Every part that reads the same key reads the same value.
  */
 export function useKeptFlag(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
-  const [value, setValue] = useState(() => readFlag(key, fallback));
-  const set = (v: boolean) => {
-    setValue(v);
-    writeFlag(key, v);
-  };
-  return [value, set];
+  const value = useStore(keptFlags, (s) => s[key]) ?? readOnce(key, fallback);
+  return [value, (v) => setKeptFlag(key, v)];
+}
+
+/** Sets a kept yes/no: every part that reads it draws again, and the window's storage keeps it. */
+function setKeptFlag(key: string, v: boolean): void {
+  keptFlags.setState({ [key]: v });
+  writeFlag(key, v);
+}
+
+function readOnce(key: string, fallback: boolean): boolean {
+  const known = firstRead.get(key);
+  if (known !== undefined) return known;
+  const v = readFlag(key, fallback);
+  firstRead.set(key, v);
+  return v;
 }
 
 function readFlag(key: string, fallback: boolean): boolean {

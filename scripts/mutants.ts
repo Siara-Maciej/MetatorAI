@@ -11008,4 +11008,29 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "Done and Drop ask first",
   },
+  // The app's own state outside React (ADR-0113): the daemon's sockets, kept flags, parts that read one value.
+  {
+    file: "packages/desktop/src/shared/daemon/wire.ts",
+    from: "wireStore.setState((w) => ({ state: shared(w.state, next) }));",
+    to: "wireStore.setState({ state: next });",
+    why: "a state read again keeps the runs that did not change",
+  },
+  {
+    file: "packages/desktop/src/shared/hooks.ts",
+    from: "  writeFlag(key, v);\n}",
+    to: "}",
+    why: "a kept yes/no is written to the window's storage",
+  },
+  {
+    file: "packages/desktop/src/shared/daemon/name-dialog.tsx",
+    from: "if (name.trim()) onDone(name.trim());",
+    to: "onDone(name);",
+    why: "the name is sent trimmed, and a blank one is not sent",
+  },
+  {
+    file: "packages/desktop/src/shared/components/repo-select.tsx",
+    from: "const repo = useStore(store, (d) => d.repo);",
+    to: "const { repo } = useStore(store, (d) => d);",
+    why: "the repository choice draws nothing for a run's change",
+  },
 ];

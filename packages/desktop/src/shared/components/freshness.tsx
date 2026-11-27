@@ -4,26 +4,14 @@
  * date: no answer since …" with Try now when the reads after a good one fail (the data stays, it
  * is not emptied). The time ticks only while the line shows, so a quiet window draws nothing.
  */
-import { useEffect, useState } from "react";
 import { Button } from "../../ui/button.tsx";
 import { cn } from "../../ui/cn.ts";
 import type { Polled } from "../api/query.ts";
 import { useDaemon } from "../daemon/daemon.tsx";
 import { readingOfAll, staleText } from "../model/freshness.ts";
+import { useNow } from "../state/clock.ts";
 
 type Read = Pick<Polled<unknown>, "data" | "error" | "updatedAt" | "reload">;
-
-/** The time now, every `ms` while `on`; frozen otherwise. */
-function useNow(ms: number, on: boolean): number {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (!on) return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), ms);
-    return () => clearInterval(timer);
-  }, [ms, on]);
-  return now;
-}
 
 function Line({
   tone,

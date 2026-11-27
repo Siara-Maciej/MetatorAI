@@ -4,8 +4,8 @@
  * middle of a wrapped command.
  */
 
-import { useState } from "react";
 import { Button } from "../../ui/button.tsx";
+import { Disclosure } from "../../ui/disclosure.tsx";
 import { commandText } from "../model/format.ts";
 
 export function CommandText({
@@ -17,8 +17,26 @@ export function CommandText({
   readonly command?: string | undefined;
 }) {
   const c = commandText({ prompt, command });
-  const [open, setOpen] = useState(false);
   if (!c.cut) return <span data-testid="command-short">{c.short}</span>;
+  return (
+    <Disclosure>
+      {(open, setOpen) => <CutCommand short={c.short} full={c.full} open={open} setOpen={setOpen} />}
+    </Disclosure>
+  );
+}
+
+/** A command cut to its start; open, the whole of it with Copy. */
+function CutCommand({
+  short,
+  full,
+  open,
+  setOpen,
+}: {
+  readonly short: string;
+  readonly full: string;
+  readonly open: boolean;
+  setOpen(open: boolean): void;
+}) {
   return (
     <>
       <Button
@@ -29,16 +47,16 @@ export function CommandText({
         title={open ? "hide the whole command" : "show the whole command"}
         onClick={() => setOpen(!open)}
       >
-        {c.short}
+        {short}
       </Button>
       {open ? (
         <span className="cmd-full-box">
           <pre className="cmd-full mono" data-testid="command-full">
-            {c.full}
+            {full}
           </pre>
           <Button
             variant="ghost"
-            onClick={() => void navigator.clipboard?.writeText(c.full).catch(() => undefined)}
+            onClick={() => void navigator.clipboard?.writeText(full).catch(() => undefined)}
           >
             Copy
           </Button>
