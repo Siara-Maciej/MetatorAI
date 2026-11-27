@@ -11303,4 +11303,149 @@ export const MUTANTS: readonly Mutant[] = [
     to: '  useThreadTasks();\n  const live = useThreadFact((d, id) => threadOf(d, id)?.chat?.status === "live");',
     why: "a run that changes does not draw the chat's terminal again",
   },
+  // The New run form's store (ADR-0113): a store per open form, a field that draws alone.
+  {
+    file: "packages/desktop/src/features/runs/new-run-state.ts",
+    from: "      if (refusedForDirtyTree(r.error)) set({ dirty: { andAttach } });",
+    to: "",
+    why: "a create refused for uncommitted changes offers the same create from the last commit",
+  },
+  {
+    file: "packages/desktop/src/features/runs/new-run-state.ts",
+    from: "        task: task.trim(),",
+    to: "        task,",
+    why: "a new run's task is sent trimmed",
+  },
+  {
+    file: "packages/desktop/src/features/runs/new-session.tsx",
+    from: "  const worktree = useNewRun((s) => s.worktree);",
+    to: "  const { worktree } = useNewRun((s) => s);",
+    why: "a field of the New run form reads only its own value: typing the task draws no other field",
+  },
+  // The document editor's store and the System map's (ADR-0113): a row of the form draws alone.
+  {
+    file: "packages/desktop/src/features/plans/doc-editor-state.ts",
+    from: "              set({ checked: [parsed.problem] });\n              return;",
+    to: "              set({ checked: [parsed.problem] });",
+    why: "a text that does not parse stays as text, with why",
+  },
+  {
+    file: "packages/desktop/src/features/plans/doc-editor-state.ts",
+    from: "          if (conflict) set({ base: { doc: source.docOf(conflict), digest: source.digestOf(conflict) } });",
+    to: "",
+    why: "Keep my edits saves over the version that is there now",
+  },
+  {
+    file: "packages/desktop/src/features/plans/doc-editor-state.ts",
+    from: "          const theirs = conflictCurrent<unknown>(r.error);",
+    to: "          const theirs = undefined;",
+    why: "a save on an old version shows what is there now",
+  },
+  {
+    file: "packages/desktop/src/features/system/system-map-editor.tsx",
+    from: "  const a = useDraft((m) => m.applications[i]);",
+    to: "  const a = useDraft((m) => ({ ...m.applications[i] }));",
+    why: "a row of the system map's form reads only its own application: typing draws no other row",
+  },
+  {
+    file: "packages/desktop/src/features/system/system-map-state.ts",
+    from: "          if (ok) set({ rootsDraft: undefined });",
+    to: "",
+    why: "saved roots leave the draft",
+  },
+  // The Changes tab's store (ADR-0113): a diff line draws alone when a note opens on it.
+  {
+    file: "packages/desktop/src/features/runs/changes-state.ts",
+    from: "          if (ok) set({ draft: undefined });",
+    to: "",
+    why: "an added note closes its form",
+  },
+  {
+    file: "packages/desktop/src/features/runs/changes-state.ts",
+    from: 'side: draft.side ?? "new"',
+    to: 'side: "new"',
+    why: "a note on a removed line names the old side",
+  },
+  {
+    file: "packages/desktop/src/features/runs/changes-state.ts",
+    from: "        writeDraft: (text) => set((s) => (s.draft ? { draft: { ...s.draft, text } } : {})),",
+    to: "        writeDraft: (text) => set((s) => ({ draft: { ...s.draft, text } })),",
+    why: "typing with no note open opens none",
+  },
+  {
+    file: "packages/desktop/src/features/runs/changes-tab.tsx",
+    from: "  const editing = useChanges((s) => s.draft !== undefined && s.draft.line === line && s.draft.side === side);",
+    to: "  const editing = useChanges((s) => s.draft)?.line === line;",
+    why: "a diff line reads only whether a note is written on it: opening a note draws that line alone",
+  },
+  // The debug changes' store (ADR-0113).
+  {
+    file: "packages/desktop/src/features/runs/debug-changes-state.ts",
+    from: '                if (mine.every((i) => i.state === "removable")) return [{ repo }];',
+    to: "",
+    why: "with a changed record, Remove debug changes asks for the removable ones by name",
+  },
+  {
+    file: "packages/desktop/src/features/runs/debug-changes-state.ts",
+    from: '          if (!only && result.ok && items.every((i) => i.state === "removable")) close(result);',
+    to: "          if (result.ok) close(result);",
+    why: "Remove on one record keeps the list open",
+  },
+  {
+    file: "packages/desktop/src/features/runs/debug-changes-state.ts",
+    from: '        openList: () => set({ ...IDLE, open: true, gone: "", listSaid: undefined }),',
+    to: "        openList: () => set({ open: true }),",
+    why: "a new opening of the debug changes starts afresh",
+  },
+  {
+    file: "packages/desktop/src/features/runs/debug-changes-state.ts",
+    from: "        const leaving = result ?? listSaid ?? (gone ? { text: gone, ok: true } : undefined);",
+    to: "        const leaving = result;",
+    why: "closing the list leaves its last word (or what is gone) in the entry's place",
+  },
+  // The small stores of a run's page (ADR-0113).
+  {
+    file: "packages/desktop/src/features/runs/run-parts-state.ts",
+    from: '  answered: (choices) => set({ said: `Answered: ${choices.join(", ")}.` }),',
+    to: "  answered: () => {},",
+    why: "a task's page says the answer it just gave",
+  },
+  {
+    file: "packages/desktop/src/features/runs/store-action.ts",
+    from: '    say: (text, tone = "error") => sayIn(api, text, tone),',
+    to: "    say: () => {},",
+    why: "a screen store's action says a line in that screen's notice",
+  },
+  // The plan views' stores (ADR-0113): Ask for changes draws its text box alone.
+  {
+    file: "packages/desktop/src/features/plans/plan-approval-line.tsx",
+    from: '  const empty = useAskChanges((s) => s.text.trim() === "");',
+    to: '  const empty = useAskChanges((s) => s.text).trim() === "";',
+    why: "Ask for changes reads only whether the words are empty: typing draws the button only when that changes",
+  },
+  {
+    file: "packages/desktop/src/features/plans/plan-approval-line.tsx",
+    from: "onSend(api.getState().text.trim())",
+    to: "onSend(api.getState().text)",
+    why: "the words asked for are sent trimmed",
+  },
+  {
+    file: "packages/desktop/src/features/runs/store-action.ts",
+    from: "reload ? { ...options, reload } : options",
+    to: "options",
+    why: "a screen store's action reads the screen's data again after it",
+  },
+  // The Overview's System and Dependencies stores (ADR-0113).
+  {
+    file: "packages/desktop/src/features/system/system-state.ts",
+    from: "  choose: (id) => set({ chosen: id }),",
+    to: "  choose: () => {},",
+    why: "a row chosen in the System part is the one shown",
+  },
+  {
+    file: "packages/desktop/src/features/system/system-state.ts",
+    from: "  closeNotice: () => set({ notice: undefined }),",
+    to: "  closeNotice: () => {},",
+    why: "the Dependencies panel's notice closes",
+  },
 ];
