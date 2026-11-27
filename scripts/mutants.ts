@@ -10959,4 +10959,53 @@ export const MUTANTS: readonly Mutant[] = [
     to: 'if (e.key !== " ") return false;',
     why: "Space on a card's own Start a run presses that button, not the card",
   },
+  // ADR-0113: the chat of a folder of repositories.
+  {
+    file: "packages/core/src/domain/thread.ts",
+    from: "t.repo === FOLDER_PLACE",
+    to: "false",
+    why: "a thread of the folder itself lists runs of any of its repositories",
+  },
+  {
+    file: "packages/core/src/domain/thread.ts",
+    from: "top.find((x) => x.runId === id && !listed.has(key(x.repo, x.runId)))",
+    to: "top.find((x) => x.runId === id)",
+    why: "a folder's thread takes each run once, also when two repositories use the same run id",
+  },
+  {
+    file: "packages/core/src/application/host-descriptors.ts",
+    from: "wanted[file] ??= text;",
+    to: "wanted[file] = text;",
+    why: "the folder's copy of the conversation agent comes from the first repository that holds it",
+  },
+  {
+    file: "packages/core/src/application/host-descriptors.ts",
+    from: "if (held.isOk() && held.value === text) continue;",
+    to: "if (held.isOk()) continue;",
+    why: "the folder's copy of the conversation agent follows the repositories' version",
+  },
+  {
+    file: "packages/core/src/application/threads.ts",
+    from: 'prompt: folder && agent === CHAT_AGENT ? folderChatPrompt(folder.repos) : "",',
+    to: 'prompt: "",',
+    why: "a folder's chat is told its repositories first",
+  },
+  {
+    file: "packages/core/src/application/threads.ts",
+    from: "const opened = await this.openChat(thread.id, host, undefined, input.folder);",
+    to: "const opened = await this.openChat(thread.id, host);",
+    why: "a folder's chat reopened in a new session is told its repositories again",
+  },
+  {
+    file: "packages/core/src/application/threads.ts",
+    from: "for (const other of record.isErr() ? elsewhere : []) {",
+    to: "for (const other of [] as ThreadRunsElsewhere[]) {",
+    why: "a folder's thread notes a run kept in one of its repositories",
+  },
+  {
+    file: "packages/core/src/application/chat-notices.ts",
+    from: "for (const other of elsewhere) if ((await other.repo.load(runId)).isOk()) return other;",
+    to: "",
+    why: "a folder's chat is told of a run kept in one of its repositories",
+  },
 ];

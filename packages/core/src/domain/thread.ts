@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { slug } from "./ids.ts";
 import { type Attention, byAttention } from "./overview.ts";
+import { FOLDER_PLACE } from "./repo-set.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -120,7 +121,7 @@ export interface ThreadTree<T extends Thread = Thread> {
 /**
  * The sidebar's one hierarchy (ADR-0095): each thread with its own top runs, the runs no thread
  * lists apart ("Without a chat"), closed threads in their own group. A child run is never a task
- * of its own: it is under its parent. In a folder a thread's run is in the thread's repository.
+ * of its own: it is under its parent. In a folder a thread's run is in the thread's repository; a thread of the folder itself lists runs of any repository.
  */
 export function threadTree<T extends Thread & { readonly repo?: string }>(
   threads: readonly T[],
@@ -133,10 +134,13 @@ export function threadTree<T extends Thread & { readonly repo?: string }>(
   const nodes = threads.map((t): ThreadNode<T> => {
     const tasks = byAttention(
       t.runs.flatMap((id) => {
-        const k = key(t.repo, id);
-        const r = byKey.get(k);
+        // A thread of the folder itself (ADR-0113) lists runs of any of its repositories.
+        const r =
+          t.repo === FOLDER_PLACE
+            ? top.find((x) => x.runId === id && !listed.has(key(x.repo, x.runId)))
+            : byKey.get(key(t.repo, id));
         if (!r) return [];
-        listed.add(k);
+        listed.add(key(r.repo, r.runId));
         return [r];
       }),
     );

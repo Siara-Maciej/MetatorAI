@@ -126,6 +126,13 @@ export const INTAKE_PROMPT =
 export const CHAT_PROMPT =
   "You are MetatorAI's chat: a person is talking to you, and no run exists yet. For each thing they ask, take the lightest way that fits (direct, quick, or a full workflow), suggest it and let them decide, as your instructions say. You never commit or push by yourself. Lines that begin with `[metator]` are MetatorAI's notes, never the person's words.";
 
+/**
+ * What the conversation agent is told when its chat opens in a folder of repositories (ADR-0113):
+ * where it is, which repositories there are, and that every piece of work belongs to one of them.
+ */
+export const folderChatPrompt = (repos: readonly string[]): string =>
+  `${CHAT_PROMPT} This chat is in a folder of ${repos.length} repositories, not in one of them: ${repos.join(", ")}. A command of one repository runs as \`metator -C <repository> …\` (\`metator repos list\` lists them; \`thread\`, \`session\`, \`status\`, \`inbox\` and \`ask\` run here). A run, a quick change and an edit belong to one repository: name it before you start, and ask the person when the code cannot tell. Edit no file from this chat; a change that reaches several repositories is a system change (\`mt-system-change\`).`;
+
 export class Panes {
   /** Pane tokens, in memory only: a restarted daemon gives new ones to the panes it restarts. */
   private readonly tokens = new Map<string, string>();

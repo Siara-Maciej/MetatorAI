@@ -15,6 +15,15 @@ export interface ChatNoticesDependencies {
   readonly nudge: (paneId: string, text: string) => Promise<Result<void, MetatorError>>;
 }
 
+/**
+ * Where a run of another repository is read and noted: the chat of a folder (ADR-0113) starts
+ * runs in the folder's repositories, each of which keeps its own runs.
+ */
+export interface RunsElsewhere {
+  readonly repo: Pick<RunRepository, "load">;
+  readonly journal: Pick<RunJournal, "questions" | "activity" | "record">;
+}
+
 /** What happened to a task that its chat is told: one line each, once. */
 export interface ChatNotice {
   readonly paneId: string;
@@ -36,16 +45,18 @@ const told = (paneId: string, key: string) => `told the chat (pane ${paneId}, ${
 export class ChatNotices {
   constructor(private readonly d: ChatNoticesDependencies) {}
 
-  async tick(): Promise<Result<readonly ChatNotice[], MetatorError>> {
+  /** `elsewhere`: the repositories a run this place does not hold is looked for in (a folder's chat). */
+  async tick(elsewhere: readonly RunsElsewhere[] = []): Promise<Result<readonly ChatNotice[], MetatorError>> {
     const view = await this.d.panes.view();
     if (view.isErr()) return err(view.error);
     const out: ChatNotice[] = [];
     for (const pane of view.value.panes) {
       if (!pane.startedRun || !pane.live?.alive || pane.ended || pane.paused) continue;
-      const event = await this.eventOf(pane.startedRun);
+      const at = await this.holderOf(pane.startedRun, elsewhere);
+      const event = await this.eventOf(pane.startedRun, at);
       if (event.isErr()) return err(event.error);
       if (!event.value) continue;
-      const activity = await this.d.journal.activity(pane.startedRun);
+      const activity = await at.journal.activity(pane.startedRun);
       if (activity.isErr()) return err(activity.error);
       const mark = told(pane.id, event.value.key);
       if (activity.value.some((a) => a.text.startsWith(mark))) continue;
@@ -54,7 +65,7 @@ export class ChatNotices {
       if (state.isErr() || state.value.state !== "idle") continue;
       const typed = await this.d.nudge(pane.id, event.value.line);
       if (typed.isErr()) continue;
-      const noted = await this.d.journal.record(pane.startedRun, {
+      const noted = await at.journal.record(pane.startedRun, {
         type: "agent",
         origin: "run",
         text: `${mark}: ${event.value.line}`,
@@ -65,13 +76,21 @@ export class ChatNotices {
     return ok(out);
   }
 
+  /** Where the run is kept: here, else the first of the other repositories that can read it. */
+  private async holderOf(runId: string, elsewhere: readonly RunsElsewhere[]): Promise<RunsElsewhere> {
+    if (elsewhere.length === 0 || (await this.d.repo.load(runId)).isOk()) return this.d;
+    for (const other of elsewhere) if ((await other.repo.load(runId)).isOk()) return other;
+    return this.d;
+  }
+
   /** What the chat is to be told about its run now, if anything: the latest event, with its key. */
   private async eventOf(
     runId: string,
+    at: RunsElsewhere,
   ): Promise<
     Result<{ readonly kind: string; readonly key: string; readonly line: string } | undefined, MetatorError>
   > {
-    const record = await this.d.repo.load(runId);
+    const record = await at.repo.load(runId);
     // A run that cannot be read now is told about later.
     if (record.isErr()) return ok(undefined);
     const r = record.value;
@@ -104,7 +123,7 @@ export class ChatNotices {
         line: `[metator] ${what} stopped at ${at} and needs the person. Tell the person what it needs (Home in the app shows it).`,
       });
     }
-    const questions = await this.d.journal.questions(runId);
+    const questions = await at.journal.questions(runId);
     if (questions.isErr()) return err(questions.error);
     const gate = questions.value.find((q) => q.source === "gate" && !q.answer);
     if (gate)

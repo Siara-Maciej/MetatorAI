@@ -24,6 +24,7 @@ import {
   AskInRun,
   AskQuestion,
   AuditAgents,
+  adoptChatAgent,
   agentDefinitionFiles,
   allowToolsOf,
   analyzersId,
@@ -188,6 +189,7 @@ import {
   QuickReviewed,
   QuickStart,
   ReadJava,
+  type ReadonlyFileSystem,
   ReadRunArtifact,
   RecordArchitectureBaseline,
   RefactorPlanStore,
@@ -852,6 +854,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ fileSystem }) =>
         () =>
           chatAgentIn(fileSystem, HOSTS),
+    ).singleton(),
+    // A folder's own copy of the conversation agent, from its repositories (ADR-0113).
+    adoptChatAgent: asFunction(
+      ({ fileSystem }) =>
+        (repositories: readonly Pick<ReadonlyFileSystem, "read">[]) =>
+          adoptChatAgent(fileSystem, repositories, HOSTS),
     ).singleton(),
     // What the daemon types into panes, kept for the hosts' user-prompt hooks (ADR-0093, ADR-0094).
     paneTyped: asFunction(({ fileSystem, clock }) => new PaneTyped(fileSystem, clock)).singleton(),

@@ -9,6 +9,12 @@ import { defineDocument } from "./versioned.ts";
  */
 export const REPO_SET_FILE = "metator.repos.yml";
 
+/**
+ * The folder itself, where a request names a repository (ADR-0113): the place of the folder's own
+ * chats. No repository can have this name (a name starts with a letter or a digit).
+ */
+export const FOLDER_PLACE = ".";
+
 /** Folder-relative directory, forward slashes, no `..`. */
 const FolderPath = z
   .string()

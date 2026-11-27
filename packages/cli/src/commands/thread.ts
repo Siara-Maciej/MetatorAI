@@ -16,7 +16,8 @@ const NO_PANE =
  * `thread` (ADR-0095): one thread per topic, with its chat terminal. Through the daemon that
  * serves the repository (it owns the panes), else on the files. The agent of a thread's chat
  * reads it first (`thread show`) and keeps its summary (`thread summary`); `--thread` defaults to
- * the thread whose chat runs the command (`$METATOR_PANE_ID`).
+ * the thread whose chat runs the command (`$METATOR_PANE_ID`). In a folder of repositories the
+ * threads are the folder's own (ADR-0113).
  */
 export function registerThreadCommands(program: Command, ctx: CommandContext): void {
   const { action, container } = ctx;
@@ -64,8 +65,7 @@ export function registerThreadCommands(program: Command, ctx: CommandContext): v
 
   const id = (positional: string | undefined, opts: { thread?: string }) => positional ?? opts.thread;
 
-  thread
-    .command("new")
+  meta(thread.command("new"), { folder: true })
     .description(
       "A new thread with its chat terminal (the conversation agent): for a new topic, after the person said yes",
     )
@@ -93,7 +93,7 @@ export function registerThreadCommands(program: Command, ctx: CommandContext): v
       ),
     );
 
-  meta(thread.command("show [thread]"), { render: renderThread })
+  meta(thread.command("show [thread]"), { render: renderThread, folder: true })
     .description(
       "The thread: title, summary, facts, its runs with their state, issues. The chat agent's first action in a session",
     )
@@ -115,7 +115,7 @@ export function registerThreadCommands(program: Command, ctx: CommandContext): v
       }),
     );
 
-  meta(thread.command("list"), { audience: "person", render: renderThreadTree })
+  meta(thread.command("list"), { audience: "person", render: renderThreadTree, folder: true })
     .description(
       "Every thread with its tasks (open ones first), the runs without a chat, and the closed threads",
     )
@@ -125,8 +125,7 @@ export function registerThreadCommands(program: Command, ctx: CommandContext): v
       })),
     );
 
-  thread
-    .command("summary")
+  meta(thread.command("summary"), { folder: true })
     .description(
       "Keep the thread's summary (Markdown, at most 1500 characters): when a decision was made, a run started or finished, or the person asks",
     )
@@ -153,8 +152,7 @@ export function registerThreadCommands(program: Command, ctx: CommandContext): v
       }),
     );
 
-  thread
-    .command("close [thread]")
+  meta(thread.command("close [thread]"), { folder: true })
     .description("Close the thread: its chat terminal ends (its session kept), its runs go on")
     .option("--thread <id>", "the thread (default: the one whose chat runs this)")
     .addOption(byOption("who closes it"))
@@ -172,8 +170,7 @@ export function registerThreadCommands(program: Command, ctx: CommandContext): v
       }),
     );
 
-  thread
-    .command("reopen [thread]")
+  meta(thread.command("reopen [thread]"), { folder: true })
     .description(
       "Open the thread's chat again: a paused one resumes, a closed thread continues its session or starts a new one told what it continues",
     )

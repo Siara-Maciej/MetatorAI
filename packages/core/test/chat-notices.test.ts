@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { ChatNotices } from "@metator/core";
-import { ok } from "../src/domain/result.ts";
+import { ChatNotices, type ChatNoticesDependencies, MetatorError } from "@metator/core";
+import { err, ok } from "../src/domain/result.ts";
 
 function world() {
   const run = {
@@ -17,24 +17,26 @@ function world() {
     { id: "w1:p1", startedRun: "20261120-shop", live: { alive: true } },
     { id: "w1:p2", runId: "20261120-shop", live: { alive: true } },
   ] as { id: string; startedRun?: string; live?: { alive: boolean }; paused?: unknown }[];
+  const load = async () => ok(run as never);
+  const journal: ChatNoticesDependencies["journal"] = {
+    questions: async () => ok(questions as never),
+    activity: async () => ok(activity as never),
+    record: async (_runId, a) => {
+      activity.push({ text: a.text });
+      return ok(a as never);
+    },
+  };
   const notices = new ChatNotices({
     panes: { view: async () => ok({ workspaces: [], panes } as never) },
-    repo: { load: async () => ok(run as never) },
-    journal: {
-      questions: async () => ok(questions as never),
-      activity: async () => ok(activity as never),
-      record: async (_runId, a) => {
-        activity.push({ text: a.text });
-        return ok(a as never);
-      },
-    },
+    repo: { load },
+    journal,
     sensor: { state: async () => ok({ state: state as never, reason: "" }) },
     nudge: async (paneId, text) => {
       typed.push(`${paneId} ${text}`);
       return ok(undefined);
     },
   });
-  return { run, questions, activity, typed, panes, notices, set: (s: string) => (state = s) };
+  return { run, questions, activity, typed, panes, notices, load, journal, set: (s: string) => (state = s) };
 }
 
 describe("ChatNotices: the chat where the task was given learns what became of it", () => {
@@ -94,5 +96,35 @@ describe("ChatNotices: the chat where the task was given learns what became of i
     (w.panes[0] as { paused?: unknown }).paused = { at: "t", why: "daemon-stopped" };
     await w.notices.tick();
     expect(w.typed).toEqual([]);
+  });
+
+  test("a folder's chat is told of a run kept in one of the folder's repositories (ADR-0113)", async () => {
+    const shop = world();
+    shop.run.state.status = "done";
+    const typed: string[] = [];
+    const folder = new ChatNotices({
+      panes: { view: async () => ok({ workspaces: [], panes: shop.panes } as never) },
+      // The folder's own place holds no run.
+      repo: { load: async () => err(MetatorError.notFound("run 20261120-shop")) },
+      journal: {
+        questions: async () => err(MetatorError.notFound("run 20261120-shop")),
+        activity: async () => err(MetatorError.notFound("run 20261120-shop")),
+        record: async () => err(MetatorError.notFound("run 20261120-shop")),
+      },
+      sensor: { state: async () => ok({ state: "idle" as never, reason: "" }) },
+      nudge: async (paneId, text) => {
+        typed.push(`${paneId} ${text}`);
+        return ok(undefined);
+      },
+    });
+    // Without the repositories the run cannot be read: nothing to say yet.
+    expect((await folder.tick())._unsafeUnwrap()).toEqual([]);
+    const elsewhere = [{ repo: { load: shop.load }, journal: shop.journal }];
+    const told = (await folder.tick(elsewhere))._unsafeUnwrap();
+    expect(told.map((t) => [t.paneId, t.runId, t.event])).toEqual([["w1:p1", "20261120-shop", "done"]]);
+    expect(typed).toHaveLength(1);
+    // The mark is written where the run is kept, so the line is typed once.
+    expect(shop.activity.map((a) => a.text)).toEqual([`told the chat (pane w1:p1, done): ${told[0]?.line}`]);
+    expect((await folder.tick(elsewhere))._unsafeUnwrap()).toEqual([]);
   });
 });

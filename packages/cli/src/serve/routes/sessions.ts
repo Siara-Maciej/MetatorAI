@@ -10,7 +10,7 @@ import { body, type Call, type Daemon, denied, optional, type Route, route, text
 
 /** The pane a token belongs to, in whichever repository the daemon serves. */
 async function callerOf(daemon: Daemon, token: string): Promise<CallerPane | undefined> {
-  for (const r of daemon.repos()) {
+  for (const r of daemon.places()) {
     const pane = await r.c.resolve("panes").authorize(token);
     if (pane) return pane;
   }
@@ -29,7 +29,7 @@ const words = body({ text, by: optional(z.string()) });
 
 /** Types what waits for idle agents now, in every repository: a line posted is not left to the next look. */
 async function deliver(daemon: Daemon): Promise<void> {
-  for (const r of daemon.repos()) await r.c.resolve("paneMail").tick();
+  for (const r of daemon.places()) await r.c.resolve("paneMail").tick();
 }
 
 export const SESSION_ROUTES: readonly Route[] = [
@@ -40,7 +40,7 @@ export const SESSION_ROUTES: readonly Route[] = [
     handler: async ({ query, daemon }) => {
       const task = query.get("task") ?? undefined;
       const sessions: SessionView[] = [];
-      for (const r of daemon.repos()) {
+      for (const r of daemon.places()) {
         const listed = await r.c.resolve("sessionSteering").list(task ? { task } : {});
         if (listed.isErr()) return listed;
         // In a folder a repository is named as the folder names it.
@@ -98,7 +98,7 @@ export const SESSION_ROUTES: readonly Route[] = [
       if (said.isErr()) return said;
       const told: string[] = [];
       if (said.value)
-        for (const r of daemon.repos()) {
+        for (const r of daemon.places()) {
           const chats = await r.c.resolve("sessionSteering").tellChats(said.value.task, said.value.line);
           if (chats.isErr()) return chats;
           told.push(...chats.value);
