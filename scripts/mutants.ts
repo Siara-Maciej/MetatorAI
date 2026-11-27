@@ -11039,4 +11039,29 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const all = useSettingsDaemon((d) => d.optionsView);\n  const o = all?.options.find((x) => x.key === optionKey);",
     why: "a row draws again only when its own option changed",
   },
+  // ADR-0113: Reviews on a store of its own; a row hears only whether it is chosen.
+  {
+    file: "packages/desktop/src/features/reviews/state.ts",
+    from: "          if (id === get().picked) return;",
+    to: "",
+    why: "the same MR from the route keeps its unchecked replies and its notice",
+  },
+  {
+    file: "packages/desktop/src/features/reviews/state.ts",
+    from: "set({ picked: id, unchecked: new Set() });",
+    to: "set({ picked: id });",
+    why: "another MR starts with every reply to send checked",
+  },
+  {
+    file: "packages/desktop/src/features/reviews/state.ts",
+    from: "            if (next.has(thread)) next.delete(thread);\n            else next.add(thread);",
+    to: "            next.add(thread);",
+    why: "a reply unchecked can be checked again",
+  },
+  {
+    file: "packages/desktop/src/features/reviews/data.ts",
+    from: "const picked = useReviews((s) => (fallback ? s.picked : undefined));",
+    to: "const picked = useReviews((s) => s.picked);",
+    why: "choosing an MR draws only the rows that were and are chosen",
+  },
 ];
