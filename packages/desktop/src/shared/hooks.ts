@@ -1,5 +1,5 @@
 /**
- * The hooks the screens share (D11): the work as tasks, one option of the shown repository, an action with what it answered.
+ * The hooks the screens share (D11): the work as tasks, an action with what it answered.
  */
 import { useMemo, useState } from "react";
 import type { Envelope } from "./api/api.ts";
@@ -45,11 +45,6 @@ export function useTasks(): WorkTask[] {
     () => workTasks(boardCards({ runs, issues: [], plans: systemPlans, now: Date.now() }), systemPlans),
     [runs, systemPlans],
   );
-}
-/** The value of one option (S1), or the fallback while the options are not here yet. */
-export function useOption<T>(key: string, fallback: T): T {
-  const { options } = useDaemon("options");
-  return (options.find((o) => o.key === key)?.value as T | undefined) ?? fallback;
 }
 /**
  * A yes/no the window keeps (round 22: a sidebar folded to its narrow version): read once from the
