@@ -15,7 +15,7 @@ Download it from the repository's [Releases](https://github.com/Siara-Maciej/Met
 | macOS, Apple Silicon and Intel | `.dmg` |
 | Linux | `.deb`, `.AppImage` |
 
-The installers are not signed yet. Windows SmartScreen asks once (**More info**, then **Run anyway**). On macOS, open the app the first time with right-click, **Open**. On Linux, make the `.AppImage` executable (`chmod +x`).
+The installers are not signed yet. Windows SmartScreen asks once (**More info**, then **Run anyway**). On macOS, the first start ends with "MetatorAI Not Opened": click **Done**, then open **System Settings**, **Privacy & Security**, and click **Open Anyway** next to MetatorAI (or run `xattr -dr com.apple.quarantine /Applications/MetatorAI.app`); before macOS 15, right-click the app and choose **Open**. On Linux, make the `.AppImage` executable (`chmod +x`).
 
 The same files are kept on every run of the `desktop` workflow, pull requests included: the repository's **Actions** tab, the run, **Artifacts**.
 
