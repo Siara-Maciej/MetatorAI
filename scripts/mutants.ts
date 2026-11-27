@@ -11083,4 +11083,42 @@ export const MUTANTS: readonly Mutant[] = [
     to: "  const editing = useChanges((s) => s.draft)?.line === line;",
     why: "a diff line reads only whether a note is written on it: opening a note draws that line alone",
   },
+  // The debug changes' store (ADR-0113).
+  {
+    file: "packages/desktop/src/features/runs/debug-changes-state.ts",
+    from: "                if (mine.every((i) => i.state === \"removable\")) return [{ repo }];",
+    to: "",
+    why: "with a changed record, Remove debug changes asks for the removable ones by name",
+  },
+  {
+    file: "packages/desktop/src/features/runs/debug-changes-state.ts",
+    from: "          if (!only && result.ok && items.every((i) => i.state === \"removable\")) close(result);",
+    to: "          if (result.ok) close(result);",
+    why: "Remove on one record keeps the list open",
+  },
+  {
+    file: "packages/desktop/src/features/runs/debug-changes-state.ts",
+    from: "        openList: () => set({ ...IDLE, open: true, gone: \"\", listSaid: undefined }),",
+    to: "        openList: () => set({ open: true }),",
+    why: "a new opening of the debug changes starts afresh",
+  },
+  {
+    file: "packages/desktop/src/features/runs/debug-changes-state.ts",
+    from: "        const leaving = result ?? listSaid ?? (gone ? { text: gone, ok: true } : undefined);",
+    to: "        const leaving = result;",
+    why: "closing the list leaves its last word (or what is gone) in the entry's place",
+  },
+  // The small stores of a run's page (ADR-0113).
+  {
+    file: "packages/desktop/src/features/runs/run-parts-state.ts",
+    from: "  answered: (choices) => set({ said: `Answered: ${choices.join(\", \")}.` }),",
+    to: "  answered: () => {},",
+    why: "a task's page says the answer it just gave",
+  },
+  {
+    file: "packages/desktop/src/features/runs/store-action.ts",
+    from: "    say: (text, tone = \"error\") => sayIn(api, text, tone),",
+    to: "    say: () => {},",
+    why: "a screen store's action says a line in that screen's notice",
+  },
 ];
