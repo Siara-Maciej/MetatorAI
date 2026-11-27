@@ -11406,6 +11406,7 @@ export const MUTANTS: readonly Mutant[] = [
   // The small stores of a run's page (ADR-0113).
   {
     file: "packages/desktop/src/features/runs/run-parts-state.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
     from: '  answered: (choices) => set({ said: `Answered: ${choices.join(", ")}.` }),',
     to: "  answered: () => {},",
     why: "a task's page says the answer it just gave",
