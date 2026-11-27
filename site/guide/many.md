@@ -93,7 +93,9 @@ Open the app as for one repository. The top bar shows the folder as **3 reposito
 
 - **Home** holds the decisions of every repository in one queue; a card's **Details** names its repository.
 - **Terminals**, **Backlog**, **Reviews** and **Settings** show one repository at a time, with a **repository** select at the top. The choice is shared by these places and remembered. A worktree is one of the places to pick, as `shop (fix-tax)`.
-- **+ New chat** opens the chat in the repository the select names. The agent works there, and before a full run it asks which repository the run belongs to when the code cannot tell.
+- **+ New chat** opens the chat of the folder when it holds more than one repository. The agent starts in the folder, knows every repository in it, and runs each repository's commands with `metator -C <repository>`. A run or a quick change always belongs to one repository: the agent names it before it starts, and asks you when the code cannot tell. The chat itself edits no file. Its row in the sidebar says **folder**.
+- The **▾** beside the button opens a chat in one repository instead; its row says the repository's name.
+- The folder keeps its chats in its own `.metator/` directory, and a copy of the conversation agent in `.claude/agents/` (taken from the repositories, so there is nothing to set up or commit).
 - The page of a run always uses the run's own repository.
 
 ![Home on a folder of 2 repositories: Approve the plan for Show prices with tax in shop-web, with Approve, Reject and Other](../public/screens/real/real-09-system-plan-card.webp)

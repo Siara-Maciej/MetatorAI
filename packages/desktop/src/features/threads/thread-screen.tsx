@@ -18,6 +18,7 @@ import { threadsHave } from "../../shared/model/found.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import { paneNeedsYou } from "../../shared/model/needs.ts";
 import { paneStateOf } from "../../shared/model/panes.ts";
+import { chatPlaceLabel } from "../../shared/model/places.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import { taskLine, taskState } from "../../shared/model/tasks.ts";
 import { threadLine, threadPane, threadTree } from "../../shared/model/threads.ts";
@@ -79,6 +80,8 @@ function useThreadGroup() {
 /** The glyph, the title, the one word and the line of the bar. */
 export function ThreadHead() {
   const title = useThreadFact((d, id) => threadOf(d, id)?.title);
+  // In a folder: whose chat this is, the folder's or a repository's.
+  const place = useThreadFact((d, id) => chatPlaceLabel(d.repos, threadOf(d, id)?.repo));
   const group = useThreadGroup();
   if (!group) return null;
   const { closed, g } = group;
@@ -89,6 +92,11 @@ export function ThreadHead() {
       <Glyph kind={kind} state={word} />
       <h1>{title}</h1>
       <span className={`word ${lookOf(kind, word).tone ?? ""}`}>{word}</span>
+      {place ? (
+        <span className="faint" data-testid="thread-place">
+          · {place}
+        </span>
+      ) : null}
       {g && threadLine(g) ? <span className="faint">· {threadLine(g)}</span> : null}
     </>
   );

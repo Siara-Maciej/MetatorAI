@@ -77,7 +77,15 @@ import {
   panesOfRun,
   SHELL_QUIET_MS,
 } from "../src/shared/model/panes.ts";
-import { flattenState, repoChoice, sameRepo } from "../src/shared/model/places.ts";
+import {
+  chatPlace,
+  chatPlaceLabel,
+  chatPlaces,
+  FOLDER_PLACE,
+  flattenState,
+  repoChoice,
+  sameRepo,
+} from "../src/shared/model/places.ts";
 import { parseRoute, RUN_TABS, routeHash, tabsOf } from "../src/shared/model/route.ts";
 import {
   finishedText,
@@ -642,6 +650,40 @@ describe("hosts, workflows and repositories (D1, D5, D10)", () => {
     expect(repoChoice(repos, "gone")).toBe("be");
     expect(repoChoice(repos, null)).toBe("be");
     expect(repoChoice([], "fe")).toBeUndefined();
+  });
+
+  test("a new chat opens in the folder when it holds more than one repository (ADR-0114)", () => {
+    const shop = { name: "shop", path: "shop" };
+    const fix = { name: "shop-fix", path: "shop-fix", worktreeOf: "shop", branch: "fix-tax" };
+    const web = { name: "web", path: "web" };
+    expect(chatPlace([shop, web], "web")).toBe(FOLDER_PLACE);
+    // One repository (also with its worktrees) and no folder at all: the repository the lists show.
+    expect(chatPlace([shop, fix], "shop-fix")).toBe("shop-fix");
+    expect(chatPlace([shop], "shop")).toBe("shop");
+    expect(chatPlace([], undefined)).toBeUndefined();
+    // The menu beside the button: the folder first, then every checkout by its label.
+    expect(chatPlaces([shop, fix, web])).toEqual([
+      { name: ".", label: "the folder" },
+      { name: "shop", label: "shop" },
+      { name: "shop-fix", label: "shop (fix-tax)" },
+      { name: "web", label: "web" },
+    ]);
+    expect(chatPlaces([shop, fix])).toEqual([]);
+    expect(chatPlaces([])).toEqual([]);
+  });
+
+  test("in a folder a chat says whose it is: the folder's or its repository's", () => {
+    const repos = [
+      { name: "shop", path: "shop" },
+      { name: "shop-fix", path: "shop-fix", worktreeOf: "shop", branch: "fix-tax" },
+    ];
+    expect(chatPlaceLabel(repos, ".")).toBe("folder");
+    expect(chatPlaceLabel(repos, "shop")).toBe("shop");
+    expect(chatPlaceLabel(repos, "shop-fix")).toBe("shop (fix-tax)");
+    expect(chatPlaceLabel(repos, "gone")).toBe("gone");
+    expect(chatPlaceLabel(repos, undefined)).toBeUndefined();
+    // One repository: nothing to tell apart.
+    expect(chatPlaceLabel([], "shop")).toBeUndefined();
   });
 
   test("an autonomy level reads with words beside it", () => {

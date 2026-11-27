@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  adoptChatAgent,
   agentDefinitionFiles,
   chatAgentIn,
   driveHostProblem,
@@ -123,6 +124,39 @@ describe("chatAgentIn: the agent the chat a person opens starts with (ADR-0093)"
     expect(
       await chatAgentIn(new InMemoryFileSystem({ ".sdk/mt-chat.md": "chat" }), [played]),
     ).toBeUndefined();
+  });
+});
+
+describe("adoptChatAgent: a folder's own copy of the conversation agent (ADR-0114)", () => {
+  const hosts = [sessionOnly, viaProgram, played, viaSdk];
+  test("each host file comes from the first repository that holds it; nothing else is copied", async () => {
+    const folder = new InMemoryFileSystem({});
+    const shop = new InMemoryFileSystem({
+      ".sdk/mt-chat.md": "shop's chat",
+      ".sdk/mt-a.md": "another agent",
+    });
+    const web = new InMemoryFileSystem({
+      ".sdk/mt-chat.md": "web's chat",
+      ".cli/agents/mt-chat.md": "web's cli",
+    });
+    expect((await adoptChatAgent(folder, [shop, web], hosts))._unsafeUnwrap()).toEqual([
+      ".sdk/mt-chat.md",
+      ".cli/agents/mt-chat.md",
+    ]);
+    expect((await folder.read(".sdk/mt-chat.md"))._unsafeUnwrap()).toBe("shop's chat");
+    expect((await folder.read(".cli/agents/mt-chat.md"))._unsafeUnwrap()).toBe("web's cli");
+    expect(await folder.exists(".sdk/mt-a.md")).toBe(false);
+  });
+
+  test("a copy that is the same is left alone; one that differs follows the repositories", async () => {
+    const folder = new InMemoryFileSystem({ ".sdk/mt-chat.md": "old" });
+    const shop = new InMemoryFileSystem({ ".sdk/mt-chat.md": "new" });
+    expect((await adoptChatAgent(folder, [shop], hosts))._unsafeUnwrap()).toEqual([".sdk/mt-chat.md"]);
+    expect((await folder.read(".sdk/mt-chat.md"))._unsafeUnwrap()).toBe("new");
+    expect((await adoptChatAgent(folder, [shop], hosts))._unsafeUnwrap()).toEqual([]);
+    // No repository has the agent: the folder gets none, and what it has stays.
+    expect((await adoptChatAgent(folder, [new InMemoryFileSystem({})], hosts))._unsafeUnwrap()).toEqual([]);
+    expect((await folder.read(".sdk/mt-chat.md"))._unsafeUnwrap()).toBe("new");
   });
 });
 

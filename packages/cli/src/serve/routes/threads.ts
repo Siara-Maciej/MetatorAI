@@ -1,5 +1,7 @@
 import {
   err,
+  FOLDER_PLACE,
+  type FolderChat,
   type ListedThread,
   MetatorError,
   ok,
@@ -26,7 +28,7 @@ interface Served {
 
 /** The repositories a call reads: the one it names (by name or root), else every one the daemon serves. */
 function servedBy({ daemon, repo }: Pick<Call, "daemon" | "repo">): readonly Served[] {
-  const all = daemon.repos();
+  const all = daemon.places();
   if (!repo || !daemon.folder) return all;
   return all.filter((r) => r.name === repo || r.c.resolve("root") === repo);
 }
@@ -35,15 +37,18 @@ function servedBy({ daemon, repo }: Pick<Call, "daemon" | "repo">): readonly Ser
 async function treeOf(
   call: Pick<Call, "daemon" | "repo">,
 ): Promise<Result<ThreadTree<ListedThread>, MetatorError>> {
-  const wanted = new Set(servedBy(call).map((r) => r.c));
-  const views = (await call.daemon.overviews(false)).filter((v) => wanted.has(v.c));
+  const views = await call.daemon.overviews(false);
   return threadTreeOf(
-    views.map((v) => ({
-      ...(v.name ? { repo: v.name } : {}),
-      threads: v.c.resolve("threads"),
-      // A repository whose runs cannot be read now still shows its threads.
-      runs: v.overview.isOk() ? v.overview.value.runs : ([] as RunOverview[]),
-    })),
+    servedBy(call).map((r) => {
+      // The folder's own place has threads and no runs; a repository whose runs cannot be read
+      // now still shows its threads.
+      const overview = views.find((v) => v.c === r.c)?.overview;
+      return {
+        ...(r.name ? { repo: r.name } : {}),
+        threads: r.c.resolve("threads"),
+        runs: overview?.isOk() ? overview.value.runs : ([] as RunOverview[]),
+      };
+    }),
   );
 }
 
@@ -73,7 +78,22 @@ async function nodeOf(
 
 /** The name a folder gives the repository of a container. */
 const nameOf = (daemon: Daemon, c: MetatorContainer): string | undefined =>
-  daemon.folder ? daemon.repos().find((r) => r.c === c)?.name : undefined;
+  daemon.folder ? daemon.places().find((r) => r.c === c)?.name : undefined;
+
+/**
+ * What makes a chat the folder's own (ADR-0114), when the call is for the folder itself: its
+ * repositories by name, after the conversation agent's host files were copied from them into the
+ * folder (the host starts there and reads its agents there).
+ */
+async function folderChat(
+  daemon: Daemon,
+  c: MetatorContainer,
+): Promise<Result<FolderChat | undefined, MetatorError>> {
+  if (!daemon.folder || nameOf(daemon, c) !== FOLDER_PLACE) return ok(undefined);
+  const adopted = await c.resolve("adoptChatAgent")(daemon.repos().map((r) => r.c.resolve("fileSystem")));
+  if (adopted.isErr()) return err(adopted.error);
+  return ok({ repos: daemon.folder.repos.map((r) => r.name) });
+}
 
 const by = body({ by: text });
 
@@ -99,6 +119,12 @@ export const THREAD_ROUTES: readonly Route[] = [
     handler: async ({ c, token, daemon, body: b }) => {
       const caller = token ? await c.resolve("panes").authorize(token) : undefined;
       const repo = nameOf(daemon, c);
+      const folder = await folderChat(daemon, c);
+      if (folder.isErr()) return folder;
+      // In a folder one app lists every place's threads: the new id is taken in none of them.
+      const taken: string[] = [];
+      for (const r of daemon.folder ? daemon.places() : [])
+        if (r.c !== c) taken.push(...(await r.c.resolve("threads").ids()));
       const from = {
         ...(b.from?.issue ? { issue: b.from.issue } : {}),
         ...(b.from?.thread ? { thread: b.from.thread } : {}),
@@ -111,6 +137,8 @@ export const THREAD_ROUTES: readonly Route[] = [
         ...(Object.keys(from).length > 0 ? { from } : {}),
         ...(caller ? { caller } : {}),
         ...(repo ? { repo } : {}),
+        ...(folder.value ? { folder: folder.value } : {}),
+        ...(taken.length > 0 ? { takenElsewhere: taken } : {}),
       });
     },
   }),
@@ -153,11 +181,14 @@ export const THREAD_ROUTES: readonly Route[] = [
       const id = call.params.id as string;
       const where = await holder(call, id);
       if (where.isErr()) return where;
+      const folder = await folderChat(call.daemon, where.value.c);
+      if (folder.isErr()) return folder;
       return where.value.c.resolve("threads").reopen({
         id,
         by: call.body.by ?? "",
         ...(call.body.host ? { host: call.body.host } : {}),
         ...(where.value.name ? { repo: where.value.name } : {}),
+        ...(folder.value ? { folder: folder.value } : {}),
       });
     },
   }),

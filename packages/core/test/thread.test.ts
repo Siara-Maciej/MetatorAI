@@ -87,6 +87,31 @@ describe("threadTree: one hierarchy for the sidebar", () => {
     expect(tree.closed).toEqual([]);
   });
 
+  test("a thread of the folder itself lists runs of any repository, each once (ADR-0114)", () => {
+    const tree = threadTree(
+      [
+        { ...thread({ id: "20261122-shop", runs: ["r1"] }), repo: "shop" },
+        { ...thread({ id: "20261122-folder", runs: ["r1", "r2"] }), repo: "." },
+      ],
+      [
+        task("r1", { repo: "shop" }),
+        task("r1", { repo: "web" }),
+        task("r2", { repo: "shop" }),
+        task("r3", { repo: "web" }),
+      ],
+    );
+    const tasksOf = (id: string) =>
+      tree.threads
+        .find((t) => t.id === id)
+        ?.tasks.map((x) => `${x.repo}:${x.runId}`)
+        .sort();
+    // A repository's thread takes only its own repository's run.
+    expect(tasksOf("20261122-shop")).toEqual(["shop:r1"]);
+    // Two repositories use the run id r1: the folder's thread takes the one no thread has yet.
+    expect(tasksOf("20261122-folder")).toEqual(["shop:r2", "web:r1"]);
+    expect(tree.withoutChat.map((x) => `${x.repo}:${x.runId}`)).toEqual(["web:r3"]);
+  });
+
   test("a run of a closed thread stays with it: closed threads are their own group, newest closed first", () => {
     const tree = threadTree(
       [

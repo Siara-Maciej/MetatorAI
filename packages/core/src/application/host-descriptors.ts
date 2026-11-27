@@ -11,6 +11,7 @@ import {
 } from "../domain/sandbox.ts";
 import type {
   AgentHost,
+  FileSystem,
   HostGenerator,
   HostSandbox,
   InteractiveHost,
@@ -185,6 +186,32 @@ export async function chatAgentIn(
 ): Promise<string | undefined> {
   const files = await agentDefinitionFiles(fs, hosts, [CHAT_AGENT]);
   return Object.keys(files).length > 0 ? CHAT_AGENT : undefined;
+}
+
+/**
+ * The folder's own copy of the conversation agent (ADR-0114): a host started in the folder reads
+ * its agents there, not in a repository below it. Each host file of the agent is taken from the
+ * first repository that holds it and written when the folder's differs, so the copy follows the
+ * repositories' version. The paths written.
+ */
+export async function adoptChatAgent(
+  folder: Pick<FileSystem, "read" | "write">,
+  repositories: readonly Pick<ReadonlyFileSystem, "read">[],
+  hosts: readonly HostDescriptor[],
+): Promise<Result<readonly string[], MetatorError>> {
+  const wanted: Record<string, string> = {};
+  for (const fs of repositories)
+    for (const [file, text] of Object.entries(await agentDefinitionFiles(fs, hosts, [CHAT_AGENT])))
+      wanted[file] ??= text;
+  const written: string[] = [];
+  for (const [file, text] of Object.entries(wanted)) {
+    const held = await folder.read(file);
+    if (held.isOk() && held.value === text) continue;
+    const saved = await folder.write(file, text);
+    if (saved.isErr()) return err(saved.error);
+    written.push(file);
+  }
+  return ok(written);
 }
 
 /**

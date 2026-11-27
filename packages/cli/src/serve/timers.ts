@@ -1,4 +1,5 @@
 import {
+  FOLDER_PLACE,
   type MetatorError,
   type Result,
   reviewSourcesOf,
@@ -82,6 +83,15 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
     }
   };
   /** What a clock changed in a repository, to the event channel. */
+  /** The containers of the repositories, without the folder's own place. */
+  const elsewhere = (): MetatorContainer[] =>
+    deps
+      .repos()
+      .filter((r) => r !== FOLDER_PLACE)
+      .flatMap((r) => {
+        const c = deps.containerFor(r);
+        return c.isOk() ? [c.value] : [];
+      });
   const publish = (repo: string | undefined, names: readonly TopicName[], runIds: readonly string[] = []) => {
     if (names.length > 0 || runIds.length > 0) deps.changed?.(topicsOf(names, runIds, repo));
   };
@@ -202,12 +212,22 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
               for (const x of r.value) say("panes", key)({ ended: x.ended, finished: x.runId });
               publish(repo, r.value.length > 0 ? ["layout", "state"] : []);
               // The chat a task was given in learns what became of it.
-              const told = await c.resolve("chatNotices").tick();
+              // The folder's own chats (ADR-0114) follow runs kept in the folder's repositories.
+              const others = repo === FOLDER_PLACE ? elsewhere() : [];
+              const told = await c
+                .resolve("chatNotices")
+                .tick(
+                  others.map((o) => ({ repo: o.resolve("runRepository"), journal: o.resolve("runJournal") })),
+                );
               if (told.isErr()) return say("chat", key)({ error: told.error.message });
               for (const t of told.value) say("chat", key)({ told: t.paneId, run: t.runId, event: t.event });
               publish(repo, told.value.length > 0 ? ["layout"] : []);
               // A thread keeps what became of its runs (ADR-0095): one fact per event.
-              const noted = await c.resolve("threads").noteRuns();
+              const noted = await c
+                .resolve("threads")
+                .noteRuns(
+                  others.map((o) => ({ runs: o.resolve("runRepository"), journal: o.resolve("runJournal") })),
+                );
               if (noted.isErr()) return say("threads", key)({ error: noted.error.message });
               for (const n of noted.value)
                 say("threads", key)({ noted: n.thread, run: n.runId, event: n.event });

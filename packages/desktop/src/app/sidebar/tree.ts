@@ -10,7 +10,7 @@ import { type BoardCard, boardCards } from "../../shared/model/board.ts";
 import { type FirstLevel, firstLevel } from "../../shared/model/look.ts";
 import { paneNeedsYou } from "../../shared/model/needs.ts";
 import { paneLabel, paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
-import { sameRepo } from "../../shared/model/places.ts";
+import { chatPlaceLabel, type Place, sameRepo } from "../../shared/model/places.ts";
 import { finishedText, isFinished, type Run, runLine, runWithPanes } from "../../shared/model/runs.ts";
 import type { RepoSystemPlan } from "../../shared/model/system-plans.ts";
 import {
@@ -119,6 +119,8 @@ export interface SideInput {
   readonly systemPlans: readonly RepoSystemPlan[];
   readonly threads: readonly ThreadView[];
   readonly paneAsks: readonly PaneAsk[];
+  /** The folder's places: in a folder a chat's row says whose it is (the folder's, a repository's). */
+  readonly repos?: readonly Place[] | undefined;
   /** What is shown: a thread's chat, or a run's page. */
   readonly shown: { readonly thread?: string | undefined; readonly runId?: string | undefined };
   readonly now: number;
@@ -221,7 +223,8 @@ export function sideTree(input: SideInput): SideTree {
       title: g.thread?.title ?? g.title,
       closed: g.thread?.state === "closed",
       word: g.word,
-      line: threadLine(g),
+      // In a folder a chat says whose it is before its tasks' count.
+      line: [chatPlaceLabel(input.repos ?? [], g.thread?.repo), threadLine(g)].filter(Boolean).join(" · "),
       open: g.open.map((t) => t.key),
       finished: g.finished.map((t) => t.key),
     };

@@ -1,7 +1,8 @@
 /**
  * The chats' acts (round 16), from the sidebar, Home, the Terminals and the keys alike.
  * "+ New chat": a thread and its chat terminal (the repository's conversation agent in a pane of its
- * own, `POST /threads`); the app goes to it. Home's "Describe a task" starts one named after the
+ * own, `POST /threads`); the app goes to it. In a folder of more than one repository the chat is the
+ * folder's own (ADR-0114), unless a repository is named (the menu beside the button). Home's "Describe a task" starts one named after the
  * person's words, which are typed to the agent as its first line. The host is the first of the
  * repository's `hostOrder` that is installed (D1); with none, or when the daemon refuses, the app
  * says so instead of opening a chat that cannot work. Close and Reopen end or bring back a thread's
@@ -9,25 +10,29 @@
  */
 import type { ThreadView } from "../../shared/api/api.ts";
 import { type Daemon, useDaemon } from "../../shared/daemon/daemon.tsx";
+import { chatPlace, FOLDER_PLACE } from "../../shared/model/places.ts";
 import { hostChoice, noHostText } from "../../shared/model/runs.ts";
 import { chatTitleOf } from "../../shared/model/threads.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { say } from "../../shared/notice.ts";
 import { sendLine } from "../terminals/terminal.tsx";
 
-export function useNewChat(): (words?: string) => Promise<void> {
-  const { client, repo, down, url, me, who, reloadThreads } = useDaemon(
+export function useNewChat(): (words?: string, where?: string) => Promise<void> {
+  const { client, repo, repos, down, url, me, who, reloadThreads } = useDaemon(
     "client",
     "repo",
+    "repos",
     "down",
     "url",
     "me",
     "who",
     "reloadThreads",
   );
-  return async (words) => {
+  return async (words, where) => {
     if (down) return;
-    const s = await client.supervisor(repo);
+    const place = where ?? chatPlace(repos, repo);
+    // The folder has no hosts of its own: the host is the one the repository of the lists would start.
+    const s = await client.supervisor(place === FOLDER_PLACE ? repo : place);
     if (!s.ok || !s.data) {
       say({ text: `No chat was started: ${s.error?.message ?? "the daemon did not answer"}`, tone: "error" });
       return;
@@ -40,7 +45,7 @@ export function useNewChat(): (words?: string) => Promise<void> {
     const by = await who();
     if (!by) return;
     const first = words?.trim() || undefined;
-    const r = await client.newThread({ ...(first ? { title: chatTitleOf(first) } : {}), by, host }, repo);
+    const r = await client.newThread({ ...(first ? { title: chatTitleOf(first) } : {}), by, host }, place);
     if (!r.ok || !r.data) {
       say({ text: `No chat was started: ${r.error?.message ?? "the daemon refused"}`, tone: "error" });
       return;
@@ -49,7 +54,7 @@ export function useNewChat(): (words?: string) => Promise<void> {
     await reloadThreads();
     navigate({ screen: "thread", id: r.data.thread.id });
     if (first) {
-      const refused = await sendLine("", url, me, repo, first, r.data.pane.id);
+      const refused = await sendLine("", url, me, place, first, r.data.pane.id);
       if (refused) say({ text: `The agent did not get your words: ${refused}`, tone: "error" });
     }
   };

@@ -25,6 +25,7 @@ const daemon = {
   state: async () => ok({ runs: [] }),
   inbox: async () => ok({ decisions: [] }),
   repos: () => [],
+  places: () => [],
   overviews: async () => [],
 } satisfies Daemon;
 

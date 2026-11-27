@@ -22,6 +22,7 @@ import { useNewChat, useThreadAct } from "../../features/threads/chat-actions.ts
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { useDaemon, useDaemonStore } from "../../shared/daemon/daemon.tsx";
 import { plural } from "../../shared/model/format.ts";
+import { chatPlaces } from "../../shared/model/places.ts";
 import { type Route, routeHash } from "../../shared/model/route.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { openNewRun } from "../../shared/overlays.ts";
@@ -30,7 +31,7 @@ import { ContextMenu } from "../../ui/context-menu.tsx";
 import { moveInList } from "../../ui/list-keys.ts";
 import { useRouteOf } from "../use-route.ts";
 import { GroupTasks, Icon, TaskIcon, ThreadIcon, ThreadRows } from "./rows.tsx";
-import { closeMenu, publishTree, toggleClosed, useSidebar } from "./state.ts";
+import { closeChatMenu, closeMenu, publishTree, showChatMenu, toggleClosed, useSidebar } from "./state.ts";
 import { sideTree, threadById } from "./tree.ts";
 
 /** The places that are not a run, in the order of the sidebar's bottom. */
@@ -69,7 +70,8 @@ export function Sidebar({
 
 /** Works the tree out of the daemon's state and the place shown, and publishes it; draws nothing. */
 function SideFeed() {
-  const { runs, panes, panesOf, systemPlans, threads, paneAsks } = useDaemon(
+  const { runs, panes, panesOf, systemPlans, threads, paneAsks, repos } = useDaemon(
+    "repos",
     "runs",
     "panes",
     "panesOf",
@@ -80,6 +82,7 @@ function SideFeed() {
   const thread = useRouteOf((r) => (r.screen === "thread" ? r.id : undefined));
   const runId = useRouteOf((r) => (r.screen === "run" ? r.runId : undefined));
   const tree = sideTree({
+    repos,
     runs,
     panes,
     panesOf,
@@ -329,6 +332,10 @@ function PlaceLink({
 function NewChatButton({ narrow, down }: { readonly narrow: boolean; readonly down: boolean }) {
   const newChat = useNewChat();
   const onNew = () => void newChat();
+  // In a folder: where a new chat opens, the folder first, then each repository.
+  const { repos } = useDaemon("repos");
+  const places = chatPlaces(repos);
+  const menu = useSidebar((s) => s.chatMenu);
   return narrow ? (
     <Button
       variant="primary"
@@ -340,13 +347,41 @@ function NewChatButton({ narrow, down }: { readonly narrow: boolean; readonly do
       +
     </Button>
   ) : (
-    <Button
-      variant="primary"
-      title="A new chat: one topic with the conversation agent; it starts the runs (key n)"
-      disabled={down}
-      onClick={onNew}
-    >
-      + New chat
-    </Button>
+    <>
+      <Button
+        variant="primary"
+        title="A new chat: one topic with the conversation agent; it starts the runs (key n)"
+        disabled={down}
+        onClick={onNew}
+      >
+        + New chat
+      </Button>
+      {places.length > 0 ? (
+        <Button
+          aria-label="Where the new chat opens"
+          title="Where the new chat opens: the folder, or one repository"
+          data-testid="new-chat-where"
+          disabled={down}
+          onClick={(e) => {
+            const at = e.currentTarget.getBoundingClientRect();
+            showChatMenu(at.left, at.top);
+          }}
+        >
+          ▾
+        </Button>
+      ) : null}
+      {menu ? (
+        <ContextMenu
+          at={menu}
+          label="where the new chat opens"
+          onClose={closeChatMenu}
+          items={places.map((p, i) => ({
+            label: `New chat in ${p.label}`,
+            separator: i === 1,
+            onSelect: () => void newChat(undefined, p.name),
+          }))}
+        />
+      ) : null}
+    </>
   );
 }

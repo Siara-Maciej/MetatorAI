@@ -1,3 +1,4 @@
+import { CHAT_AGENT } from "../domain/conductor.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { type Attention, stoppedAt } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -17,7 +18,7 @@ import {
 import type { Clock, FileLock, FileSystem } from "../ports/index.ts";
 import { readDocument, scanDocuments, writeDocument } from "./document-io.ts";
 import type { RunOverview } from "./overview.ts";
-import type { Panes, PaneView } from "./panes.ts";
+import { folderChatPrompt, type Panes, type PaneView } from "./panes.ts";
 import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { PaneMail } from "./session-steering.ts";
@@ -140,6 +141,27 @@ export interface NewThreadInput {
   readonly repo?: string;
   /** false: no daemon serves the repository, so the thread is made without its chat terminal. */
   readonly pane?: boolean;
+  /** The chat of a folder of repositories (ADR-0114): its repositories, named to the agent first. */
+  readonly folder?: FolderChat;
+  /**
+   * Ids taken in the other places of a folder (its repositories, the folder itself): one app lists
+   * all their threads, so a new thread's id is taken by none of them.
+   */
+  readonly takenElsewhere?: readonly string[];
+}
+
+/**
+ * Where a run of another repository is read and marked: a thread of a folder (ADR-0114) lists
+ * runs of the folder's repositories, each of which keeps its own runs.
+ */
+export interface ThreadRunsElsewhere {
+  readonly runs: Pick<RunRepository, "load">;
+  readonly journal: Pick<RunJournal, "activity" | "record">;
+}
+
+/** What makes a chat the folder's own: the repositories the folder gathers, by name. */
+export interface FolderChat {
+  readonly repos: readonly string[];
 }
 
 /** The threads on the state (`GET /state`, `/ws/state`): when `updatedAt` changes, the tree is read again. */
@@ -176,6 +198,12 @@ export class Threads {
       closed: threads.filter((t) => t.state === "closed").length,
       ...(latest ? { updatedAt: latest } : {}),
     };
+  }
+
+  /** The id of every thread here, open or closed. */
+  async ids(): Promise<readonly string[]> {
+    const all = await this.d.store.list();
+    return all.isOk() ? all.value.map((t) => t.id) : [];
   }
 
   show(id: string): Promise<Result<Thread, MetatorError>> {
@@ -248,10 +276,11 @@ export class Threads {
     const made = await this.d.store.create<PaneView | undefined>(async (taken) => {
       const now = this.d.clock.now();
       const at = now.toISOString();
-      const id = threadId(title, now, taken);
+      const elsewhere = new Set(input.takenElsewhere ?? []);
+      const id = threadId(title, now, (x) => taken(x) || elsewhere.has(x));
       let pane: PaneView | undefined;
       if (input.pane !== false) {
-        const opened = await this.openChat(id, input.host);
+        const opened = await this.openChat(id, input.host, undefined, input.folder);
         if (opened.isErr()) return err(opened.error);
         pane = opened.value;
       }
@@ -370,6 +399,7 @@ export class Threads {
     readonly by: string;
     readonly host?: string;
     readonly repo?: string;
+    readonly folder?: FolderChat;
   }): Promise<
     Result<{ readonly thread: Thread; readonly pane: PaneView; readonly how: ReopenHow }, MetatorError>
   > {
@@ -394,10 +424,10 @@ export class Threads {
     if (!pane) {
       const session = last?.hostSession ?? (old?.process.kind === "host" ? old.process.sessionId : undefined);
       const host = input.host ?? (old?.process.kind === "host" ? old.process.host : undefined);
-      const resumed = session ? await this.openChat(thread.id, host, session) : undefined;
+      const resumed = session ? await this.openChat(thread.id, host, session, input.folder) : undefined;
       if (resumed?.isOk()) pane = resumed.value;
       else {
-        const opened = await this.openChat(thread.id, host);
+        const opened = await this.openChat(thread.id, host, undefined, input.folder);
         if (opened.isErr()) return err(opened.error);
         pane = opened.value;
         how = "new-session";
@@ -512,7 +542,9 @@ export class Threads {
    * What became of the threads' runs: a run that is done, aborted or stopped for the person gets
    * one fact in each thread that lists it, once per event (the run's activity says it was noted).
    */
-  async noteRuns(): Promise<
+  async noteRuns(
+    elsewhere: readonly ThreadRunsElsewhere[] = [],
+  ): Promise<
     Result<
       readonly { readonly thread: string; readonly runId: string; readonly event: string }[],
       MetatorError
@@ -523,7 +555,16 @@ export class Threads {
     const out: { thread: string; runId: string; event: string }[] = [];
     for (const thread of all.value) {
       for (const runId of thread.runs) {
-        const record = await this.d.runs.load(runId);
+        // A run this place does not hold (a folder's chat started it in a repository) is read there.
+        let held: ThreadRunsElsewhere = this.d;
+        let record = await held.runs.load(runId);
+        for (const other of record.isErr() ? elsewhere : []) {
+          const found = await other.runs.load(runId);
+          if (found.isErr()) continue;
+          held = other;
+          record = found;
+          break;
+        }
         // A run that cannot be read now is looked at again later.
         if (record.isErr()) continue;
         const r = record.value;
@@ -534,7 +575,7 @@ export class Threads {
         const seen = `${thread.id} ${runId} ${key}`;
         if (this.noted.has(seen)) continue;
         const mark = `noted in thread ${thread.id} (${key})`;
-        const activity = await this.d.journal.activity(runId);
+        const activity = await held.journal.activity(runId);
         if (activity.isErr()) continue;
         if (activity.value.some((a) => a.text === mark)) {
           this.noted.add(seen);
@@ -550,7 +591,7 @@ export class Threads {
         const at = this.d.clock.now().toISOString();
         const saved = await this.d.store.update(thread.id, (t) => ok(threadWithFact(t, fact, at)));
         if (saved.isErr()) return err(saved.error);
-        const marked = await this.d.journal.record(runId, { type: "agent", origin: "run", text: mark });
+        const marked = await held.journal.record(runId, { type: "agent", origin: "run", text: mark });
         if (marked.isErr()) return err(marked.error);
         this.noted.add(seen);
         out.push({ thread: thread.id, runId, event: status });
@@ -564,6 +605,7 @@ export class Threads {
     thread: string,
     host?: string,
     sessionId?: string,
+    folder?: FolderChat,
   ): Promise<Result<PaneView, MetatorError>> {
     const workspace = await this.d.panes.openWorkspace({ label: "chat" });
     if (workspace.isErr()) return err(workspace.error);
@@ -580,7 +622,8 @@ export class Threads {
         kind: "host",
         ...(host ? { host } : {}),
         agent,
-        prompt: "",
+        // A chat of a folder is told its repositories; any other gets the agent's own first words.
+        prompt: folder && agent === CHAT_AGENT ? folderChatPrompt(folder.repos) : "",
         ...(sessionId ? { sessionId } : {}),
       },
     });

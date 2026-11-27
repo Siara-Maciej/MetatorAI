@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
+  CHAT_PROMPT,
   continueLine,
   DEFAULT_PATHS,
+  folderChatPrompt,
+  INTAKE_PROMPT,
   InitRun,
   InProcessLock,
   LayoutStore,
@@ -99,11 +102,81 @@ describe("Threads: one per topic, with its chat terminal", () => {
     // The same title the same day is another thread.
     const again = (await w.threads.create({ title: "Price rounding", by: "ann" }))._unsafeUnwrap();
     expect(again.thread.id).toBe("20261122-price-rounding-2");
+    // In a folder the id is taken by no other place's thread either: one app lists them all.
+    const third = (
+      await w.threads.create({
+        title: "Price rounding",
+        by: "ann",
+        takenElsewhere: ["20261122-price-rounding-3", "20261122-other"],
+      })
+    )._unsafeUnwrap();
+    expect(third.thread.id).toBe("20261122-price-rounding-4");
+    expect([...(await w.threads.ids())].sort()).toEqual([
+      "20261122-price-rounding",
+      "20261122-price-rounding-2",
+      "20261122-price-rounding-4",
+    ]);
     // "+ New chat" before the topic is known; a repository without mt-chat opens the orchestrator.
     const plain = world(null);
     const untitled = (await plain.threads.create({ by: "ann" }))._unsafeUnwrap();
     expect(untitled.thread).toMatchObject({ id: "20261122-new-chat", title: "New chat" });
     expect(plain.claude.started[0]?.task.agent).toBe("mt-orchestrator");
+  });
+
+  test("a chat of a folder is told its repositories first, also when it is reopened in a new session (ADR-0114)", async () => {
+    const w = world();
+    const folder = { repos: ["shop", "web"] };
+    const made = (await w.threads.create({ by: "ann", repo: ".", folder }))._unsafeUnwrap();
+    expect(made.thread.panes).toEqual([
+      { repo: ".", paneId: made.pane?.id as string, at: "2026-11-22T10:00:00.000Z" },
+    ]);
+    const first = w.claude.started[0]?.task.prompt as string;
+    expect(first).toBe(folderChatPrompt(["shop", "web"]));
+    expect(first).toContain("a folder of 2 repositories, not in one of them: shop, web");
+    expect(first).toContain("metator -C <repository>");
+    // A folder's thread made without a chat, reopened: the new session is told the same.
+    const later = (await w.threads.create({ title: "Later", by: "ann", pane: false }))._unsafeUnwrap();
+    const back = (
+      await w.threads.reopen({ id: later.thread.id, by: "ann", repo: ".", folder })
+    )._unsafeUnwrap();
+    expect(back.how).toBe("new-session");
+    expect(back.pane.process).toMatchObject({ agent: "mt-chat", prompt: folderChatPrompt(["shop", "web"]) });
+    // A repository's chat keeps the agent's own first words; so does a folder without the conversation agent.
+    const plain = (await w.threads.create({ title: "In one repository", by: "ann" }))._unsafeUnwrap();
+    expect(plain.pane?.process).toMatchObject({ prompt: CHAT_PROMPT });
+    const bare = world(null);
+    const fallback = (await bare.threads.create({ by: "ann", folder }))._unsafeUnwrap();
+    expect(fallback.pane?.process).toMatchObject({ agent: "mt-orchestrator", prompt: INTAKE_PROMPT });
+  });
+
+  test("a folder's thread notes what became of a run kept in one of its repositories (ADR-0114)", async () => {
+    const folder = world();
+    const shop = world();
+    const made = (
+      await folder.threads.create({ by: "ann", repo: ".", folder: { repos: ["shop"] } })
+    )._unsafeUnwrap();
+    const run = (await shop.init("Round prices"))._unsafeUnwrap();
+    const linked = (
+      await folder.threads.linkRun(made.pane?.id as string, run.runId, { task: run.task })
+    )._unsafeUnwrap();
+    expect(linked?.runs).toEqual([run.runId]);
+    await shop.repo.update(run.runId, (r) =>
+      ok({ ...r, state: { ...r.state, status: "done", stage: "done" } }),
+    );
+    const elsewhere = [{ runs: shop.repo, journal: shop.journal }];
+    // The folder holds no run: without its repositories there is nothing to note.
+    expect((await folder.threads.noteRuns())._unsafeUnwrap()).toEqual([]);
+    expect((await folder.threads.noteRuns(elsewhere))._unsafeUnwrap()).toEqual([
+      { thread: made.thread.id, runId: run.runId, event: "done" },
+    ]);
+    expect((await folder.threads.show(made.thread.id))._unsafeUnwrap().facts.at(-1)?.text).toBe(
+      `run ${run.runId} done: Round prices`,
+    );
+    // The mark is in the run's own repository, so it is noted once.
+    expect((await shop.journal.activity(run.runId))._unsafeUnwrap().map((a) => a.text)).toContain(
+      `noted in thread ${made.thread.id} (done)`,
+    );
+    expect((await folder.threadsOf(folder.make()).noteRuns(elsewhere))._unsafeUnwrap()).toEqual([]);
   });
 
   test("nothing is written when the chat cannot start, nor without who opens it or with a long title", async () => {

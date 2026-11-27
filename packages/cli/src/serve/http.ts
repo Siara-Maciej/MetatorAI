@@ -56,6 +56,11 @@ export interface Daemon {
   inbox(fresh: boolean): Promise<Result<unknown, MetatorError>>;
   /** Every repository the daemon serves, with its container (the one its panes live in); a name in a folder. */
   repos(): readonly { readonly name?: string; readonly c: MetatorContainer }[];
+  /**
+   * Every place that holds panes and threads: the repositories, and in a folder the folder itself
+   * (`FOLDER_PLACE`, ADR-0114), which has chats and no runs.
+   */
+  places(): readonly { readonly name?: string; readonly c: MetatorContainer }[];
   /** Each repository's overview as the state socket read it last (the same one, not read twice a tick). */
   overviews(fresh: boolean): Promise<
     readonly {

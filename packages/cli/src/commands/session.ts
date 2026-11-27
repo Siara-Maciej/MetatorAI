@@ -32,7 +32,7 @@ export function registerSessionCommands(program: Command, ctx: CommandContext): 
     );
   };
 
-  meta(session.command("list"), { audience: "person", reads: true })
+  meta(session.command("list"), { audience: "person", reads: true, folder: true })
     .description("The sessions of a task (or all): pane, repository, role, agent, state")
     .option("--task <run>", "the task: its main chat, its run's sessions and its child runs' sessions")
     .action(
@@ -45,8 +45,7 @@ export function registerSessionCommands(program: Command, ctx: CommandContext): 
     );
 
   const steer = (name: "tell" | "interrupt", description: string) =>
-    session
-      .command(`${name} <pane>`)
+    meta(session.command(`${name} <pane>`), { folder: true })
       .description(description)
       .requiredOption("--text <words>", "the person's words, as they said them")
       .option("--repo <name>", "the pane's repository, as `session list` names it (default: this one)")

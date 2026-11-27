@@ -341,8 +341,13 @@ describe("what a command says of itself (meta)", () => {
     // Round 20 (ADR-0105): `inspect` looks at any folder, a folder of repositories included.
     // Round 21 (ADR-0106): the dev container commands and the tunnel do not depend on the folder.
     const devcontainer = ["list", "start", "install", "run", "exec", "serve"].map((c) => `devcontainer ${c}`);
+    // ADR-0114: the folder has chats of its own, so their commands run there.
+    const chat = [
+      ...["new", "show", "list", "summary", "close", "reopen"].map((c) => `thread ${c}`),
+      ...["list", "tell", "interrupt"].map((c) => `session ${c}`),
+    ];
     expect(folderCommands(program).sort()).toEqual(
-      [...BEFORE.folder.filter((c) => c !== "ui"), "inspect", ...devcontainer, "tunnel"].sort(),
+      [...BEFORE.folder.filter((c) => c !== "ui"), "inspect", ...devcontainer, "tunnel", ...chat].sort(),
     );
   });
 

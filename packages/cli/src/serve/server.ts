@@ -4,6 +4,7 @@ import {
   DAEMON_FILE,
   DaemonInfoDocument,
   err,
+  FOLDER_PLACE,
   fleetInbox,
   MetatorError,
   type Overview,
@@ -96,7 +97,8 @@ export interface Served {
  */
 export function servedRoots(ctx: CommandContext): string[] {
   const folder = ctx.folder();
-  return folder ? folder.checkouts.map((r) => r.root) : [ctx.container().resolve("root")];
+  // The folder itself is served too: its own chats live there (ADR-0114).
+  return folder ? [...folder.checkouts.map((r) => r.root), folder.root] : [ctx.container().resolve("root")];
 }
 
 /**
@@ -143,6 +145,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
    */
   const repoName = (repo: string | undefined): string | undefined => {
     if (!folder) return undefined;
+    if (repo === FOLDER_PLACE || repo === folder.root) return FOLDER_PLACE;
     const entry = repo
       ? folder.checkouts.find((r) => r.name === repo || r.root === repo)
       : folder.checkouts[0];
@@ -166,6 +169,9 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     repo: string | undefined,
   ): Result<MetatorContainer, { code: string; message: string }> => {
     if (!folder) return ok(cached(".", () => ctx.container()));
+    // The folder itself: the place of its own chats (ADR-0114).
+    if (repo === FOLDER_PLACE || repo === folder.root)
+      return ok(cached(folder.root, () => ctx.containerAt(folder.root)));
     // A checkout by its name in the folder, or by its root (what a command run inside it knows).
     const entry = repo
       ? folder.checkouts.find((r) => r.name === repo || r.root === repo)
@@ -204,6 +210,13 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
             : {}),
         }))
       : [{ name: "", path: ".", key: ".", c: cached(".", () => ctx.container()) }];
+  /** Every place with panes and threads: the repositories, and in a folder the folder itself (ADR-0114). */
+  const placeViews = (): { name: string; key: string; c: MetatorContainer }[] => [
+    ...repoViews(),
+    ...(folder
+      ? [{ name: FOLDER_PLACE, key: folder.root, c: cached(folder.root, () => ctx.containerAt(folder.root)) }]
+      : []),
+  ];
   /**
    * A served overview: each question's options say which ones ask for the person's own words
    * (`needsText`), so the app reads the rule as data instead of keeping its own.
@@ -279,7 +292,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
    */
   const paneAsks = async () => {
     const out: Record<string, unknown>[] = [];
-    for (const r of repoViews()) {
+    for (const r of placeViews()) {
       for (const question of r.c.resolve("paneQuestions").open()) {
         const pane = await r.c.resolve("panes").pane(question.paneId);
         out.push({
@@ -328,6 +341,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     state,
     inbox,
     repos: () => repoViews().map((r) => (folder ? { name: r.name, c: r.c } : { c: r.c })),
+    places: () => placeViews().map((r) => (folder ? { name: r.name, c: r.c } : { c: r.c })),
     overviews: async (fresh) =>
       Promise.all(
         repoViews().map(async (r) => ({
@@ -340,10 +354,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   /** The repository whose panes know this token: a call from a pane acts in its own repository. */
   const repoOfToken = async (token: string): Promise<string | undefined> => {
     if (!folder) return undefined;
-    for (const r of folder.checkouts) {
-      const pane = await cached(r.root, () => ctx.containerAt(r.root))
-        .resolve("panes")
-        .authorize(token);
+    for (const r of placeViews()) {
+      const pane = await r.c.resolve("panes").authorize(token);
       if (pane) return r.name;
     }
     return undefined;
@@ -370,7 +382,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       texts.set("state", JSON.stringify(toEnvelope(await state(false))));
       texts.set("inbox", JSON.stringify(toEnvelope(await inbox(false))));
       const marks: unknown[] = [];
-      for (const r of repoViews()) {
+      for (const r of placeViews()) {
         const view = await r.c.resolve("panes").view();
         const at = folder ? { repo: r.name } : {};
         texts.set(topic("layout", at), view.isOk() ? layoutSignature(view.value) : view.error.message);
@@ -409,7 +421,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   listening = server;
   bound = server.port ?? opts.port;
   const timers = startTimers({
-    repos: () => (folder ? folder.checkouts.map((r) => r.name) : [undefined]),
+    // The folder's own chats are swept and supervised as a repository's are; nothing is scanned there.
+    repos: () => (folder ? [...folder.checkouts.map((r) => r.name), FOLDER_PLACE] : [undefined]),
     // A worktree shares its repository's issues and requests: only the repository looks for them.
     scans: () => (folder ? folder.checkouts.filter((r) => !r.worktreeOf).map((r) => r.name) : [undefined]),
     containerFor,
@@ -440,9 +453,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   }
   const restored: { root: string; paneId: string; ok: boolean; error?: string }[] = [];
   for (const root of roots) {
-    const c = folder
-      ? containerFor(folder.checkouts.find((r) => r.root === root)?.name)
-      : containerFor(undefined);
+    const c = containerFor(folder ? root : undefined);
     if (c.isErr()) continue;
     const r = await c.value.resolve("panes").restore(undefined, { resume: opts.restore !== false });
     if (r.isOk()) restored.push(...r.value.map((x) => ({ root, ...x })));

@@ -25,7 +25,14 @@ import {
   wsUrl,
 } from "../api/api.ts";
 import { type Polled, queryClient, readPolledAgain, usePolledAt, usePolledSelectAt } from "../api/query.ts";
-import { flattenState, type Place, repoChoice, sameRepo, type Unreadable } from "../model/places.ts";
+import {
+  FOLDER_PLACE,
+  flattenState,
+  type Place,
+  repoChoice,
+  sameRepo,
+  type Unreadable,
+} from "../model/places.ts";
 import { type Run, withTerminalAsks } from "../model/runs.ts";
 import type { SeenRuns } from "../model/session.ts";
 import { scratchCount, scratchRepos } from "../model/stage1.ts";
@@ -347,7 +354,8 @@ function DaemonState({ children }: { readonly children: React.ReactNode }) {
     `layout:${names}`,
     async () => {
       const all = await Promise.all(
-        (repos.length > 0 ? repos.map((r) => r.name) : [undefined]).map(async (repo) => {
+        // In a folder the folder itself has panes too: its own chats (ADR-0114).
+        (repos.length > 0 ? [...repos.map((r) => r.name), FOLDER_PLACE] : [undefined]).map(async (repo) => {
           const r = await client.layout(repo);
           return r.ok && r.data
             ? {
