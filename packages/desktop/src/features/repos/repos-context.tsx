@@ -2,10 +2,17 @@
  * The repositories the app knows (round 20, ADR-0105): read from the shell's store
  * (`known_repos`), the one open marked, and the acts on them (add, open, remove from the app). In
  * a browser there is no store: `known` stays undefined and the top bar shows what the daemon serves.
+ *
+ * App-wide state (ADR-0113): a store outside React, its acts plain functions; `<ReposProvider>`
+ * only reads the list when the app opens and opens the first one. A part reads the one value it
+ * draws (`useReposOf`).
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useDaemon } from "../../shared/daemon/daemon.tsx";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
+import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
+import { createStore } from "zustand/vanilla";
+import { forgetFolder, sessionStore, start } from "../../shared/daemon/session.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { appCommands } from "../../shared/platform/app-commands.ts";
 import {
@@ -48,56 +55,148 @@ export interface Repos {
   remove(path: string): Promise<string | undefined>;
 }
 
-const Ctx = createContext<Repos | undefined>(undefined);
+/** What the store keeps: the list and the containers as the shell said them last. */
+interface Known {
+  readonly known: readonly KnownRepo[] | undefined;
+  readonly error: string | undefined;
+  readonly containers: DevContainerList | undefined;
+}
 
-export const useRepos = (): Repos => {
-  const r = useContext(Ctx);
-  if (!r) throw new Error("useRepos outside <ReposProvider>");
-  return r;
+const reposStore = createStore<Known>(() => ({ known: undefined, error: undefined, containers: undefined }));
+
+/** The shell's commands of this window (one per window), none in a browser. */
+const commandsNow = (): Commands | undefined => appCommands();
+
+/** The one open: the known repository of the folder the daemon was started for. */
+const currentOf = (known: Known["known"], folder: string): KnownRepo | undefined =>
+  known && folder !== "" ? known.find((k) => k.path === folder) : undefined;
+
+async function reload(): Promise<void> {
+  const commands = commandsNow();
+  if (!commands) return;
+  try {
+    reposStore.setState({ known: await commands.knownRepos(), error: undefined });
+  } catch (e) {
+    reposStore.setState((s) => ({ error: errorText(e), known: s.known ?? [] }));
+  }
+}
+
+async function refreshContainers(): Promise<void> {
+  const commands = commandsNow();
+  if (!commands) return;
+  try {
+    reposStore.setState({ containers: await commands.listDevContainers() });
+  } catch {
+    // An engine that does not answer leaves the states unknown: the switcher says nothing of them.
+    reposStore.setState({ containers: undefined });
+  }
+}
+
+async function startContainer(localFolder: string): Promise<string | undefined> {
+  const commands = commandsNow();
+  if (!commands) return "the app cannot start a container in a browser";
+  // The list is read again whether the start worked or not.
+  const why = await commands.startDevContainer(localFolder).then(
+    () => undefined,
+    (e: unknown) => errorText(e),
+  );
+  await refreshContainers();
+  return why;
+}
+
+async function open(path: string): Promise<string | undefined> {
+  const why = await start(path);
+  if (why === undefined) navigate({ screen: "inbox" });
+  return why;
+}
+
+async function addAndOpen(path: string, container?: string): Promise<string | undefined> {
+  const commands = commandsNow();
+  if (!commands) return "the app cannot add a repository in a browser";
+  let key = path;
+  // A dev container's entry is the shell's key, not the path inside the container.
+  const adding = container ? commands.addRepo(path, container) : commands.addRepo(path);
+  try {
+    key = (await adding).path;
+  } catch (e) {
+    return errorText(e);
+  }
+  // The folder is remembered before the list grows: nothing else opens it a second time.
+  const opened = open(key);
+  await reload();
+  return opened;
+}
+
+async function remove(path: string): Promise<string | undefined> {
+  const commands = commandsNow();
+  const { known } = reposStore.getState();
+  if (!commands || !known) return "the app cannot remove a repository in a browser";
+  const current = currentOf(known, sessionStore().getState().folder);
+  try {
+    await commands.removeRepo(path);
+  } catch (e) {
+    return errorText(e);
+  }
+  const next = afterRemove(known, path, current?.path);
+  await reload();
+  if (next.stay) return undefined;
+  if (next.open) return open(next.open.path);
+  forgetFolder();
+  navigate({ screen: "inbox" });
+  return undefined;
+}
+
+/** The acts on the repositories: plain functions, the same for every part. */
+export const reposActs = { reload, refreshContainers, startContainer, addAndOpen, open, remove } as const;
+
+/** What a part can read of the repositories: the list, the open one, the containers. */
+export interface ReposView extends Known {
+  readonly commands: Commands | undefined;
+  readonly current: KnownRepo | undefined;
+}
+
+const Ctx = createContext(false);
+
+const useInside = (): void => {
+  if (!useContext(Ctx)) throw new Error("useRepos outside <ReposProvider>");
 };
 
+/** One value of the repositories: the part draws again only when it changed. */
+export function useReposOf<T>(select: (r: ReposView) => T): T {
+  useInside();
+  const folder = useStore(sessionStore(), (s) => s.folder);
+  return useStore(reposStore, (s) =>
+    select({ ...s, commands: commandsNow(), current: currentOf(s.known, folder) }),
+  );
+}
+
+/** Everything about the repositories, for a part that shows most of it. */
+export function useRepos(): Repos {
+  useInside();
+  const folder = useStore(sessionStore(), (s) => s.folder);
+  const { known, error, containers } = useStore(
+    reposStore,
+    useShallow((s: Known) => s),
+  );
+  return {
+    commands: commandsNow(),
+    known,
+    current: currentOf(known, folder),
+    error,
+    containers,
+    states: statesOf(containers),
+    ...reposActs,
+  };
+}
+
 export function ReposProvider({ children }: { readonly children: React.ReactNode }) {
-  const commands = useMemo(() => appCommands(), []);
-  const [known, setKnown] = useState<readonly KnownRepo[]>();
-  const [error, setError] = useState<string>();
-  const reload = useCallback(async () => {
-    if (!commands) return;
-    try {
-      setKnown(await commands.knownRepos());
-      setError(undefined);
-    } catch (e) {
-      setError(errorText(e));
-      setKnown((k) => k ?? []);
-    }
-  }, [commands]);
-  const [containers, setContainers] = useState<DevContainerList>();
-  const refreshContainers = useCallback(async () => {
-    if (!commands) return;
-    try {
-      setContainers(await commands.listDevContainers());
-    } catch {
-      // An engine that does not answer leaves the states unknown: the switcher says nothing of them.
-      setContainers(undefined);
-    }
-  }, [commands]);
+  const commands = commandsNow();
+  const known = useStore(reposStore, (s) => s.known);
   const hasContainer = known?.some((k) => k.kind === "devcontainer") ?? false;
   useEffect(() => {
     if (hasContainer) void refreshContainers();
-  }, [hasContainer, refreshContainers]);
-  const startContainer = useCallback(
-    async (localFolder: string) => {
-      if (!commands) return "the app cannot start a container in a browser";
-      // The list is read again whether the start worked or not.
-      const why = await commands.startDevContainer(localFolder).then(
-        () => undefined,
-        (e: unknown) => errorText(e),
-      );
-      await refreshContainers();
-      return why;
-    },
-    [commands, refreshContainers],
-  );
-  const { folder, start, forgetFolder } = useDaemon("folder", "start", "forgetFolder");
+  }, [hasContainer]);
+  const folder = useStore(sessionStore(), (s) => s.folder);
   // The folder an older app remembered becomes the first known repository, once, when the app opens.
   const remembered = useRef(folder);
   useEffect(() => {
@@ -110,8 +209,7 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
       }
       await reload();
     })();
-  }, [commands, reload]);
-  const current = known && folder !== "" ? known.find((k) => k.path === folder) : undefined;
+  }, [commands]);
   // Known repositories and none remembered as open when the app opens: the first is opened, once.
   const chose = useRef(false);
   useEffect(() => {
@@ -120,66 +218,8 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
     if (folder !== "") return;
     const first = currentRepo(known, undefined);
     if (first) void start(first.path);
-  }, [known, folder, start]);
-  const open = useCallback(
-    async (path: string) => {
-      const why = await start(path);
-      if (why === undefined) navigate({ screen: "inbox" });
-      return why;
-    },
-    [start],
-  );
-  const addAndOpen = useCallback(
-    async (path: string, container?: string) => {
-      if (!commands) return "the app cannot add a repository in a browser";
-      let key = path;
-      // A dev container's entry is the shell's key, not the path inside the container.
-      const adding = container ? commands.addRepo(path, container) : commands.addRepo(path);
-      try {
-        key = (await adding).path;
-      } catch (e) {
-        return errorText(e);
-      }
-      // The folder is remembered before the list grows: nothing else opens it a second time.
-      const opened = open(key);
-      await reload();
-      return opened;
-    },
-    [commands, reload, open],
-  );
-  const remove = useCallback(
-    async (path: string) => {
-      if (!commands || !known) return "the app cannot remove a repository in a browser";
-      try {
-        await commands.removeRepo(path);
-      } catch (e) {
-        return errorText(e);
-      }
-      const next = afterRemove(known, path, current?.path);
-      await reload();
-      if (next.stay) return undefined;
-      if (next.open) return open(next.open.path);
-      forgetFolder();
-      navigate({ screen: "inbox" });
-      return undefined;
-    },
-    [commands, known, current, reload, open, forgetFolder],
-  );
-  const value: Repos = {
-    commands,
-    known,
-    current,
-    error,
-    reload,
-    containers,
-    states: statesOf(containers),
-    refreshContainers,
-    startContainer,
-    addAndOpen,
-    open,
-    remove,
-  };
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  }, [known, folder]);
+  return <Ctx.Provider value={true}>{children}</Ctx.Provider>;
 }
 
 /**
@@ -187,9 +227,10 @@ export function ReposProvider({ children }: { readonly children: React.ReactNode
  * the container (`editorChoice`), opened by the shell; undefined when the daemon opens the editor.
  */
 export function useHostEditor(): HostEditor | undefined {
-  const r = useContext(Ctx);
-  const commands = r?.commands;
-  const current = r?.current;
+  const inside = useContext(Ctx);
+  const commands = inside ? commandsNow() : undefined;
+  const folder = useStore(sessionStore(), (s) => s.folder);
+  const current = useStore(reposStore, (s) => (inside ? currentOf(s.known, folder) : undefined));
   return useMemo(() => {
     if (!commands || current?.kind !== "devcontainer") return undefined;
     return (at) => {

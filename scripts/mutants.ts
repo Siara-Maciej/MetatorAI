@@ -11033,4 +11033,53 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const { repo } = useStore(store, (d) => d);",
     why: "the repository choice draws nothing for a run's change",
   },
+  // The shell's parts read one value (ADR-0113): the sidebar's rows, the route, the repository screens' stores.
+  {
+    file: "packages/desktop/src/app/sidebar/tree.ts",
+    from: "holds: [t.head?.runId, ...t.subtasks.map((c) => c.runId)]",
+    to: "holds: [...t.subtasks.map((c) => c.runId)]",
+    why: "a task holds its own run: it is current and unfolds while that run shows",
+  },
+  {
+    file: "packages/desktop/src/app/sidebar/state.ts",
+    from: "sidebarStore.setState((s) => ({ tree: shared(s.tree, next) }));",
+    to: "sidebarStore.setState({ tree: next });",
+    why: "a row that did not change stays the same object, so it does not draw again",
+  },
+  {
+    file: "packages/desktop/src/app/sidebar/rows.tsx",
+    from: '(r.screen === "run" && holds.includes(r.runId) ? r.runId : undefined)',
+    to: '(r.screen === "run" ? r.runId : undefined)',
+    why: "a move draws only the rows that are or were current",
+  },
+  {
+    file: "packages/desktop/src/app/use-route.ts",
+    from: "      moved.current(next);\n",
+    to: "",
+    why: "a move closes the drawer",
+  },
+  {
+    file: "packages/desktop/src/features/repos/state.ts",
+    from: "            set({ place: undefined });\n",
+    to: "",
+    why: "Change from a container goes back to the list of containers",
+  },
+  {
+    file: "packages/desktop/src/features/repos/state.ts",
+    from: "        if (failed) set({ why: failed });\n",
+    to: "",
+    why: "a refused reconnect says why",
+  },
+  {
+    file: "packages/desktop/src/features/repos/state.ts",
+    from: "    set({ refusal: undefined });\n",
+    to: "",
+    why: "the switcher's next act clears the last refusal",
+  },
+  {
+    file: "packages/desktop/src/features/repos/add-repo-screen.tsx",
+    from: 'const blank = useAddRepo((s) => typedPath(s).trim() === "");',
+    to: 'const blank = useAddRepo(typedPath).trim() === "";',
+    why: "typing a path draws Continue only when it can or cannot continue",
+  },
 ];
