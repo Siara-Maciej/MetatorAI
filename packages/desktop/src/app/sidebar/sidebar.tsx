@@ -378,7 +378,7 @@ export function Sidebar({
         </Button>
         {places.length > 0 ? (
           <Button
-            aria-label="New chat in a repository"
+            aria-label="Where the new chat opens"
             title="Where the new chat opens: the folder, or one repository"
             data-testid="new-chat-where"
             disabled={down}
