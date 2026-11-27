@@ -119,7 +119,7 @@ afterAll(async () => {
 }, 60_000);
 
 describe("an agent's question in words, in the app (real daemon, real Chromium)", () => {
-  test("its frame needs you; its card shows the prompt, the whole message and the options; 1 is typed into the pane", async () => {
+  test("its frame needs you; Home lists it with no card and goes to the run's pane; the answer reaches the pane", async () => {
     await fetch(`${base}/runs/${runId}/pty-open`, { method: "POST", body: "{}" });
     await until("the question in the inbox", async () => {
       const r = (await (await fetch(`${base}/inbox`)).json()) as { data: { panes?: { paneId: string }[] } };
@@ -128,29 +128,29 @@ describe("an agent's question in words, in the app (real daemon, real Chromium)"
     await page.goto(app("grid/pane:w1:p1"));
     await page.getByTestId("needs-you-w1:p1").waitFor({ timeout: 30_000 });
     await page.goto(app("inbox"));
-    const card = page.getByTestId("pane-ask-w1:p1");
-    await card.waitFor({ timeout: 30_000 });
-    expect(await card.locator("h1").textContent()).toBe("The tests fail: the build has no currency field.");
-    expect(await card.getByTestId("pane-asker").textContent()).toContain(`(run ${runId})`);
-    expect(await card.getByTestId("message-full").count()).toBe(0);
-    await card.getByTestId("message-short").click();
-    expect(await card.getByTestId("message-full").textContent()).toContain("Options:\n1. Add the field");
-    expect((await card.locator(".option .label").allTextContents()).slice(0, 2)).toEqual([
-      "1. Add the field and run the tests again.",
-      "2. Stop the run.",
-    ]);
-    await card.getByRole("radio").first().check();
-    await card.getByRole("button", { name: "Send" }).click();
-    const named = page.getByRole("dialog", { name: "your name" });
-    if (await named.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await named.getByLabel("Your name").fill("ana");
-      await named.getByRole("button", { name: "Save" }).click();
-    }
+    const line = page.getByTestId("terminal-need-w1:p1");
+    await line.waitFor({ timeout: 30_000 });
+    expect(await line.textContent()).toContain("The tests fail: the build has no currency field.");
+    expect(await page.locator("article.card").count()).toBe(0);
+    // The line goes to the run's Terminal tab on the pane that asks.
+    await line.click();
+    await page.getByTestId("terminal-ask").waitFor({ timeout: 30_000 });
+    expect(page.url()).toContain(`#/run/${runId}/terminal/${encodeURIComponent("w1:p1")}`);
+    // The daemon types an answer into the pane (what `metator pane answer` does).
+    const asked = (await (await fetch(`${base}/inbox`)).json()) as {
+      data: { panes: { paneId: string; question: { id: string } }[] };
+    };
+    const question = asked.data.panes.find((x) => x.paneId === "w1:p1")?.question.id;
+    await fetch(`${base}/panes/${encodeURIComponent("w1:p1")}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ question, choices: ["1. Add the field and run the tests again."], by: "ana" }),
+    });
     await until("the pane to read 1", async () => {
       const r = (await (await fetch(`${base}/panes/w1:p1`)).json()) as { data: { text: string } };
       return r.data.text.includes("answer: 1") ? true : undefined;
     });
-    await until("the card to go", async () => ((await card.count()) === 0 ? true : undefined));
+    await page.goto(app("inbox"));
+    await until("the line to go", async () => ((await line.count()) === 0 ? true : undefined));
     await metator(["run", "close", "--run", runId, "--aborted", "--reason", "the test ends it"], repo.root);
   }, 120_000);
 });

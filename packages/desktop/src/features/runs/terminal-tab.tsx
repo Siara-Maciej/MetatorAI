@@ -9,6 +9,7 @@ import { useAction } from "../../shared/hooks.ts";
 import { plainKey } from "../../shared/model/keys.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import {
+  askingPane,
   goesToPane,
   hostPromptOf,
   isTerminalQuestion,
@@ -50,7 +51,7 @@ export function TerminalTab({
   onOpenRun(runId: string): void;
   onOpenChanges(runId: string): void;
 }) {
-  const { client, panesOf, url, me } = useDaemon("client", "panesOf", "url", "me");
+  const { client, panesOf, url, me, paneAsks } = useDaemon("client", "panesOf", "url", "me", "paneAsks");
   const runId = run.runId;
   const repo = run.repo;
   // In a folder two repositories may use the same pane ids: only the run's repository counts.
@@ -163,6 +164,8 @@ export function TerminalTab({
     setHandleReady((n) => n + 1);
   };
   const question = run.questions[0];
+  // The pane that waits for an answer typed in it: the one the run names, or one whose question the daemon read.
+  const asksIn = askingPane(run, paneAsks);
   const host = question?.source === "permission" ? hostPromptOf(question.prompt) : undefined;
   return (
     <div className="session">
@@ -199,14 +202,12 @@ export function TerminalTab({
           </div>
         ) : null}
         <Notice {...action.notice} />
-        {run.terminalAsk ? (
+        {asksIn ? (
           <div className="banner ask-banner" data-testid="terminal-ask">
             <span className="msg">
               The agent asks in its terminal{attached ? ": type your answer there." : ". Attach to answer."}
             </span>
-            {run.terminalAsk !== shown ? (
-              <Button onClick={() => setChosenPane(run.terminalAsk)}>Show the pane</Button>
-            ) : null}
+            {asksIn !== shown ? <Button onClick={() => setChosenPane(asksIn)}>Show the pane</Button> : null}
           </div>
         ) : null}
         <Tabs

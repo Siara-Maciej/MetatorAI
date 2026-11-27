@@ -3155,6 +3155,30 @@ export const MUTANTS: readonly Mutant[] = [
     why: "an inbox row says whether the decision is reversible",
   },
   {
+    file: "packages/desktop/src/shared/model/needs.ts",
+    from: "  isPaneAsk(n) || isTerminalAsk(n);",
+    to: "  isPaneAsk(n);",
+    why: "a run that asks on its terminal is answered there, with no card",
+  },
+  {
+    file: "packages/desktop/src/shared/model/needs.ts",
+    from: '  if (thread) return { screen: "thread", id: thread };',
+    to: "",
+    why: "a chat that asks is answered in its own terminal",
+  },
+  {
+    file: "packages/desktop/src/shared/model/needs.ts",
+    from: "  return rows[(at + 1) % Math.max(rows.length, 1)];",
+    to: "  return rows[0];",
+    why: "Needs you goes on to the next that waits",
+  },
+  {
+    file: "packages/core/src/domain/agent-question.ts",
+    from: "INVITATION_EN.test(line) || INVITATION_PL.test(line);",
+    to: "INVITATION_EN.test(line);",
+    why: "an invitation in Polish is no question either",
+  },
+  {
     file: "packages/desktop/src/features/inbox/model.ts",
     from: '  return parseRoute(hash).screen === "inbox" ? { screen: "inbox" } : undefined;',
     to: '  return { screen: "inbox" };',
@@ -8948,7 +8972,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/agent-question.ts",
-    from: "&& !(parts.at(-1)?.item === undefined && INVITATION.test(closing));",
+    from: "&& !(parts.at(-1)?.item === undefined && invites(closing));",
     to: ";",
     why: "a greeting that ends with an open invitation asks nothing",
   },

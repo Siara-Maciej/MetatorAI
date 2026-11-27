@@ -451,9 +451,10 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     const side = page.locator("aside.sessions .list .row", { hasText: "Check the totals" }).first();
     expect(await side.locator(".word").textContent()).toBe("blocked");
     expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
-    // One count everywhere: Home's queue and the sidebar's heading.
-    const needYou = Number(/(\d+) waiting/.exec((await page.getByTestId("queue").textContent()) ?? "")?.[1]);
-    expect(needYou).toBeGreaterThan(0);
+    // One count everywhere: the sidebar's heading is Home's cards and the terminals Home lists.
+    const cards = Number(/(\d+) waiting/.exec((await page.getByTestId("queue").textContent()) ?? "")?.[1]);
+    expect(cards).toBeGreaterThan(0);
+    const needYou = cards + (await page.getByTestId("terminal-asks").locator("li").count());
     expect(await page.getByTestId("needs-count").textContent()).toContain(`Needs you · ${needYou}`);
     await page.goto(app("supervisor"));
     await until("the escalated run on the daemon screen", async () =>

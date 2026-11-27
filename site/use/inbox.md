@@ -1,6 +1,6 @@
 # Home and the Board
 
-A run stops when a decision belongs to you. **Home**, the first screen of the app, shows every decision that waits for you, one at a time: approvals, agents' questions, your host's permission prompts, commits that need your consent, quick changes to look at, escalated runs and reviews. The **Board** shows every task by phase. This page covers both, in the app and from a terminal.
+A run stops when a decision belongs to you. **Home**, the first screen of the app, shows every decision that waits for you, one at a time: approvals, agents' questions, your host's permission prompts, commits that need your consent, quick changes to look at, escalated runs and reviews. What an agent or its host asks in a terminal is answered in that terminal: Home lists it in one line, and **Needs you** takes you there ([Questions asked in the terminal](#questions-asked-in-the-terminal)). The **Board** shows every task by phase. This page covers both, in the app and from a terminal.
 
 ## What stops a run
 
@@ -16,7 +16,7 @@ An agent works without asking when it runs the MetatorAI commands its definition
 
 ## Home
 
-Home shows one decision at a time, as a big card: the question, or the plan to approve, and its answers. Above the card, **3 waiting · 1 of 3** says how many decisions wait, with **‹ Previous** and **Next ›**; `k` and `j`, or the arrow keys, do the same. The sidebar only counts them (**Needs you · N**). Each decision has its own address, `#/inbox/<repository>/<run>/<question>`: a step that asks in the sidebar, **its card on Home ›** on a step's page and **on Home ›** on a task's page open exactly that card, and **‹ Previous** and **Next ›** go on from it. Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
+Home shows one decision at a time, as a big card: the question, or the plan to approve, and its answers. Above the card, **3 waiting · 1 of 3** says how many decisions wait, with **‹ Previous** and **Next ›**; `k` and `j`, or the arrow keys, do the same. **Needs you · N** in the sidebar counts everything that waits, the terminals that ask included, and a click on it goes to the next one. Each decision has its own address, `#/inbox/<repository>/<run>/<question>`: a step that asks in the sidebar, **its card on Home ›** on a step's page and **on Home ›** on a task's page open exactly that card, and **‹ Previous** and **Next ›** go on from it. Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
 
 ![Home: Approve the plan for Add GET /prices, with Approve, a field for changes and Ask for changes above the plan's five steps](../public/screens/real/real-06-plan-card.webp)
 *A plan-approval card: the whole plan, Approve and Ask for changes.*
@@ -74,7 +74,7 @@ A confirmation says what the run did with your answer: **Rejected: the run escal
 
 What a chat leaves for you to decide comes here too:
 
-- **A commit or a push** the agent asks for: the command as the heading and a line under it, **git commit needs your consent: it runs only when you say Yes here, or ask for it in the chat.** A reason of the guard, such as a commit that holds debug changes, is shown under the command.
+- **A commit or a push** a run's agent asks for: the command as the heading and a line under it, **git commit needs your consent: it runs only when you say Yes here, or ask for it in the chat.** In a chat without a run the host's prompt is answered in the chat's terminal. A reason of the guard, such as a commit that holds debug changes, is shown under the command.
 - **Quick change ready: look at the diff**: **Open diff** opens the run's **Changes** and leaves the card; **Fine** ends the quick run ([Quick and debug changes](./quick.md)).
 - **This grew past quick: …**: **Continue as full** or **Keep as quick**.
 - **Debug changes (N)** on Home lists the [debug changes](./quick.md#debug-changes) still in your files, with **Remove debug changes**.
@@ -88,7 +88,14 @@ Reviews of pull requests have cards on Home too, after the questions of the runs
 
 ## Questions asked in the terminal
 
-An agent can also stop at a question it wrote on its own screen, without a card. Such a run still needs you. Home shows it in its turn as a card with the task and **answers in its terminal**; **Open the run** opens the run's **Terminal** tab on the pane that asks. Attach and type the answer there ([Terminals and sessions](./sessions.md)).
+An agent can also stop at a question it wrote on its own screen, and its host can ask there for leave to run a command. Such a question has no card: you answer it where it is asked.
+
+- **Needs you · N** counts it, and a click goes to the terminal that asks: the chat, or the run's **Terminal** tab on that pane. Click again for the next one that waits.
+- The terminal's frame says **needs you**, and its chat or task reads `needs you` in the sidebar.
+- Home lists each such terminal in one line above the cards; a click on the line goes there too.
+- In a chat you type at once. In a run's pane, **Attach** first: the Terminal tab says **The agent asks in its terminal. Attach to answer.** ([Terminals and sessions](./sessions.md)).
+
+The question goes from **Needs you** when the prompt is gone from the screen.
 
 ## Permission prompts of the host
 
@@ -98,17 +105,13 @@ When the prompt is a numbered menu, as Claude Code's approval is (**1. Yes**, **
 
 ### Questions an agent asks in its own words
 
-Agents are told to ask you with a card (`metator run ask`). If one ends its turn with a question in prose instead and waits at its prompt, MetatorAI catches it. This applies to a conductor, a worker, or the chat where you describe a task. The agent's last message must end with a question mark, offer choices, tell you to answer ("Tell me how to proceed."), or say that it waits for your reply. A progress report, a wait for a worker, or a summary is not a question. Neither is a greeting that lists what you can do and ends with "What would you like to work on?", or a closing "Anything else?". The run needs you, and Home shows the question as a card:
+Agents are told to ask you with a card (`metator run ask`). If one ends its turn with a question in prose instead and waits at its prompt, MetatorAI catches it. This applies to a conductor, a worker, or the chat where you describe a task. The agent's last message must end with a question mark, offer choices, tell you to answer ("Tell me how to proceed."), or say that it waits for your reply. A progress report, a wait for a worker, or a summary is not a question. Neither is a greeting that lists what you can do and ends with "What would you like to work on?", or a closing "Anything else?"; the same holds in Polish ("Co robimy?", "W czym mogę pomóc?", "Coś jeszcze?"). The run needs you, and the question waits in that terminal ([Questions asked in the terminal](#questions-asked-in-the-terminal)): **Needs you** goes there, and you type your answer under the agent's message. While the question is open, the supervisor never nudges that agent, and no other line is typed into its pane.
 
-- the question in the agent's own words: the question its choices stand under, else the question its turn ends with, else the sentence that tells you to answer. When the message has no such sentence, the card shows its first sentence alone. Nothing is added to the agent's words;
-- the whole message, behind **The whole message**;
-- the agent's choices, then **Other** for your own words and **Leave it**.
-
-Your choice is typed into the pane: its number, or the reply word the agent named, then Enter. The card closes when the agent works again. While the question is open, the supervisor never nudges that agent, and no other line is typed into its pane.
+From a script, `POST /panes/:pane/answer` answers it with one of the agent's choices, typed into the pane: its number, or the reply word the agent named, then Enter.
 
 ### Before a run exists: the chat's questions
 
-The chat where you describe a task has no run yet, and its agent can still stop and wait for you: its host asks leave to run a command, or the agent asks in its terminal (`Which workflow? [mt-feature / mt-bugfix]`). Home shows such a question as a card of its own. It names the pane (**chat**) and, in a folder, its repository, and it offers the same choices as above. Your answer is typed into the pane. In **Terminals** the chat's frame says **needs you** until the question is answered, on the card or in the pane.
+The chat where you describe a task has no run yet, and its agent can still stop and wait for you: its host asks leave to run a command, or the agent asks in its terminal (`Which workflow? [mt-feature / mt-bugfix]`). Such a question has no card either: **Needs you** opens that chat with the keyboard in its terminal, its row in the sidebar reads `needs you`, and you answer there. In **Terminals** the chat's frame says **needs you** until the question is answered.
 
 For a script, these questions are listed in `GET /inbox` under `panes`, one item per question ([Daemon HTTP API](../reference/http.md)):
 

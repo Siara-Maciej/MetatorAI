@@ -6,14 +6,16 @@
  * its progress and how many of its steps need the person; what needs the person sorts first. A
  * task expands to its own tree: its steps and child runs by repository (pending steps with what
  * they wait for); a standalone run expands to its panes. Tasks no thread holds are in "Without a
- * chat"; closed threads wait under "Closed (N)", folded. Home shows the decisions one at a time;
- * the sidebar only counts them. Every row reads one of the first level's four words
+ * chat"; closed threads wait under "Closed (N)", folded. "Needs you" counts what waits and
+ * goes to it: the terminal that asks (its chat, its run's pane), one after another on each click,
+ * or the card on Home for what no terminal answers. Every row reads one of the first level's four words
  * (`firstLevel`); no ids, hosts or ages. Finished tasks are hidden behind "Show finished (N)" in
  * each group. The places are at the bottom: Board, Terminals, Backlog, Reviews (round 18: used
  * daily), and Settings, which holds the System; then "+ New chat" and the form.
  */
 
 import { useState } from "react";
+import { useNeedPlace } from "../../features/inbox/use-needs.ts";
 import { useOpenRun } from "../../features/runs/open-run.ts";
 import { useNewChat, useThreadAct } from "../../features/threads/chat-actions.ts";
 import type { ThreadView } from "../../shared/api/api.ts";
@@ -22,7 +24,7 @@ import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { type BoardCard, boardCards } from "../../shared/model/board.ts";
 import { plural } from "../../shared/model/format.ts";
 import { type FirstLevel, firstLevel } from "../../shared/model/look.ts";
-import { decisionKey, type NeedRow, paneNeedsYou } from "../../shared/model/needs.ts";
+import { decisionKey, type NeedRow, nextNeed, paneNeedsYou } from "../../shared/model/needs.ts";
 import { paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
 import { sameRepo } from "../../shared/model/places.ts";
 import { type Route, routeHash } from "../../shared/model/route.ts";
@@ -71,7 +73,12 @@ export function Sidebar({
     r.status === "escalated"
       ? navigate({ screen: "inbox", pick: `escalated:${r.repo ?? ""}:${r.runId}` })
       : openRun(r.runId, false, pane);
-  const onInbox = () => navigate({ screen: "inbox" });
+  // What needs the person, one after another: the terminal that asks, or the card on Home.
+  const placeOf = useNeedPlace();
+  const onInbox = () => {
+    const next = nextNeed(needs, route, placeOf);
+    navigate(next ? placeOf(next) : { screen: "inbox" });
+  };
   const newChat = useNewChat();
   const onNew = () => void newChat();
   const onForm = openNewRun;
@@ -267,7 +274,12 @@ export function Sidebar({
         ) : (
           <>
             <div className="side-head">
-              <Button className="section needs-head" data-testid="needs-count" onClick={onInbox}>
+              <Button
+                className="section needs-head"
+                data-testid="needs-count"
+                title={needs.length > 0 ? "Go to the next one that waits for you" : "Home"}
+                onClick={onInbox}
+              >
                 <Glyph kind="first" state={needs.length > 0 ? "needs you" : undefined} />
                 Needs you · {needs.length}
               </Button>

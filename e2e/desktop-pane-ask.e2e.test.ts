@@ -1,8 +1,8 @@
 /**
  * A pane without a run asks, in the app (ADR-0091; real daemon, real Chromium, no real AI host): a
- * stand-in `claude` draws Claude Code's approval screen in the intake chat. Home shows the pane's
- * card (its readable prompt, the pane, its choices), the chat's frame in Terminals says
- * "needs you", and Yes sent from the card is typed into the pane as its number.
+ * stand-in `claude` draws Claude Code's approval screen in the intake chat. The question has no
+ * card: Home lists the terminal that waits, "Needs you" goes to it, its frame says "needs you",
+ * and the person answers in the pane.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync } from "node:fs";
@@ -59,7 +59,7 @@ beforeAll(async () => {
   await repo.write("bin/approval.txt", CLAUDE_APPROVAL_RAW);
   await repo.write(
     "bin/claude",
-    `#!/bin/sh\ncat "${repo.path("bin/approval.txt")}"\nread -r key\nprintf 'picked %s\\n' "$key"\nsleep 60\n`,
+    `#!/bin/sh\ncat "${repo.path("bin/approval.txt")}"\nread -r key\nprintf '\\033[2J\\033[Hpicked %s\\n' "$key"\nsleep 60\n`,
   );
   chmodSync(repo.path("bin/claude"), 0o755);
   await repo.commit("init");
@@ -100,7 +100,7 @@ afterAll(async () => {
 }, 60_000);
 
 describe("a pane's question in the app (real daemon, real Chromium)", () => {
-  test("Home shows the chat's approval with its choices; its frame says needs you; Yes from the card picks 1 in the pane", async () => {
+  test("Home lists the chat that asks, with no card; Needs you goes to its terminal, whose frame says needs you; 1 typed there answers", async () => {
     const opened = (await (
       await fetch(`${base}/panes`, {
         method: "POST",
@@ -108,29 +108,32 @@ describe("a pane's question in the app (real daemon, real Chromium)", () => {
       })
     ).json()) as { data: { id: string } };
     const paneId = opened.data.id;
-    // Terminals: the chat's frame says it needs the person.
-    await page.goto(app(`grid/pane:${paneId}`));
-    await page.getByTestId(`needs-you-${paneId}`).waitFor({ timeout: 30_000 });
-    // Home: the pane's own card, the prompt in words, and the choices of the host's menu.
+    // Home: one line for the terminal that waits, the prompt in words; no card, nothing to click through.
     await page.goto(app("inbox"));
-    const card = page.getByTestId(`pane-ask-${paneId}`);
-    await card.waitFor({ timeout: 30_000 });
-    expect(await card.locator("h1").textContent()).toBe(CLAUDE_APPROVAL_TEXT);
-    expect(await card.getByTestId("pane-asker").textContent()).toContain("chat pane");
-    const labels = await card.locator(".option .label").allTextContents();
-    expect(labels.slice(0, 2)).toEqual(["Yes", "Yes, and don't ask again for: metator workflow *"]);
-    await card.getByRole("radio").first().check();
-    await card.getByRole("button", { name: "Send" }).click();
-    const named = page.getByRole("dialog", { name: "your name" });
-    if (await named.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await named.getByLabel("Your name").fill("ana");
-      await named.getByRole("button", { name: "Save" }).click();
-    }
+    // A terminal takes keys from a person with a name.
+    await page.evaluate(() => localStorage.setItem("metator.me", "ana"));
+    await page.reload();
+    const line = page.getByTestId(`terminal-need-${paneId}`);
+    await line.waitFor({ timeout: 30_000 });
+    expect(await line.textContent()).toContain(CLAUDE_APPROVAL_TEXT);
+    expect(await page.locator("article.card").count()).toBe(0);
+    expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
+    // Needs you goes to that terminal: its frame says it needs the person.
+    expect(await page.getByTestId("needs-count").textContent()).toContain("Needs you · 1");
+    await page.getByTestId("needs-count").click();
+    await page.getByTestId(`needs-you-${paneId}`).waitFor({ timeout: 30_000 });
+    expect(page.url()).toContain(`#/grid/pane:${encodeURIComponent(paneId)}`);
+    // The answer is typed in the pane, as in any terminal.
+    await page.getByTestId(`frame-${paneId}`).locator(".xterm").click();
+    await page.keyboard.type("1");
+    await page.keyboard.press("Enter");
     await until("the pane to pick 1", async () => {
       const r = (await (await fetch(`${base}/panes/${paneId}`)).json()) as { data: { text: string } };
       return r.data.text.includes("picked 1") ? true : undefined;
     });
-    // The card is gone from Home.
-    await until("the card to go", async () => ((await card.count()) === 0 ? true : undefined));
+    // The host redrew its screen without the prompt: nothing waits any more.
+    await until("Needs you to go to 0", async () =>
+      (await page.getByTestId("needs-count").textContent())?.includes("Needs you · 0") ? true : undefined,
+    );
   }, 120_000);
 });

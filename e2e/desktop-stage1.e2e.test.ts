@@ -226,7 +226,7 @@ async function scratchEdit(files: Record<string, string>, note?: string): Promis
 }
 
 describe("the conversation agent's first stage in the app (round 13)", () => {
-  test("+ New chat opens the repository's conversation agent as the chat; a chat's commit waits as a consent card", async () => {
+  test("+ New chat opens the repository's conversation agent as the chat; a chat's commit waits in its terminal", async () => {
     await page.goto(app("inbox"));
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     // Before `metator setup` the repository has no conversation agent: the agent of before.
@@ -263,7 +263,7 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
     );
     await post(`/panes/${chat.id}/close`, {});
     // A chat on Claude Code asks to commit (the stand-in draws the host's approval): the guard lets
-    // the host ask, and that is a card on Home.
+    // the host ask, and the chat's terminal waits for the person: no card.
     const opened = await post("/panes", { label: "chat", role: "apps", host: "claude", agent: "mt-chat" });
     const asking = (opened.data as { id: string }).id;
     expect((await panes()).find((x) => x.id === asking)?.process.host).toBe("claude");
@@ -275,24 +275,22 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
       throw new Error(`${(e as Error).message}: ${JSON.stringify(r.data).slice(0, 600)}`);
     });
     await page.goto(app("inbox"));
-    const card = page.getByTestId(`pane-ask-${asking}`);
-    await card.waitFor({ timeout: 30_000 });
-    // Its heading is the command; the card says the command needs the person's consent.
-    expect(await card.locator("h1").textContent()).toBe(COMMIT);
-    expect(await card.getByTestId("consent").textContent()).toBe(
-      "git commit needs your consent: it runs only when you say Yes here, or ask for it in the chat. MetatorAI never does it by itself.",
-    );
-    expect((await card.locator(".option .label").allTextContents())[0]).toBe("Yes");
-    if (SHOTS) await page.screenshot({ path: join(SHOTS, "consent-card.png") });
-    // Yes from the card is the consent: the host's menu gets its 1.
-    await card.getByRole("radio").first().check();
-    await card.getByRole("button", { name: "Send" }).click();
-    await nameIfAsked();
+    const line = page.getByTestId(`terminal-need-${asking}`);
+    await line.waitFor({ timeout: 30_000 });
+    // Its line names the command; a click goes to the terminal that asks.
+    expect(await line.textContent()).toContain(COMMIT);
+    expect(await page.locator("article.card").count()).toBe(0);
+    await line.click();
+    await page.getByTestId(`needs-you-${asking}`).waitFor({ timeout: 30_000 });
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "consent-terminal.png") });
+    // Yes typed in the pane is the consent: the host's menu gets its 1.
+    await page.getByTestId(`frame-${asking}`).locator(".xterm").click();
+    await page.keyboard.type("1");
+    await page.keyboard.press("Enter");
     await until("the pane to pick 1", async () => {
       const r = (await api(`/panes/${asking}`)) as { data: { text: string } };
       return r.data.text.includes("picked 1") ? true : undefined;
     });
-    await until("the card to go", async () => ((await card.count()) === 0 ? true : undefined));
     await post(`/panes/${asking}/close`, {});
   }, 120_000);
 

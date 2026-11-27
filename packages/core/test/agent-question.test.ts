@@ -148,6 +148,13 @@ describe("agentQuestionOf: an agent that ended its turn asking the person in wor
       "What can I help you with today?",
       "What do you want to work on?",
       "Where would you like to start?",
+      // The same in Polish: an agent answers in the person's language.
+      "Co robimy?",
+      "W czym mogę pomóc?",
+      "Jak mogę Ci pomóc?",
+      "Od czego zaczynamy?",
+      "Nad czym chcesz pracować?",
+      "Coś jeszcze?",
     ])
       expect(agentQuestionOf(` ● Hi. The checkout is clean.\n\n   ${invitation}\n\n❯`)).toBeUndefined();
     // A question about the work is one, also after a greeting; so is a decision the agent needs.
@@ -156,6 +163,12 @@ describe("agentQuestionOf: an agent that ended its turn asking the person in wor
     );
     expect(agentQuestionOf(" ● The tests fail.\n\n   What do you want to do?\n\n❯")?.prompt).toBe(
       "What do you want to do?",
+    );
+    expect(agentQuestionOf(" ● Indeks nie jest zbudowany.\n\n   Zbudować go teraz?\n\n❯")?.prompt).toBe(
+      "Zbudować go teraz?",
+    );
+    expect(agentQuestionOf(" ● Testy nie przechodzą.\n\n   Co robimy z tym testem?\n\n❯")?.prompt).toBe(
+      "Co robimy z tym testem?",
     );
   });
 

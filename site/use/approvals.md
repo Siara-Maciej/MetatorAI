@@ -85,7 +85,7 @@ The guard (the `pre-tool` hook your host runs before every tool call) sorts shel
 
 A commit is always your decision, and so is every merge: `gh pr merge`, `glab mr merge`, a merge through the code host's API or MCP tools, and a push straight to `main` or `master`. A merge asks even when `allow` lists it, and an approved push or a consent to push does not cover it; only `never` can forbid it. You give consent in one of three ways:
 
-- **A click.** The host shows its approval prompt, and Home shows it as a card whose heading is the command (`git commit -m "…"`), with **git commit needs your consent** under it. **Yes** (the host's own choice, offered on the card) lets that one command run.
+- **Yes to the host's prompt.** The host shows its approval prompt. In a chat you answer it in the chat's terminal, where **Needs you** takes you. In a run, Home also shows it as a card whose heading is the command (`git commit -m "…"`), with **git commit needs your consent** under it. **Yes** (the host's own choice) lets that one command run.
 - **Your word in the chat.** Your own message that asks for it ("commit it", "push", "merge it", "zacommituj") is consent to one such command, used up by the first one, within `guard.consentMinutes` (10 by default). A question ("should we commit?"), a refusal, the agent's own words and lines MetatorAI types (`[metator] …`) are no consent.
 - **A run's delivery.** In a run, approving its `delivery` stage counts as consent to that run's commit and push, never to a merge. For a merge in a run, `metator run approve merge --by alice` is your consent.
 

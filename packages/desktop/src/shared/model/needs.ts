@@ -5,6 +5,7 @@ import type { InboxItem, PaneAsk, PaneView, Question, ResolvedOption, RunOvervie
 import { commandText, duration } from "./format.ts";
 import { paneLabel } from "./panes.ts";
 import { sameRepo } from "./places.ts";
+import { type Route, routeHash } from "./route.ts";
 import type { Run } from "./runs.ts";
 
 /** The key of an escalated run in the inbox's selection, apart from a question's `<run>/<question>`. */
@@ -208,14 +209,51 @@ export const paneAskKey = (a: Pick<PaneAsk, "repo" | "paneId" | "question">): st
   ["pane", a.repo, a.paneId, a.question.id].filter((x) => x !== undefined && x !== "").join("/");
 /** A row of the queue that is a pane's question (no run). */
 export const isPaneAsk = (n: Pick<NeedRow, "kind">): boolean => n.kind === "pane";
-/** The pane question a row's key names. */
-export const paneAskOf = (asks: readonly PaneAsk[], key: string | undefined): PaneAsk | undefined =>
-  key ? asks.find((a) => paneAskKey(a) === key) : undefined;
+/**
+ * A need that is answered in a terminal, where the agent or its host asks: a pane's question and a
+ * run that asks on its terminal. It has no card: the app takes the person to that terminal.
+ */
+export const answersInTerminal = (n: Pick<NeedRow, "key" | "kind">): boolean =>
+  isPaneAsk(n) || isTerminalAsk(n);
+/** The needs Home shows as cards: the ones no terminal answers (a gate, an escalated run, a review). */
+export const cardNeeds = (rows: readonly NeedRow[]): NeedRow[] => rows.filter((n) => !answersInTerminal(n));
+/**
+ * Where a need is answered. One a terminal answers: the chat whose terminal asks (`chatOf` names
+ * its thread), else the run's Terminal tab on that pane, else the pane on Terminals. Any other:
+ * its card on Home.
+ */
+export function needPlace(
+  n: Pick<NeedRow, "key" | "kind" | "runId" | "repo" | "pane">,
+  chatOf: (pane: string, repo: string | undefined) => string | undefined = () => undefined,
+): Route {
+  if (!answersInTerminal(n)) return { screen: "inbox", pick: n.key };
+  const thread = n.pane ? chatOf(n.pane, n.repo) : undefined;
+  if (thread) return { screen: "thread", id: thread };
+  if (n.runId) return { screen: "run", runId: n.runId, tab: "terminal", ...(n.pane ? { pane: n.pane } : {}) };
+  return n.pane ? { screen: "grid", pane: n.pane } : { screen: "inbox" };
+}
+/**
+ * The need "Needs you" goes to from `here` (the route on screen): the one after the need shown
+ * there, around the end; the first when none is shown.
+ */
+export function nextNeed<N>(rows: readonly N[], here: Route, placeOf: (n: N) => Route): N | undefined {
+  const at = rows.findIndex((n) => routeHash(placeOf(n)) === routeHash(here));
+  return rows[(at + 1) % Math.max(rows.length, 1)];
+}
 /** A pane whose question waits for the person (its tile says "needs you"). */
 export const paneNeedsYou = (
   pane: { readonly id: string; readonly repo?: string | undefined },
   asks: readonly PaneAsk[],
 ): boolean => asks.some((a) => a.paneId === pane.id && sameRepo(a.repo, pane.repo));
+/**
+ * The pane of a run that waits for an answer typed in it: the one the run names (`terminalAsk`),
+ * else one of its panes whose question the daemon read. The run's Terminal tab says so.
+ */
+export const askingPane = (
+  run: Pick<Run, "runId" | "repo" | "terminalAsk">,
+  asks: readonly Pick<PaneAsk, "paneId" | "repo" | "runId">[],
+): string | undefined =>
+  run.terminalAsk ?? asks.find((a) => a.runId === run.runId && sameRepo(a.repo, run.repo))?.paneId;
 /**
  * The stable address of one decision on Home: its repository (when the daemon serves a folder),
  * its run and its question, `#/inbox/<repo>/<run>/<question>`. Opening it from anywhere shows

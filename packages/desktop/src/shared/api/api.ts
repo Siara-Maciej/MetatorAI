@@ -195,7 +195,7 @@ export type InboxItem = CoreInboxItem & { readonly repo?: string };
 
 /**
  * A question of a pane without a run (ADR-0091), from `/inbox`'s `panes`: the intake chat's host
- * asks leave to run a command, or its agent asks in words. Answered with `answerPane`.
+ * asks leave to run a command, or its agent asks in words. Answered in that pane (`needPlace`).
  */
 /** Why a pane's host is not running although its work is not over (round 11): it can be continued. */
 export interface PanePaused {
@@ -538,27 +538,6 @@ export class DaemonClient {
         by: input.by,
         ...(input.text ? { text: input.text } : {}),
         ...(input.origin ? { origin: input.origin } : {}),
-      },
-      repo,
-    );
-  /** An answer to a pane's question: typed into the pane at once (a menu's number, the agent's words). */
-  answerPane = (
-    input: {
-      readonly paneId: string;
-      readonly question: string;
-      readonly choices: readonly string[];
-      readonly by: string;
-      readonly text?: string | undefined;
-    },
-    repo?: string,
-  ) =>
-    this.post<PaneAsk["question"]>(
-      `/panes/${encodeURIComponent(input.paneId)}/answer`,
-      {
-        question: input.question,
-        choices: input.choices,
-        by: input.by,
-        ...(input.text ? { text: input.text } : {}),
       },
       repo,
     );

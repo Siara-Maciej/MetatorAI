@@ -469,18 +469,19 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     );
     await expect(await page.getByTestId("driverbar").textContent()).toContain("Working: agent");
     // The agent asks on its own screen (D2): the run counts as waiting for you, in the top bar,
-    // in the panel and on the session, and the Inbox has a row that opens the pane.
+    // in the panel and on the session, and Home has a line that opens the pane.
     await page.getByTestId("terminal-ask").waitFor({ timeout: 30_000 });
     expect(await page.getByTestId("needs-count").textContent()).toContain("Needs you · 1");
     expect(await page.locator(".sessions .row[aria-current='true']").textContent()).toContain(
       "asks in its terminal",
     );
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
-    const asks = page.getByTestId(`terminal-ask-${runId}`);
+    const asks = page.getByTestId("terminal-asks");
     await asks.waitFor({ timeout: 20_000 });
     expect(await asks.textContent()).toContain("answers in its terminal");
     expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
-    await asks.getByRole("button", { name: "Open the run" }).click();
+    // No card: Needs you goes straight to the run's pane.
+    await page.getByTestId("needs-count").click();
     await term.waitFor({ timeout: 20_000 });
     expect(page.url()).toContain(`#/run/${runId}/terminal/`);
     // A single-letter shortcut is the bare key (D7): Ctrl+A is not "attach".

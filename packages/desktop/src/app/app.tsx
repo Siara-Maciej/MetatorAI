@@ -17,7 +17,7 @@ import { AppSettings } from "../features/settings/app-settings.tsx";
 import { DaemonProvider, useDaemon } from "../shared/daemon/daemon.tsx";
 import { useKeptFlag } from "../shared/hooks.ts";
 import { keyMapOf } from "../shared/model/keys.ts";
-import { pickedNeed } from "../shared/model/needs.ts";
+import { cardNeeds, pickedNeed } from "../shared/model/needs.ts";
 import { routeHash } from "../shared/model/route.ts";
 import { closeHelp, closeNewRun, useOverlays } from "../shared/overlays.ts";
 import { HelpOverlay } from "./help-overlay.tsx";
@@ -46,7 +46,7 @@ function Shell() {
   const [drawer, setDrawer] = useState(false);
   const route = useRoute(() => setDrawer(false));
   const needs = useNeeds();
-  const picked = route.screen === "inbox" ? pickedNeed(needs, route.pick) : undefined;
+  const picked = route.screen === "inbox" ? pickedNeed(cardNeeds(needs), route.pick) : undefined;
   const { help, newRun } = useOverlays();
   const openRun = useOpenRun();
   useQuestionNotifications();

@@ -67,7 +67,9 @@ export const isFirstRun = (runs: readonly unknown[], needs: readonly unknown[]):
  * nothing driving it, or a blocked task, is something for the person to look at: then it never
  * says "nothing".
  */
-export function quietInboxText(open: number, idle: number, blocked = 0): string {
+export function quietInboxText(open: number, idle: number, blocked = 0, asking = 0): string {
+  if (asking > 0)
+    return `${plural(asking, "terminal")} ${asking === 1 ? "waits" : "wait"} for your answer: open ${asking === 1 ? "it" : "one"} above and answer there.`;
   if (idle > 0)
     return `${plural(idle, "run")} ${idle === 1 ? "has" : "have"} no agent working on ${idle === 1 ? "it" : "them"}:`;
   if (blocked > 0)
@@ -76,8 +78,8 @@ export function quietInboxText(open: number, idle: number, blocked = 0): string 
   return `Nothing needs you. ${plural(open, "run")} ${open === 1 ? "is" : "are"} working.`;
 }
 /** Home's heading when no decision waits: "nothing" only when nothing stands still either. */
-export const quietHeading = (idle: number, blocked: number): string =>
-  idle + blocked > 0 ? "No decision waits for you" : "Nothing waits for you";
+export const quietHeading = (idle: number, blocked: number, asking = 0): string =>
+  idle + blocked + asking > 0 ? "No decision waits for you" : "Nothing waits for you";
 /** What a blocked task needs, in Home's list: why its run stands still, the way out with it. */
 export const taskNeed = (run: Pick<RunOverview, "status" | "stage" | "reason"> | undefined): string =>
   blockedReason({ run });

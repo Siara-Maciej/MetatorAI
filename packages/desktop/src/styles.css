@@ -3096,6 +3096,16 @@ dialog.goto {
   padding: 0 18px 8px;
   font-size: var(--fs-compact);
 }
+.home .terminal-asks {
+  max-width: 980px;
+  margin: 0 0 var(--sp-3);
+  padding: 0 18px;
+  list-style: none;
+  font-size: var(--fs-compact);
+}
+.home .terminal-asks li {
+  margin: 2px 0;
+}
 .home .card h1 {
   font-size: 20px;
 }

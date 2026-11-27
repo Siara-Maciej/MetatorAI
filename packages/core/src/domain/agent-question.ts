@@ -54,8 +54,12 @@ const WHICH = /\bwhich\b/i;
  * A closing line that asks for nothing in particular: how a greeting or a finished turn hands the
  * word back ("What would you like to work on?", "How can I help?", "Anything else?").
  */
-const INVITATION =
+const INVITATION_EN =
   /^(?:so,?\s+)?(?:(?:what|where) (?:would you like|do you want|should we|shall we) (?:me )?(?:to )?(?:work on|start|begin|tackle)\b[^?]*|(?:how|what) (?:can|may|could) i (?:help|do for you)\b[^?]*|what do you need(?: help with)?|anything else\b[^?]*)\?$/i;
+/** The same in Polish, the language a person may be answered in ("Co robimy?", "W czym mogę pomóc?"). */
+const INVITATION_PL =
+  /^(?:to\s+|więc\s+)?(?:co (?:robimy|dalej)|(?:w czym|jak) mog[ęe] (?:ci |ci\u0119 )?(?:pom[óo]c|si[ęe] przyda[ćc])\b[^?]*|od czego (?:zaczynamy|zacz[ąa][ćc]|chcesz zacz[ąa][ćc])|(?:nad czym|czym) (?:pracujemy|si[ęe] zajmiemy|chcesz (?:pracowa[ćc]|si[ęe] zaj[ąa][ćc]))|co[śs] jeszcze\b[^?]*)\?$/i;
+const invites = (line: string): boolean => INVITATION_EN.test(line) || INVITATION_PL.test(line);
 /** A bullet labelled as a choice: `(a) Tell the conductor`, `(2) Stop`. */
 const LABELLED = /^\(([a-h]|\d{1,2})\)\s/;
 /** A bullet that states a fact: `Label: value` (a reply word in quotes is no label). */
@@ -151,7 +155,7 @@ export function agentQuestionOf(screen: string): AgentQuestionRead | undefined {
     list.length >= 2 && plain && (cueBefore || (cueAfter && brief)) ? list.map((i) => i.option) : [];
   const closing = parts.at(-1)?.sentences.at(-1) ?? "";
   // A turn that ends with a question asks, unless it only hands the word back.
-  const ends = closing.endsWith("?") && !(parts.at(-1)?.item === undefined && INVITATION.test(closing));
+  const ends = closing.endsWith("?") && !(parts.at(-1)?.item === undefined && invites(closing));
   // "Say yes and …", "Tell me how to go on.", "Still waiting for your reply": the turn ends on the person.
   const telling = prose.find((x) => ANSWER_ME.test(x) || WAITS.test(x));
   const waits = telling !== undefined || said.some((item) => item.some((x) => WAITS.test(x)));

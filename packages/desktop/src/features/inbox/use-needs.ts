@@ -4,7 +4,10 @@
  * sidebar counts it, Home shows it one at a time, the keys step through it.
  */
 import { useDaemon } from "../../shared/daemon/daemon.tsx";
-import { type NeedRow, needsQueue } from "../../shared/model/needs.ts";
+import { type NeedRow, needPlace, needsQueue } from "../../shared/model/needs.ts";
+import { sameRepo } from "../../shared/model/places.ts";
+import type { Route } from "../../shared/model/route.ts";
+import { threadPane } from "../../shared/model/threads.ts";
 import { reviewNeeds } from "../reviews/model.ts";
 
 export function useNeeds(): readonly NeedRow[] {
@@ -16,4 +19,18 @@ export function useNeeds(): readonly NeedRow[] {
     "reviewCards",
   );
   return [...needsQueue(inbox, runs, panes, paneAsks), ...reviewNeeds(reviewCards)];
+}
+
+/** Where a need is answered (`needPlace`), with the open chats' terminals as the layout has them. */
+export function useNeedPlace(): (n: NeedRow) => Route {
+  const { threads, panes } = useDaemon("threads", "panes");
+  return (n) =>
+    needPlace(
+      n,
+      (pane, repo) =>
+        threads.find((th) => {
+          const chat = th.state === "open" ? threadPane(th, panes) : undefined;
+          return chat?.id === pane && sameRepo(chat.repo, repo);
+        })?.id,
+    );
 }

@@ -1,5 +1,7 @@
 /**
- * Home: one decision at a time. A big card with the question or the plan and its actions; above
+ * Home: one decision at a time, for what no terminal answers (a gate, an escalated run, a
+ * review). What an agent or its host asks in a terminal has no card: it is a line above, and a
+ * click goes to that terminal, where the person answers. A big card with the question or the plan and its actions; above
  * it, how many wait and the next and previous one (also `j` and `k`). Everything else about the
  * decision (its ids, evidence, "since you left", what each answer does, the command it writes)
  * is folded under the card's Details. With nothing to decide: the tasks in short with their
@@ -13,13 +15,12 @@ import { useDaemon } from "../../shared/daemon/daemon.tsx";
 import { useAction, useTasks } from "../../shared/hooks.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import {
+  answersInTerminal,
+  cardNeeds,
   decisionKey,
   escalatedKey,
   idleRuns,
-  isPaneAsk,
-  isTerminalAsk,
   type NeedRow,
-  paneAskOf,
   stepNeed,
 } from "../../shared/model/needs.ts";
 import { routeHash } from "../../shared/model/route.ts";
@@ -40,8 +41,30 @@ import { useNewChat } from "../threads/chat-actions.ts";
 import { DecisionCard } from "./decision-card.tsx";
 import { EscalatedCard } from "./escalated-card.tsx";
 import { isFirstRun, quietHeading, quietInboxText, taskNeed } from "./model.ts";
-import { PaneAskCard } from "./pane-ask-card.tsx";
 import { useAnswered } from "./use-answered.ts";
+import { useNeedPlace } from "./use-needs.ts";
+
+/** The terminals that wait for an answer: one line each, a click goes there. */
+function TerminalAsks({ asks }: { readonly asks: readonly NeedRow[] }) {
+  const placeOf = useNeedPlace();
+  if (asks.length === 0) return null;
+  return (
+    <ul
+      className="terminal-asks"
+      aria-label="terminals that wait for your answer"
+      data-testid="terminal-asks"
+    >
+      {asks.map((n) => (
+        <li key={n.key}>
+          <a href={routeHash(placeOf(n))} title={n.hint} data-testid={`terminal-need-${n.pane ?? n.runId}`}>
+            <Glyph kind="first" state="needs you" /> <span className="title">{n.title}</span>
+          </a>
+          <span className="faint"> · {n.sub}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function InboxScreen({
   needs,
@@ -49,7 +72,7 @@ export function InboxScreen({
 }: {
   /** Everything that needs the person, in the queue's order. */
   readonly needs: readonly NeedRow[];
-  /** The decision to show: the picked one, else the first. */
+  /** The decision to show, of the ones that are cards: the picked one, else the first. */
   readonly picked: NeedRow | undefined;
 }) {
   const onPick = (pick: string) => navigate({ screen: "inbox", pick });
@@ -63,10 +86,10 @@ export function InboxScreen({
   const newChat = useNewChat();
   const onStart = (task: string) => void newChat(task);
   const onForm = openNewRun;
-  const { inbox, runs, paneAsks, reviewCards } = useDaemon("inbox", "runs", "paneAsks", "reviewCards");
+  const { inbox, runs, reviewCards } = useDaemon("inbox", "runs", "reviewCards");
+  const cards = cardNeeds(needs);
+  const asks = needs.filter(answersInTerminal);
   const item = picked ? inbox.find((i) => decisionKey(i) === picked.key) : undefined;
-  // A pane without a run that asks (the intake chat): its own card, answered into the pane.
-  const paneAsk = picked && isPaneAsk(picked) ? paneAskOf(paneAsks, picked.key) : undefined;
   const stopped =
     picked?.kind === "escalated"
       ? runs.find((r) => r.status === "escalated" && escalatedKey(r) === picked.key)
@@ -74,9 +97,9 @@ export function InboxScreen({
   // A review's card (round 18): asked to review, new commits or replies, a new review, approve.
   const review =
     picked && isReviewCard(picked) ? reviewCards.find((c) => reviewCardKey(c) === picked.key) : undefined;
-  const at = picked ? needs.findIndex((n) => n.key === picked.key) : -1;
+  const at = picked ? cards.findIndex((n) => n.key === picked.key) : -1;
   const move = (step: 1 | -1) => {
-    const next = stepNeed(needs, picked?.key, step);
+    const next = stepNeed(cards, picked?.key, step);
     if (next) onPick(next.key);
   };
   // Debug changes the daemon counts: an entry on Home while there are some (round 13). Above them,
@@ -90,31 +113,33 @@ export function InboxScreen({
       </div>
     </>
   );
-  if (needs.length === 0)
+  if (cards.length === 0)
     return (
       <div className="home">
         {debug}
+        <TerminalAsks asks={asks} />
         {isFirstRun(runs, needs) ? (
           <FirstRun onStart={onStart} onForm={onForm} />
         ) : (
-          <QuietHome onOpenRun={onOpenRun} onStart={onStart} onForm={onForm} />
+          <QuietHome asking={asks.length} onOpenRun={onOpenRun} onStart={onStart} onForm={onForm} />
         )}
       </div>
     );
   return (
     <div className="home">
       {debug}
+      <TerminalAsks asks={asks} />
       <nav className="queue" data-testid="queue" aria-label="decisions that wait">
-        <strong>{needs.length} waiting</strong>
+        <strong>{cards.length} waiting</strong>
         <span className="faint">
           {" "}
-          · {at + 1} of {needs.length}
+          · {at + 1} of {cards.length}
         </span>
         <span className="spacer" />
-        <Button disabled={needs.length < 2} onClick={() => move(-1)} title="key k">
+        <Button disabled={cards.length < 2} onClick={() => move(-1)} title="key k">
           ‹ Previous
         </Button>
-        <Button disabled={needs.length < 2} onClick={() => move(1)} title="key j">
+        <Button disabled={cards.length < 2} onClick={() => move(1)} title="key j">
           Next ›
         </Button>
       </nav>
@@ -126,15 +151,6 @@ export function InboxScreen({
           onRefused={onRefused}
           onOpenSession={onOverview}
           onOpenChanges={onOpenChanges}
-        />
-      ) : paneAsk ? (
-        <PaneAskCard
-          key={picked?.key}
-          ask={paneAsk}
-          onAnswered={(choices) => onAnswered(choices)}
-          onOpenPane={(a) => {
-            navigate({ screen: "grid", pane: a.paneId });
-          }}
         />
       ) : stopped ? (
         <div data-testid={`escalated-${stopped.runId}`}>
@@ -148,20 +164,6 @@ export function InboxScreen({
         </div>
       ) : review ? (
         <ReviewCard key={picked?.key} card={review} onDone={() => onAnswered()} />
-      ) : picked && isTerminalAsk(picked) ? (
-        <article className="card terminal-ask" data-testid={`terminal-ask-${picked.runId}`}>
-          <h1>{picked.title}</h1>
-          {picked.sub ? <div className="dim">{picked.sub}</div> : null}
-          <p className="muted">
-            The agent asks in its terminal: there is no card to answer from. Open the run, take the keyboard
-            and answer there.
-          </p>
-          <div className="actions">
-            <Button variant="primary" onClick={() => onOpenRun(picked.runId, picked.pane)}>
-              Open the run
-            </Button>
-          </div>
-        </article>
       ) : (
         <div className="empty">Reading the decision…</div>
       )}
@@ -214,10 +216,13 @@ function FirstRun({ onStart, onForm }: { onStart(task: string): void; onForm(): 
  * with the way to start each, and "Describe a task".
  */
 function QuietHome({
+  asking,
   onOpenRun,
   onStart,
   onForm,
 }: {
+  /** How many terminals wait for an answer (listed above): Home never says "nothing" then. */
+  readonly asking: number;
   onOpenRun(runId: string, pane?: string): void;
   onStart(task: string): void;
   onForm(): void;
@@ -231,8 +236,8 @@ function QuietHome({
   const blocked = tasks.filter((t) => taskState(t) === "blocked");
   return (
     <div className="quiet-home" data-testid="inbox-zero">
-      <h2>{quietHeading(idle.length, blocked.length)}</h2>
-      <p className="muted">{quietInboxText(open.length, idle.length, blocked.length)}</p>
+      <h2>{quietHeading(idle.length, blocked.length, asking)}</h2>
+      <p className="muted">{quietInboxText(open.length, idle.length, blocked.length, asking)}</p>
       {idle.length > 0 ? (
         <ul className="idle-runs">
           {idle.map((r) => (

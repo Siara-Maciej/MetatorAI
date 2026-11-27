@@ -59,7 +59,7 @@ Everything else is two parts: the sidebar on the left, which stays on every scre
 
 The sidebar is the first level. Every row is built the same way: the glyph of one of the five words, a name, the word at the right, and one dim line under the name. A row has no run id, no host and no age: those are on the run's page, under **Details**.
 
-**Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens Home, which shows them one at a time ([Home and the Board](./inbox.md)).
+**Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click goes to the next one that waits: the terminal that asks (its chat, or its run's **Terminal** tab on that pane), where you type the answer, or its card on Home when no terminal answers it, such as a plan to approve ([Home and the Board](./inbox.md)). Click again for the one after it.
 
 **«** beside it folds the sidebar to a narrow column of glyphs: **?** with how many things need you, one glyph per open chat and per task without a chat in its state's colour, the places (Board, Terminals, Backlog, Reviews, Settings) and **+** for a new chat. Each is named in full on hover; a click does what its row does. **»** unfolds it. The window remembers which you chose.
 
