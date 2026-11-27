@@ -6,14 +6,15 @@
  * plan. Nobody edits a plan by hand.
  */
 
-import { useState } from "react";
 import type { RunPlanView } from "../../shared/api/api.ts";
 import { lintSummary } from "../../shared/model/format.ts";
 import type { RepoSystemPlan } from "../../shared/model/system-plans.ts";
+import { ScopeProvider, useScopedApi } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { ProblemList } from "./doc-editor.tsx";
 import { FromPlanButton } from "./from-plan-button.tsx";
 import { PlanChanges } from "./plan-changes.tsx";
+import { AskChanges, useAskChanges } from "./plans-state.ts";
 import { SystemPlanContent } from "./system-plan.tsx";
 
 const or = (items: readonly string[] | undefined) => (items && items.length > 0 ? items.join(", ") : "—");
@@ -134,7 +135,8 @@ export const lintRequest = (
 
 /**
  * "Ask for changes": the words go to the gate as its Reject with them as the reason, which sends
- * the run back to its planner. With lint errors the request can start from them.
+ * the run back to its planner. With lint errors the request can start from them. The words are the
+ * AskChanges store's (ADR-0113): typing draws the text box and the button, not the card.
  */
 export function AskForChanges({
   blocked,
@@ -148,27 +150,49 @@ export function AskForChanges({
   readonly busy: boolean;
   onSend(text: string): void;
 }) {
-  const [text, setText] = useState("");
   return (
-    <section className="ask-changes" data-testid="ask-for-changes" aria-label="ask for changes">
-      {blocked ? (
-        <div className="red" data-testid="closed-option">
-          Approve is closed: {blocked}.{" "}
-          {lintText ? <Button onClick={() => setText(lintText)}>Ask the planner to fix it</Button> : null}
-        </div>
-      ) : null}
-      <label>
-        <span className="dim">What should be different? The planner writes a new plan.</span>
-        <textarea
-          aria-label="what should change in the plan"
-          placeholder="for example: S2 also needs a test for a product without a currency"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-      </label>
-      <Button disabled={busy || text.trim() === ""} onClick={() => onSend(text.trim())}>
-        Ask for changes
-      </Button>
-    </section>
+    <ScopeProvider store={AskChanges} init={undefined}>
+      <section className="ask-changes" data-testid="ask-for-changes" aria-label="ask for changes">
+        {blocked ? <ApproveClosed blocked={blocked} lintText={lintText} /> : null}
+        <ChangesText />
+        <SendChanges busy={busy} onSend={onSend} />
+      </section>
+    </ScopeProvider>
+  );
+}
+
+function ApproveClosed({ blocked, lintText }: { readonly blocked: string; readonly lintText: string }) {
+  const write = useAskChanges((s) => s.write);
+  return (
+    <div className="red" data-testid="closed-option">
+      Approve is closed: {blocked}.{" "}
+      {lintText ? <Button onClick={() => write(lintText)}>Ask the planner to fix it</Button> : null}
+    </div>
+  );
+}
+
+export function ChangesText() {
+  const text = useAskChanges((s) => s.text);
+  const write = useAskChanges((s) => s.write);
+  return (
+    <label>
+      <span className="dim">What should be different? The planner writes a new plan.</span>
+      <textarea
+        aria-label="what should change in the plan"
+        placeholder="for example: S2 also needs a test for a product without a currency"
+        value={text}
+        onChange={(e) => write(e.target.value)}
+      />
+    </label>
+  );
+}
+
+export function SendChanges({ busy, onSend }: { readonly busy: boolean; onSend(text: string): void }) {
+  const empty = useAskChanges((s) => s.text.trim() === "");
+  const api = useScopedApi(AskChanges);
+  return (
+    <Button disabled={busy || empty} onClick={() => onSend(api.getState().text.trim())}>
+      Ask for changes
+    </Button>
   );
 }

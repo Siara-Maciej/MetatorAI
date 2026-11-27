@@ -2,16 +2,33 @@
  * "Retry this step": a step of a system plan whose child run was aborted is re-opened by a
  * person. The step is pending again (its old run kept in its history, the old worktree left for
  * a look); the system run, resumed or still waiting, starts a new child for it.
+ *
+ * Its action is the PlanAction store's (ADR-0113); the aborted steps are read as ids.
  */
 
-import { useDaemon, usePolled } from "../../shared/daemon/daemon.tsx";
-import { useAction } from "../../shared/hooks.ts";
+import { readAgainNow, useDaemon, useDaemonStore, usePolledSelect } from "../../shared/daemon/daemon.tsx";
 import type { Run } from "../../shared/model/runs.ts";
 import { Button } from "../../ui/button.tsx";
-import { Notice } from "../../ui/notice.tsx";
+import { PlanActionNotice, PlanActionScope, usePlanStoreAction } from "./plan-action.tsx";
 
 /** The button on one step: shown only while its run is aborted. */
-export function RetryStepButton({
+export function RetryStepButton(props: {
+  readonly planId: string;
+  readonly step: string;
+  readonly repo: string | undefined;
+  onRetried?: (() => void) | undefined;
+}) {
+  return (
+    <PlanActionScope>
+      <span className="retry-step">
+        <RetryButton {...props} />
+        <PlanActionNotice />
+      </span>
+    </PlanActionScope>
+  );
+}
+
+function RetryButton({
   planId,
   step,
   repo,
@@ -23,43 +40,43 @@ export function RetryStepButton({
   onRetried?: (() => void) | undefined;
 }) {
   const { client } = useDaemon("client");
-  const action = useAction(onRetried);
+  const action = usePlanStoreAction(onRetried);
   return (
-    <span className="retry-step">
-      <Button
-        data-testid={`retry-step-${step}`}
-        disabled={action.busy}
-        onClick={() =>
-          void action.run((by) => client.retrySystemStep(planId, step, by ?? "", repo), {
-            who: true,
-            done: `step ${step} is pending again: the system run starts a new child for it`,
-            refused: "the step was not retried",
-          })
-        }
-      >
-        Retry this step
-      </Button>
-      <Notice {...action.notice} />
-    </span>
+    <Button
+      data-testid={`retry-step-${step}`}
+      disabled={action.busy}
+      onClick={() =>
+        void action.run((by) => client.retrySystemStep(planId, step, by ?? "", repo), {
+          who: true,
+          done: `step ${step} is pending again: the system run starts a new child for it`,
+          refused: "the step was not retried",
+        })
+      }
+    >
+      Retry this step
+    </Button>
   );
 }
 
 /** On a system run's escalated card and bar: each step whose child run was aborted, with its Retry. */
 export function RetryAbortedSteps({ run }: { readonly run: Run }) {
   const { client } = useDaemon("client");
+  const daemon = useDaemonStore();
   const system = run.workflow === "mt-system-change";
-  const plans = usePolled(
+  const id = usePolledSelect(
     `retry-steps-of:${run.runId}`,
     () => (system ? client.systemPlans(run.repo) : Promise.resolve({ ok: true as const, data: [] })),
     system ? 5_000 : 0,
+    (plans) => plans?.find((p) => p.task === run.task)?.id,
   );
-  const id = plans.data?.find((p) => p.task === run.task)?.id;
-  const view = usePolled(
-    `retry-steps-plan:${id ?? ""}`,
+  const key = `retry-steps-plan:${id ?? ""}`;
+  const aborted = usePolledSelect(
+    key,
     () => (id ? client.systemPlan(id, run.repo) : Promise.resolve({ ok: true as const, data: undefined })),
     id ? 5_000 : 0,
+    (view) =>
+      (view?.steps ?? []).filter((s) => s.runState === "aborted").map((s) => ({ id: s.id, app: s.app })),
   );
-  const aborted = (view.data?.steps ?? []).filter((s) => s.runState === "aborted");
   if (!id || aborted.length === 0) return null;
   return (
     <div className="retry-steps" data-testid="retry-aborted-steps">
@@ -68,7 +85,12 @@ export function RetryAbortedSteps({ run }: { readonly run: Run }) {
           <span>
             step <span className="mono">{s.id}</span> in {s.app}: its run was aborted
           </span>{" "}
-          <RetryStepButton planId={id} step={s.id} repo={run.repo} onRetried={view.reload} />
+          <RetryStepButton
+            planId={id}
+            step={s.id}
+            repo={run.repo}
+            onRetried={() => void readAgainNow(daemon.getState().url, key)}
+          />
         </div>
       ))}
     </div>

@@ -11121,4 +11121,23 @@ export const MUTANTS: readonly Mutant[] = [
     to: "    say: () => {},",
     why: "a screen store's action says a line in that screen's notice",
   },
+  // The plan views' stores (ADR-0113): Ask for changes draws its text box alone.
+  {
+    file: "packages/desktop/src/features/plans/plan-approval-line.tsx",
+    from: "  const empty = useAskChanges((s) => s.text.trim() === \"\");",
+    to: "  const empty = useAskChanges((s) => s.text).trim() === \"\";",
+    why: "Ask for changes reads only whether the words are empty: typing draws the button only when that changes",
+  },
+  {
+    file: "packages/desktop/src/features/plans/plan-approval-line.tsx",
+    from: "onSend(api.getState().text.trim())",
+    to: "onSend(api.getState().text)",
+    why: "the words asked for are sent trimmed",
+  },
+  {
+    file: "packages/desktop/src/features/runs/store-action.ts",
+    from: "reload ? { ...options, reload } : options",
+    to: "options",
+    why: "a screen store's action reads the screen's data again after it",
+  },
 ];
