@@ -116,4 +116,5 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0111](0111-desktop-design-system.md) | System projektowy aplikacji desktopowej: Tailwind i komponenty w stylu shadcn/ui w `ui/` | Proposed |
 | [0112](0112-knip-dead-code.md) | Martwy kod tego repozytorium: knip w `bun run check` | Accepted |
 | [0113](0113-terminal-questions-answered-in-the-terminal.md) | Pytanie zadane w terminalu ma odpowiedź w terminalu, bez karty | Proposed |
+| [0114](0114-one-terminal-per-chat-no-question-machinery.md) | Jeden terminal na czat, rozmowa zamiast pytań i kart | Proposed |
 | 0009 | *zarezerwowany: platforma hostów (spike F0)* | – |
