@@ -31,3 +31,4 @@ CI fails on these; no need to re-check them by hand.
 - MT-ARCH-012: Desktop shared code imports no feature (`ast-grep:mt-arch-desktop-layers-shared`)
 - MT-ARCH-013: A desktop feature does not import the shell (`ast-grep:mt-arch-desktop-layers-features`)
 - MT-ARCH-014: A desktop button is the design system's Button (`ast-grep:mt-arch-desktop-ui-button`)
+- MT-ARCH-015: A desktop screen keeps its state in a zustand store (`ast-grep:mt-arch-desktop-state`)

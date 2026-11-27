@@ -20,7 +20,7 @@ import { Notice } from "../../ui/notice.tsx";
 import { START_FROM_COMMIT } from "../runs/model.ts";
 import { useOpenRun } from "../runs/open-run.ts";
 import { BacklogList } from "./backlog-list.tsx";
-import { useIssues } from "./data.ts";
+import { useIssues, useKnownWorkflows } from "./data.ts";
 import { dropBacklogDraft, useBacklogDraft } from "./draft.ts";
 import { BacklogDetail } from "./item-detail.tsx";
 import { backlogRows } from "./model.ts";
@@ -40,6 +40,7 @@ export function BacklogScreen({
   return (
     <ScopeProvider store={Backlog} init={{ daemon, routeId: id, draft, openRun }}>
       <RouteToItem id={id} />
+      <ReadWorkflows />
       <ListDetail
         className="backlog"
         testId="backlog"
@@ -53,6 +54,15 @@ export function BacklogScreen({
       </ListDetail>
     </ScopeProvider>
   );
+}
+
+/**
+ * The workflows are asked for when the screen opens, not when a task is first shown: the picker
+ * then has them at once (D5). Draws nothing; it hears only of a change of the list.
+ */
+function ReadWorkflows() {
+  useKnownWorkflows();
+  return null;
 }
 
 /** The route's item wins when the route changes (a plan view's "Open its Backlog item"). */

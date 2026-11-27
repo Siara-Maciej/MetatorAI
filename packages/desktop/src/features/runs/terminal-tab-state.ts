@@ -12,9 +12,8 @@ import { readAgainNow } from "../../shared/daemon/daemon.tsx";
 import type { Store } from "../../shared/daemon/daemon-store.ts";
 import { closePaneQuestion } from "../../shared/model/confirm.ts";
 import { panesOfRun } from "../../shared/model/panes.ts";
-import { type ActionState, IDLE, runAction, sayIn } from "../../shared/state/action.ts";
+import { type ActionState, asAction, IDLE, runAction, sayIn } from "../../shared/state/action.ts";
 import { scopedStore, useScoped, useScopedApi } from "../../shared/state/scoped-store.ts";
-import { actionIn } from "../terminals/store-action.ts";
 import { sendLine, type TerminalHandle, type TerminalStatus } from "../terminals/terminal.tsx";
 import { runControls } from "./run-controls.ts";
 
@@ -121,7 +120,7 @@ export const TerminalTab = scopedStore<TerminalTabState, TerminalTabInit>(
       const panes = () => panesOfRun(d().panesOf(repo), runId);
       const reload = () => readAgainNow(d().url, linksKey(runId, repo));
       const controls = () =>
-        runControls(d().client, actionIn(api, daemon, false, reload), d().me, d().run(runId, repo));
+        runControls(d().client, asAction(api, daemon, false, reload), d().me, d().run(runId, repo));
       const live = () => panes().find((p) => p.role === "conductor")?.live?.alive === true;
       let handle: TerminalHandle | undefined;
       return {

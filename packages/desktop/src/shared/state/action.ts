@@ -83,3 +83,48 @@ export function sayIn(
 ): void {
   store.setState({ notice: text ? { text, tone } : undefined });
 }
+
+/** What a shared control (`runControls`, `<StartRun>`) is given to act with: a request and its answer. */
+export interface Action {
+  /**
+   * Runs a request and keeps what it answered: a refusal becomes the notice (it stays until
+   * closed, D5), a success clears it (or says `done`), then the screen's data is read again.
+   * With `who` the person's name is asked for first; a cancelled name dialog runs nothing.
+   * Resolves to whether the daemon said yes.
+   */
+  run(
+    fn: (by: string) => Promise<Answer>,
+    options?: Pick<ActionOptions, "who" | "refused" | "done" | "onRefused">,
+  ): Promise<boolean>;
+  /** Spread into `<Notice>`. */
+  readonly notice: {
+    readonly text: string | undefined;
+    readonly tone: "error" | "info";
+    onClose(): void;
+  };
+  readonly busy: boolean;
+  say(text: string | undefined, tone?: "error" | "info"): void;
+}
+
+/**
+ * A screen store's action as the `Action` the shared controls take: the request runs through
+ * `runAction`, so `busy` and the notice are fields of the screen's store. `busy` is what the calling
+ * part read from the store (it draws again when it changes); `reload` reads the screen's data again
+ * after each answer; the notice is the store's at the moment it is read.
+ */
+export function asAction(
+  store: StoreApi<ActionState>,
+  daemon: Store<Pick<Daemon, "me" | "who">>,
+  busy = false,
+  reload?: () => unknown,
+): Action {
+  return {
+    run: (fn, options = {}) => runAction(store, daemon, fn, reload ? { ...options, reload } : options),
+    busy,
+    get notice() {
+      const notice = store.getState().notice;
+      return { text: notice?.text, tone: notice?.tone ?? "error", onClose: () => sayIn(store, undefined) };
+    },
+    say: (text, tone) => sayIn(store, text, tone),
+  };
+}

@@ -8,8 +8,8 @@
  */
 
 import { readAgainNow, useDaemon, useDaemonStore, usePolledSelect } from "../../shared/daemon/daemon.tsx";
-import type { Action } from "../../shared/hooks.ts";
 import { navigate } from "../../shared/navigation.ts";
+import type { Action } from "../../shared/state/action.ts";
 import { Button } from "../../ui/button.tsx";
 import { CREATE_ITEM, fromPlanButton } from "../backlog/model.ts";
 import { PlanActionNotice, PlanActionScope, usePlanStoreAction } from "./plan-action.tsx";

@@ -7,8 +7,8 @@
  */
 
 import { useDaemon, usePolledSelect } from "../../shared/daemon/daemon.tsx";
-import type { Action } from "../../shared/hooks.ts";
 import { type HostStatus, hostChoice, type Run } from "../../shared/model/runs.ts";
+import type { Action } from "../../shared/state/action.ts";
 import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { useRunControls } from "./run-controls.ts";

@@ -24,6 +24,7 @@ import {
   type ActionOptions,
   type ActionState,
   type Answer,
+  asAction,
   IDLE as NO_ACTION,
   runAction,
   sayIn,
@@ -46,7 +47,6 @@ import {
   type WorkbenchTab,
   workspaceOfPane,
 } from "./model.ts";
-import { actionIn } from "./store-action.ts";
 import type { TerminalHandle } from "./terminal.tsx";
 import {
   continueText,
@@ -267,7 +267,7 @@ export const Terminals = scopedStore<TerminalsState, TerminalsInit>(
       const controlsOf = (p: TPane | undefined) =>
         runControls(
           client(),
-          actionIn(api, daemon),
+          asAction(api, daemon),
           d().me,
           d().run(p?.runId, repoOf(p)),
           env.current.hostEditor,

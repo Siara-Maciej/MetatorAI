@@ -12,7 +12,7 @@
 import { DaemonFreshness } from "../../shared/components/freshness.tsx";
 import { Glyph } from "../../shared/components/glyph.tsx";
 import { useDaemon, useDaemonStore } from "../../shared/daemon/daemon.tsx";
-import { type Action, useTasks } from "../../shared/hooks.ts";
+import { useTasks } from "../../shared/hooks.ts";
 import { lookOf } from "../../shared/model/look.ts";
 import {
   decisionKey,
@@ -31,6 +31,7 @@ import { threadTitleOf } from "../../shared/model/threads.ts";
 import { navigate } from "../../shared/navigation.ts";
 import { say } from "../../shared/notice.ts";
 import { openNewRun } from "../../shared/overlays.ts";
+import type { Action } from "../../shared/state/action.ts";
 import { runAction } from "../../shared/state/action.ts";
 import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";

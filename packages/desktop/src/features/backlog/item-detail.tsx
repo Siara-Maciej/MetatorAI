@@ -9,7 +9,7 @@ import { issueRefText } from "../../shared/model/format.ts";
 import { Button } from "../../ui/button.tsx";
 import { useOpenRun } from "../runs/open-run.ts";
 import { RunLink } from "../runs/run-link.tsx";
-import { useAllIssues, useCurrentId, useIssue, useIssues, useWorkflowOf, useWorkflows } from "./data.ts";
+import { useAllIssues, useCurrentId, useIssue, useIssues, useKnownWorkflows, useWorkflowOf } from "./data.ts";
 import { AnalysisPart, ChildrenPart, ItemAction, ParentLine, PlanPart } from "./item-parts.tsx";
 import { itemButtons, pointsAt, whyDisabled } from "./model.ts";
 import { NewTaskForm } from "./new-task-form.tsx";
@@ -181,14 +181,16 @@ function AgentButton({
 
 /** The workflow a run on the task starts on. */
 function WorkflowPicker({ item }: { readonly item: IssueView }) {
-  const workflows = useWorkflows();
+  const known = useKnownWorkflows();
+  const workflows = known ?? [];
   const workflow = useWorkflowOf(item);
   const want = useBacklog((s) => s.want);
   return (
     <label className="wf">
       <span className="dim">a run starts on</span>
       <select aria-label="workflow" value={workflow ?? ""} onChange={(e) => want(e.target.value)}>
-        {workflows.length === 0 ? <option value="">no workflow in this repository</option> : null}
+        {known === undefined ? <option value="">reading the workflows…</option> : null}
+        {known?.length === 0 ? <option value="">no workflow in this repository</option> : null}
         {workflows.map((w) => (
           <option key={w} value={w}>
             {w}

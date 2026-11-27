@@ -74,16 +74,22 @@ export function useIsCurrent(id: string): boolean {
   return mine || (first && (explicit === undefined || !known));
 }
 
-/** The workflows this repository has (D5): a run starts on one of them, never on a guess. */
-export function useWorkflows(): readonly string[] {
+/**
+ * The workflows this repository has (D5): a run starts on one of them, never on a guess. Undefined
+ * until the daemon answered, so "none" is said only on its word.
+ */
+export function useKnownWorkflows(): readonly string[] | undefined {
   const { client, repo } = useDaemon("client", "repo");
   return usePolledSelect(
     `workflows:${repo ?? ""}`,
     () => client.workflows(repo),
     30_000,
-    (d) => d?.workflows.map((w) => w.id) ?? NO_WORKFLOWS,
+    (d) => d?.workflows.map((w) => w.id),
   );
 }
+
+/** The workflows, empty while they are read. */
+const useWorkflows = (): readonly string[] => useKnownWorkflows() ?? NO_WORKFLOWS;
 
 /** The workflow a run on the task starts with: the chosen one, else the proposing run's, else the default. */
 export function useWorkflowOf(issue: IssueView | undefined): string | undefined {

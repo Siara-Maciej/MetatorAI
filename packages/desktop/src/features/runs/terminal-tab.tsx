@@ -23,13 +23,13 @@ import {
 import { paneLabel, paneStateOf, panesOfRun } from "../../shared/model/panes.ts";
 import { routeHash } from "../../shared/model/route.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { asAction } from "../../shared/state/action.ts";
 import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { useLatest } from "../../shared/use-latest.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { Tabs } from "../../ui/tabs.tsx";
 import { QuickAnswer } from "../inbox/answer.tsx";
-import { actionIn } from "../terminals/store-action.ts";
 import { PaneTerminal, RunTerminal } from "../terminals/terminal.tsx";
 import { portsText, runPhase, sessionOfferedAbove } from "./model.ts";
 import { useRunControls } from "./run-controls.ts";
@@ -352,7 +352,7 @@ function NoSession(ref: RunRef) {
   if (!run) return null;
   const phase = runPhase(run);
   const offeredAbove = sessionOfferedAbove(run, panesOf(ref.repo));
-  const action = actionIn(api, daemon, busy, () => api.getState().reloadLinks());
+  const action = asAction(api, daemon, busy, () => api.getState().reloadLinks());
   return (
     <div className="empty no-session" data-testid="no-session">
       <h2>No session runs for this run</h2>
@@ -502,7 +502,7 @@ function ChangesBox({ onOpenChanges, ...ref }: RunRef & { onOpenChanges(runId: s
   const daemon = useTabDaemonStore();
   const { openEditor } = useRunControls(
     run,
-    actionIn(api, daemon, false, () => api.getState().reloadLinks()),
+    asAction(api, daemon, false, () => api.getState().reloadLinks()),
   );
   if (!run) return null;
   return (

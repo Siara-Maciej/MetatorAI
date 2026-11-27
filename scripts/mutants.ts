@@ -11411,8 +11411,8 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a task's page says the answer it just gave",
   },
   {
-    file: "packages/desktop/src/features/runs/store-action.ts",
-    from: '    say: (text, tone = "error") => sayIn(api, text, tone),',
+    file: "packages/desktop/src/shared/state/action.ts",
+    from: "    say: (text, tone) => sayIn(store, text, tone),",
     to: "    say: () => {},",
     why: "a screen store's action says a line in that screen's notice",
   },
@@ -11430,7 +11430,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the words asked for are sent trimmed",
   },
   {
-    file: "packages/desktop/src/features/runs/store-action.ts",
+    file: "packages/desktop/src/shared/state/action.ts",
     from: "reload ? { ...options, reload } : options",
     to: "options",
     why: "a screen store's action reads the screen's data again after it",

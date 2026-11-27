@@ -4,10 +4,10 @@
  */
 import type { ReactNode } from "react";
 import { useDaemonStore } from "../../shared/daemon/daemon.tsx";
-import type { Action } from "../../shared/hooks.ts";
+import type { Action } from "../../shared/state/action.ts";
+import { asAction } from "../../shared/state/action.ts";
 import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Notice } from "../../ui/notice.tsx";
-import { storeAction } from "../runs/store-action.ts";
 import { PlanAction, usePlanAction, usePlanActionApi } from "./plans-state.ts";
 
 /** A store for the action of the parts under it. */
@@ -22,7 +22,7 @@ export function usePlanStoreAction(reload?: () => unknown): Action {
   const api = usePlanActionApi();
   const daemon = useDaemonStore();
   const busy = usePlanAction((s) => s.busy);
-  return storeAction(api, daemon, busy, reload);
+  return asAction(api, daemon, busy, reload);
 }
 
 /** What the scope's action answered, until closed. */

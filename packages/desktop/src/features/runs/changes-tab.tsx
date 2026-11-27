@@ -14,13 +14,13 @@ import { Glyph } from "../../shared/components/glyph.tsx";
 import { useDaemon, useDaemonStore, usePolled, usePolledSelect } from "../../shared/daemon/daemon.tsx";
 import { lookOf } from "../../shared/model/look.ts";
 import type { Run } from "../../shared/model/runs.ts";
+import { asAction } from "../../shared/state/action.ts";
 import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../../ui/list-detail.tsx";
 import { Notice } from "../../ui/notice.tsx";
 import { Changes, notesKey, reviewKey, useChanges, useChangesApi } from "./changes-state.ts";
 import { useRunControls } from "./run-controls.ts";
-import { storeAction } from "./store-action.ts";
 
 type OpenFile = (runId: string, file?: string) => void;
 
@@ -108,7 +108,7 @@ function useControls(run: Run | undefined, runId: string) {
   const daemon = useDaemonStore();
   const busy = useChanges((s) => s.busy);
   const repo = run?.repo;
-  const action = storeAction(api, daemon, busy, api.getState().reload);
+  const action = asAction(api, daemon, busy, api.getState().reload);
   return useRunControls(run ?? { runId, repo, driver: "agent" }, action);
 }
 

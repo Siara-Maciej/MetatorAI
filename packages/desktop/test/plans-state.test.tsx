@@ -12,7 +12,7 @@ import {
   ChosenStep,
   PlanAction,
 } from "../src/features/plans/plans-state.ts";
-import { storeAction } from "../src/features/runs/store-action.ts";
+import { asAction } from "../src/shared/state/action.ts";
 import { ScopeProvider, useScopedApi } from "../src/shared/state/scoped-store.ts";
 import { counted, fakeDaemon, made } from "./screen-fakes.tsx";
 
@@ -30,7 +30,7 @@ describe("the plan views' state", () => {
     const s = made(PlanAction.create(undefined));
     const reload = mock(() => undefined);
     let seen: boolean | undefined;
-    const action = storeAction(s, daemon, false, reload);
+    const action = asAction(s, daemon, false, reload);
     await action.run(
       async () => {
         seen = s.getState().busy;

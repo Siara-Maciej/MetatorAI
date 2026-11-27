@@ -1,0 +1,10 @@
+id: mt-arch-desktop-state
+valid:
+  - "const busy = useBacklog((s) => s.busy);"
+  - "const api = useScopedApi(Backlog);"
+  - "const ref = useRef(null);"
+  - "const [store] = useStore(api, select);"
+invalid:
+  - "const [open, setOpen] = useState(false);"
+  - "const [flow, dispatch] = useReducer(flowStep, START);"
+  - "const [n, setN] = React.useState(0);"

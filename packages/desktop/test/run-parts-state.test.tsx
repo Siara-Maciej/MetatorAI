@@ -8,8 +8,8 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import type { StoreApi } from "zustand/vanilla";
 import { DebugChanges, type DebugChangesState } from "../src/features/runs/debug-changes-state.ts";
 import { Artifacts, RunPage, StartHost, TaskSaid } from "../src/features/runs/run-parts-state.ts";
-import { storeAction } from "../src/features/runs/store-action.ts";
 import type { ScratchItem } from "../src/shared/model/stage1.ts";
+import { asAction } from "../src/shared/state/action.ts";
 import { ScopeProvider, useScoped, useScopedApi } from "../src/shared/state/scoped-store.ts";
 import { counted, fakeDaemon, made } from "./screen-fakes.tsx";
 
@@ -110,7 +110,7 @@ describe("the small parts' state", () => {
   test("the run page's action runs through its store: busy, then the refusal as its notice", async () => {
     const { daemon, calls } = fakeDaemon({ attach: { ok: false, error: { message: "taken" } } });
     const page = made(RunPage.create({ daemon }));
-    const action = storeAction(page, daemon, false);
+    const action = asAction(page, daemon, false);
     expect(await action.run((by) => daemon.getState().client.attach("r1", by), { who: true })).toBe(false);
     expect([calls.attach?.[0], page.getState().notice?.text, page.getState().busy]).toEqual([
       ["r1", "ana"],

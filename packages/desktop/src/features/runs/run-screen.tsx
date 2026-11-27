@@ -26,6 +26,7 @@ import { type RunTab, routeHash, tabsOf } from "../../shared/model/route.ts";
 import { finishedText, type Run, runWithPanes } from "../../shared/model/runs.ts";
 import { runPage } from "../../shared/model/tasks.ts";
 import { navigate } from "../../shared/navigation.ts";
+import { asAction } from "../../shared/state/action.ts";
 import { ScopeProvider } from "../../shared/state/scoped-store.ts";
 import { Button } from "../../ui/button.tsx";
 import { Notice } from "../../ui/notice.tsx";
@@ -41,7 +42,6 @@ import { RunHeader } from "./run-header.tsx";
 import { RunPage, useRunPage, useRunPageApi } from "./run-parts-state.ts";
 import { StartRun } from "./start-run.tsx";
 import { StopReason } from "./stop-reason.tsx";
-import { storeAction } from "./store-action.ts";
 import { TaskOverview } from "./task-overview.tsx";
 import { TerminalTab } from "./terminal-tab.tsx";
 
@@ -128,7 +128,7 @@ function usePageControls(run: Run | undefined) {
   const api = useRunPageApi();
   const daemon = useDaemonStore();
   const busy = useRunPage((s) => s.busy);
-  const action = storeAction(api, daemon, busy);
+  const action = asAction(api, daemon, busy);
   return { action, controls: useRunControls(run, action) };
 }
 
