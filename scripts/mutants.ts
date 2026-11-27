@@ -11064,4 +11064,29 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const picked = useReviews((s) => s.picked);",
     why: "choosing an MR draws only the rows that were and are chosen",
   },
+  // ADR-0113: the Board on a store of its own; a chip, a column and a tile read their own piece.
+  {
+    file: "packages/desktop/src/features/board/state.ts",
+    from: "if (key !== get().openKey) set({ openKey: key, showDone: false });",
+    to: "set({ openKey: key, showDone: false });",
+    why: "Done folds again on another board, not on the same one",
+  },
+  {
+    file: "packages/desktop/src/features/board/state.ts",
+    from: "          if (get().dragged) return;",
+    to: "",
+    why: "a drag's note is timed once while it shows",
+  },
+  {
+    file: "packages/desktop/src/features/board/state.ts",
+    from: "tasks: shared(s.tasks, workTasks(cards, plans)),",
+    to: "tasks: workTasks(cards, plans),",
+    why: "a task that did not change stays the same object, so its tile does not draw again",
+  },
+  {
+    file: "packages/desktop/src/features/board/board-screen.tsx",
+    from: "const pressed = useBoard((s) => s.filter.repos.includes(repo));",
+    to: "const filter = useBoard((s) => s.filter);\n  const pressed = filter.repos.includes(repo);",
+    why: "a chip draws again only when it is pressed or let go",
+  },
 ];
