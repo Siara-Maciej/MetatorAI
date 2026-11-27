@@ -82,17 +82,8 @@ function writeFlag(key: string, v: boolean): void {
   }
 }
 
-/** What an action answered: the envelope's `ok` and what it says of a refusal. */
-export interface Answer {
-  readonly ok: boolean;
-  readonly error?:
-    | {
-        readonly message?: string;
-        readonly hint?: string;
-        readonly details?: Readonly<Record<string, unknown>>;
-      }
-    | undefined;
-}
+import type { Answer } from "./state/action.ts";
+
 interface ActionNotice {
   readonly text: string | undefined;
   readonly tone: "error" | "info";

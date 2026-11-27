@@ -10959,4 +10959,53 @@ export const MUTANTS: readonly Mutant[] = [
     to: 'if (e.key !== " ") return false;',
     why: "Space on a card's own Start a run presses that button, not the card",
   },
+  // A store per screen (ADR-0113): a part reads one value; the Backlog's actions keep their state in its store.
+  {
+    file: "packages/desktop/src/features/backlog/new-task-form.tsx",
+    from: "const value = useBacklog((s) => s.draft[field]);",
+    to: "const value = useBacklog((s) => s.draft)[field];",
+    why: "a field reads its own part of the draft: typing a title draws no other field",
+  },
+  {
+    file: "packages/desktop/src/shared/state/scoped-store.ts",
+    from: "const [api] = useState(() => createStore<S>()(store.create(init)));",
+    to: "const api = createStore<S>()(store.create(init));",
+    why: "a screen's store is made once, not on every draw of its provider",
+  },
+  {
+    file: "packages/desktop/src/shared/state/action.ts",
+    from: "  store.setState({ busy: true });",
+    to: "",
+    why: "an action is busy while its request runs",
+  },
+  {
+    file: "packages/desktop/src/shared/state/action.ts",
+    from: "  if (options.who && !by) return false;",
+    to: "",
+    why: "a cancelled name dialog runs nothing",
+  },
+  {
+    file: "packages/desktop/src/features/backlog/state.ts",
+    from: "            if (again && refusedForDirtyTree(error)) set({ retry: again });",
+    to: "",
+    why: "a start refused for uncommitted changes offers the same start from the last commit",
+  },
+  {
+    file: "packages/desktop/src/features/backlog/state.ts",
+    from: "routeTo: (id) => (id ? set({ routeId: id, picked: undefined }) : set({ routeId: undefined })),",
+    to: "routeTo: (id) => set({ routeId: id }),",
+    why: "the route's item wins over the one picked",
+  },
+  {
+    file: "packages/desktop/src/features/backlog/state.ts",
+    from: "            const chosen = own && !get().wanted ? undefined : workflow;",
+    to: "            const chosen = workflow;",
+    why: "a task with a plan starts on the plan's workflow unless the person chose one",
+  },
+  {
+    file: "packages/desktop/src/features/backlog/state.ts",
+    from: "          if (!confirmed(finishQuestion(issue, how))) return false;",
+    to: "",
+    why: "Done and Drop ask first",
+  },
 ];

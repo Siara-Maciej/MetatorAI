@@ -26,7 +26,14 @@ import {
   type WorkspaceView,
   wsUrl,
 } from "../api/api.ts";
-import { type Polled, queryClient, shared, usePolledAt } from "../api/query.ts";
+import {
+  type Polled,
+  queryClient,
+  readPolledAgain,
+  shared,
+  usePolledAt,
+  usePolledSelectAt,
+} from "../api/query.ts";
 import { flattenState, type Place, repoChoice, sameRepo, type Unreadable } from "../model/places.ts";
 import { type Run, withTerminalAsks } from "../model/runs.ts";
 import type { SeenRuns } from "../model/session.ts";
@@ -193,6 +200,25 @@ export function usePolled<T>(
   const { url } = useDaemon("url");
   return usePolledAt(url, key, fn, ms, enabled);
 }
+
+/**
+ * One part of a polled answer (ADR-0113): the part draws again only when what `select` takes from
+ * the answer changed. Parts with the same `key` share one request; `select` gets `undefined` before
+ * the first answer.
+ */
+export function usePolledSelect<T, R>(
+  key: string,
+  fn: () => Promise<Envelope<T>>,
+  ms: number,
+  select: (data: T | undefined) => R,
+): R {
+  const { url } = useDaemon("url");
+  return usePolledSelectAt(url, key, fn, ms, select);
+}
+
+/** Reads a polled request of this window's daemon again now: an action's answer changed it. */
+export const readAgainNow = (url: string, key: string): Promise<void> =>
+  readPolledAgain(queryClient, url, key);
 
 /** A socket that is opened again after it drops, with a fetch meanwhile. */
 function useStream<T>(
