@@ -20,7 +20,7 @@ import { actionBody, isNo, startedRoute } from "./model.ts";
  * daemon says yes, the started agent's terminal shows. Resolves to what happened: refused, done
  * (nothing started), or shown (the app went to the terminal).
  */
-export function useStartAgent(reload?: () => Promise<unknown> | unknown) {
+function useStartAgent(reload?: () => Promise<unknown> | unknown) {
   const action = useAction(reload);
   const start = async (
     fn: (by: string) => Promise<Envelope<ReviewStarted>>,

@@ -11082,4 +11082,134 @@ export const MUTANTS: readonly Mutant[] = [
     to: 'const blank = useAddRepo(typedPath).trim() === "";',
     why: "typing a path draws Continue only when it can or cannot continue",
   },
+  // ADR-0113: Settings on a store of its own; a row reads only its option.
+  {
+    file: "packages/desktop/src/features/settings/state.ts",
+    from: "        if (!ok) set((s) => ({ refusals: { ...s.refusals, [o.key]: (s.refusals[o.key] ?? 0) + 1 } }));",
+    to: "",
+    why: "a refused option's field is drawn again with the value that holds",
+  },
+  {
+    file: "packages/desktop/src/features/settings/state.ts",
+    from: 'open: (section) => set({ query: "", section }),',
+    to: "open: (section) => set({ section }),",
+    why: "choosing a section clears the search",
+  },
+  {
+    file: "packages/desktop/src/features/settings/state.ts",
+    from: 'set(info.source === "custom" ? { info, custom: info.path } : { info });',
+    to: "set({ info });",
+    why: "a custom metator fills the path field",
+  },
+  {
+    file: "packages/desktop/src/features/settings/settings-screen.tsx",
+    from: "String(refused)",
+    to: '"0"',
+    why: "a refused field shows what holds, not what was typed",
+  },
+  {
+    file: "packages/desktop/src/features/settings/settings-screen.tsx",
+    from: "const o = useSettingsDaemon((d) => d.optionsView?.options.find((x) => x.key === optionKey));",
+    to: "const all = useSettingsDaemon((d) => d.optionsView);\n  const o = all?.options.find((x) => x.key === optionKey);",
+    why: "a row draws again only when its own option changed",
+  },
+  // ADR-0113: Reviews on a store of its own; a row hears only whether it is chosen.
+  {
+    file: "packages/desktop/src/features/reviews/state.ts",
+    from: "          if (id === get().picked) return;",
+    to: "",
+    why: "the same MR from the route keeps its unchecked replies and its notice",
+  },
+  {
+    file: "packages/desktop/src/features/reviews/state.ts",
+    from: "set({ picked: id, unchecked: new Set() });",
+    to: "set({ picked: id });",
+    why: "another MR starts with every reply to send checked",
+  },
+  {
+    file: "packages/desktop/src/features/reviews/state.ts",
+    from: "            if (next.has(thread)) next.delete(thread);\n            else next.add(thread);",
+    to: "            next.add(thread);",
+    why: "a reply unchecked can be checked again",
+  },
+  {
+    file: "packages/desktop/src/features/reviews/data.ts",
+    from: "const picked = useReviews((s) => (fallback ? s.picked : undefined));",
+    to: "const picked = useReviews((s) => s.picked);",
+    why: "choosing an MR draws only the rows that were and are chosen",
+  },
+  // ADR-0113: the Board on a store of its own; a chip, a column and a tile read their own piece.
+  {
+    file: "packages/desktop/src/features/board/state.ts",
+    from: "if (key !== get().openKey) set({ openKey: key, showDone: false });",
+    to: "set({ openKey: key, showDone: false });",
+    why: "Done folds again on another board, not on the same one",
+  },
+  {
+    file: "packages/desktop/src/features/board/state.ts",
+    from: "          if (get().dragged) return;",
+    to: "",
+    why: "a drag's note is timed once while it shows",
+  },
+  {
+    file: "packages/desktop/src/features/board/state.ts",
+    from: "tasks: shared(s.tasks, workTasks(cards, plans)),",
+    to: "tasks: workTasks(cards, plans),",
+    why: "a task that did not change stays the same object, so its tile does not draw again",
+  },
+  {
+    file: "packages/desktop/src/features/board/board-screen.tsx",
+    from: "const pressed = useBoard((s) => s.filter.repos.includes(repo));",
+    to: "const filter = useBoard((s) => s.filter);\n  const pressed = filter.repos.includes(repo);",
+    why: "a chip draws again only when it is pressed or let go",
+  },
+  // ADR-0113: Home's cards on stores of their own; a field draws alone.
+  {
+    file: "packages/desktop/src/features/inbox/answer-state.ts",
+    from: "if (get().busy || !canAnswer(picked, said)) return;",
+    to: "if (get().busy) return;",
+    why: "an answer that promises a reason waits for it",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/answer-state.ts",
+    from: "        if (!by) return;",
+    to: "",
+    why: "a cancelled name dialog sends no answer",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/state.ts",
+    from: "{ ...(to === run.stage ? {} : { to }), note }",
+    to: "{ to, note }",
+    why: "a resume at the stage it stopped at names no stage",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/state.ts",
+    from: "        if (notice) sayIn(api, notice);\n        else onDone?.();",
+    to: "        onDone?.();",
+    why: "a run resumed with nothing to drive it keeps its card and says so",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/state.ts",
+    from: 'if (get().busy || reason === "") return;',
+    to: "if (get().busy) return;",
+    why: "Close needs a reason",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/state.ts",
+    from: "        if (choice === ATTACH) onOpenPane(ask);",
+    to: "",
+    why: "Attach opens the pane",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/decision-card.tsx",
+    from: "  const pressed = useAnswer((s) => s.choices.includes(label));",
+    to: "  const { choices } = useAnswer((s) => s);\n  const pressed = choices.includes(label);",
+    why: "typing the reason draws the field, not the options",
+  },
+  {
+    file: "packages/desktop/src/features/inbox/escalated-card.tsx",
+    from: "export function ResumePlanLine({ stage }: { readonly stage: string }) {\n  const to = useEscalated((s) => s.to);",
+    to: "export function ResumePlanLine({ stage }: { readonly stage: string }) {\n  const { to } = useEscalated((s) => s);",
+    why: "typing the note draws the note field, not the resume line",
+  },
 ];
